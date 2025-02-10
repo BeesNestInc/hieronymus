@@ -52,7 +52,7 @@ const dispatch = createEventDispatcher();
 import TaskInfo from './task-info.svelte';
 import FormError from '../common/form-error.svelte';
 import eventBus from '../../javascripts/event-bus.js';
-import {currentTask, currentInvoice, getStore} from '../../javascripts/current-record.js'
+import {currentTask, currentTransaction, getStore} from '../../javascripts/current-record.js'
 
 export  let users;
 export	let	status;
@@ -147,7 +147,7 @@ beforeUpdate(() => {
 });
 
 onMount(() => {
-	invoice = getStore(currentInvoice);
+	invoice = getStore(currentTransaction);
 })
 
 const	delete_ = (event) => {

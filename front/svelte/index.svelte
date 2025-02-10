@@ -24,9 +24,9 @@
         <Alert bind:alert={alert} {alert_level}></Alert>
         {#if ( status.current == 'users' )}
         <Users></Users>
-        {:else if ( status.current === 'invoices' || status.current === 'invoice')}
-        <Invoices
-          bind:status={status}></Invoices>
+        {:else if ( status.current === 'transactions' || status.current === 'transaction')}
+        <Transactions
+          bind:status={status}></Transactions>
         {:else if ( status.current === 'items' || status.current === 'item')}
         <Items
         	bind:status={status}
@@ -57,7 +57,7 @@ import Alert from './components/alert.svelte';
 import Login from './login/login.svelte';
 import SignUp from './login/signup.svelte';
 import Users from './users/users.svelte';
-import Invoices from './invoice/invoice.svelte';
+import Transactions from './transaction/transaction.svelte';
 import Items from './items/item.svelte';
 import Member from './member/member.svelte';
 import Task from './task/task.svelte';

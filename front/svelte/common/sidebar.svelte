@@ -74,10 +74,10 @@
         </a>
 			</li>
     	<li class="nav-item">
-				<a class={ status.current === 'invoice'  ? 'nav-link active': 'nav-link'}
-            href="/invoice/">
+				<a class={ status.current === 'transaction'  ? 'nav-link active': 'nav-link'}
+            href="/transaction/">
           <i class="nav-icon fas fa-circle"></i>
-          請求管理
+          取引管理
         </a>
 			</li>
     	<li class="nav-item">

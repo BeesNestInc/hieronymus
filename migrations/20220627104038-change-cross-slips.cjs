@@ -293,9 +293,13 @@ module.exports = {
       term: {
         type: Sequelize.INTEGER
       },
-    year: {
+    	year: {
         type: Sequelize.INTEGER
-    },
+    	},
+      taxIncluded: {
+      	type: Sequelize.BOOLEAN,
+      	defaultValue: false
+    	},
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE
@@ -341,10 +345,40 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       name: {
-        type: Sequelize.STRING
+        type: Sequelize.STRING,
+        unique: true,
+        allowNull: false
       },
       hash_password: {
-        type: Sequelize.STRING
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      deauthorizedAt: {
+      	type: Sequelize.DATE
+    	},
+      accounting: {
+      	type: Sequelize.BOOLEAN,
+        defaultValue: false
+    	},
+      fiscal_browsing: {
+      	type: Sequelize.BOOLEAN,
+        defaultValue: false
+    	},
+      approvable: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      administrable: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      customer_management: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      inventory_management: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
       },
       createdAt: {
         allowNull: false,
@@ -420,6 +454,9 @@ module.exports = {
       accountNo: {
         type: Sequelize.STRING
       },
+      invoiceNo: {
+        type: Sequelize.TEXT
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE
@@ -460,6 +497,15 @@ module.exports = {
       },
       description: {
         type: Sequelize.TEXT
+      },
+      invoiceNo: {
+        type: Sequelize.TEXT
+      },
+      createdBy: {
+        type: Sequelize.INTEGER
+      },
+      updatedBy: {
+        type: Sequelize.INTEGER
       },
       createdAt: {
         allowNull: false,

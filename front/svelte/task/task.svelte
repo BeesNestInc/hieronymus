@@ -35,7 +35,7 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import TaskEntry from './task-entry.svelte';
 import TaskList from './task-list.svelte';
-import {currentTask, currentInvoice, getStore} from '../../javascripts/current-record.js'
+import {currentTask, currentTransaction, getStore} from '../../javascripts/current-record.js'
 
 export let status;
 
@@ -136,7 +136,7 @@ const checkPage = () => {
           amount: 0,
           description: ''
         }]};
-      let invoice = getStore(currentInvoice);
+      let invoice = getStore(currentTransaction);
       if	( invoice )	{
 				task.customerId = invoice.customerId;
         task.customerName = invoice.customerName;

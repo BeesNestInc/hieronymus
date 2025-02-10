@@ -16,10 +16,10 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'customerId',
         as: 'customer'
 			});
-			this.hasMany(models.Invoice, {
+			this.hasMany(models.TransactionDocument, {
 				foreignKey: 'taskId',
 				sourceKey: 'id',
-				as: 'invoices'
+				as: 'transactions'
 			});
 			this.hasOne(models.Document, {
 				foreignKey: 'id',

@@ -19,7 +19,7 @@ import homeRouter from './routes/home.js';
 import formsRouter from './routes/forms.js';
 import customerRouter from './routes/customer.js';
 import voucherRouter from './routes/voucher.js';
-import invoiceRouter from './routes/invoice.js';
+import transactionRouter from './routes/transaction_document.js';
 import itemRouter from './routes/item.js';
 import memberRouter from './routes/member.js';
 import taskRouter from './routes/task.js';
@@ -179,7 +179,7 @@ app.use('/users', is_authenticated,(req, res, next) => {
 
 app.use('/customer', customerRouter);
 app.use('/voucher', voucherRouter);
-app.use('/invoice', invoiceRouter);
+app.use('/transaction', transactionRouter);
 app.use('/item', itemRouter);
 app.use('/member', memberRouter);
 app.use('/forms', formsRouter);

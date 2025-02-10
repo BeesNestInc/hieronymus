@@ -11,7 +11,7 @@ import trial_balance from './api_trial_balance.js';
 import customer from './api_customer.js';
 import voucher from './api_voucher.js';
 import user from './api_user.js';
-import invoice from './api_invoice.js';
+import transaction from './api_transaction_document.js';
 import admin from './api_admin.js';
 import changes from './api_changes.js';
 import setup from './api_setup.js';
@@ -43,12 +43,12 @@ router.delete('/user/:id', user.delete);
 router.get('/users/member', user.members);
 router.get('/users', user.list);
 
-router.get('/invoice', invoice.get);
-router.get('/invoice/:id', invoice.get);
-router.post('/invoice', invoice.post);
-router.put('/invoice', invoice.update);
-router.put('/invoice/:id', invoice.update);
-router.delete('/invoice/:id', invoice.delete);
+router.get('/transaction', transaction.get);
+router.get('/transaction/:id', transaction.get);
+router.post('/transaction', transaction.post);
+router.put('/transaction', transaction.update);
+router.put('/transaction/:id', transaction.update);
+router.delete('/transaction/:id', transaction.delete);
 
 router.get('/task', task.get);
 router.get('/task/:id', task.get);

@@ -8,8 +8,8 @@ import Customer from './customer.js';
 import Document from './document.js';
 import DocumentFile from './document-file.js';
 import FiscalYear from './fiscalyear.js';
-import Invoice from './invoice.js';
-import InvoiceDetail from './invoicedetail.js';
+import TransactionDocument from './transaction-document.js';
+import TransactionDetail from './transaction-detail.js';
 import MonthlyLog from './monthlylog.js';
 import Item from './item.js';
 import ItemClass from './itemclass.js';
@@ -50,8 +50,8 @@ const models = {
   Document: Document(sequelize, DataTypes),
   DocumentFile: DocumentFile(sequelize, DataTypes),
   FiscalYear: FiscalYear(sequelize, DataTypes),
-  Invoice: Invoice(sequelize, DataTypes),
-  InvoiceDetail: InvoiceDetail(sequelize, DataTypes),
+  TransactionDocument: TransactionDocument(sequelize, DataTypes),
+  TransactionDetail: TransactionDetail(sequelize, DataTypes),
   Item: Item(sequelize, DataTypes),
   ItemClass: ItemClass(sequelize, DataTypes),
   ItemFile: ItemFile(sequelize, DataTypes),

@@ -238,7 +238,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 import CustomerSelect from '../components/customer-select.svelte';
 import Document from '../components/document.svelte';
 import DocumentFiles from '../components/document-files.svelte';
-import TaskDetails from '../invoice/invoice-details.svelte';
+import TaskDetails from '../transaction/transaction-details.svelte';
 const dispatch = createEventDispatcher();
 
 export let task;
