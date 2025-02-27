@@ -7,12 +7,10 @@
     <label for="type" class="col-2 col-form-label">種別</label>
     <div class="col-sm-3">
       <select class="form-select" id="type" bind:value={voucher.type}>
-        <option value="-1">未設定</option>
-        <option value="1">受取請求書</option>
-        <option value="2">受取領収書</option>
-        <option value="11">差出請求書</option>
-        <option value="12">差出領収書</option>
-        <option value="99">その他</option>
+        <option value={-1}> -- 未設定 --</option>
+        {#each VOUCHER_TYPES as ent}
+        <option value={ent[1]}>{ent[0]}</option>
+        {/each}
       </select>
     </div>
   </div>
@@ -42,7 +40,6 @@
   </div>
   <div class="row mb-3">
     <label for="zip" class="col-2 col-form-label">相手先</label>
-
     <div class="col-10">
       <CustomerSelect
         on:startregister
@@ -66,7 +63,7 @@
     <div class="col-sm-2">
       <select class="form-control" id="taxClass"
         bind:value={voucher.taxClass}>
-        <option value="-1">未選択</option>
+        <option value={-1}> -- 未選択 --</option>
         {#each TAX_CLASS as ent}
         <option value={ent[1]}>{ent[0]}</option>
         {/each}
@@ -92,8 +89,12 @@
   <div class="row mb-3">
     <label class="col-2 col-form-label">ファイル</label>
     <div class="col-sm-10">
-      <div class="row">
-      {#if files }
+      <div class="row mb-3 w-100 file">
+      {#if ( !files || files.length === 0 )}
+      <div class="mt-3 p-3">
+        アップロードされたファイルはありません。
+      </div>
+      {:else}
       {#each files as file}
       <div class="file-item">
         <div style="margin:10px 0 5px 0;">
@@ -117,6 +118,13 @@
 </div>
 
 <style>
+.file {
+  min-height:200px;
+  padding: 10px;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
 .file-item {
   width:90px;
   height:120px;
@@ -132,7 +140,7 @@
 </style>
 
 <script>
-import {numeric, TAX_CLASS} from '../../../libs/utils';
+import {numeric, TAX_CLASS, VOUCHER_TYPES} from '../../../libs/utils';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
@@ -142,8 +150,6 @@ export	let	voucher;
 export	let	files;
 
 let	original_customers;
-let	customers;
-let	field_value;
 let customerKey;
 
 beforeUpdate(() => {
@@ -278,40 +284,4 @@ const onDrop = (event) => {
   }
 }
 
-const enterKey = (event) =>	{
-  field_value = event.target.value;
-}
-const leaveKey = (event) =>	{
-    
-}
-const changeKey = (event) =>{
-  let target = event.target;
-  if	( target.value != field_value )	{
-    let key = target.value;
-    customers = [];
-    for	( let i = 0; i < original_customers.length; i ++ )	{
-      if	((( original_customers[i].key ) &&
-           ( original_customers[i].key.match(key))) ||
-           ( original_customers[i].name.match(key) ))	{
-        customers.push(original_customers[i]);
-      }
-    }
-    let select = document.getElementById('customerId');
-    if	( select )	{
-      select.addEventListener('focusout', customerSelect);
-    }
-  }
-}
-const	customerSelect = (event)	=> {
-  console.log('target', event.target);
-  for	( let i = 0; i < customers.length; i ++ )	{
-    if	( customers[i].id == event.target.value)	{
-      voucher.customerId = customers[i].id;
-      voucher.invoiceNo = customers[i].invoiceNo;
-      customerKey = customers[i].name;
-      break;
-    }
-  }
-  customers = [];
-}
 </script>

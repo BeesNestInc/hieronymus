@@ -49,12 +49,13 @@ import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import VoucherInfo from './voucher-info.svelte';
+import {currentVoucher, getStore} from '../../javascripts/current-record.js'
 
 
-export	let	voucher;
+export let voucher;
+export let status;
 
 let	files;
-let update;
 let ok = true;
 let errorMessages = [];
 let disabled = false;
@@ -121,25 +122,38 @@ const save = (event) => {
   console.log('input', voucher);
   try {
     let	pr;
+    let create = false;
     console.log(voucher)
     if ( voucher.id  ) {
       voucher.id = parseInt(voucher.id);
       pr = update_voucher(voucher);
     } else {
       pr = create_voucher(voucher);
+      create = true;
     }
     pr.then((result) => {
-      update = true;
       console.log('result', result);
-      console.log('files', files.length);
-      for	( let i = 0; i < files.length ; i += 1 )	{
-        console.log('voucherId', files[i].voucherId);
-        if	( !files[i].voucherId )	{
-          files[i].voucherId = result.data.id;
-          bind_file(files[i]);
-        }
+      let voucher = result.data.voucher;
+      if	( files )	{
+      	console.log('files', files.length);
+      	for	( let i = 0; i < files.length ; i += 1 )	{
+        	console.log('voucherId', files[i].voucherId);
+        	if	( !files[i].voucherId )	{
+          	files[i].voucherId = voucher.id;
+          	bind_file(files[i]);
+        	}
+      	}
       }
-      close_();
+      if	( create )	{
+        window.history.replaceState(
+          status, "", `/voucher/${status.term}/entry/${voucher.id}`);
+        axios.get(`/api/voucher/${voucher.id}`).then((result) => {
+          voucher = result.data.voucher;
+          currentVoucher.set(voucher);
+        })
+      } else {
+        currentVoucher.set(voucher);
+      }
     });
   }
   catch(e) {
@@ -151,15 +165,16 @@ const save = (event) => {
 
 
 const clean_popup = () => {
-  voucher = null;
   files = [];
   ok = true;
   errorMessages = [];
 }
 
 const	close_ = (event) => {
+  currentVoucher.set(null);
   clean_popup();
-  dispatch('close', update);
+  window.history.back();
+  dispatch('close');
 }
 
 onMount(() => {
@@ -168,22 +183,6 @@ onMount(() => {
 
 beforeUpdate(() => {
   console.log('voucher-entry beforeUpdate', voucher);
-  update = false;
-  if	( !voucher )	{
-    voucher = {
-      issueDate: formatDate(new Date()),
-      paymentDate: null,
-      amount: "0",
-      taxClass: "-1",
-      tax: "0",
-      type: "-1"
-    };
-  } else {
-    if	( voucher.type )	{
-      voucher.type = voucher.type.toString();
-    }
-    voucher.taxClass = voucher.taxClass.toString();
-  }
 });
 
 const	delete_ = (event) => {

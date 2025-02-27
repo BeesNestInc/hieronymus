@@ -1,34 +1,34 @@
 <nav class="main-header navbar navbar-expand-lg navbar-light bg-light p-3">
-    <NavBar
-        term={term}
-        user={user.name}></NavBar>
+  <NavBar
+    term={term}
+    user={user.name}></NavBar>
 </nav>
 <aside 
-    class="main-sidebar sidebar-bg-dark sidebar-color-primary shadow">
-    <SideBar
-        user={user}
-        term={term}></SideBar>
+  class="main-sidebar sidebar-bg-dark sidebar-color-primary shadow">
+  <SideBar
+    user={user}
+    term={term}></SideBar>
 </aside>
 <main class="content-wrapper">
-    <div class="content">
-        <div class="container-fluid">
-            <Alert bind:alert={alert} {alert_level}></Alert>
-            <Voucher
-                user={user}
-                term ={term}
-                bind:alert={alert}
-                bind:alert_level={alert_level}></Voucher>
-        </div>
+  <div class="content">
+    <div class="container-fluid">
+      <Alert bind:alert={alert} {alert_level}></Alert>
+      <Voucher
+        user={user}
+        bind:status={status}
+        bind:alert={alert}
+        bind:alert_level={alert_level}></Voucher>
     </div>
+  </div>
 </main>
 <footer
-    class="main-footer">
-    <CommonFooter></CommonFooter>
+  class="main-footer">
+  <CommonFooter></CommonFooter>
 </footer>
 
 <script>
 import axios from 'axios';
-import {onMount} from 'svelte';
+import {onMount, beforeUpdate} from 'svelte';
 
 import NavBar from '../common/nav.svelte';
 import CommonFooter from '../common/footer.svelte';
@@ -41,11 +41,25 @@ export let term;
 let alert;
 let alert_level;
 let user = {};
+let status = {
+  term: term,
+  current: 'voucher'
+}
 
 onMount(() => {
-    user = axios.get('/api/user').then((res) => {
-        user = res.data;
-    });
+  user = axios.get('/api/user').then((res) => {
+    user = res.data;
+  });
+	window.onpopstate = (event) => {
+    console.log('maybe back', event);
+    let args = location.pathname.split('/');
+    status.current = args[1];
+	}
+})
+
+beforeUpdate(() => {
+  let args = location.pathname.split('/');
+  status.current = args[1];
 })
 
 </script>

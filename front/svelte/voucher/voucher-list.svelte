@@ -33,13 +33,11 @@
         <td>
           <select
               on:input={changeVoucherType}
-              bind:value={selectVoucherType}>
-            <option></option>
-            <option value="1">受取請求書</option>
-            <option value="2">受取領収書</option>
-            <option value="11">差出請求書</option>
-            <option value="12">差出領収書</option>
-            <option value="99">その他</option>
+              value={status.params ? parseInt(status.params.get('type')): -1}>
+            <option value={-1}> -- 未設定 --</option>
+            {#each VOUCHER_TYPES as ent}
+            <option value={ent[1]}>{ent[0]}</option>
+            {/each}
           </select>
         </td>
         <td>
@@ -164,15 +162,14 @@ th {
 import axios from 'axios';
 import CustomerSelect from '../components/customer-select.svelte';
 
-import {numeric, formatDate} from '../../../libs/utils';
+import {numeric, formatDate, VOUCHER_TYPES} from '../../../libs/utils';
 import {voucherType} from '../../../libs/voucher';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
-export	let	term;
-export	let	vouchers;
+export let status;
+export let vouchers;
 
-let selectVoucherType;
 let customerId;
 let upperAmount;
 let lowerAmount;
@@ -186,13 +183,15 @@ const compDate = (date, year, month, day) => {
 }
 
 beforeUpdate(() => {
-  //console.log('voucher-list beforeUpdate', term, vouchers);
+  //console.log('voucher-list beforeUpdate', vouchers);
+  console.log({status});
 });
 
 const changeVoucherType = (event) => {
-  let value = event.currentTarget.value;
-  //console.log({value});
-  dispatch('selectVoucherType', value);
+  let value = parseInt(event.currentTarget.value);
+  console.log({value});
+  status.params.set('type', value);
+  dispatch('selectVoucherType');
 }
 const changeCustomer = (event) => {
   let customerId = event.detail;
