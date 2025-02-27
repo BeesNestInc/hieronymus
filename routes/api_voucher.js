@@ -131,14 +131,17 @@ export default {
           };
       }
       if	( req.query.type )	{
-        where = {
-          [Op.and]: [
-            where,
-            {
-              type: parseInt(req.query.type)
-            }
-          ]
-        };
+        let type = parseInt(req.query.type);
+        if	( type > 0 )	{
+        	where = {
+          	[Op.and]: [
+            	where,
+            	{
+              	type: type
+            	}
+          	]
+        	};
+        }
       }
       if	( req.query.customer )	{
         where = {
@@ -226,7 +229,10 @@ export default {
 
           vouchers.push(voucher);
         }
-        res.json(vouchers);
+        res.json({
+          code: 0,
+          vouchers: vouchers
+      	});
       });
     } else {
       models.Voucher.findOne({
@@ -235,7 +241,10 @@ export default {
         },
         include: include
       }).then((voucher) => {
-        res.json(voucher);
+        res.json({
+          code: 0,
+          voucher: voucher
+        });
       });
     }
   },
@@ -244,12 +253,18 @@ export default {
     body.createdBy = req.session.user.id;
     body.updatedBy = req.session.user.id;
     //console.log('body:', body);
-    let voucher = await models.Voucher.create(body)
+    models.Voucher.create(body).then((voucher) => {
+      res.json({
+        code: 0,
+        voucher: voucher
+      });
+    }).catch((e) => {
+      res.json({
+        code: -1
+      });
+    })
     //console.log(voucher);
     
-    res.json({
-      id: voucher.id
-    });
   },
   update: async(req, res, next) => {
     let body = req.body;
@@ -260,7 +275,13 @@ export default {
     if	( voucher )	{
       voucher.set(body);
       voucher.save().then(() => {
-        res.json(voucher);
+        res.json({
+          voucher: voucher
+      	});
+      }).catch((e) => {
+        res.json({
+          code: -1
+        });
       });
     }
   },
