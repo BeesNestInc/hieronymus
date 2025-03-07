@@ -4,3 +4,4 @@ services:
 
   web:
     build: .
+    image: ""
