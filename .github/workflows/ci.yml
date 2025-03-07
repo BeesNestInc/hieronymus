@@ -1,0 +1,32 @@
+name: Docker Compose Test
+
+on:
+  push:
+    branches:
+      - "release/*"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Copy .env file
+        run: cp .env.example .env
+
+      - name: Build and Start Services
+        run: docker-compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+
+      - name: Wait for services to start
+        run: sleep 10  # DB 起動待ち
+
+      - name: Check if Web Service is Running
+        run: curl -I http://localhost:3010 || exit 1
+
+      - name: Stop and Clean up
+        run: docker-compose -f docker-compose.yml -f docker-compose.test.yml down
