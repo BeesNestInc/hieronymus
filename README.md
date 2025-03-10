@@ -24,7 +24,7 @@ HieronymusはDBにPostgresを使用します。あらかじめインストール
 
 1. ソースコードの取得
 ```
-$ git clone https://github.com/waspcojp/hieronymus.git
+$ git clone https://github.com/beesnestinc/hieronymus.git
 ```
 2. 設定ファイルの作成
 ```
@@ -51,7 +51,7 @@ $ npm run start
 ### Dockerを使用したインストール
 #### 最新版
 ```
-$ git clone https://github.com/waspcojp/hieronymus.git
+$ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
 $ docker compose -f docker-copose.yml -f docker-compose.override.yml up -d
 ```
@@ -59,7 +59,7 @@ $ docker compose -f docker-copose.yml -f docker-compose.override.yml up -d
 
 #### バージョン指定
 ```
-$ git clone https://github.com/waspcojp/hieronymus.git
+$ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
 $ cp .env.example .env # DOCKER_IMAGE_VERSION=[バージョン]に変更
 $ docker compose up -d
