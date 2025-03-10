@@ -1,7 +1,0 @@
-services:
-  db:
-    tmpfs: /var/lib/postgresql/data
-
-  web:
-    build: .
-    image: ""

@@ -1,4 +1,0 @@
-services:
-  web:
-    image: 'ghcr.io/BeesNestInc/hieronymus/hieronymus-web:latest'
-    pull_policy: always

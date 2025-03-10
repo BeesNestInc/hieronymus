@@ -49,20 +49,10 @@ $ npm run start
 デフォルトでは3010番ポートで動きます。
 
 ### Dockerを使用したインストール
-#### 最新版
 ```
 $ git clone https://github.com/waspcojp/hieronymus.git
 $ cd hieronymus
-$ docker compose -f docker-copose.yml -f docker-compose.override.yml up -d
-```
-しばらくすると、3010番ポートから利用を開始できます。
-
-#### バージョン指定
-```
-$ git clone https://github.com/waspcojp/hieronymus.git
-$ cd hieronymus
-$ cp .env.example .env # DOCKER_IMAGE_VERSION=[バージョン]に変更
-$ docker compose up -d
+$ docker compose up
 ```
 しばらくすると、3010番ポートから利用を開始できます。
 
