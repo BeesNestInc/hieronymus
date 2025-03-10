@@ -2,6 +2,10 @@ name: Create docker images
 
 on: [create]
 
+permissions:
+  contents: read
+  packages: write 
+  
 jobs:
   build:
     name: Build, push, and deploy
