@@ -22,7 +22,7 @@ jobs:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
-
+          
       - name: Set env
         run: |
           echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
@@ -41,4 +41,3 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
