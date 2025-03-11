@@ -1,3 +1,40 @@
 #!/bin/bash
-node /app/hieronymus/bin/check-db
-node /app/hieronymus/bin/www
+
+# Check environment
+if [ -z "$NODE_ENV" ] ||
+   [ -z "$POSTGRES_USER" ] ||
+   [ -z "$POSTGRES_PASSWORD" ] ||
+   [ -z "$POSTGRES_HOST" ] ||
+   [ -z "$POSTGRES_DATABASE" ]; then
+  echo "必要な環境変数NODE_ENV、POSTGRES_HOST、POSTGRES_USER、POSTGRES_PASSWORD、POSTGRES_DATABASEのいずれかが設定されていません。\n 環境変数を設定してから起動しなおしてください。"
+  exit 1
+fi
+
+# Setup PostgreSQL USER
+if [ "$CASSETTE_SERVER" = "true" ]; then
+  echo "PostgreSQLユーザーのセットアップを行います。環境変数で指定されたユーザーがすでに存在する場合は何も行いません。"
+  echo "PostgreSQLユーザーのチェックと作成を実行しています..."
+  psql -h $POSTGRES_HOST -U db_admin_user -d postgres -c "SELECT create_docker_app_user('$POSTGRES_USER', '$POSTGRES_PASSWORD');"
+  echo "PostgreSQLユーザーのチェックと作成が完了しました。"
+fi
+echo "PostgreSQL接続設定ファイルのチェックと作成を行います。"
+#node /app/hieronymus/bin/check-config
+node ./bin/check-config
+if [ $? -ne 0 ]; then
+  echo "Error: PostgreSQL接続設定ファイル作成中にエラーが発生しました。"
+  exit 1
+fi
+echo "PostgreSQL接続設定ファイルをもとにデータベースのチェックと作成を行います。"
+#node /app/hieronymus/bin/check-db
+node ./bin/check-db
+if [ $? -ne 0 ]; then
+  echo "Error: データベースのチェックと作成中にエラーが発生しました。"
+  exit 1
+fi
+echo "アプリケーションを起動します…"
+#node /app/hieronymus/bin/www
+node ./bin/www
+if [ $? -ne 0 ]; then
+  echo "Error: アプリケーション起動中にエラーが発生しました。"
+  exit 1
+fi
