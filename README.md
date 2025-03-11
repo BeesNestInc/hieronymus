@@ -53,7 +53,7 @@ $ npm run start
 ```
 $ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
-$ docker compose -f docker-copose.yml -f docker-compose.override.yml up -d
+$ docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
 ```
 しばらくすると、3010番ポートから利用を開始できます。
 
