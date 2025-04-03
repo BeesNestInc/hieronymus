@@ -72,3 +72,4 @@ typings/
 docker-histoy/
 config/config.json
 accounts.json
+*.map
