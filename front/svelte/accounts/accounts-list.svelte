@@ -1,5 +1,5 @@
 <table class="table table-bordered">
-  <thead class="table-light">
+  <thead>
     <tr>
       <th scope="col" style="width: 120px;">
         大分類
@@ -52,20 +52,19 @@
       </td>
       <td>
         {#if line.code}
-        <a class="account_link" href="#"
-            data-code={line.code}
-            data-mode="edit-account"
-            on:click={openAccount}>
+        <button type="button" class="btn btn-link"
+          on:click={() => {
+            editAccount(line.code);
+          }}>
           {line.account_name}
-        </a>
+        </button>
         {:else}
-        <a class="account_link btn btn-primary btn-sm" href="#"
-            data-mode="new-account"
-            data-acl={line.acl_id}
-            data-aclcode={line.acl_code}
-            on:click={openAccount}>
+        <button type="button" class="btn btn-primary btn-sm"
+          on:click={() => {
+            newAccount(line.acl_id, line.acl_code);
+          }}>
           <i class="bi bi-plus"></i>
-        </a>
+        </button>
         {/if}
       </td>
       <td>
@@ -76,20 +75,19 @@
       <td>
         {#if ( line.sub_code )}
         {#if (line.sub_code >= 0)}
-        <a class="account_link" href="#"
-            data-code={line.code}
-            data-sub_code={line.sub_code}
-            data-mode="edit-sub-account"
-            on:click={openAccount}>
+        <button type="button" class="btn btn-link"
+          on:click={() => {
+            editSubAccount(line.code, line.sub_code);
+          }}>
           {line.sub_account_name}
-        </a>
+        </button>
         {:else}
-        <a class="account_link btn btn-primary btn-sm" href="#"
-            data-code={line.code}
-            data-mode="new-sub-account"
-            on:click={openAccount}>
+        <button type="button" class="btn btn-primary btn-sm"
+          on:click={() => {
+            newSubAccount(line.code);
+          }}>
           <i class="bi bi-plus"></i>
-        </a>
+        </button>
         {/if}
         {/if}
       </td>
@@ -124,7 +122,7 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
-export	let	term;
+export	let	status;
 export	let	lines;
 export	let	accounts;
 
@@ -132,56 +130,74 @@ beforeUpdate(() => {
 	console.log('lines', lines);
 })
 
-const	openAccount = async (event) => {
-    event.preventDefault();
-	let dataset = event.currentTarget.dataset;
-	console.log('openAccount',
-		dataset.mode,
-		dataset.code,
-		dataset.sub_code
-	);
-	let mode = dataset.mode;
+const editAccount = (code) => {
 	let account;
-	if	( dataset.code )	{
-		for ( let i = 0; i < accounts.length ; i ++ ) {
-			account = accounts[i];
-			if ( account.code == dataset.code ) break;
-		}
-	} else {
-		let result = await axios.get(`/api/account-class/${dataset.acl}`);
-		let acl = result.data;
-		console.log({acl});
-		account = {
-			code: dataset.aclcode + '****',
-			major_name: acl.major,
-			middle_name: acl.middle,
-			minor_name: acl.minor,
-			klass_id: acl.id,
-			name: '',
-			key: '',
+	for ( let i = 0; i < accounts.length ; i ++ ) {
+		account = accounts[i];
+		if ( account.code === code ) break;
+	}
+	dispatch('open',{
+		account: account,
+		sub_account: null,
+		mode: 'edit_account'
+	});
+}
+const	newAccount = (id, code) => {
+	axios.get(`/api/account-class/${id}`).then((result) => {
+	  let acl = result.data;
+	  console.log({acl});
+	  let account = {
+		  code: code + '****',
+		  major_name: acl.major,
+		  middle_name: acl.middle,
+		  minor_name: acl.minor,
+		  klass_id: acl.id,
+		  name: '',
+		  key: '',
       debit: 0,
       credit: 0,
       balance: 0
-		};
+	  };
+	  dispatch('open',{
+		  account: account,
+		  sub_account: null,
+		  mode: 'new-account'
+	  });
+  });
+}
+
+const	editSubAccount = (code, sub_code) => {
+	let account;
+	for ( let i = 0; i < accounts.length ; i ++ ) {
+		account = accounts[i];
+		if ( account.code === code ) break;
 	}
 	let sub_account = null;
-	if ( dataset.sub_code ) {
-		for ( let i = 0; i < account.subAccounts.length ; i ++) {
-			sub_account = account.subAccounts[i];
-			if ( sub_account.code == dataset.sub_code ) break;
-		}
-	}
-	if	( mode == 'new-sub-account' )	{
-		sub_account = {
-      debit: 0,
-      credit: 0,
-      balance: 0
-    };
+	for ( let i = 0; i < account.subAccounts.length ; i ++) {
+		sub_account = account.subAccounts[i];
+		if ( sub_account.code === sub_code ) break;
 	}
 	dispatch('open',{
 		account: account,
 		sub_account: sub_account,
-		mode: dataset.mode
+		mode: "edit-sub-account"
+	});
+}
+const	newSubAccount = async (code) => {
+	let account;
+	for ( let i = 0; i < accounts.length ; i ++ ) {
+		account = accounts[i];
+		if ( account.code == code ) break;
+	}
+	let sub_account  = {
+    debit: 0,
+    credit: 0,
+    balance: 0
+	}
+	dispatch('open',{
+		account: account,
+		sub_account: sub_account,
+		mode: 'new-sub-account'
 	});
 }
 </script>

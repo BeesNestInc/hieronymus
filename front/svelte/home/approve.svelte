@@ -1,3 +1,4 @@
+{#if ( status.user.approvable )}
 {#if ( count > 0 ) }
 <div class="card">
   <div class="card-header">
@@ -31,7 +32,10 @@
               {line.month}/{line.day}
             </td>
             <td style="width:20px;" class='number'>
-              <a href="#" data-no={line.no} on:click={openSlip}>
+              <a href="#"
+                on:click|preventDefault={() => {
+                  openSlip(line.year, line.month, line.no);
+                }}>
                 {line.no}
               </a>
             </td>
@@ -52,23 +56,22 @@
 <CrossSlipModal
 	slip={slip}
 	bind:modal={modal}
-	term={term}
-	user={user}
+	term={status.term}
+	user={status.user}
 	accounts={accounts}
 	bind:init={init}
 	on:close={close_}></CrossSlipModal>
-
+{/if}
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import Modal from 'bootstrap/js/dist/modal';
-import {set_accounts} from '../../javascripts/cross-slip';
+import {setAccounts} from '../../javascripts/cross-slip';
 
-export let term;
+export let status;
 export let toast;
-export let user;
 
 let count = 0;
 let slips = [];
@@ -83,7 +86,7 @@ const setupAccount = () => {
 	accounts = [];
 	axios.get(`/api/accounts`).then((res) => {
 		accounts = res.data;
-		set_accounts(accounts);
+		setAccounts(accounts);
 	});
 }
 
@@ -91,27 +94,12 @@ const close_ = (event) => {
 	getSlips();
 }
 
-const openSlip = (event) => {
-  event.preventDefault();
-	let no = event.target.dataset.no;
-
-	//console.log('openSlip', no, slips);
-
-  let thisSlip = null;
-	for ( let i = 0; i < slips.length; i ++ ) {
-		if ( slips[i].no == no ) {
-			thisSlip = slips[i];
-			break;
-		}
-	}
-  if  ( slip )  {
-    axios.get(`/api/cross_slip/${thisSlip.year}/${thisSlip.month}/${thisSlip.no}`).then((result) => {
-      slip = result.data;
-      init = true;
-      //console.log('slip', slip);
-      modal.show();
-    })
-  }
+const openSlip = (year, month, no) => {
+  axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
+    slip = result.data;
+    init = true;
+    modal.show();
+  })
 }
 
 const getSlips = () => {

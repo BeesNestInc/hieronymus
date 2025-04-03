@@ -25,23 +25,35 @@ export const numeric = (s) => {
   let sign;
   
   if ( s ) {
+/*
+    s = s.replaceAll('０','0')
+     		 .replaceAll('１','1')
+    		 .replaceAll('２','2')
+		     .replaceAll('３','3')
+    		 .replaceAll('４','4')
+		     .replaceAll('５','5')
+		     .replaceAll('６','6')
+		     .replaceAll('７','7')
+		     .replaceAll('８','8')
+		     .replaceAll('９','9')
+*/
     if ( typeof s == 'number' ) {
-    ret = s;
+    	ret = s;
     } else {
     if ( s.length > 0 ) {
       if ( s[0] == '-' ) {
-      sign = -1;
+      	sign = -1;
       } else {
-      sign = 1;
+      	sign = 1;
       }
       let ss = s.replace(/[\D,\s]/g,'');
       if ( ss.length > 0 ) {
-      ret = parseInt(ss) * sign;
+      	ret = parseInt(ss) * sign;
       } else {
-      ret = 0;
+      	ret = 0;
       }
     } else {
-    ret = 0;
+    	ret = 0;
     }
     }
   } else {
@@ -68,7 +80,6 @@ export const BANK_ACCOUNT_TYPE = [
 ]
 
 export const TAX_CLASS = [
-  [ '未選択', -1],
   [ '非課税', 0],
   [ '内税',   1],
   [ '外税',   2],

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import path from 'path';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 const realPath = (name) => {
@@ -10,7 +10,7 @@ const realPath = (name) => {
 export default defineConfig({
   cacheDir: 'node_modules/.vite-cache',
   root: path.resolve(__dirname, 'front/javascripts'),
-  base: '/dist/',
+  base: '/forms/',
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     cssUrl: 'relative',
@@ -18,17 +18,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         common: realPath('common.js'),
-        home: realPath('home.js'),
-        accounts: realPath('accounts.js'),
-        journal: realPath('journal.js'),
-        ledger: realPath('ledger.js'),
-        trial_balance: realPath('trial-balance.js'),
-        customer: realPath('customer.js'),
-        voucher: realPath('voucher.js'),
-        'bank-ledger': realPath('bank-ledger.js'),
         index: realPath('index.js'),
-        changes: realPath('changes.js'),
-        setup: realPath('setup.js')
+        setup: realPath('setup.js'),
+        form: realPath('form.js')
       },
       output: {
         entryFileNames: '[name].js',
@@ -42,14 +34,30 @@ export default defineConfig({
       },
     },
   },
+  preprocess: vitePreprocess(),
   esbuild: {
     minify: true
+  },
+  optimizeDeps: {
+    include: ['@tinymce/tinymce-svelte']
   },
   plugins: [
     svelte({
       compilerOptions: {
-        dev: process.env.NODE_ENV !== 'production'
-      }
+        dev: process.env.NODE_ENV !== 'production',
+        // TODO アクセシビリティチェックを無効にする
+      },
+      compilerWarnings: {
+        'a11y-img-missing-alt': 'ignore',
+      },
+      onwarn: (warning, handler) => {
+        // a11y関連の警告は全部無視
+        if (warning.code && warning.code.startsWith('a11y-')) return;
+        if (warning.code === 'a11y-img-missing-alt') return;
+    
+        // それ以外はデフォルトのハンドラで処理
+        handler(warning);
+      },
     }),
     viteStaticCopy({
       targets: [

@@ -27,10 +27,14 @@ export default (sequelize, DataTypes) => {
         foreignKey: 'voucherId',
         as: 'files'
       })
+			this.belongsTo(models.VoucherClass, {
+				sourceKey: 'voucherClassId',
+        as: 'voucherClass'
+			});
     }
   }
   Voucher.init({
-    type: DataTypes.INTEGER,
+    voucherClassId: DataTypes.INTEGER,
     issueDate: DataTypes.DATEONLY,
     paymentDate: DataTypes.DATEONLY,
     customerId: DataTypes.INTEGER,

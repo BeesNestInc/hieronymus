@@ -17,14 +17,10 @@ import logger from 'morgan';
 import cookieParser from 'cookie-parser';
 import homeRouter from './routes/home.js';
 import formsRouter from './routes/forms.js';
-import customerRouter from './routes/customer.js';
-import voucherRouter from './routes/voucher.js';
-import transactionRouter from './routes/transaction_document.js';
-import itemRouter from './routes/item.js';
-import memberRouter from './routes/member.js';
-import taskRouter from './routes/task.js';
 import {is_authenticated} from './libs/user.js';
+import models from './models/index.js';
 
+import modules from './config/module-list.js';
 import env from './config/env.js';
 global.env = env;
 
@@ -70,122 +66,55 @@ app.use('/dist', express.static(path.join(__dirname, './dist')));
 app.use('/style', express.static(path.join(__dirname, './front/stylesheets')));
 app.use('/public', express.static(path.join(__dirname, './public')));
 
-/*
-app.use('/journal/:term', is_authenticated, (req, res, next) => {
-  res.render('journal.spy', {
-    term: req.params.term,
-    user: User.current(req)
-  });
-});
-*/
-app.use('/journal/:year/:month', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('journal.spy', {
-      year: req.params.year,
-      month: req.params.month,
-      term: req.session.term,
-      user: req.session.user.name
-    });
+const screen = (req, res, next) => {
+  console.log('current', req.params.current);
+  console.log('command', req.params.command);
+  let per = modules.find((ent) => {
+    return	( req.params.current === ent.name );
+  })
+  if	( per )	{
+  	if ( !per.authority || per.authority(req.session.user) )	{
+    	res.render('index.spy', {
+      	title: per.title,
+      	term: req.session.term,
+    	});
+  	} else {
+    	res.redirect('/home');
+    }
   } else {
-    res.redirect('/home');
+    res.sendStatus(404);
   }
-});
+}
 
-app.use('/ledger/:term/:account', is_authenticated, (req, res, next) => {
+const voucherFile = (req, res, next) => {
+  console.log('/voucher/file', req.params.id);
   if ( req.session.user.accounting )	{
-    res.render('ledger.spy', {
-      term: req.session.term,
-      account: req.params.account,
-      user: req.session.user.name
-    });
+    models.VoucherFile.findOne({
+      where: {
+        id: req.params.id
+      }
+    }).then((content) => {
+      res.set('Content-Type', content.mimeType);
+      res.send(content.body);
+    })
   } else {
     res.redirect('/home');
   }
-});
-app.use('/changes/:term/:account', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('changes.spy', {
-      term: req.session.term,
-      account: req.params.account,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/bank-ledger/:term', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('bank-ledger.spy', {
-      term: req.session.term,
-      account: req.params.account,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/bank-ledger/:term/:account', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('bank-ledger.spy', {
-      term: req.session.term,
-      account: req.params.account,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/bank-ledger/:term/:account/:subaccount', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('bank-ledger.spy', {
-      term: req.session.term,
-      account: req.params.account,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/accounts/:term', is_authenticated, (req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('accounts.spy', {
-      term: req.session.term,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/trial-balance', is_authenticated,(req, res, next) => {
-  if ( req.session.user.accounting )	{
-    res.render('trial-balance.spy', {
-      term: req.session.term,
-      user: req.session.user.name
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
-app.use('/users', is_authenticated,(req, res, next) => {
-  if ( req.session.user.administrable)	{
-    res.render('index.spy', {
-      term: req.session.term
-    });
-  } else {
-    res.redirect('/home');
-  }
-});
+}
 
 
-app.use('/customer', customerRouter);
-app.use('/voucher', voucherRouter);
-app.use('/transaction', transactionRouter);
-app.use('/item', itemRouter);
-app.use('/member', memberRouter);
-app.use('/forms', formsRouter);
-app.use('/task', taskRouter);
-app.use('/api', apiRouter);
 app.use('/', homeRouter);
+
+app.get('/voucher/file/:id', is_authenticated, voucherFile);
+app.use('/forms', formsRouter);
+app.use('/api', apiRouter);
+
+app.use('/:current/:command/:arg1/:arg2/:arg3', is_authenticated, screen);
+app.use('/:current/:command/:arg1/:arg2', is_authenticated, screen);
+app.use('/:current/:command/:arg1', is_authenticated, screen);
+app.use('/:current/:id', is_authenticated, screen);
+app.use('/:current', is_authenticated, screen);
+
 
 export default app;
 

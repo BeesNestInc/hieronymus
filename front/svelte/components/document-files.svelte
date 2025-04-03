@@ -1,36 +1,42 @@
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="row mb-3 w-100 file"
-  on:drop={onDrop}
-  on:dragover={onDragOver}>
-  {#if !files || files.length === 0}
-  <div class="mt-3 p-3">
-    アップロードされたファイルはありません。
-  </div>
-  {:else}
-  {#each files as file}
-  <div class="col-2">
-    <div style="margin:10px 0 5px 0;">
-      <button type="button" on:click={() => {
-        deleteFile(file.id)
-      }}>
-        <i class="fas fa-trash"></i>
-      </button>
+<div class="document">
+  <div class="row mb-3 w-100 file"
+    on:drop={onDrop}
+    on:dragover={onDragOver}>
+    {#if !files || files.length === 0}
+    <div class="mt-3 p-3">
+      アップロードされたファイルはありません。
     </div>
-    <div style="text-align:center;">
-      {#if ( file.mimeType.match(/^image\//) ) }
-      <a href="/api/document/file/{file.id}" target="_blank">
-        <img src="/api/document/file/{file.id}" style="max-width: 100%;"/>
-      </a>
-      {:else}
-      <a href="/api/document/file/{file.id}" download={file.name}>
-        <img src="/public/file_icons/{fileIcon(file.mimeType)}" class="w-100" />
-        <span style="">{file.name}</span>
-      </a>
-      {/if}
+    {:else}
+    {#each files as file}
+    <div class="col-2">
+      <div style="margin:10px 0 5px 0;">
+        <button type="button" on:click={() => {
+          deleteFile(file.id)
+        }}>
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+      <div style="text-align:center;">
+        {#if ( file.mimeType.match(/^image\//) ) }
+        <a href="/api/document/file/{file.id}" target="_blank">
+          <img src="/api/document/file/{file.id}" style="max-width: 100%;"/>
+        </a>
+        {:else if ( file.mimeType === "application/pdf" )}
+        <a href="/api/document/file/{file.id}" target="_blank">
+          <img src="/public/file_icons/{fileIcon(file.mimeType)}" class="w-100" />
+        </a>
+        {:else}
+        <a href="/api/document/file/{file.id}" download={file.name}>
+          <img src="/public/file_icons/{fileIcon(file.mimeType)}" class="w-100" />
+          <span style="">{file.name}</span>
+        </a>
+        {/if}
+      </div>
     </div>
+    {/each}
+    {/if}
   </div>
-  {/each}
-  {/if}
 </div>
 
 <script>

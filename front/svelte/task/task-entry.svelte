@@ -1,27 +1,26 @@
 <div class="entry">
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-      <h5 class="entry-title">案件情報</h5>
-    </div> 
-  </nav>
+  <div class="page-title d-flex justify-content-between">
+    <h1>案件情報</h1>
+  </div> 
   <div class="row full-height fontsize-12pt">
-    <div class="entry-content">
-      <div class="entry-body">
+    <div class="content">
+      <div class="body">
         <FormError
         	messages={errorMessages}></FormError>
         <TaskInfo
           users={users}
           on:startregister={() => { disabled = true}}
           on:endregister={() => { disabled = false}}
+          on:openTransaction
           bind:task={task}
           bind:files={files}></TaskInfo>
       </div>
-      <div class="entry-footer">
+      <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={back}>もどる</button>
         {#if ( task && task.id && task.id > 0 )}
         <button type="button" class="btn btn-danger" disabled={disabled}
-          on:click={delete_}
+          on:click={deleteTask}
           id="delete-button">削除</button>
         <button type="button" class="btn btn-primary" disabled={disabled}
           on:click={() => {
@@ -34,7 +33,7 @@
         <button type="button" class="btn btn-primary" disabled={disabled}
           on:click={save}
           id="save-button">保存</button>
-        {#if ( task && task.id && !invoice)}
+        {#if ( task && task.id && !transaction)}
         <button type="button" class="btn btn-info"
           on:click={create}
           id="save-button">取引文書作成</button>
@@ -43,6 +42,14 @@
     </div>
   </div>
 </div>
+
+<OkModal
+  bind:this={modal}
+  title={title}
+  description={description}
+  on:answer={operation}
+  ></OkModal>
+
 <script>
 import axios from 'axios';
 import {numeric, formatDate} from '../../../libs/utils.js';
@@ -51,6 +58,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import TaskInfo from './task-info.svelte';
 import FormError from '../common/form-error.svelte';
+import OkModal from '../common/ok-modal.svelte';
 import eventBus from '../../javascripts/event-bus.js';
 import {currentTask, currentTransaction, getStore} from '../../javascripts/current-record.js'
 
@@ -58,11 +66,15 @@ export  let users;
 export	let	status;
 export	let task;
 
-let update;
 let disabled = false;
 let files;
-let invoice;
+let transaction;
 let errorMessages = [];
+
+let modal;
+let title;
+let description;
+let operation = () => {};
 
 const create_task = async (_task) => {
   let result = await axios.post('/api/task', _task);
@@ -76,11 +88,37 @@ const update_task = async (_task) => {
   console.log(result);
   return	(result);
 }
-const delete_task = (_task) => {
-  console.log('delete_task', _task);
-  let result = axios.delete(`/api/task/${_task.id}`);
-  console.log(result);
-	return	(result);
+const deleteTask = (event) => {
+  console.log('deleteTask', task);
+  title = '案件の削除';
+  description = `
+<table style="font-size:12px;">
+  <tbody>
+    <tr>
+			<td>相手先</td><td>${task.customerName}</td>
+		</tr>
+    <tr>
+			<td>件名</td><td>${task.subject}</td>
+		</tr>
+    <tr>
+			<td>担当</td><td>${task.handleUser.member.tradingName}</td>
+    </tr>
+  </tbody>
+`;
+  operation = doDelete;
+  modal.show();
+}
+
+const doDelete = async (event) => {
+  if	( event.detail )	{
+  	try {
+  		let result = await axios.delete(`/api/task/${task.id}`);
+  		console.log(result);
+    	back();
+  	} catch (e) {
+	    console.log(e);
+  	}
+  }
 }
 
 const save = () => {
@@ -98,7 +136,6 @@ const save = () => {
       create = true;
     }
     pr.then((result) => {
-      update = true;
       console.log('result', result);
       if  ( !result.data.code ) {
         task = result.data.task;
@@ -122,8 +159,8 @@ const save = () => {
 const create = () => {
 	currentTask.set(task);
   window.history.pushState(
-    status, "", `/invoice/new`);
-  status.current = 'invoice';
+    status, "", `/transaction/new`);
+  status.current = 'transaction';
   status.state = 'new';
 }
 
@@ -136,7 +173,7 @@ const	back = (event) => {
 
 beforeUpdate(() => {
   //console.log('task-entry beforeUpdate', task);
-  update = false;
+/*
   if	( !task )	{
     task = {
       issueDate: formatDate(new Date()),
@@ -144,23 +181,11 @@ beforeUpdate(() => {
       document: {}
     };
   }
+*/
 });
 
 onMount(() => {
-	invoice = getStore(currentTransaction);
+	transaction = getStore(currentTransaction);
 })
 
-const	delete_ = (event) => {
-  try {
-    console.log('delete');
-    delete_task(task).then(() => {
-      back();
-    });
-  }
-  catch(e) {
-    console.log(e);
-    // can't delete
-    //	TODO alert
-  }
-}
 </script>

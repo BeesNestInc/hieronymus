@@ -3,68 +3,46 @@ import fs from 'fs';
 const Op = models.Sequelize.Op;
 import Mime from 'mime';
 
-const getFiles = async (id) => {
-  let files = await models.ItemFile.findAll({
-    where: {
-      itemId: id
-    },
-    attributes: {
-      exclude: ['body']
-    }
-  });
-  for	( let i = 0 ; i < files.length; i += 1 )	{
-    if	( files[i].mimeType.match(/^image\//) )	{
-      let file = await models.ItemFile.findOne({
-          where: {
-            id: files[i].id
-          },
-          attributes: {
-            include: ['body']
-          }
-        });
-      files[i].body = file.body.toString('base64');
-    } else {
-      files[i].body = '';
-    }
-  }
-  return	(files);
-}
-
 export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id =  req.params.id;
-    //console.log('/api/item/', id);
+    let include = [
+      {
+        model: models.Document,
+      	as: 'document',
+      	include: [
+        	{
+	          model: models.DocumentFile,
+  	        as: 'files',
+    	      attributes: [ 'id', 'mimeType']
+      	  }
+      	]
+      }
+    ];
+  //console.log('/api/item/', id);
     if	( !id )	{
       let query = {
         order: [
           ['name', 'ASC']
-        ]
+        ],
+        include: include
       };
       console.log('query', req.query);
       if  ( !req.query.product ) {
-        query.include = [
-          {
-            model: models.ItemClass,
-            as: 'itemClass'
-          }
-        ];
+        query.include.push({
+          model: models.ItemClass,
+          as: 'itemClass'
+        });
       } else {
-        query.include = [
-          {
-            model: models.ItemClass,
-            as: 'itemClass',
-            where: {
-              product: ( req.query.product === 'true' ) ? true : false
-            }
+        query.include.push({
+          model: models.ItemClass,
+          as: 'itemClass',
+          where: {
+            product: ( req.query.product === 'true' ) ? true : false
           }
-        ];
+        });
       }
-      query.include.push({
-        model: models.ItemFile,
-        as: 'files',
-        attributes: [ 'id', 'mimeType']
-      });
       if	( req.query.key )	{
         query.where = {
           key: {
@@ -83,34 +61,102 @@ export default {
       }
       console.log(JSON.stringify(query, ' ', 2));
       models.Item.findAll(query).then( async(items) => {
-        res.json(items);
+        res.json({
+          items: items
+        });
       });
     } else {
-      models.Item.findByPk(id).then((item) => {
-        res.json(item);
+      models.Item.findByPk(id, {
+        include: include
+      }).then((item) => {
+        res.json({
+          item: item
+        });
       });
     }
   },
-  post: (req, res, next) => {
+  post: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let body = req.body;
+    body.createdBy = req.session.user.id;
+    body.updatedBy = req.session.user.id;
+    body.id = undefined;
+    console.log(JSON.stringify(body, ' ', 2 ));
+    if	( body.document.descriptionType )	{
+      let document = await models.Document.create({
+        issueDate: new Date(),
+        title: body.name,
+        descriptionType: body.document.descriptionType,
+        description: body.document.description,
+        handledBy: body.handledBy,
+        createdBy: body.createdBy,
+        updatedBy: body.updatedBy
+      });
+      body.documentId = document.id;
+    }
     models.Item.create(body).then((item) => {
       //console.log(item);
-      res.json(item);
+      res.json({
+        item: item
+    	});
     });
   },
-  update: async(req, res, next) => {
+  update: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let body = req.body;
     let id = req.params.id ? req.params.id : body.id;
-
-    let item = await models.Item.findByPk(id)
-    if	( item )	{
+    models.Item.findByPk(id, {
+      include: [
+        {
+          model: models.Document,
+          as: 'document'
+        }
+      ]
+    }).then(async(item) => {
+      console.log(item);
+      let documentId = item.documentId;
+      let _item = item.dataValues;
       item.set(body);
+      if	(( !body.document.descriptionType ) &&
+           ( item.documentId ) )	{
+        await models.Document.destroy({
+          where: {
+            id: item.documentId
+          }
+        })
+        item.documentDocumentId = null;
+      }
+      if	(( body.document ) &&
+           ( body.document.descriptionType ))	{
+        if	( documentId )	{
+          _item.document.issueDate = body.issueDate;
+          _item.document.title = body.name;
+          _item.document.descriptionType = body.document.descriptionType;
+          _item.document.description = body.document.description;
+          _item.document.handledBy = body.handledBy;
+          _item.document.createdBy = body.createdBy;
+          _item.document.updatedBy = body.updatedBy;
+          console.log(_item.document);
+          await _item.document.save();
+        } else {
+          let document = await models.Document.create({
+            issueDate: new Date(),
+            title: body.subject,
+            descriptionType: body.document.descriptionType,
+            description: body.document.description,
+            handledBy: body.handledBy,
+            createdBy: body.createdBy,
+            updatedBy: body.updatedBy
+          });
+          item.documentId = document.id;
+        }
+      }
       item.save().then(() => {
-        res.json(item);
+        res.json({
+          item: item
+      	});
       });
-    }
+    });
   },
   delete: async(req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -125,86 +171,47 @@ export default {
       });
     }
   },
-  upload: (req, res, next) => {
+  classesGet: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    let item_id = req.params.id ? parseInt(req.params.id) : null;
-    let name = req.files.file.name;
-    let tmp_name = req.files.file.path;
-    let body = fs.readFileSync(tmp_name);
-    let	mime_type = Mime.getType(tmp_name);
-    models.ItemFile.create({
-      name: name,
-      itemId: item_id,
-      mimeType: mime_type,
-      body: body
-    }).then	((ret) => {
-      console.log(ret);
-      ret.body = ret.body.toString('base64');
+    models.ItemClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((result) => {
       res.json({
-            code: 0,
-            file: ret
-          });
-    }).catch((err) => {
-      console.log(err);
-      res.json({
-            code: -1
-          });
-    });
-  },
-  files: async (req, res, next) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    let id =  req.params.id ? parseInt(req.params.id): null;
-    console.log('/api/item/files', id);
-    if	( id )	{
-      let files = await getFiles(id);
-      res.json(files);
-    }
-  },
-  bind: (req, res, next) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    let	body = req.body;
-    models.ItemFile.findByPk(body.id).then((file) => {
-      file.itemId = body.itemId;
-      file.save().then(() => {
-        res.json({
-          code: 0
-        });
-      }).catch((e) => {
-        console.log('error', e);
-        res.json({
-          code: -1
-        });
+        values: result
       })
+    }).catch((e) => {
+      console.log(e);
+      res.json({
+        code: -1
+      });
     })
   },
-  deleteFile: (req, res, next) => {
+  classesPut: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    let id = parseInt(req.body.id);
-    console.log('deleteFile', id);
-    models.ItemFile.findByPk(id).then((file) => {
-      file.destroy().then(() => {
-        res.json({
-          code: 0
-        });
-      }).catch((e) => {
-        res.json({
-          code: -1
-        });
-      });
-    }).catch((e) => {
+    let kinds = req.body.values;
+    for ( const kind of kinds ) {
+      if  ( kind.id ) {
+        let result = await models.ItemClass.findByPk(kind.id);
+        if  ( !kind.name )  {
+          await result.destroy();
+        } else {
+          result.set(kind);
+          await result.save();
+        }
+      } else {
+        await models.ItemClass.create(kind);
+      }
+    }
+    models.ItemClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
       res.json({
-        code: -1
+        values: kinds
       })
-    });
-  },
-  classes: (req, res, next) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    models.ItemClass.findAll().then((result) => {
-      res.json(result)
-    }).catch((e) => {
-      res.json({
-        code: -1
-      });
     })
   }
 };

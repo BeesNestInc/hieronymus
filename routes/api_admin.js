@@ -15,7 +15,7 @@ const backup = async () => {
   const backupFilePath = path.join(backupDir, `${config.database}-${now}.dump`);
   const command = `PGPASSWORD='${config.password}' pg_dump -U ${config.username} -h ${config.host}  -p ${config.port} -b -f ${backupFilePath} ${config.database}`;
 
-  console.log({command});
+  //console.log({command});
   return  (Exec(command));
 }
 
@@ -29,7 +29,7 @@ const backups = async(req, res, next) => {
       if  ( m = ent.match(rex) )   {
         let name = ent.split('.')[0];
         let d = parse(m[1], 'YYYYMMDDHHmmss');
-        console.log(m[1], d.toLocaleString());
+        //console.log(m[1], d.toLocaleString());
         files.push(d);
       }
     })
@@ -67,7 +67,7 @@ const restore = async(json) => {
 
 const remove = async(json) => {
   let date = new Date(json);
-  console.log({date});
+  //console.log({date});
   const file = format(date, 'YYYYMMDDHHmmss');
   const backupDir = global.env.backup_dir || path.join(__dirname, '..');
   const backupFilePath = path.join(backupDir, `${config.database}-${file}.dump`);

@@ -1,6 +1,6 @@
 <div class="card">
   <div class="card-header">
-    <h3 class="card-title">バックアップ</h3>
+    <h5 class="card-title">バックアップ</h5>
   </div>
   <div class="card-body">
     <button class="btn btn-primary" on:click|preventDefault={backup}>
@@ -116,9 +116,7 @@ const doRestore = (ev) => {
   }
 }
 const doRemove = (ev) => {
-  toast.show('バックアップ', 'バックアップ削除しています')
   axios.delete(`/api/admin/backup/${removeFile.toJSON()}`).then(() => {
-    toast.remove();
     toast.show('バックアップ', 'バックアップ削除しました')
     files = undefined;
   })

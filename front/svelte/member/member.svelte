@@ -1,28 +1,16 @@
-{#if ( state === 'list' )}
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-  <div class="container-fluid">
-    <span class="navbar-brand">役職員一覧</span>
-    <ul class="navbar-nav me-auto mb-2">
-      <li class="nav-member">
-        <button type="button" class="btn btn-primary"
-          on:click={openEntry}
-          id="member-info">役職員入力&nbsp;<i class="bi bi-pencil-square"></i></button>
-      </li>
-    </ul>
-  </div> 
-</nav>
-<div class="row body-height">
-  <MemberList
-    members={members}
-    classes={classes}
-    on:selectClass={selectClass}
-    on:open={openEntry}
-    ></MemberList>
-</div>
-{:else if ( state === 'entry' || state === 'new' )}
+{#if ( status.state === 'list' )}
+<MemberList
+  members={members}
+  classes={classes}
+  bind:status={status}
+  on:selectClass={selectClass}
+  on:open={openEntry}
+  ></MemberList>
+{:else if ( status.state === 'entry' || status.state === 'new' )}
   <MemberEntry
     classes={classes}
     users={users}
+    bind:status={status}
     bind:member={member}
     on:close={closeEntry}>
   </MemberEntry>
@@ -32,133 +20,108 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import MemberEntry from './member-entry.svelte';
 import MemberList from './member-list.svelte';
+import {currentMember, getStore} from '../../javascripts/current-record.js'
+import {parseParams, buildParam} from '../../javascripts/params.js';
+
+export let status;
 
 let	member;
-let members;
-let users;
-let current_params = new Map();
-let state = 'list';
-let classes;
+let members = [];
+let users = [];
+let classes = [];
 
 const selectClass = (event) => {
-  update({
+  updateMember({
     memberClassId: event.detail
   });
 }
 
-const update = (_params) => {
-  if	( _params )	{
-    Object.keys(_params).map((key) => {
-      if	( !_params[key] )	{
-        current_params.delete(key);
-      } else {
-        current_params.set(key,_params[key]);
-      }
-    });
-  }
-  //console.log('current_params', current_params);
-  let _array = [];
-  current_params.forEach((value, key) => {
-    console.log('key, value', key, value);
-    _array.push(encodeURI(`${key}=${value}`));
-  });
-  let param = _array.join('&');
+const updateMember = (_params) => {
+  let param = buildParam(status, _params);
   console.log('param', param);
   axios.get(`/api/member?${param}`).then((result) => {
-    members = result.data;
+    members = result.data.members;
     console.log('members', members);
   });
   if	( _params )	{
     window.history.pushState(
-      current_params, "", `${location.pathname}?${param}`);
+      status, "", `${location.pathname}?${param}`);
   }
 }
 
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
   member = event.detail;
-  if ( !member.id )	{
-    member = {
-      userId: 0,
-      officialSex: 0,
-      resignReason: 0,
-      accountType: 0
-    };
-    state = 'new';
+  if ( !member || !member.id )	{
+    status.state = 'new';
+    member = null;
     window.history.pushState(
-      null, "", `/member/new`);
+      status, "", `/member/new`);
   } else {
-    state = 'entry';
-    window.history.pushState(
-      null, "", `/member/entry/${member.id}`);
+    status.state = 'entry';
+    axios.get(`/api/member/${member.id}`).then((result) => {
+      member = result.data.member;
+      window.history.pushState(
+        status, "", `/member/entry/${member.id}`);
+    });
   }
   console.log('member', member)
 };
 
 const closeEntry = (event) => {
-  console.log('close', event.detail);
-  state = 'list';
-  window.history.pushState(
-      null, "", `/member/`);
-  update();
+  status.state = 'list';
+  updateMember();
 }
 
 const checkPage = () => {
   let args = location.pathname.split('/');
   console.log({args});
-  if  (( !args[2] ) ||
-       ( args[2] === '') ||
-       ( args[2] === 'list' ))  {
-    state = 'list';
+  if  ( args[2] === 'home' )  {
+    status.state = 'home';
   } else
-  if  ( args[2] === 'entry' ) {
-    state = 'entry';
+  if  ( ( args[2] === 'entry' ) ||
+			  ( args[2] === 'new'   )) {
+    status.state = args[2];
     if  ( !member ) {
-      axios(`/api/member/${args[3]}`).then((result) => {
-        member = result.data;
-        console.log({member});
-      });
+      member = {
+        legalName: ''
+      };
+      let value = getStore(currentMember);
+      if  ( value ) {
+        member = value;
+      } else {
+        if  ( status.state === 'entry' ) {
+          axios(`/api/member/${args[3]}`).then((result) => {
+            member = result.data.member;
+            console.log({member});
+            currentMember.set(member);
+          });
+        } else {
+          currentMember.set(member);
+        }
+      }
     }
-  } else
-  if  ( args[2] === 'new' ) {
-    state = 'new';
+  } else {
+    status.state = 'list';
   }
-  console.log({state});
+  console.log({status});
 }
 
 onMount(() => {
-  checkPage();
   console.log('member onMount')
+  status.params = parseParams();
+  updateMember();
+  axios.get('/api/member/classes').then((result) => {
+    console.log(result);
+    classes = result.data.classes;
+  })
+  axios.get('/api/users').then((result) => {
+    users = result.data.users;
+  })
 })
 
 beforeUpdate(()	=> {
-  //console.log('member beforeUpdate');
-  //checkPage();
-  let _params = location.search.substr(1);
-  //console.log('_params', _params);
-  let params = [];
-  if  ( _params )	{
-    _params.split('&').map((member) => {
-      let kv = member.split('=');
-      params[decodeURI(kv[0])] = decodeURI(kv[1]);
-    });
-    console.log({params});
-  }
-  if  ( !classes )  {
-    axios.get('/api/member/classes').then((result) => {
-      console.log(result);
-      classes = result.data;
-    })
-  }
-  if  ( !users )  {
-    axios.get('/api/users').then((result) => {
-      users = result.data;
-    })
-  }
-  if	( !members )	{
-    members = [];
-    update();
-  }
+  checkPage();
 });
 afterUpdate(() => {
   //console.log('member afterUpdate');

@@ -3,24 +3,24 @@
 <div class="container-fluid"
   on:drop={onDrop}
   on:dragover={onDragOver}>
-  <div class="row mb-3">
+  <div class="row">
     <label for="type" class="col-2 col-form-label">種別</label>
     <div class="col-sm-3">
-      <select class="form-select" id="type" bind:value={voucher.type}>
+      <select class="form-select" id="type" bind:value={voucher.voucherClassId}>
         <option value={-1}> -- 未設定 --</option>
-        {#each VOUCHER_TYPES as ent}
-        <option value={ent[1]}>{ent[0]}</option>
+        {#each status.voucherClasses as voucherClass}
+        <option value={voucherClass.id}>{voucherClass.name}</option>
         {/each}
       </select>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="issueDate" class="col-2 col-form-label">発生日</label>
     <div class="col-sm-3">
       <input type="date" class="form-control" id="issueDate" bind:value={voucher.issueDate}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <div class="offset-sm-2 col-sm-3 align-self-center">
       <button type="button" class="btn btn-light"
         on:click={copy_up}>
@@ -32,13 +32,13 @@
       </button>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="paymentDate" class="col-2 col-form-label">支払日</label>
     <div class="col-sm-3">
       <input type="date" class="form-control" id="paymentDate" bind:value={voucher.paymentDate}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="zip" class="col-2 col-form-label">相手先</label>
     <div class="col-10">
       <CustomerSelect
@@ -49,7 +49,7 @@
         bind:customerId={voucher.customerId}/>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="amount" class="col-2 col-form-label">金額</label>
     <div class="col-sm-4">
       <input type="text" class="form-control number" id="amount"
@@ -58,7 +58,7 @@
         bind:value={voucher.amount}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="taxClass" class="col-2 col-form-label">消費税</label>
     <div class="col-sm-2">
       <select class="form-control" id="taxClass"
@@ -73,46 +73,46 @@
       <input type="text" class="form-control number" id="tax" bind:value={voucher.tax}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="key" class="col-2 col-form-label">インボイス番号</label>
     <div class="col-sm-3">
       <input type="text" class="form-control" id="key" bind:value={voucher.invoiceNo}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="description" class="col-2 col-form-label">備考</label>
-    <div class="col-sm-10">
+    <div class="col-10">
       <textarea class="form-control" id="description"
         bind:value={voucher.description} />
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label class="col-2 col-form-label">ファイル</label>
-    <div class="col-sm-10">
-      <div class="row mb-3 w-100 file">
-      {#if ( !files || files.length === 0 )}
-      <div class="mt-3 p-3">
-        アップロードされたファイルはありません。
-      </div>
-      {:else}
-      {#each files as file}
-      <div class="file-item">
-        <div style="margin:10px 0 5px 0;">
-          <button type="button" on:click={delete_file} data-id={file.id}>
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
-        <a href="/voucher/file/{file.id}" target="_blank">
-          {#if ( file.mimeType.match(/^image\//) ) }
-          <img src="data:{file.mimeType};base64,{(file.body)}" class="rect-image"/>
-          {:else if ( file.name.match(/\.pdf$/) ) }
-          <img src="/public/icons/icon_pdf.png" class="rect-image" />
+    <div class="col-10">
+        <div class="file">
+          {#if ( !files || files.length === 0 )}
+            <div class="mt-3 p-3">
+              アップロードされたファイルはありません。
+            </div>
+          {:else}
+          {#each files as file}
+          <div class="file-item">
+            <div style="margin:10px 0 5px 0;">
+              <button type="button" on:click={delete_file} data-id={file.id}>
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+            <a href="/voucher/file/{file.id}" target="_blank">
+              {#if ( file.mimeType.match(/^image\//) ) }
+              <img src="data:{file.mimeType};base64,{(file.body)}" class="rect-image"/>
+              {:else if ( file.name.match(/\.pdf$/) ) }
+              <img src="/public/icons/icon_pdf.png" class="rect-image" />
+              {/if}
+            </a>
+          </div>
+          {/each}
           {/if}
-        </a>
-      </div>
-      {/each}
-      {/if}
-      </div>
+        </div>
     </div>
   </div>
 </div>
@@ -140,13 +140,14 @@
 </style>
 
 <script>
-import {numeric, TAX_CLASS, VOUCHER_TYPES} from '../../../libs/utils';
+import {numeric, TAX_CLASS} from '../../../libs/utils';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CustomerSelect from '../components/customer-select.svelte';
 
 export	let	voucher;
+export  let status;
 export	let	files;
 
 let	original_customers;

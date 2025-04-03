@@ -1,12 +1,10 @@
 <div class="entry">
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-      <h5 class="entry-title">証憑情報</h5>
-    </div> 
-  </nav>
+  <div class="page-title d-flex justify-content-between">
+    <h1>証憑情報</h1>
+  </div> 
   <div class="row full-height fontsize-12pt">
-    <div class="entry-content">
-      <div class="entry-body">
+    <div class="content">
+      <div class="body">
         {#if !ok }
         <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
           <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
@@ -20,21 +18,22 @@
         <VoucherInfo
           on:startregister={() => { disabled = true} }
           on:endregister={() => { disabled = false} }
+          bind:status={status}
           bind:voucher={voucher}
           bind:files={files}></VoucherInfo>
       </div>
-      <div class="entry-footer">
+      <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={close_}
           >もどる</button>
         {#if ( voucher && voucher.id && voucher.id > 0 )}
           <button type="button" class="btn btn-danger" disabled={disabled}
               on:click={delete_}
-                  id="delete-button">Delete</button>
+                  id="delete-button">削除</button>
         {/if}
         <button type="button" class="btn btn-primary" disabled={disabled}
             on:click={save}
-            id="save-button">保存&nbsp;<i class="bi bi-save"></i></button>
+            id="save-button">保存</button>
       </div>
     </div>
   </div>

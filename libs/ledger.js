@@ -1,5 +1,5 @@
 import {dc, numeric} from './parse_account_code.js';
-import {find_account, find_sub_account_by_code, tax_class} from '../front/javascripts/cross-slip.js';
+import {findAccount, findSubAccountByCode, taxClass} from '../front/javascripts/cross-slip.js';
 
 export const ledger_lines = (account_code, sub_account_code, remaining, details) => {
     //console.log({remaining});
@@ -56,14 +56,14 @@ export const ledger_lines = (account_code, sub_account_code, remaining, details)
         //  本体と税の正規化
         pureDebitTax = numeric(detail.debitTax);
         if  ( detail.debitAccount ) {
-            let tax_class;
+            let taxClass;
             if  ( detail.debitSubAccount > 0 )      {
-                tax_class = find_sub_account_by_code(detail.debitAccount, detail.debitSubAccount).taxClass;
+                taxClass = findSubAccountByCode(detail.debitAccount, detail.debitSubAccount).taxClass;
             } else {
-                tax_class = find_account(detail.debitAccount).taxClass;
+                taxClass = findAccount(detail.debitAccount).taxClass;
             }
             debitAmount = numeric(detail.debitAmount);
-            if  ( tax_class == 1 )  {
+            if  ( taxClass == 1 )  {
                 //pureDebitAmount = debitAmount - pureDebitTax;
                 pureDebitAmount = debitAmount;              //  元帳を税込で作る
             } else {
@@ -75,14 +75,14 @@ export const ledger_lines = (account_code, sub_account_code, remaining, details)
         }
         pureCreditTax = numeric(detail.creditTax);
         if  ( detail.creditAccount ) {
-            let tax_class;
+            let taxClass;
             if  ( detail.creditSubAccount > 0 )      {
-                tax_class = find_sub_account_by_code(detail.creditAccount, detail.creditSubAccount).taxClass;
+                taxClass = findSubAccountByCode(detail.creditAccount, detail.creditSubAccount).taxClass;
             } else {
-                tax_class = find_account(detail.creditAccount).taxClass;
+                taxClass = findAccount(detail.creditAccount).taxClass;
             }
             creditAmount = numeric(detail.creditAmount);
-            if  ( tax_class == 1 )  {
+            if  ( taxClass == 1 )  {
                 //pureCreditAmount = creditAmount - pureCreditTax;
                 pureCreditAmount = creditAmount;
             } else {
@@ -168,12 +168,12 @@ export const ledger_lines = (account_code, sub_account_code, remaining, details)
         }
         thisTaxClass = thisAccount ? 
                             ( thisSubAccount > 0 ?
-                                find_sub_account_by_code(thisAccount, thisSubAccount).taxClass :
-                            find_account(thisAccount).taxClass ) :
+                                findSubAccountByCode(thisAccount, thisSubAccount).taxClass :
+                            findAccount(thisAccount).taxClass ) :
                             null;
         otherTaxClass = otherSubAccount ?
-                            find_sub_account_by_code(otherAccount, otherSubAccount).taxClass :
-                            find_account(otherAccount).taxClass;
+                            findSubAccountByCode(otherAccount, otherSubAccount).taxClass :
+                            findAccount(otherAccount).taxClass;
         lines.push({
             year: detail.crossSlip.year,
             month: detail.crossSlip.month,
@@ -184,12 +184,12 @@ export const ledger_lines = (account_code, sub_account_code, remaining, details)
             accountCode: account_code,
             subAccountCode: thisSubAccount,
 
-            subAccount: find_sub_account_by_code(account_code, thisSubAccount).name,
-            otherAccount: (find_account(otherAccount).name == '') ? '諸口' : find_account(otherAccount).name,
-            otherSubAccount: find_sub_account_by_code(otherAccount, otherSubAccount).name,
+            subAccount: findSubAccountByCode(account_code, thisSubAccount).name,
+            otherAccount: (findAccount(otherAccount).name == '') ? '諸口' : findAccount(otherAccount).name,
+            otherSubAccount: findSubAccountByCode(otherAccount, otherSubAccount).name,
 
-            thisTaxClass: tax_class(thisTaxClass),
-            otherTaxClass: tax_class(otherTaxClass),
+            thisTaxClass: taxClass(thisTaxClass),
+            otherTaxClass: taxClass(otherTaxClass),
 
             application1: detail.application1,
             application2: detail.application2,

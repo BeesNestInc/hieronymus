@@ -27,7 +27,9 @@ export default {
           name: member.tradingName ? member.tradingName : member.officialName
         })
       }
-      res.json(users);
+      res.json({
+        users: users
+      });
     })
   },
   list: (req, res, next) => {
@@ -36,18 +38,24 @@ export default {
         ["name", "ASC"]
       ]
     }).then((users) => {
-      res.json(users);
+      res.json({
+        users: users
+      });
     });
   },
   get: (req, res, next) => {
     let id = req.params.id;
     if  ( id )  {
-      models.User.find(id).then((user) => {
-        res.json(user);
+      models.User.findByPk(id).then((user) => {
+        res.json({
+          user: user
+        });
       });
     } else {
       //console.log(req.session.user);
-      res.json(req.session.user);
+      res.json({
+        user: req.session.user
+      });
     }
   },
   update: (req, res, next) => {

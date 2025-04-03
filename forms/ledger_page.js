@@ -2,7 +2,7 @@ import CrossSlipDetails from '../libs/crossslipdetails.js';
 import Account from '../libs/accounts.js';
 import {Page} from './book.js';
 import {ledger_lines} from '../libs/ledger.js';
-import {set_accounts} from '../front/javascripts/cross-slip.js';
+import {setAccounts} from '../front/javascripts/cross-slip.js';
 
 class LedgerPage{
     constructor(book, account, subAccount) {
@@ -425,7 +425,7 @@ export default class {
     constructor(book, accounts) {
         this.book = book;
         this.accounts = accounts;
-        set_accounts(accounts);
+        setAccounts(accounts);
     }
     async page(account, subAccount) {
         //console.log('account', account, subAccount);

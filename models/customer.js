@@ -8,11 +8,14 @@ export default (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+			this.belongsTo(models.CustomerClass, {
+				sourceKey: 'customerClassId',
+        as: 'customerClass'
+			});
     }
   }
   Customer.init({
-    type: DataTypes.INTEGER,
+    customerClassId: DataTypes.INTEGER,
     name: DataTypes.STRING,
     chargeName: DataTypes.STRING,
     ruby: DataTypes.STRING,

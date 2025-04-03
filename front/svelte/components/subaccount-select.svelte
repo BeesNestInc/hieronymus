@@ -1,16 +1,28 @@
-<ul class="nav">
+<ul class="page-subtitle nav">
   {#each account.subAccounts as sub}
     <li class="nav-item pe-2">
-      <a class="btn {sub.subAccountCode === sub_account_code ? ' btn-primary disabled' : 'btn-outline-primary'}"
-          href={`${href}/${account.accountCode}/${sub.subAccountCode}`}>
+      <button type="button" class="btn {sub.subAccountCode === sub_account_code ? ' btn-primary disabled' : 'btn-outline-primary'}"
+        on:click={() => {
+          select(account.accountCode, sub.subAccountCode);
+        }}>
         {sub.name}
-      </a>
+      </button>
     </li>
   {/each}
 </ul>
 <script>
+import {createEventDispatcher} from 'svelte';
+
 export let account;
 export let sub_account_code;
-export let href;
 
+const dispatch = createEventDispatcher();
+
+const select = (code, sub) => {
+  console.log('select');
+  dispatch('select', {
+    code: code,
+    sub: sub
+  });
+}
 </script>

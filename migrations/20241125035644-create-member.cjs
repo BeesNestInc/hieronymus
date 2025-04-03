@@ -12,6 +12,10 @@ module.exports = {
       title: {
         type: Sequelize.STRING
       },
+      displayOrder: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
+      },
       executive: {
         type: Sequelize.BOOLEAN
       },

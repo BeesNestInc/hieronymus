@@ -5,27 +5,27 @@
     <meta http-equiv="Content-Language" content="ja" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/style/invoice.css">
+    <link rel="stylesheet" href="/style/transaction.css">
   </head>
   <body class="layout-fixed" id="body">
-    <div class="invoice">
+    <div class="transaction">
       <!-- ヘッダー（鑑部分） -->
-      <header class="invoice-header">
+      <header class="transaction-header">
         <div class="window-recipient-info">
-          <p>〒<%= invoice.zip %></p>
-          <p><%= invoice.address1 %></p>
-          <p><%= invoice.address2 %></p>
-          <p><%= invoice.customerName %> 御中</p>
+          <p>〒<%= transaction.zip %></p>
+          <p><%= transaction.address1 %></p>
+          <p><%= transaction.address2 %></p>
+          <p><%= transaction.customerName %> 御中</p>
         </div>
         <div class="">
           <div class="title-info">
             <div class="title-line">
               <h1>請 求 書</h1>
               <div style="margin-left:20px;margin-top:10px;font-size:14px;">
-                <span>No. <%= invoice.no %></span>
+                <span>No. <%= transaction.no %></span>
               </div>
             </div>
-            <p> <% let date = new Date(invoice.issueDate) %>
+            <p> <% let date = new Date(transaction.issueDate) %>
               発行日:&nbsp;
               <%= date.getFullYear()%>年
               <%= date.getMonth() + 1%>月
@@ -57,7 +57,7 @@
               <p class="homepage"><%= company.homepage %></p>
             <% } %>
             <p class="handler">
-              担当: &nbsp; <% let member = invoice.handleUser.member %>
+              担当: &nbsp; <% let member = transaction.handleUser.member %>
               <%= member.tradingName ? member.tradingName : member.officialName %>
             </p>
             <p class="account">
@@ -77,7 +77,7 @@
             合計金額
           </div>
           <div class="amount">
-            ￥<%= (parseInt(invoice.tax) + parseInt(invoice.amount)).toLocaleString() %>
+            ￥<%= (parseInt(transaction.tax) + parseInt(transaction.amount)).toLocaleString() %>
           </div>
         </div>
         <table class="table">
@@ -92,7 +92,7 @@
             </tr>
           </thead>
           <tbody>
-            <% for ( let line of invoice.lines) { %>
+            <% for ( let line of transaction.lines) { %>
             <tr>
               <td class="item" <%= ( line.itemId === 0 ) ? 'colspan=4' : ''%>>
                 <% if ( line.itemId !== 0 )  { %>
@@ -124,24 +124,24 @@
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2" <%= ( invoice.taxClass !== 0 ) ? 'rowspan=3' : 'rowspan=2'%>></td>
+              <td colspan="2" <%= ( transaction.taxClass !== 0 ) ? 'rowspan=3' : 'rowspan=2'%>></td>
               <td colspan="2" class="sums">小&nbsp;&nbsp;&nbsp;計</td>
               <td class="number">
-                ¥<%= parseInt(invoice.amount).toLocaleString() %>
+                ¥<%= parseInt(transaction.amount).toLocaleString() %>
               </td>
-              <td <%= ( invoice.taxClass !== 0 ) ? 'rowspan=3' : 'rowspan=2'%>></td>
+              <td <%= ( transaction.taxClass !== 0 ) ? 'rowspan=3' : 'rowspan=2'%>></td>
             </tr>
-            <% if ( invoice.taxClass !== 0 ) { %>
+            <% if ( transaction.taxClass !== 0 ) { %>
             <tr>
-              <% if ( invoice.taxClass === 2 || invoice.taxClass === 9 ) { %>
+              <% if ( transaction.taxClass === 2 || transaction.taxClass === 9 ) { %>
               <td colspan="2" class="sums">消費税</td>
               <td class="number">
-                ¥<%= invoice.tax.toLocaleString() %>
+                ¥<%= transaction.tax.toLocaleString() %>
               </td>
               <% } else { %>
               <td colspan="2" class="sums">消費税</td>
               <td class="number" style="padding:2px 4px;">
-                  (¥<%= invoice.tax.toLocaleString() %>)
+                  (¥<%= transaction.tax.toLocaleString() %>)
               <% } %>
               </td>
             </tr>
@@ -152,10 +152,10 @@
               </td>
               <td class="number">
                 <strong>
-                  <% if ( invoice.taxClass === 2 || invoice.taxClass === 9 ) { %>
-                  ¥<%= (parseInt(invoice.tax) + parseInt(invoice.amount)).toLocaleString() %>
+                  <% if ( transaction.taxClass === 2 || transaction.taxClass === 9 ) { %>
+                  ¥<%= (parseInt(transaction.tax) + parseInt(transaction.amount)).toLocaleString() %>
                   <% } else { %>
-                  ¥<%= parseInt(invoice.amount).toLocaleString() %>
+                  ¥<%= parseInt(transaction.amount).toLocaleString() %>
                   <% } %>
                 </strong>
               </td>

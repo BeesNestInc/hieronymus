@@ -1,147 +1,255 @@
 <div class="brand-container">
-  <a href="" class="brand-link">
+  <a href="#" class="brand-link"
+    on:click|preventDefault={() => {
+      link('');
+    }}>
       <img src="/public/logo.png" alt="Logo" class="brand-image">
-      <span class="brand-text">Hieronymus(開発版)</span>
+      <span class="brand-text">Hieronymus</span>
   </a>
 </div>
 <div class="sidebar">
 	<nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
-      {#if ( user && ( user.accounting || user.fiscal_browsing ) ) }
+      <li class="nav-item">
+        <div class="d-flex align-items-center justify-content-between" style="width:240px;">
+          <!-- svelte-ignore a11y-missing-attribute -->
+          <a class="nav-link">
+					  <i class="bi bi-menu-button-wide"></i>
+            メニュー
+          </a>
+          {#if ( isMenuEditMode)}
+          <div>
+          <button class="btn btn-narrow dropdown-toggle"
+          	type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <Icon icon="bi:plus" class="text-warning"></Icon>
+          </button>
+          <ul class="dropdown-menu">
+            {#each menuTemplates as template}
+            <button class="dropdown-item"
+            	on:click|preventDefault={() => {
+                newMenu(template);
+              }}
+              >
+              {template.title}
+            </button>
+            {/each}
+          </ul>
+
+          <button type="button" class="btn btn-narrow" on:click={menuEditDone}>
+            <Icon icon="bi:check" class="text-warning"></Icon></button>
+          </div>
+          {:else}
+          <button type="button" class="btn btn-narrow" on:click={() => {
+            isMenuEditMode = true;
+          }}><Icon icon="bi:pencil" class="text-warning"></Icon></button>
+          {/if}
+        </div>
+        <ul class="nav nav-pills nav-sidebar flex-column"
+        	style="margin-left:20px;list-style: none;"
+        	bind:this={menuItems}>
+          {#each menuEntries as entry, i (entry)}
+          <li class="nav-item" data-id={i}>
+            <div class="d-flex align-items-center justify-content-between" style="width:230px;">
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <!-- svelte-ignore a11y-no-static-element-interactions -->
+            <!-- svelte-ignore a11y-missing-attribute -->
+            <a class={ ( args[1] === 'menu' && args[2] == entry.id ) ? 'nav-link active': 'nav-link'}
+            	style="cursor:pointer;"
+              on:click|preventDefault={() => {
+                link(`/menu/${entry.id}`);
+              }}>
+              <Icon class="nav-icon{ isMenuEditMode ? ' drag-handle' : ''}" 
+                icon="bi:circle"></Icon>
+							{entry.title}
+            </a>
+            {#if isMenuEditMode}
+            <button type="button" class="btn btn-narrow"
+            	on:click={() => {
+                deleteMenu(entry);
+              }}>
+              <Icon icon="bi:x" class="text-warning"></Icon>
+            </button>
+            {/if}
+            </div>
+          </li>
+          {/each}
+        </ul>
+      </li>
+		</ul>
+  </nav>
+  <nav class="mt-2">
+    <ul class="nav nav-pills nav-sidebar flex-column">
+      {#each menu as entry}
+      {#if ( entry.title && ( !entry.authority || entry.authority(status.user) )) }
 			<li class="nav-item">
-			  <a class={ status.current === 'journal' ? 'nav-link active': 'nav-link'}
-            href="/journal/{startDate.getFullYear()}/{startDate.getMonth()+1}">
-          <i class="bi bi-calendar3"></i>
-          仕訳日記帳
+			  <a class={ status.pathname.match(entry.match) ? 'nav-link active': 'nav-link'}
+          draggable="true"
+          data-type={entry.name}
+          on:dragstart={startDrag}
+          on:click|preventDefault={() => {
+            link(entry.href(status));
+          }}
+          href="#">
+          {#if ( entry.icon )}
+          {#if ( entry.icon.name)}
+          <Icon class="nav-icon" icon={entry.icon.name}></Icon>
+          {:else}
+          <img src={entry.icon.src} class="icon-img">
+          {/if}
+          {:else}
+          <Icon class="nav-icon" icon="bi:circle"></Icon>
+          {/if}
+          {entry.title}
         </a>
-			</li>
-			<li class="nav-item">
-				<a class={ status.current === 'ledger' ? 'nav-link active': 'nav-link'}
-				    href="/ledger/{term}/1000000">
-          <i class="bi bi-journal"></i>
-          元帳
-        </a>
-			</li>
-			<li class="nav-item">
-				<a class={ status.current === 'bank-ledger' ? 'nav-link active': 'nav-link'}
-				    href="/bank-ledger/{term}">
-            <i class="bi bi-bank"></i>
-            銀行元帳
-        </a>
-			</li>
-    		<li class="nav-item">
-				<a class={ status.current === 'trial-balance' ? 'nav-link active': 'nav-link'}
-            href="/trial-balance/{term}">
-          <i class="bi bi-bar-chart-fill"></i>
-          残高試算表
-        </a>
-			</li>
-			<li class="nav-item">
-				<a class={ status.current === 'changes' ? 'nav-link active': 'nav-link'}
-				    href="/changes/{term}/6000000">
-          <i class="bi bi-journal"></i>
-          推移表
-        </a>
-			</li>
-    	<li class="nav-item">
-				<a class={ status.current === 'voucher' ? 'nav-link active': 'nav-link'}
-            href="/voucher/{term}">
-          <i class="bi bi-archive-fill"></i>
-          証憑管理
-        </a>
-			</li>
-			<li class="nav-item">
-				<a class={ status.current === 'accounts' ? 'nav-link active': 'nav-link'}
-            href="/accounts/{term}">
-          <i class="bi bi-tag"></i>
-          勘定科目管理
-        </a>
+        {#if ( entry.submenu && ( status.pathname.match(entry.match) ) )}
+        <ul>
+          {#each entry.submenu as subentry}
+          <li class="nav-item">
+            <a class={ status.pathname.match(subentry.match) ? 'nav-link active': 'nav-link'}
+              draggable="true"
+              data-type={entry.name}
+              on:dragstart={startDrag}
+              on:click|preventDefault={() => {
+                link(subentry.href(status));
+              }}
+              href="#">
+              {#if subentry.icon}
+              {#if ( subentry.icon.name)}
+              <Icon class="nav-icon" icon={subentry.icon.name}></Icon>
+              {:else}
+              <img src={subentry.icon.src} class="icon-img">
+              {/if}
+              {:else}
+              <Icon class="nav-icon" icon="fa6-solid:circle"></Icon>
+              {/if}
+              {subentry.title}
+            </a>
+          </li>
+          {/each}
+        </ul>
+        {/if}
 			</li>
       {/if}
-      {#if ( user && user.customerManagement ) }
-    	<li class="nav-item">
-				<a class={ status.current === 'customer' ? 'nav-link active': 'nav-link'}
-            href="/customer/">
-          <i class="nav-icon fas fa-circle"></i>
-          取引先管理
-        </a>
-			</li>
-    	<li class="nav-item">
-				<a class={ status.current === 'task'  ? 'nav-link active': 'nav-link'}
-            href="/task/">
-          <i class="nav-icon fas fa-circle"></i>
-          案件管理
-        </a>
-			</li>
-    	<li class="nav-item">
-				<a class={ status.current === 'transaction'  ? 'nav-link active': 'nav-link'}
-            href="/transaction/">
-          <i class="nav-icon fas fa-circle"></i>
-          取引管理
-        </a>
-			</li>
-    	<li class="nav-item">
-				<a class={ status.current === 'item' ? 'nav-link active': 'nav-link'}
-            href="/item">
-          <i class="nav-icon fas fa-circle"></i>
-          品目管理
-        </a>
-			</li>
-      {/if}
-      {#if ( user && user.administrable ) }
-			<li class="nav-item">
-				<a class={ status.current === 'users'  ? 'nav-link active': 'nav-link'}
-            href="/users/">
-          <i class="nav-icon fas fa-circle"></i>
-          ユーザ管理
-        </a>
-			</li>
-      {/if}
-      {#if ( user && user.personnelManagement ) }
-			<li class="nav-item">
-				<a class={ status.current === 'member' ? 'nav-link active': 'nav-link'}
-            href="/member/">
-          <i class="nav-icon fas fa-circle"></i>
-          役職員管理
-        </a>
-			</li>
-      {/if}
+      {/each}
     </ul>
   </nav>
 </div>
 
+
+<style>
+.icon {
+  margin-right: 0.5rem;
+}
+</style>
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, beforeUpdate, afterUpdate, createEventDispatcher, tick} from 'svelte';
+import menu from '../../../config/module-list.js';
+import Sortable from 'sortablejs';
+import Icon from '@iconify/svelte';
+import eventBus from '../../javascripts/event-bus.js';
+import {currentMenu, getStore} from '../../javascripts/current-record.js'
 
-export  let term;
-export  let user;
 export	let status;
 
-let pathname;
-let startDate = new Date();
-let endDate;
+let menuItems;
+let isMenuEditMode = false;
+let menuTemplates = [];
 
-onMount(() => {
-	if	( !pathname )	{
-    pathname = location.pathname;
-    //console.log('term', term);
-    //console.log(pathname);
-    axios.get(`/api/term/${term}`).then((res) => {
-      let fy = res.data;
-      startDate = new Date(fy.startDate);
-      endDate = new Date(fy.endDate);
-    });
-	}
-})
+const newMenu = (template) => {
+  currentMenu.set({
+    title: template.title,
+    displayOrder: 99,
+    widgets: JSON.parse(template.body)
+  });
+	link('/menu/new');
+}
 
-beforeUpdate(() => {
-  if	( !status )	{
-    let args = location.pathname.split('/');
-    status = {
-      current: args[1]
-    }
+let deleteEntry;
+const deleteMenu = (entry) => {
+  deleteEntry = entry;
+  eventBus.emit('okModal', {
+    title:'メニューの削除',
+    description: `メニュー「${entry.title}」を削除します<br/>よろしいですか？`,
+    reply: 'deleteMenu'
+  });
+}
+const menuEditDone = (event) => {
+  for ( let i = 0; i < menuEntries.length ; i += 1 )  {
+    menuEntries[i].displayOrder = i + 1;
   }
-  //console.log('sidebar', status);
+  axios.put('/api/menu', {
+    menus: menuEntries
+  }).then((result) => {
+    isMenuEditMode = false;
+    console.log('done');
+  });
+}
+onMount(() => {
+  axios.get('/api/menu').then((result) => {
+    menuEntries = result.data.menus;
+  })
+  axios.get('/api/menu/templates').then((result) => {
+    menuTemplates = result.data.templates;
+  })
+  eventBus.on('menuUpdated', () => {
+    console.log('sidebar menuUpdated');
+    axios.get('/api/menu').then((result) => {
+    	menuEntries = result.data.menus;
+  	})
+  });
+  eventBus.once('deleteMenu', (ok) => {
+    if  ( ok )  {
+      axios.delete(`/api/menu/${deleteEntry.id}`).then(() => {
+    	  axios.get('/api/menu').then((result) => {
+    		  menuEntries = result.data.menus;
+  		  })
+  	  });
+    }
+  })
+  new Sortable(menuItems, {
+    animation: 150,
+    handle: ".drag-handle",
+    fallbackOnBody: true,
+    removeCloneOnHide: true,
+    onEnd: (evt) => {
+      let { oldIndex, newIndex } = evt;
+
+      if (oldIndex !== newIndex) {
+        const moved = menuEntries[oldIndex];
+        menuEntries.splice(oldIndex, 1);
+        menuEntries.splice(newIndex, 0, moved);
+        menuEntries = menuEntries;
+      }
+    }
+  });
 });
+
+let menuEntries = [];
+
+let args = [];
+beforeUpdate(() => {
+  //console.log('sidebar beforeUpdate', status);
+  status.pathname = location.pathname;
+  args = status.pathname.split('/');
+  status.current = args[1];
+
+});
+
+const startDrag = (event) => {
+  let name = event.target.dataset.type;
+  //console.log('dragData', name);
+  event.dataTransfer.setData("application/json", JSON.stringify({
+    name: name,
+    component: 'MenuLink'
+  }));
+  event.dataTransfer.effectAllowed = "copy";
+};
+
+const link = (href) => {
+  let pathes = href.split('/');
+  status.current = pathes[1];
+  window.history.pushState(status, "", href);
+  status.pathname = href;
+}
 </script>

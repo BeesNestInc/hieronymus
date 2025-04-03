@@ -8,6 +8,10 @@ module.exports = {
         primaryKey: true,
         type: Sequelize.INTEGER
       },
+      displayOrder: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
+      },
       name: {
         type: Sequelize.STRING
       },
@@ -28,6 +32,7 @@ module.exports = {
     });
     await queryInterface.bulkInsert('ItemClasses', [
       {
+        displayOrder: 0,
         name: 'サービス(無形物)',
         product: true,
         inventoryManagement: false,
@@ -35,6 +40,7 @@ module.exports = {
         updatedAt: new Date()
       },
       {
+        displayOrder: 1,
         name: '商品(有形物)',
         product: true,
         inventoryManagement: true,
@@ -50,8 +56,14 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       itemClassId: {
-        allowNull: false,
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'ItemClasses',
+          field: 'id'
+        },
+        onDelete: 'cascade',
+        onUpdate: 'cascade'
       },
       key: {
         type: Sequelize.STRING
@@ -86,56 +98,41 @@ module.exports = {
       taxClass: {
         type: Sequelize.INTEGER
       },
-      descriptionType: {
-        type: Sequelize.STRING
-      },
-      description: {
-        type: Sequelize.TEXT
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
-    });
-    await queryInterface.addConstraint('Items', {
-      fields: ['itemClassId'],
-      type: 'foreign key',
-      name: 'Items_itemClassId_fkey',
-      references: {
-        table: 'ItemClasses',
-        field: 'id'
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'RESTRICT'
-    });
-    await queryInterface.createTable('ItemFiles', {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER
-      },
-      itemId: {
+      documentId: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Items',
+          model: 'Documents',
           field: 'id'
         },
         onDelete: 'cascade',
         onUpdate: 'cascade'
       },
-      name: {
-        type: Sequelize.STRING
+      handledBy: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'Users',
+          field: 'id'
+        },
+        onDelete: 'restrict',
+        onUpdate: 'cascade'
       },
-      mimeType: {
-        type: Sequelize.STRING
+      createdBy: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'Users',
+          field: 'id'
+        },
+        onDelete: 'restrict',
+        onUpdate: 'cascade'
       },
-      body: {
-        type: Sequelize.BLOB
+      updatedBy: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'Users',
+          field: 'id'
+        },
+        onDelete: 'restrict',
+        onUpdate: 'cascade'
       },
       createdAt: {
         allowNull: false,
@@ -148,7 +145,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ItemFiles');
     await queryInterface.dropTable('Items');
     await queryInterface.dropTable('ItemClasses');
   }

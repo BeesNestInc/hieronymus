@@ -57,8 +57,11 @@ export default {
         where: where,
         order: order,
         include: include
-      }).then((task) => {
-        res.json(task);
+      }).then((tasks) => {
+        res.json({
+          code: 0,
+          tasks: tasks
+      	});
       });
     } else {
       models.Task.findByPk(id, {
@@ -68,6 +71,7 @@ export default {
         ]
       }).then((task) => {
         res.json({
+          code: 0,
           task: task
         });
       });
@@ -80,7 +84,7 @@ export default {
       body.createdBy = req.session.user.id;
       body.updatedBy = req.session.user.id;
       body.id = undefined;
-      console.log('body', JSON.stringify(body, ' ', 2 ));
+      //console.log('body', JSON.stringify(body, ' ', 2 ));
       let document = await models.Document.create({
         issueDate: body.issueDate,
         title: body.subject,

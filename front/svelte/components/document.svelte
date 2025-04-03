@@ -1,53 +1,51 @@
-{#if ( viewDescription )}
-<div class="row w-100">
-  {#if ( editting )}
-  <DocumentFormat
-    bind:type={document.descriptionType}></DocumentFormat>
+<div class="document">
+  {#if !noTitle }
+  <div class="row">
+    <div class="col-1">
+      <label for="title" class="col-form-label">表題</label>
+    </div>
+    <div class="col-11">
+    	<input type="text" class="form-control" id="title"
+	  		bind:value={document.title}>
+    </div>
+  </div>
   {/if}
-</div>
-<div class="row w-100">
+  {#if ( viewDescription )}
   {#if ( editting )}
-  <Editor
-    type={document.descriptionType}
-    bind:value={document.description}></Editor>
+  <div class="row mt-3">
+    <DocumentFormat
+      bind:type={document.descriptionType}
+      disabled={document.descriptionType && ( document.description !== '')}></DocumentFormat>
+  </div>
+  {/if}
+  <div class="row mt-3">
+    <div class="col-12">
+      {#if ( editting )}
+      <Editor
+        type={document.descriptionType}
+        bind:value={document.description}></Editor>
+      {:else}
+      <div class="view markdown html line-numbersview">
+        {@html textConvert(document.description, document.descriptionType, 'html')}
+      </div>
+	    {/if}
+    </div>
+  </div>
   {:else}
-  <div class="markdown line-numbers col-12 view">
-    {@html textConvert(document.description, document.descriptionType, 'html')}
+  <div class="row mt-3">
+    <div class="col-12">
+      <div class="abstract">
+        {@html textConvert(document.description, document.descriptionType, 'text')}
+      </div>
+    </div>
   </div>
-	{/if}
-</div>
-{:else}
-<div class="row w-100">
-  <div class="col-12 abstract">
-    {@html textConvert(document.description, document.descriptionType, 'text')}
-  </div>
-</div>
 {/if}
+</div>
+
 <style>
-.view {
-  padding: 20px;
-  min-height: 70px;
-  background-color: #fff;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
-.abstract {
-  padding: 10px;
-  height: 70px;
-  overflow: hidden;
-  background-color: #fff;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
-.file {
-  min-height:200px;
-  padding: 10px;
-  background-color: #fff;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
 
 </style>
+
 <script>
 import axios from 'axios';
 import DocumentFormat from './document-format.svelte';
@@ -59,12 +57,12 @@ const dispatch = createEventDispatcher();
 export let document;
 export let editting;
 export let viewDescription;
+export let noTitle = false;
 
 beforeUpdate(() => {
   console.log('document beforeUpdate', {document})
   if  ( !document ) {
     document = {
-      descriptionType: 'html',
       description: ''
     };
   }

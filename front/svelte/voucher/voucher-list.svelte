@@ -1,151 +1,209 @@
-<div class="fontsize-12pt">
-  <table class="table table-bordered">
-    <thead class="table-light">
-      <tr>
-        <th scope="col" style="width:100px;">
-          種別
-        </th>
-        <th scope="col" style="width: 200px;">
-          相手先
-        </th>
-        <th scope="col" style="width: 100px;">
-          発生日
-        </th>
-        <th scope="col" style="width: 100px;">
-          支払日
-        </th>
-        <th scope="col" style="width: 100px;">
-          金額
-        </th>
-        <th scope="col" style="width: 400px;">
-          説明
-        </th>
-        <th scope="col">
-          ファイル
-        </th>
-        <th scope="col" style="width: 100px;">
-          処理者
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr style="height:25px;">
-        <td>
-          <select
-              on:input={changeVoucherType}
-              value={status.params ? parseInt(status.params.get('type')): -1}>
-            <option value={-1}> -- 未設定 --</option>
-            {#each VOUCHER_TYPES as ent}
-            <option value={ent[1]}>{ent[0]}</option>
-            {/each}
-          </select>
-        </td>
-        <td>
-          <CustomerSelect
-              bind:value={customerId}
-              on:input={changeCustomer}>
-          </CustomerSelect>
-        </td>
-        <td>
-        </td>
-        <td>
-        </td>
-        <td>
-          <input type="text" class="number" placeholder="下限" size="12" maxlength="13"
-              bind:value={lowerAmount}
-              on:keypress={changeAmount} />
-          <input type="text" class="number" placeholder="上限" size="12" maxlength="13"
-              bind:value={upperAmount}
-              on:keypress={changeAmount} />
-        </td>
-        <td>
-        </td>
-        <td>
-        </td>
-        <td>
-        </td>
-      </tr>
-      {#each vouchers as line}
-      <tr>
-        <td>
-          <a href="#" data-no={line.id} on:click={openVoucher}>
-            {voucherType(line.type)}
-          </a>
-        </td>
-        <td>
-          {line.customer.name}
-        </td>
-        <td>
-          {#if ( line.details.length > 0 ) }
-          <a href="#" class="link-primary"
-            data-year={line.details[0].crossSlip.year}
-            data-month={line.details[0].crossSlip.month}
-            data-no={line.details[0].crossSlip.no}
-            on:click={openSlip}>
-            {formatDate(line.issueDate)}
-          </a>
-          {:else}
-          <a href="#" class="link-danger"
-            data-year={new Date(line.issueDate).getFullYear()}
-            data-month={new Date(line.issueDate).getMonth()+1}
-            data-day={new Date(line.issueDate).getDate()}
-            data-id={line.id}
-            on:click={openSlip}>
-            {formatDate(line.issueDate)}
-          </a>
-          {/if}
-        </td>
-        <td>
-          {#if (	line.paymentDate &&
-               ( line.details.length > 0 ) &&
-              compDate(line.paymentDate,
-              line.details[0].crossSlip.year,
-              line.details[0].crossSlip.month,
-              line.details[0].crossSlip.day) ) }
-          <a href="#"
-            data-year={line.details[0].crossSlip.year}
-            data-month={line.details[0].crossSlip.month}
-            data-no={line.details[0].crossSlip.no}
-            on:click={openSlip}>
+<div class="list">
+  <div class="page-title d-flex justify-content-between">
+    <h1>証票一覧</h1>
+    <button type="button" class="btn btn-primary"
+  	  on:click={() => {
+    	  openEntry(null);
+  	  }}
+		  id="voucher-info">証票入力&nbsp;<i class="bi bi-pencil-square"></i>
+    </button>
+  </div>
+  <ul class="page-subtitle nav me-auto">
+    {#each dates as date}
+      <li class="nav-item">
+        {#if ( status.params && (date.ym == status.params.get('month')) )}
+        <button type="button" class="btn btn-primary disabled me-2"
+          on:click={() => {
+            dispatch('gotoMonth',`${date.year}-${date.month}`);
+          }}>
+          {date.month}&nbsp;月
+        </button>
+        {:else}
+        <button type="button" class="btn btn-outline-primary me-2"
+          on:click={() => {
+            dispatch('gotoMonth', `${date.year}-${date.month}`);
+          }}>
+          {date.month}&nbsp;月
+        </button>
+        {/if}
+      </li>
+    {/each}
+    <li class="nav-item">
+      {#if ( !status.params || !status.params.get('month') )}
+      <button type="button" class="btn btn-primary disabled me-2"
+        on:click={() => {
+          dispatch('gotoMonth');
+        }}>
+      ALL
+      </button>
+      {:else}
+      <button type="button" class="btn btn-outline-primary me-2"
+        on:click={() => {
+          dispatch('gotoMonth');
+        }}>
+        ALL
+      </button>
+      {/if}
+    </li>
+  </ul>
+  <div class="full-height fontsize-12pt">
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th scope="col" style="width: 150px;">
+            種別
+          </th>
+          <th scope="col" style="width: 200px;">
+            相手先
+          </th>
+          <th scope="col" style="width: 120px;">
+            発生日
+          </th>
+          <th scope="col" style="width: 120px;">
+            支払日
+          </th>
+          <th scope="col" style="width: 100px;">
+            金額
+          </th>
+          <th scope="col">
+            説明
+          </th>
+          <th scope="col" style="width:150px;">
+            ファイル
+          </th>
+          <th scope="col" style="width: 100px;">
+            処理者
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="height:25px;">
+          <td>
+            <select class="form-select"
+                on:input={changeVoucherType}
+                value={status.params ? parseInt(status.params.get('type')): -1}>
+              <option value={-1}>全て</option>
+              {#each status.voucherClasses as voucherClass}
+              <option value={voucherClass.id}>{voucherClass.name}</option>
+              {/each}
+            </select>
+          </td>
+          <td>
+            <CustomerSelect
+                bind:value={customerId}
+                on:input={changeCustomer}>
+            </CustomerSelect>
+          </td>
+          <td>
+          </td>
+          <td>
+          </td>
+          <td>
+            <input type="text" class="number" placeholder="下限" size="12" maxlength="13"
+                bind:value={lowerAmount}
+                on:keypress={changeAmount} />
+            <input type="text" class="number" placeholder="上限" size="12" maxlength="13"
+                bind:value={upperAmount}
+                on:keypress={changeAmount} />
+          </td>
+          <td>
+          </td>
+          <td>
+          </td>
+          <td>
+          </td>
+        </tr>
+        {#each vouchers as line}
+        <tr>
+          <td>
+            <button type="button" class="btn btn-link"
+              on:click={() => {
+                openVoucher(line.id);
+              }}
+              >
+              {line.voucherClass ? line.voucherClass.name : '__'}
+            </button>
+          </td>
+          <td>
+            {line.customer.name}
+          </td>
+          <td>
+            {#if ( line.details.length > 0 ) }
+            <button type="button" class="btn btn-link text-primary"
+              on:click|preventDefault={() => {
+                openSlip(
+                  line.details[0].crossSlip.year,
+                  line.details[0].crossSlip.month,
+                  line.details[0].crossSlip.day,
+                  line.details[0].crossSlip.no);
+              }}>
+              {formatDate(line.issueDate)}
+            </button>
+            {:else}
+            <button type="button" class="btn btn-link text-danger"
+              on:click|preventDefault={() => {
+                let issueDate = new Date(line.issueDate);
+                openSlip(
+                  issueDate.getFullYear(),
+                  issueDate.getMonth()+1,
+                  issueDate.getDate());
+              }}>
+              {formatDate(line.issueDate)}
+            </button>
+            {/if}
+          </td>
+          <td>
+            {#if (	line.paymentDate &&
+                 ( line.details.length > 0 ) &&
+                compDate(line.paymentDate,
+                line.details[0].crossSlip.year,
+                line.details[0].crossSlip.month,
+                line.details[0].crossSlip.day) ) }
+            <button type="button" class="btn btn-link"
+              on:click|preventDefault={() => {
+                openSlip(
+                  line.details[0].crossSlip.year,
+                  line.details[0].crossSlip.month,
+                  line.details[0].crossSlip.day,
+                  line.details[0].crossSlip.no);
+              }}>
+                {formatDate(line.paymentDate)}
+            </button>
+            {:else}
             {formatDate(line.paymentDate)}
-          </a>
-          {:else}
-          {formatDate(line.paymentDate)}
-          {/if}
-        </td>
-        <td class="number">
-          {numeric(line.amount).toLocaleString()}
-        </td>
-        <td>
-          {line.description || ''}
-        </td>
-        <td style="height:25px;">
-          {#each line.files as file}
-          <div class="file-item">
-            <a href="/voucher/file/{file.id}" target="_blank">
-              {#if ( file.mimeType.match(/^image\//) ) }
-              <img src="data:{file.mimeType};base64,{(file.body)}"
-                class="rect-image"/>
-              {:else if ( file.name.match(/\.pdf$/) ) }
-              <img src="/public/icons/icon_pdf.png" class="rect-image" />
-              {/if}
-            </a>
-          </div>
-          {/each}
-        </td>
-        <td>
-          {line.updateUser.name}
-        </td>
-      </tr>
-      {/each}
-    </tbody>
-  </table>
+            {/if}
+          </td>
+          <td class="number">
+            {numeric(line.amount).toLocaleString()}
+          </td>
+          <td>
+            {line.description || ''}
+          </td>
+          <td style="height:25px;">
+            {#each line.files as file}
+            <div class="file-item">
+              <a href="/voucher/file/{file.id}" target="_blank">
+                {#if ( file.mimeType.match(/^image\//) ) }
+                <img src="data:{file.mimeType};base64,{(file.body)}"
+                  class="rect-image"/>
+                {:else if ( file.name.match(/\.pdf$/) ) }
+                <img src="/public/icons/icon_pdf.png" class="rect-image" />
+                {/if}
+              </a>
+            </div>
+            {/each}
+          </td>
+          <td>
+            {line.updateUser.name}
+          </td>
+        </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <style>
-th {
-  text-align: center;
-}
 .file-item {
   width:40px;
   height:40px;
@@ -162,8 +220,7 @@ th {
 import axios from 'axios';
 import CustomerSelect from '../components/customer-select.svelte';
 
-import {numeric, formatDate, VOUCHER_TYPES} from '../../../libs/utils';
-import {voucherType} from '../../../libs/voucher';
+import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
@@ -173,7 +230,7 @@ export let vouchers;
 let customerId;
 let upperAmount;
 let lowerAmount;
-
+let dates = [];
 
 const compDate = (date, year, month, day) => {
   let ymd = date.split('-');
@@ -207,46 +264,17 @@ const changeAmount = (event) => {
   }
 }
 
-const openSlip = (event) => {
-    event.preventDefault();
-  let year = event.target.dataset.year;
-  let month = event.target.dataset.month;
-  let day = event.target.dataset.day;
-  let no = event.target.dataset.no;
-  if	( no )	{
-    axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
-      let slip = result.data;
-      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
-      //console.log('slip', slip);
-      dispatch('openSlip', slip);
-    })
-  } else {
-    let slip = {
-      year: parseInt(year),
-      month: parseInt(month),
-      day: parseInt(day),
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-    //console.log('slip', slip);
-    dispatch('openSlip', slip);
-  }
+const openSlip = (year, month, day, no) => {
+  console.log(year, month, day, no);
+  dispatch('openSlip', {
+    year: year,
+    month: month,
+    day: day,
+    no: no
+  });
 }
-const openVoucher = (event) => {
-    event.preventDefault();
-  let id = event.target.dataset.no;
+const openVoucher = (id) => {
   let	voucher;
-
-  //console.log('openVoucher', id);
-  //console.log('vouchers', vouchers);
 
   for ( let i = 0; i < vouchers.length; i ++ ) {
     if ( vouchers[i].id == id ) {
@@ -256,4 +284,19 @@ const openVoucher = (event) => {
   }
   dispatch('open', voucher);
 }
+onMount(() => {
+  axios.get(`/api/term/${status.term}`).then((result) => {
+    let fy = result.data;
+    status.term = fy.term;
+    for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
+      dates.push({
+        year: mon.getFullYear(),
+        month: mon.getMonth()+1,
+        ym: `${mon.getFullYear()}-${mon.getMonth()+1}`
+      });
+      mon.setMonth(mon.getMonth() + 1);
+    }
+    dates = dates;
+  });
+})
 </script>

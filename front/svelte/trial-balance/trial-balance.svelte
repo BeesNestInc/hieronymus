@@ -1,90 +1,90 @@
-<div class="d-flex justify-content-between mb-3 mt-3">
-  <h1 class="fs-3">残高試算表</h1>
-  <a href="/forms/trial_balance/{term}/{current_month}" download="残高試算表.xlsx" class="btn btn-primary">
-    残高試算表&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
-  </a>
-</div>
-<ul class="nav me-auto mb-2">
-  <li class="nav-item">
-    {#if ( !current_month  )}
-    <button type="button" class="btn btn-primary disabled me-2"
-      data-month=""
-      on:click={openMonth}>
-      年度
-    </button>
-    {:else}
-    <button type="button" class="btn btn-outline-primary me-2"
-      data-month=""
-      on:click={openMonth}>
-      年度
-    </button>
-    {/if}
-  </li>
-  {#each dates as date}
-  <li class="nav-item">
-    {#if (date.ym == current_month)}
-    <button type="button" class="btn btn-primary disabled me-2"
-      on:click={openMonth}
-      data-month="{date.year}-{date.month}">
+<div class="list">
+  <div class="page-title d-flex justify-content-between">
+  	<h1>残高試算表</h1>
+  	<a href="/forms/trial_balance/{status.term}/{status.month}" download="残高試算表.xlsx" class="btn btn-primary">
+    	残高試算表&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
+  	</a>
+	</div>
+	<ul class="page-subtitle nav me-auto">
+  	<li class="nav-item">
+    	{#if ( !status.month  )}
+    	<button type="button" class="btn btn-primary disabled me-2"
+      	on:click={() => {
+          openMonth("");
+        }}>
+      	年度
+    	</button>
+    	{:else}
+    	<button type="button" class="btn btn-outline-primary me-2"
+      	on:click={() => {
+        	openMonth("");
+      	}}>
+      	年度
+    	</button>
+    	{/if}
+  	</li>
+  	{#each dates as date}
+  	<li class="nav-item">
+    	{#if (date.ym == status.month)}
+    	<button type="button" class="btn btn-primary disabled me-2"
+      	on:click={() => {
+          openMonth(`${date.year}-${date.month}`);
+        }}>
+  	    {date.month}&nbsp;月
+    	</button>
+	    {:else}
+  	  <button type="button" class="btn btn-outline-primary me-2"
+      on:click={() => {
+        openMonth(`${date.year}-${date.month}`);
+      }}>
       {date.month}&nbsp;月
-    </button>
-    {:else}
-    <button type="button" class="btn btn-outline-primary me-2"
-      on:click={openMonth}
-      data-month="{date.year}-{date.month}">
-      {date.month}&nbsp;月
-    </button>
-    {/if}
-  </li>
-  {/each}
-</ul>
-<div class="row body-height">
-  <TrialBalanceList
-    term={term}
-    lines={lines}>
-  </TrialBalanceList>
+  	  </button>
+    	{/if}
+	  </li>
+  	{/each}
+	</ul>
+	<div class="row body-height">
+  	<TrialBalanceList
+    	bind:status={status}
+	    lines={lines}>
+  	</TrialBalanceList>
+	</div>
 </div>
-<style>
-</style>
 
 <script>
 import axios from 'axios';
-
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import TrialBalanceList from './trial-balance-list.svelte';
 import {numeric} from '../../../libs/utils.js';
 import {dc} from '../../../libs/parse_account_code';
 
-export let term;
-export let user;
+export let status;
 export let alert;
 export let alert_level;
 
 let lines = [];
 let dates = [];
-let current_month;
 
-const openMonth = (event) => {
-  event.preventDefault();
-  let month = event.currentTarget.dataset.month;
-  updateLines(month);
-  current_month = month;
-  if  ( current_month ) {
-    window.history.pushState(
-      current_month, "", `/trial-balance/${term}/${current_month}`);
+const openMonth = (month) => {
+  let href;
+  status.month = month;
+  if	( status.month )	{
+    href = `/trial-balance/${status.term}/${status.month}`;
   } else {
-    window.history.pushState(
-      current_month, "", `/trial-balance/${term}`);
+    href = `/trial-balance/${status.term}`;
   }
+  status.pathname = href;
+  updateLines();
+  window.history.pushState(status, "", href);
 }
 
-const updateLines = (month) => {
+const updateLines = () => {
   lines = [];
   let url;
-  if  ( month ) {
-    url = `/api/trial-balance/${term}/${month}`;
+  if  ( status.month ) {
+    url = `/api/trial-balance/${status.term}/${status.month}`;
   } else {
-    url = `/api/trial-balance/${term}`;
+    url = `/api/trial-balance/${status.term}`;
   }
   axios.get(url).then((result) => {
     let data = result.data;
@@ -132,15 +132,33 @@ const updateLines = (month) => {
   });
 }
 
-onMount(() => {
-  let args = location.pathname.split('/');
-  term = parseInt(args[2]);
-  //console.log({term});
-  if  ( args[3] ) {
-    current_month = args[3];
+const update = () => {
+  let args = status.pathname.split('/');
+  status.current = args[1];
+  status.term = args[2];
+  status.month = args[3];
+  updateLines();
+}
+
+const checkPage = () => {
+  update();
+}
+
+let _status;
+beforeUpdate(()	=> {
+  console.log('trial-balance beforeUpdate', status);
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    console.log('run checkPage');
+    checkPage();
   }
+});
+
+onMount(() => {
   dates = [];
-  axios.get(`/api/term/${term}`).then((result) => {
+  axios.get(`/api/term/${status.term}`).then((result) => {
     let fy = result.data;
     for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
       dates.push({
@@ -152,15 +170,6 @@ onMount(() => {
     }
     dates = dates;
   });
-  window.onpopstate = (event) => {
-    if	( window.history.state )	{
-      current_params = window.history.state;
-      console.log({current_params});
-      current_month = current_params.get('month');
-      updateVouchers();
-    }
-  }
-
   updateLines();
 })
 

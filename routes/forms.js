@@ -7,6 +7,12 @@ import subsidiary_ledger from '../forms/subsidiary_ledger.js';
 import trial_balance from '../forms/trial_balance.js';
 import closing from '../forms/closing.js';
 import financial_statement from '../forms/financial_statement.js';
+import models from '../models/index.js';
+const Op = models.Sequelize.Op;
+import path from 'path';
+import company from '../config/company.js';
+
+const __dirname = import.meta.dirname;
 
 router.get('/explanatory_journal/:term', is_authenticated, (req, res, next) => {
 	if (( req.session.user.accounting ) ||
@@ -79,5 +85,46 @@ router.get('/financial_statement/:term', is_authenticated,(req, res, next) => {
 		res.redirect('/home');
 	}
 });
+
+/*
+const form_transaction = async (req, res, next) => {
+  if  ( req.session.user.accounting ) {
+    let id = req.params.id;
+    let transaction = await models.TransactionDocument.findByPk(id, {
+      include: [
+        {
+          model: models.Customer,
+          as: 'customer'
+        },
+        {
+          model: models.TransactionDetail,
+          as: 'lines'
+        },
+        {
+          model: models.User,
+          as: 'handleUser',
+          include: [
+            {
+              model: models.Member,
+              as: 'member'
+            }
+          ]
+        }
+      ]
+    });
+    res.render(`form/${req.params.form}.ejs`, {
+      transaction: transaction,
+      company: company
+    });
+  } else {
+    res.redirect('/home');
+  }
+}
+router.get('/transaction/:form/:id', is_authenticated, form_transaction);
+*/
+
+router.get('/transaction/:form/:id', is_authenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, '../views/form.html'));
+})
 
 export default router;

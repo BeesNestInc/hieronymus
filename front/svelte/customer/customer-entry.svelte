@@ -1,12 +1,10 @@
 <div class="entry">
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-      <h5 class="entry-title">取引先基本情報</h5>
-    </div> 
-  </nav>
+  <div class="page-title d-flex justify-content-between">
+    <h1>取引先基本情報</h1>
+  </div> 
   <div class="row full-height fontsize-12pt">
-    <div class="entry-content">
-      <div class="entry-body">
+    <div class="content">
+      <div class="body">
         {#if !ok }
         <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
           <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
@@ -17,34 +15,49 @@
           </ul>
         </div>
         {/if}
-        <CustomerInfo bind:customer={customer}></CustomerInfo>
+        <CustomerInfo
+        	bind:status={status}
+        	bind:customer={customer}></CustomerInfo>
       </div>
-      <div class="entry-footer">
+      <div class="footer">
         <button type="button" class="btn btn-secondary"
           on:click={back}>もどる</button>
         {#if (customer && customer.id && customer.id > 0)}
         <button type="button" class="btn btn-danger"
-          on:click={delete_}>Delete</button>
+          on:click={delete_}>削除</button>
         {/if}
         <button type="button" class="btn btn-primary"
-          on:click={save}>保存&nbsp;<i class="bi bi-save"></i></button>
+          on:click={save}>保存</button>
       </div>
     </div>
   </div>
 </div>
+<OkModal
+  bind:this={modal}
+  title={title}
+  description={description}
+  on:answer={doDelete}
+  ></OkModal>
 
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {currentCustomer, getStore} from '../../javascripts/current-record.js'
 
 import CustomerInfo from './customer-info.svelte';
+import OkModal from '../common/ok-modal.svelte';
 
-export	let	customer;
+export let status;
+export let customer;
 export  let inline;
 
 let ok = true;
 let errorMessages = [];
+
+let modal;
+let title;
+let description;
 
 const create_customer = async (customer) => {
   console.log('create_customer', customer);
@@ -59,21 +72,36 @@ const update_customer = async (customer) => {
   console.log(result);
 }
 const delete_customer = async (customer) => {
-  console.log('delete_customer', customer);
-  let result = await axios.delete('/api/customer', {
-    data: {
-      id: customer.id
-    }
-  });
-  console.log(result);
+  title = '顧客情報の削除';
+  description = `
+<table style="font-size:12px;">
+  <tbody>
+    <tr>
+      <td>名前</td><td>${customer.name}</td>
+      <td>種別</td><td>${customer.customerClass.name}</td>
+      <td>住所</td><td>${customer.address1}<br>${customer.address2}</td>
+      <td>担当者</td><td>${customer.chargeName}</td>
+    </tr>
+  </tbody>
+</table>
+`;
+	modal.show();
 }
+const doDelete = async (event) => {
+  if	( event.detail )	{
+  	try {
+      let result = await axios.delete(`/api/customer/${customer.id}`);
+  		console.log(result);
+    	back();
+  	} catch (e) {
+	    console.log(e);
+  	}
+  }
+}
+
 const validateForm = () => {
   ok = true;
   errorMessages = [];
-  if ( customer.type === null || customer.type === undefined ){
-    ok = false;
-    errorMessages.push("取引先種別が選択されていません。");
-  }
   if ( customer.name === undefined ){
     ok = false;
     errorMessages.push("名前が未入力です。");
@@ -105,7 +133,7 @@ const save = (event) => {
   if ( !validateForm() ){
     return ;
   }
-  customer.type = parseInt(customer.type);
+  customer.customerClassId = parseInt(customer.customerClassId);
   customer.name = customer.name ? customer.name : '';
   customer.ruby = customer.ruby || '';
   customer.key = customer.key || '';
@@ -129,15 +157,19 @@ const save = (event) => {
 
   try {
     let	pr;
+    let create = false;
     if ( customer.id  ) {
       customer.id = parseInt(customer.id);
       pr = update_customer(customer);
     } else {
       pr = create_customer(customer);
+      create = true;
     }
     pr.then(() => {
-      dispatch('save');
-      back();
+      if	( create )	{
+        window.history.replaceState(
+          status, "", `/customer/entry/${customer.id}`);
+      }
     });
   } catch(e) {
     console.log(e);
@@ -149,22 +181,20 @@ const save = (event) => {
 const clean = () => {
   customer = undefined;
   ok = true;
+  currentCustomer.set(null);
   errorMessages = [];
 }
 
 const back = (event) => {
+  dispatch('close');
   clean();
   if  ( !inline ) {
     window.history.back();
   }
-  dispatch('close');
 }
 
 beforeUpdate(() => {
-  console.log('beforeUpdate customer-entry');
-  if	( !customer )	{
-    customer = {}
-  }
+  console.log('beforeUpdate customer-entry', customer);
 })
 
 const delete_ = (event) => {

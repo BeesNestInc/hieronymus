@@ -35,15 +35,17 @@ export default {
     let id =  req.params.id;
     //console.log('/api/voucher/', id);
     let include = [
-        {
-          model: models.Customer,
-          as: 'customer'
-        },
-        {
-          model: models.User,
-          as: 'updateUser'
-        }
-      ];
+    	{
+        model: models.Customer,
+        as: 'customer'
+      },{
+        model: models.User,
+        as: 'updateUser'
+      },{
+        model: models.VoucherClass,
+        as: 'voucherClass'
+      }
+    ];
 
     
     if	( !id )	{
@@ -137,7 +139,7 @@ export default {
           	[Op.and]: [
             	where,
             	{
-              	type: type
+              	voucherClassId: type
             	}
           	]
         	};
@@ -362,5 +364,43 @@ export default {
         code: -1
       })
     });
+  },
+  classesGet: (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    models.VoucherClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((classes) => {
+      res.json({
+        values: classes
+      })
+    })
+  },
+  classesPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    let kinds = req.body.values;
+    for ( const kind of kinds ) {
+      if  ( kind.id ) {
+        let result = await models.VoucherClass.findByPk(kind.id);
+        if  ( !kind.name )  {
+          await result.destroy();
+        } else {
+          result.set(kind);
+          await result.save();
+        }
+      } else {
+        await models.VoucherClass.create(kind);
+      }
+    }
+    models.VoucherClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
+    })
   }
 };

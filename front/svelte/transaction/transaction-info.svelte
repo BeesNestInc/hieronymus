@@ -1,22 +1,14 @@
 <input type="hidden" id="id" bind:value={transaction.id}>
 <div class="container-fluid">
-  <div class="row mb-3">
+  <div class="row">
     <label for="kind" class="col-1 col-form-label">種別</label>
     <div class="col-2">
       <select class="form-control" id="kind"
-        bind:value={transaction.kind}
-        on:change={() => {
-          if	( transaction.kind < 10 )	{
-            viewDetail = true;
-          } else {
-            documentEditting = true;
-            viewDetail = false;
-      			viewDescription = true;
-      			viewFiles = true;
-          }
-        }}>
-        {#each DOCUMENT_KIND as ent}
-        <option value={ent[0]}>{ent[1]}</option>
+        bind:value={transaction.kindId}
+        on:change={setKind}>
+        <option value={0}> -- 未設定 --</option>
+        {#each transactionKinds as ent}
+        <option value={ent.id}>{ent.label}</option>
         {/each}
       </select>
     </div>
@@ -34,7 +26,7 @@
       {/if}
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="issueDate" class="col-1 col-form-label">発行日</label>
     <div class="col-2">
       <input type="date" class="form-control" id="issueDate"
@@ -46,7 +38,7 @@
         bind:value={transaction.deliveryLimit}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <div class="col-1">
       <label class="col-form-label">相手先</label>
       {#if ( transaction.customerId )}
@@ -81,7 +73,7 @@
       />
       {:else}
       <span>{transaction.customerName}</span>
-      <button type="button" class="btn btn-danger"
+      <button type="button" class="btn btn-warning"
       	on:click={() => {
           transaction.customerId = null;
         }}>
@@ -90,14 +82,58 @@
   		{/if}
     </div>
   </div>
-  <div class="row mb-3">
-    <label for="subject" class="col-1 col-form-label">件名</label>
-    <div class="col-6">
-      <input type="text" class="form-control" id="subject"
-        bind:value={transaction.subject} />
+  <div class="row mt-3">
+    <div class="col-1">
+      <label for="subject" class="col-form-label">件名</label>
     </div>
-    <div class="col-5">
+    <div class="col-8">
+      <div class="row">
+        <div class="col-12">
+      	  <input type="text" class="form-control" id="subject"
+        	  bind:value={transaction.subject} />
+        </div>
+      </div>
+      {#if ( viewTasks )}
+      <div class="row mt-3">
+        <div class="col-12">
+          <select class="form-control"
+      		  bind:value={transaction.taskId}
+        	  on:blur={() => {
+          	  viewTasks = false;
+              if	( transaction.taskId )	{
+                for	( let i = 0; i < tasks.length; i += 1 )	{
+                  console.log(tasks[i].id, transaction.taskId);
+                  if	( tasks[i].id === transaction.taskId )	{
+                    let task = tasks[i];
+                    //console.log('select', task);
+                    transaction.task = task;
+                    transaction.customerId = task.customerId;
+                    transaction.customerName = task.customerName;
+                    transaction.chargeName = task.chargeName;
+                    transaction.zip = task.zip;
+                    transaction.address1 = task.address1;
+                    transaction.address2 = task.address2;
+                    transaction.subject = task.subject;
+                    break;
+                  }
+                }
+              }
+        	  }}>
+        	  <option value={0}>未選択</option>
+        	  {#each tasks as task}
+        	  <option value={task.id}>{task.subject}</option>
+        	  {/each}
+      	  </select>
+        </div>
+      </div>
+      {/if}
+    </div>
+    <div class="col-3">
       {#if ( transaction.taskId )}
+      <button type="button" class="btn btn-warning"
+      	on:click={selectTasks}>
+        案件選択
+      </button>
       <button type="button" class="btn btn-info"
       	on:click={() => {
           openTask(transaction.taskId);
@@ -106,24 +142,34 @@
       </button>
       {:else}
       <button type="button" class="btn btn-primary"
+      	on:click={selectTasks}>
+        案件選択
+      </button>
+      <button type="button" class="btn btn-primary"
       	on:click={() => {
           openTask(null);
         }}>
         案件作成
       </button>
       {/if}
-      <label for="handler" class="col-form-label">弊社担当</label>
-      <select id="handler" class="form-control" style="display:inline;margin:0 10px;width:200px;"
+    </div>
+  </div>
+  <div class="row mt-3">
+    <div class="col-1">
+    	<label for="handler" class="col-form-label">弊社担当</label>
+  	</div>
+    <div class="col-3">
+      <select id="handler" class="form-control"
         bind:value={transaction.handledBy}>
-        <option value={0}></option>
+        <option value={0}> -- 未設定 --</option>
         {#each users as user}
         <option value={user.id}>{user.name}</option>
         {/each}
       </select>
     </div>
   </div>
-  {#if ( transaction.kind < 10 )}
-  <div class="row mb-3">
+  {#if ( currentKind && currentKind.hasDetails )}
+  <div class="row mt-3">
     <div class="col-1">
       <label class="col-form-label">詳細</label>
       {#if (viewDetail)}
@@ -150,14 +196,14 @@
       {/if}
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="paymentMethod" class="col-1 col-form-label">支払方法</label>
     <div class="col-sm-3">
       <input type="text" class="form-control" id="paymentMethod"
         bind:value={transaction.paymentMethod} />
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="taxClass" class="col-1 col-form-label">消費税</label>
     <div class="col-sm-1">
       <select class="form-control" id="taxClass"
@@ -177,22 +223,22 @@
       {/if}
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="amount" class="col-1 col-form-label">金額</label>
     <div class="col-sm-3">
       <input type="text" class="form-control number" id="amount" disabled="true"
         value={transaction.amount.toLocaleString()}>
     </div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <label for="description" class="col-1 col-form-label">備考</label>
-    <div class="col-sm-10">
+    <div class="col-11">
       <textarea class="form-control" id="description"
         bind:value={transaction.description} />
     </div>
   </div>
   {/if}
-  <div class="row mb-3">
+  <div class="row mt-3">
     <div class="col-1">
     	<label for="description" class="col-form-label">記録</label>
     	{#if ( documentEditting )}
@@ -231,7 +277,7 @@
       bind:document={transaction.document}></Document>
 		</div>
   </div>
-  <div class="row mb-3">
+  <div class="row mt-3">
     <div class="col-1">
       ファイル
       {#if ( viewFiles )}
@@ -258,25 +304,14 @@
   </div>
 </div>
 <style>
-.file-item {
-  width:90px;
-  height:120px;
-  border:1px #8CC solid;
-  margin:10px;
-  padding: 0 10px 10px 10px;
-}
-.rect-image {
-  width:70px;
-  position:absolute;
-  clip:rect(0,70px,70px,0);
-}
+
 </style>
 
 <script>
 import {numeric, TAX_CLASS} from '../../../libs/utils.js';
 import {DOCUMENT_KIND} from '../../../libs/transaction-documents.js';
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher, onDestroy} from 'svelte';
+import {onMount, beforeUpdate, afterUpdate, createEventDispatcher, onDestroy, tick} from 'svelte';
 import CustomerSelect from '../components/customer-select.svelte';
 import TransactionDetails from './transaction-details.svelte';
 import Document from '../components/document.svelte';
@@ -292,18 +327,64 @@ export let files;
 
 let	original_customers;
 let customerKey;
+let currentKind;
 let customerEditting = false;
 let documentEditting = false;
 let viewDescription = false;
 let viewDetail = true;
 let viewFiles = false;
+let viewTasks = false;
 let sum = 0;
+let transactionKinds = [];
+let tasks = [];
 
 //$: computeTax();
 
 beforeUpdate(() => {
+  if	( !currentKind && transaction && transaction.kind )	{
+  	currentKind = transaction.kind;
+  }
   computeTax();
 })
+
+const selectTasks = () => {
+  if	( tasks.length === 0 )	{
+		axios.get('/api/task').then((result) => {
+			tasks = result.data;
+    	viewTasks = true;
+  	});
+  } else {
+    viewTasks = true;
+  }
+}
+
+const setKind = () => {
+  for	( let i = 0; i < transactionKinds.length ; i ++ )	{
+  	if	( transactionKinds[i].id == transaction.kindId )	{
+      currentKind = transactionKinds[i];
+      break;
+    }
+  }
+  console.log('kind',{currentKind});
+  viewDetail = currentKind.hasDetails;
+  switch	( currentKind.hasDocument )	{
+    case	0:
+      viewDescription = false;
+      viewFiles = false;
+      documentEditting = false;
+      break;
+    case	1:
+      viewDescription = true;
+      viewFiles = true;
+      documentEditting = false;
+      break;
+    case	2:
+      viewDescription = true;
+    	viewFiles = true;
+      documentEditting = true;
+      break;
+  }
+}
 
 const	openTask = (id)	=> {
   console.log('openTask', id);
@@ -323,6 +404,7 @@ const	openTask = (id)	=> {
       tax: transaction.tax,
       amount: transaction.amount
     };
+    currentTransaction.set(transaction);
     window.history.pushState(
       status, "", `/task/new`);
   } else {
@@ -369,6 +451,10 @@ onMount(() => {
   axios.get(`/api/customer/`).then((result) => {
     original_customers = result.data;
     console.log('customer update', original_customers);
+  });
+  axios.get(`/api/transaction/kinds`).then((result) => {
+    transactionKinds = result.data.values;
+    console.log({transactionKinds});
   });
   eventBus.on('taskSelected', (task) => {
     console.log('taskSelected', {task});

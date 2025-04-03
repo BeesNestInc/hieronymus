@@ -1,4 +1,4 @@
-<div class="modal" id="ok-modal" tabindex="-1" data-bs-backdrop="static">
+<div class="modal" bind:this={modalEl} tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -27,10 +27,12 @@ const dispatch = createEventDispatcher();
 export let title;
 export let description;
 
+let modalEl;
+
 let modal;
 
 export const show = () => {
-  modal.show();
+  modal?.show();
 }
 
 const Answer = (answer) => {
@@ -40,8 +42,10 @@ const Answer = (answer) => {
 const close_ = () => {
   modal.hide();
 }
+beforeUpdate(() => {
+})
 onMount(() => {
-  modal = new Modal(document.getElementById('ok-modal'));
+  modal = new Modal(modalEl);
 })
 
 </script>

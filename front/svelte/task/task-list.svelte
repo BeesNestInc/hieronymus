@@ -1,80 +1,84 @@
-<div class="row full-height fontsize-12pt" style="overflow-y: scroll;">
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th scope="col" style="width: 150px;">
-          相手先
-        </th>
-        <th scope="col" style="width: 200px;">
-          件名
-        </th>
-        <th scope="col" style="width: 100px;">
-          発生日
-        </th>
-        <th scope="col" style="width: 100px;">
-          終了日
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding:10px 20px;">
-          <CustomerSelect
-            register=false
-            bind:value={customerId}
-            on:input={changeCustomer}>
-          </CustomerSelect>
-        </td>
-        <td>
-        </td>
-        <td>
-        </td>
-      </tr>
-      {#each tasks as line}
-      <tr>
-        <td>
-          {#if (line.customerId)}
-          <a href="/customer/{line.customerId}">
-            {line.customerName ? line.customerName : line.customer.name}
-          </a>
-          {:else}
-          {line.customerName ? line.customerName : '__' }
-          {/if}
-        </td>
-        <td>
-          <a href="#" on:click|preventDefault={() => {
+<div class="list">
+  <div class="page-title d-flex justify-content-between">
+    <h1 class="fs-3">案件一覧</h1>
+    <button type="button" class="btn btn-primary"
+    on:click={() => {
+      openTask(null);
+    }}
+    id="task-info">新規入力&nbsp;<i class="bi bi-pencil-square"></i></button>
+  </div>
+  <div class="full-height fontsize-12pt">
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th scope="col" style="width: 300px;">
+            相手先
+          </th>
+          <th scope="col">
+            件名
+          </th>
+          <th scope="col" style="width: 100px;">
+            発生日
+          </th>
+          <th scope="col" style="width: 100px;">
+            終了日
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:5px;">
+            <CustomerSelect
+              register=false
+              on:input={(event) => {
+                let value = parseInt(event.detail);
+                status.params.set('customer', value);
+                dispatch('selectCustomerId');
+              }}
+              customerId={status.params ? parseInt(status.params.get('customer')) : -1}>
+            </CustomerSelect>
+          </td>
+          <td>
+          </td>
+          <td>
+          </td>
+          <td>
+          </td>
+        </tr>
+        {#each tasks as line}
+        <tr>
+          <td>
+            {#if (line.customerId)}
+            <button type="button" class="btn btn-link"
+              on:click={() => {
+                link(`/customer/entry/${line.customerId}`)
+              }}>
+              {line.customerName ? line.customerName : line.customer.name}
+            </button>
+            {:else}
+            {line.customerName ? line.customerName : '__' }
+            {/if}
+          </td>
+          <td>
+            <button type="button" class="btn btn-link"
+              on:click={() => {
               openTask(line.id)
-            }}>
-            {line.subject ? line.subject : '__'}
-          </a>
-        </td>
-        <td>
-          {formatDate(line.issueDate)}
-        </td>
-        <td>
-          {formatDate(line.endedAt)}
-        </td>
-      </tr>
-      {/each}
-    </tbody>
-  </table>
+              }}>
+              {line.subject ? line.subject : '__'}
+            </button>
+          </td>
+          <td>
+            {formatDate(line.issueDate)}
+          </td>
+          <td>
+            {formatDate(line.endedAt)}
+          </td>
+        </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
 </div>
-
-<style>
-th {
-  text-align: center;
-}
-.file-item {
-  width:40px;
-  height:40px;
-  padding:5px;
-  float: left;
-}
-.rect-image {
-  width:40px;
-  clip:rect(0,40px,40px,0);
-}
-</style>
 
 <script>
 import CustomerSelect from '../components/customer-select.svelte';
@@ -84,30 +88,28 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import eventBus from '../../javascripts/event-bus.js';
 
-export	let	tasks;
+export let status;
+export let tasks;
 
-let customerId;
+const link = (href) => {
+  let pathes = href.split('/');
+  status.current = pathes[1];
+  window.history.pushState(status, "", href);
+  status.pathname = href;
+}
 
 beforeUpdate(() => {
   console.log('task-list beforeUpdate');
 });
 
-const changeCustomer = (event) => {
-  let customerId = event.detail;
-  console.log('changeCustomer', {customerId});
-  dispatch('selectCustomerId', customerId);
-}
-
 const openTask = (id) => {
   let	task;
-
-  console.log('openTask', id);
-  console.log('tasks', tasks);
-
-  for ( let i = 0; i < tasks.length; i ++ ) {
-    if ( tasks[i].id == id ) {
-      task = tasks[i];
-      break;
+  if  ( id )  {
+    for ( let i = 0; i < tasks.length; i ++ ) {
+      if ( tasks[i].id == id ) {
+        task = tasks[i];
+        break;
+      }
     }
   }
   dispatch('open', task);

@@ -1,33 +1,17 @@
 {#if ( status.state === 'list' )}
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-  <div class="container-fluid">
-    <span class="navbar-brand">取引一覧</span>
-    <ul class="navbar-nav me-auto mb-2">
-      <li class="nav-item">
-        <button type="button" class="btn btn-primary"
-          on:click={() => {
-            openEntry(null);
-          }}
-          id="transaction-info">新規入力&nbsp;<i class="bi bi-pencil-square"></i></button>
-      </li>
-    </ul>
-  </div> 
-</nav>
-<div class="row body-height">
   <TransactionList
+  	bind:status={status}
     transactions={transactions}
     on:open={openEntry}
     on:selectKind={selectKind}
     on:selectCustomerId={selectCustomer}
     on:selectAmount={selectAmount}
     ></TransactionList>
-</div>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
   <TransactionEntry
     bind:status={status}
     bind:transaction={transaction}
     bind:users={users}
-    on:open={openEntry}
     on:close={closeEntry}>
   </TransactionEntry>
 {/if}
@@ -36,20 +20,18 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import TransactionEntry from './transaction-entry.svelte';
 import TransactionList from './transaction-list.svelte';
-import {numeric} from '../../../libs/utils.js';
+import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js'
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 
 let transaction;
-let transactions;
-let users;
+let transactions = [];
+let users = [];
 
 const selectKind = (event) => {
-  let kind = event.detail;
-  updateTransactions({
-    kind: kind
-  });
+  updateTransactions({});
 }
 const selectCustomer = (event) => {
   let	customerId = event.detail;
@@ -68,29 +50,11 @@ const selectAmount = (event) => {
 }
 
 const updateTransactions = (_params) => {
-  if	( !status.current_params )	{
-    status.current_params = new Map();
-  }
-  if	( _params )	{
-    Object.keys(_params).map((key) => {
-      if	( !_params[key] )	{
-        status.current_params.delete(key);
-      } else {
-        status.current_params.set(key,_params[key]);
-      }
-    });
-  }
-  //console.log('current_params', status.current_params);
-  let _array = [];
-  status.current_params.forEach((value, key) => {
-    console.log('key, value', key, value);
-    _array.push(encodeURI(`${key}=${value}`));
-  });
-  let param = _array.join('&');
+  let param = buildParam(status, _params);
   //console.log('param', param);
   axios.get(`/api/transaction?${param}`).then((result) => {
-    transactions = result.data;
-    //console.log('transactions', transactions);
+    transactions = result.data.transactions;
+    console.log('transactions', transactions);
   });
   if	( _params )	{
     window.history.pushState(
@@ -102,18 +66,18 @@ const	openEntry = (event)	=> {
   if  ( !event )  {
     transaction = null;
     status.state = 'new';
-      window.history.pushState(
-        status, "", `/transaction/new`);
+    window.history.pushState(
+      status, "", `/transaction/new`);
   } else {
     console.log('open', event.detail);
     transaction = event.detail;
-    if ( !transaction.id )	{
+    if ( !transaction || !transaction.id )	{
       status.state = 'new';
       window.history.pushState(
         status, "", `/transaction/new`);
     } else {
       status.state = 'entry';
-      axios(`/api/transaction/${transaction.id}`).then((result) => {
+      axios.get(`/api/transaction/${transaction.id}`).then((result) => {
         transaction = result.data.transaction;
       	window.history.pushState(
         	status, "", `/transaction/entry/${transaction.id}`);
@@ -130,13 +94,13 @@ const checkPage = () => {
   let args = location.pathname.split('/');
   // /transaction/14
   // /transaction/entry/23
-  //console.log('checkPage', {args});
+  console.log('checkPage', {args});
   if  ( ( args[2] === 'entry' ) ||
 			  ( args[2] === 'new'   )) {
     status.state = args[2];
     if	 ( !transaction )	{
       transaction = {
-        issueDate: new Date(),
+        issueDate: formatDate(new Date()),
         tax: 0,
         amount: 0,
         lines: [{
@@ -163,6 +127,7 @@ const checkPage = () => {
         transaction.taxClass = task.taxClass;
         transaction.tax = task.tax;
         transaction.amount = task.amount;
+        transaction.handledBy = task.handledBy;
       }
     	let value = getStore(currentTransaction);
     	console.log({value});
@@ -170,7 +135,7 @@ const checkPage = () => {
 	      transaction = value;
 	    } else {
       	if	( status.state === 'entry' )	{
-      		axios(`/api/transaction/${args[3]}`).then((result) => {
+      		axios.get(`/api/transaction/${args[3]}`).then((result) => {
         		console.log('new load', result.data);
         		transaction = result.data.transaction;
         		currentTransaction.set(transaction);
@@ -188,30 +153,15 @@ const checkPage = () => {
 
 onMount(() => {
   console.log('transaction onMount');
+  status.params = parseParams();
+  updateTransactions();
+  axios.get('/api/users/member').then((result) => {
+    users = result.data.users;
+  })
 })
 
 beforeUpdate(()	=> {
   checkPage();
-  let _params = location.search.substr(1);
-  //console.log('_params', _params);
-  let params = [];
-  if  ( _params )	{
-    _params.split('&').map((item) => {
-      let kv = item.split('=');
-      params[decodeURI(kv[0])] = decodeURI(kv[1]);
-    });
-  	//console.log({params});
-	}
-  if  ( !users )  {
-  	users = [];
-    axios.get('/api/users/member').then((result) => {
-      users = result.data;
-    })
-  }
-  if	( !transactions )	{
-    transactions = [];
-  	updateTransactions();
-  }
 });
 afterUpdate(() => {
   //console.log('transactions afterUpdate');

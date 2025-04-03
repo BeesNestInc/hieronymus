@@ -32,7 +32,7 @@ import AccountEntry from './account-entry.svelte';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
-export	let	term;
+export	let	status;
 export	let	mode;
 export	let	modal;
 export	let account;
@@ -40,12 +40,6 @@ export	let	sub_account;
 
 beforeUpdate(() => {
 	console.log('account-modal beforeUpdate');
-	switch	(mode)	{
-	  case	'new-sub-account':
-		break;
-	  default:
-		break;
-	}
 })
 
 const update_account = (term, mode, params) => {
@@ -94,7 +88,7 @@ const	save = async(event) => {
 
 	console.log('save', name, sub_name, key, tax_class, debit, credit, balance);
 
-	update_account(term, mode, {
+	update_account(status.term, mode, {
 		code: account.code,
 		sub_code: sub_account ? sub_account.code : 0,
 		name: name,

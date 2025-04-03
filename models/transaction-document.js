@@ -12,6 +12,10 @@ export default (sequelize, DataTypes) => {
 				foreignKey: 'transactionDocumentId',
 				as: 'lines'
 			});
+			this.belongsTo(models.TransactionKind, {
+				sourceKey: 'kindId',
+        as: 'kind'
+			});
 			this.belongsTo(models.Task, {
 				sourceKey: 'taskId',
         as: 'task'
@@ -49,7 +53,7 @@ export default (sequelize, DataTypes) => {
   }
   TransactionDocument.init({
     no: DataTypes.STRING,
-    kind: DataTypes.INTEGER,
+    kindId: DataTypes.INTEGER,
     issueDate: DataTypes.DATEONLY,
     deliveryLimit: DataTypes.DATEONLY,
     customerId: DataTypes.INTEGER,

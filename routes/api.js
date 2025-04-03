@@ -19,12 +19,12 @@ import item from './api_item.js';
 import member from './api_member.js';
 import document from './api_document.js';
 import task from './api_task.js';
+import menu from './api_menu.js';
+import term from './api-term.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
 
-import models from '../models/index.js';
-const Op = models.Sequelize.Op;
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
 const VERSION = pkg.version;
 
@@ -44,6 +44,8 @@ router.get('/users/member', user.members);
 router.get('/users', user.list);
 
 router.get('/transaction', transaction.get);
+router.get('/transaction/kinds', transaction.kindsGet);
+router.put('/transaction/kinds', transaction.kindsPut);
 router.get('/transaction/:id', transaction.get);
 router.post('/transaction', transaction.post);
 router.put('/transaction', transaction.update);
@@ -92,6 +94,8 @@ router.get('/trial-balance/:term', trial_balance.get);
 router.get('/trial-balance/:term/:lastdate', trial_balance.get);
 
 router.get('/customer', customer.get);
+router.get('/customer/kinds', customer.kindsGet);
+router.put('/customer/kinds', customer.kindsPut);
 router.get('/customer/:id', customer.get);
 router.post('/customer', customer.post);
 router.put('/customer', customer.update);
@@ -99,6 +103,8 @@ router.put('/customer/:id', customer.update);
 router.delete('/customer', customer.delete);
 router.delete('/customer/:id', customer.delete);
 
+router.get('/voucher/classes', voucher.classesGet);
+router.put('/voucher/classes', voucher.classesPut);
 router.get('/voucher', voucher.get);
 router.get('/voucher/:id', voucher.get);
 router.post('/voucher', voucher.post);
@@ -112,19 +118,15 @@ router.delete('/voucher/file', voucher.deleteFile);
 router.delete('/voucher/:id', voucher.delete);
 router.get('/voucher/files/:id', voucher.files);
 
-router.get('/item/classes', item.classes);
+router.get('/item/classes', item.classesGet);
+router.put('/item/classes', item.classesPut);
 router.get('/item', item.get);
 router.get('/item/:id', item.get);
 router.post('/item', item.post);
-router.post('/item/upload/:id', item.upload);
-router.post('/item/upload',item.upload);
 router.put('/item', item.update);
-router.put('/item/bind', item.bind);
 router.put('/item/:id', item.update);
 router.delete('/item', item.delete);
-router.delete('/item/file', item.deleteFile);
 router.delete('/item/:id', item.delete);
-router.get('/item/files/:id', item.files);
 
 router.get('/document', document.get);
 router.get('/document/:id', document.get);
@@ -149,61 +151,24 @@ router.put('/member/:id', member.update);
 router.delete('/member', member.delete);
 router.delete('/member/:id', member.delete);
 
-router.get('/term/:year/:month', async (req, res, next) => {
-	let year = req.params.year;
-	let month = req.params.month;
-	let fy = await models.FiscalYear.findOne({
-		where: {
-			[Op.and]: {
-				startDate: {
-					[Op.lte]: new Date(year, month - 1, 2)
-				},
-				endDate: {
-					[Op.gte]: new Date(year, month - 1, 1)
-				}
-			}
-		}
-	});
-	//console.log(fy);
-	res.json(fy);
-});
+router.get('/menu/templates', menu.getTemplates);
+router.get('/menu/preview', menu.preview);
+router.get('/menu/:id', menu.get);
+router.get('/menu', menu.get);
+router.post('/menu', menu.post);
+router.put('/menu', menu.update);
+router.put('/menu/:id', menu.update);
+router.delete('/menu/:id', menu.delete);
 
-router.get('/term/:term', async (req, res, next) => {
-	let term = parseInt(req.params.term);
-	//console.log({term});
-	if	( term > 0 )	{
-		let fy = await models.FiscalYear.findOne({
-			where: {
-				term: term
-			}
-		});
-		res.json(fy);
-	}
-});
-router.put('/term/:id', async(req, res, next) => {
-  let id = parseInt(req.params.id);
-  //console.log({id});
-  let fy = await models.FiscalYear.findByPk(id);
-  fy.taxIncluded = req.body.taxIncluded;
-  fy.save();
-  res.json({
-    code: 0
-  })
-})
-router.get('/term', async (req, res, next) => {
-	models.FiscalYear.findAll({
-    order: [
-      ['term', 'ASC']
-    ]
-  }).then((lines) => {
-		res.json(lines);
-	});
-});
+router.get('/term/:year/:month', term.get);
+router.get('/term/:term', term.get);
+router.get('/term', term.get);
+router.put('/term/:id', term.update);
 
 router.post('/setup', setup)
 
 router.get('/version', async (req, res, next) => {
-	res.json({version: VERSION});
+  res.json({version: VERSION});
 });
 
 export default router;

@@ -3,9 +3,9 @@
   <div class="row mb-3">
     <label for="name" class="col-2 col-form-label">取引先種別</label>
     <div class="col-sm-10">
-      <select class="form-control" id="type" bind:value={customer.type}>
-        {#each customerClasses as customerClass }
-        <option value={customerClass[1]}>{customerClass[0]}</option>
+      <select class="form-control" id="type" bind:value={customer.customerClassId}>
+        {#each status.customerClasses as customerClass }
+        <option value={customerClass.id}>{customerClass.name}</option>
         {/each}
       </select>
     </div>
@@ -127,19 +127,8 @@
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 
-export	let	customer;
-
-const customerClasses = [
-    [ '未設定',			0],
-    [ '税金公共料金等',	 1],
-    [ '国内購買先',		11],
-    [ '海外購買先',		12],
-    [ '国内外注',		21],
-    [ '海外外注',		22],
-    [ '国内顧客',		31],
-    [ '海外顧客',		32],
-    [ '金融機関明細',	99]
-];
+export let status;
+export let	customer;
 
 beforeUpdate(() => {
 

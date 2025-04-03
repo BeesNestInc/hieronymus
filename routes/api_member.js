@@ -34,13 +34,17 @@ export default {
       }
       console.log(JSON.stringify(query, ' ', 2));
       models.Member.findAll(query).then( async(members) => {
-        res.json(members);
+        res.json({
+          members: members
+        });
       });
     } else {
       models.Member.findByPk(id, {
         include: include
       }).then((member) => {
-        res.json(member);
+        res.json({
+          member: member
+        });
       });
     }
   },
@@ -48,7 +52,9 @@ export default {
     let body = req.body;
     models.Member.create(body).then((member) => {
       //console.log(member);
-      res.json(member);
+      res.json({
+        member: member
+      });
     });
   },
   update: async(req, res, next) => {
@@ -59,7 +65,9 @@ export default {
     if	( member )	{
       member.set(body);
       member.save().then(() => {
-        res.json(member);
+        res.json({
+          member: member
+        });
       });
     }
   },
@@ -77,7 +85,9 @@ export default {
   },
   classes: (req, res, next) => {
     models.MemberClass.findAll().then((result) => {
-      res.json(result)
+      res.json({
+        classes: result
+      });
     }).catch((e) => {
       res.json({
         code: -1

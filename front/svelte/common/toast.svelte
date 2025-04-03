@@ -8,7 +8,7 @@ export const show = (title, description, type='success') => {
   toast = toasts.add({
     title: title,
     description: description,
-    duration: 10000,
+    duration: 3000,
     placement: 'top-center',
     type: type,
     theme: 'dark',

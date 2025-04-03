@@ -31,12 +31,25 @@ export default {
       {
         model: models.Document,
         as: 'document'
+      },
+      {
+        model: models.TransactionKind,
+        as: 'kind',
+        include: [
+          {
+            model: models.VoucherClass,
+            as: 'book'
+          }
+        ]
       }
     ];
     
     if	( !id )	{
-      let	order;
-      let where;
+      let order = [
+        [ "issueDate", "DESC" ],
+        [ "lines", "lineNo", "ASC"]
+      ];
+    	let where;
       console.log('query', req.query);
       if  ( !req.query )  {
         res.json({
@@ -45,12 +58,12 @@ export default {
         })
       } else
       if	( req.query.order )	{
-        order = req.params.order;
-      } else {
-        order = [
-          [ "issueDate", "DESC" ],
-          [ "lines", "lineNo", "ASC"]
-        ]
+        if	( req.query.order === 'asc' )	{
+          order = [
+            [ "issueDate", "ASC" ],
+            [ "lines", "lineNo", "ASC"]
+          ];
+        }
       }
       if	( req.query.customer )	{
         include.push(
@@ -76,16 +89,63 @@ export default {
               [Op.and]: [
                 where,
                 {
-                  kind: parseInt(req.query.kind)
+                  kindId: parseInt(req.query.kind)
                 }
               ]
             };
           } else {
             where = {
-              kind: parseInt(req.query.kind)
+              kindId: parseInt(req.query.kind)
             };
           }
         }
+      }
+      if	( req.query.task )	{
+        if  ( where ) {
+          where = {
+            [Op.and]: [
+              where,
+              {
+                taskId: parseInt(req.query.task)
+              }
+            ]
+          };
+        } else {
+          where = {
+            taskId: parseInt(req.query.task)
+          };
+        }
+      }
+      if	( req.query.voucher )	{
+        //console.log('voucher', req.query.voucher);
+        if	( req.query.voucher === 'true' )	{
+          include.push({
+            model: models.TransactionKind,
+            as: 'kind',
+            where: {
+              hasVoucher: true
+            }
+          });
+        } else
+        if	( req.query.voucher === 'false' )	{
+          include.push({
+            model: models.TransactionKind,
+            as: 'kind',
+            where: {
+              hasVoucher: false
+            }
+          });
+        } else {
+          include.push({
+            model: models.TransactionKind,
+            as: 'kind'
+          });
+        }
+      } else {
+        include.push({
+          model: models.TransactionKind,
+          as: 'kind'
+        });
       }
       //console.log({where});
       //console.log({order});
@@ -94,17 +154,19 @@ export default {
         where: where,
         order: order,
         include: include
-      }).then((transaction) => {
-        res.json(transaction);
+      }).then((transactions) => {
+        res.json({
+          code: 0,
+          transactions: transactions
+      	});
       });
     } else {
       models.TransactionDocument.findByPk(id, {
-        include: include,
-        order: [
-          [ "lines", "lineNo", "ASC"]
-        ]
+        include: include
       }).then((transaction) => {
+        console.log({transaction});
         res.json({
+          code: 0,
           transaction: transaction
         });
       });
@@ -141,24 +203,19 @@ export default {
       	body.documentId = document.id;
       }
       models.TransactionDocument.create(body).then(async (transaction)=> {
-        let lines = [];
         for ( let i = 0 ; i < body.lines.length ; i ++ )  {
           let line = body.lines[i];
-          if	(( typeof line.itemId === 'number') ||
-        			 ( line.itemName !== '' ))	{
-          	line.transactionDocumentId = transaction.id;
-          	line.lineNo = i;
-          	line.id = undefined;
-          	line = await models.TransactionDetail.create(line);
-          	lines.push(line.dataValues);
+          if	(( typeof line.itemId === 'number ') ||
+               ( line.itemName !== '' ))	{
+            line.transactionDocumentId = transaction.id;
+            line.lineNo = i;
+            line.id = undefined;
+            line = await models.TransactionDetail.create(line);
           }
         }
-        console.log(lines);
-        let _transaction = transaction.dataValues;
-        _transaction.lines = lines;
-        console.log(JSON.stringify(_transaction, ' ', 2 ));
         res.json({
-          transaction: _transaction
+          id: transaction.id,
+          documentId: transaction.documentId
       	});
       }).catch ((e) => {
         console.log(e);
@@ -175,32 +232,34 @@ export default {
 		let id = req.params.id ? parseInt(req.params.id) : body.id;
     if  ( req.session.user.customerManagement )    {
       models.TransactionDocument.findByPk(id, {
-              include: [
-                {
-                  model: models.Document,
-                  as: 'document'
-                }
-              ]
+        include: [
+          {
+            model: models.Document,
+            as: 'document'
+          }, {
+            model: models.TransactionKind,
+            as: 'kind'
+          }
+        ]
       }).then(async (transaction) => {
         let kind = transaction.kind;
         let documentId = transaction.documentId;
         transaction.set(body);
-        if	( kind < 10 )	{
+        if	( kind.hasDetails )	{
         	await models.TransactionDetail.destroy({
           	where: {
             	transactionDocumentId: transaction.id
           	}
         	});
-        } else {
-          if	(( !body.document.descriptionType ) &&
-          		 ( transaction.documentId ) )	{
-          	await models.Document.destroy({
-            	where: {
-              	id: transaction.documentId
-            	}
-          	})
-            transaction.documentDocumentId = null;
-          }
+        }
+        if	(( !body.document.descriptionType ) &&
+          	 ( transaction.documentId ) )	{
+          await models.Document.destroy({
+            where: {
+              id: transaction.documentId
+            }
+          })
+          transaction.documentDocumentId = null;
         }
         let lines = [];
         let _transaction = transaction.dataValues;
@@ -241,9 +300,10 @@ export default {
         }
         await transaction.save();
         _transaction.lines = lines;
-        console.log(JSON.stringify(_transaction, ' ', 2 ));
+        //console.log(JSON.stringify(_transaction, ' ', 2 ));
         res.json({
-          transaction: _transaction
+          id: transaction.id,
+          documentId: transaction.documentId
       	});
       }).catch ((e) => {
         console.log(e);
@@ -271,5 +331,42 @@ export default {
   allocateReceivable: (req, res, next) => {
 
   },
-  
+  kindsGet: (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    models.TransactionKind.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
+    })
+  },
+  kindsPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    let kinds = req.body.values;
+    for ( const kind of kinds ) {
+      if  ( kind.id ) {
+        let result = await models.TransactionKind.findByPk(kind.id);
+        if  ( !kind.label )  {
+          await result.destroy();
+        } else {
+            result.set(kind);
+            await result.save();
+        }
+      } else {
+        await models.TransactionKind.create(kind);
+      }
+    }
+    models.TransactionKind.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
+    })
+  }
 }

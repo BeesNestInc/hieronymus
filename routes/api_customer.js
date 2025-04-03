@@ -5,14 +5,51 @@ export default {
   get: async (req, res, next) => {
     let id =  req.params.id;
     console.log('/api/customer/', id);
-    
+		let include = [
+      {
+        model: models.CustomerClass,
+        as: 'customerClass'
+      }
+    ];
     if	( !id )	{
-      models.Customer.findAll({
-        order: [
-          ['name', 'ASC']
-        ]
-      }).then((customers) => {
-        res.json(customers);
+      let where;
+      if	( req.query )	{
+        if	( req.query.kind )	{
+          let kind = parseInt(req.query.kind);
+          if	( kind > 0 )	{
+            where = {
+              customerClassId: kind
+            }
+          }
+        }
+        if  ( req.query.clientOnly )  {
+          include[0].where = {
+            isClient: true
+          };
+        }
+      }
+      let pr;
+      if	( where )	{
+      	pr = models.Customer.findAll({
+        	order: [
+          	['name', 'ASC']
+        	],
+        	include: include,
+          where: where
+        });
+      } else {
+      	pr = models.Customer.findAll({
+        	order: [
+          	['name', 'ASC']
+        	],
+        	include: include
+        });
+      }
+      pr.then((customers) => {
+        res.json({
+          code: 0,
+          customers: customers
+      	});
       });
     } else {
       models.Customer.findOne({
@@ -21,6 +58,7 @@ export default {
         }
       }).then((customer) => {
         res.json({
+          code: 0,
           customer: customer
         });
       });
@@ -69,4 +107,42 @@ export default {
       });
     }
   },
+  kindsGet: (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    models.CustomerClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
+    })
+  },
+  kindsPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    let kinds = req.body.values;
+    for ( const kind of kinds ) {
+      if  ( kind.id ) {
+        let result = await models.CustomerClass.findByPk(kind.id);
+        if  ( !kind.name )  {
+          await result.destroy();
+        } else {
+          result.set(kind);
+          await result.save();
+        }
+      } else {
+        await models.CustomerClass.create(kind);
+      }
+    }
+    models.CustomerClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
+    })
+  }
 };

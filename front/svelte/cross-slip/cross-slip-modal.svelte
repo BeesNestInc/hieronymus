@@ -1,7 +1,5 @@
-<style>
-</style>
-<div class="modal" id="cross-slip-modal" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog modal-lg">
+<div class="modal" id={ id ? id : "cross-slip-modal"} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="modalLabel">振替伝票</h5>
@@ -22,7 +20,6 @@
         <CrossSlip
           bind:slip={slip}
           fy={fy}
-          init={init}
           accounts={accounts}></CrossSlip>
         {#if (vouchers)}
         <table class="table table-striped table-bordered">
@@ -56,7 +53,7 @@
                 {/if}
               </td>
               <td>
-                {voucherType(line.type)}
+                {line.voucherClass ? line.voucherClass.name : '__'}
               </td>
               <td>
                 {line.customer.name}
@@ -79,7 +76,7 @@
              (( user.accounting ) ||
               ( slip.createdBy == user.id )))) }
           <button type="button" class="btn btn-secondary"
-          on:click={openVouchers}>証票</button>
+          	on:click={openVouchers}>証票</button>
           {/if}
           {#if ( slip && slip.no > 0) }
           {#if ( user.approvable )}
@@ -99,16 +96,15 @@
              (( user.accounting ) ||
               ( slip.createdBy == user.id ))))}
           <button type="button" class="btn btn-primary" id="save-button"
-              on:click={save}>Save</button>
+            on:click={save}>Save</button>
         {/if}
-        </div>
+      </div>
     </div>
   </div>
 </div>
 <script>
 
 import {numeric} from '../../../libs/utils';
-import {voucherType} from '../../../libs/voucher';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
@@ -120,8 +116,8 @@ export let accounts;
 export let slip;
 export let term;
 export let user;
+export let id;
 
-export	let init;
 let vouchers;
 let fy;
 let ok = true;
@@ -153,7 +149,6 @@ beforeUpdate(() => {
 })
 afterUpdate(() => {
   //console.log('afterUpdate cross-slip-modal');
-  init = false;
 });
 
 const save = (event) => {
@@ -285,8 +280,8 @@ const openVouchers = (event) => {
         date: `${slip.year}-${slip.month}-${slip.day}`
       }
     }).then((result) => {
-      vouchers = result.data;
-      //console.log('vouchers', vouchers);
+      vouchers = result.data.vouchers;
+      console.log('vouchers', vouchers);
     })
   }
 }

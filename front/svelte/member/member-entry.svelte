@@ -1,9 +1,7 @@
 <div class="entry">
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-      <h5 class="entry-title">役職員情報</h5>
-    </div> 
-  </nav>
+  <div class="page-title d-flex justify-content-between">
+    <h1>役職員情報</h1>
+  </div> 
   <div class="row full-height fontsize-12pt">
     <div class="entry-content">
       <div class="entry-body">
@@ -17,7 +15,7 @@
           on:click={back}>もどる</button>
         {#if ( member && member.id && member.id > 0 )}
         <button type="button" class="btn btn-danger" disabled={disabled}
-          on:click={delete_}
+          on:click={deleteMember}
           id="delete-button">削除</button>
         {/if}
         <button type="button" class="btn btn-primary" disabled={disabled}
@@ -27,23 +25,65 @@
     </div>
   </div>
 </div>
-
+<OkModal
+  bind:this={modal}
+  title={title}
+  description={description}
+  on:answer={doDelete}
+  ></OkModal>
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {numeric, formatDate} from '../../../libs/utils.js';
 import MemberInfo from './member-info.svelte';
+import OkModal from '../common/ok-modal.svelte';
+import {currentMember, getStore} from '../../javascripts/current-record.js'
 
 export  let member;
 export  let classes;
 export  let users;
+export let status;
 
 let disabled = false;
-let update;
+let modal;
+let title;
+let description;
 
-onMount(() => {
-  console.log('member-entry onMount', member);
-})
+const deleteMember = (event) => {
+  console.log('deleteMember', member);
+  title = '役職員の削除';
+  description = `
+<table style="font-size:12px;">
+  <tbody>
+    <tr>
+			<td>名前</td><td>${member.tradingName}</td>
+		</tr>
+    <tr>
+			<td>戸籍名</td><td>${member.legalName}</td>
+		</tr>
+    <tr>
+			<td>役職</td><td>${member.memberClass.title}</td>
+		</tr>
+    <tr>
+			<td>誕生日</td><td>${formatDate(member.birthDate)}</td>
+    </tr>
+  </tbody>
+`;
+  modal.show();
+}
+
+const doDelete = async (event) => {
+  if	( event.detail )	{
+  	try {
+  		let result = await axios.delete(`/api/member/${member.id}`);
+  		console.log(result);
+    	back();
+  	} catch (e) {
+	    console.log(e);
+  	}
+  }
+}
 
 const create_member = async (_member) => {
   let result = await axios.post('/api/member', _member);
@@ -66,14 +106,7 @@ const delete_member = async (member) => {
   });
   console.log(result);
 }
-const bind_file = async(file) => {
-  console.log('bind_file', file.id, file.memberId);
-  let	result = await axios.put('/api/member/bind', {
-    id: file.id,
-    memberId: file.memberId
-  });
-  return	(result);
-}
+
 const save = () => {
   console.log('member', member);
   if	( member.memberClassId )	{
@@ -91,12 +124,11 @@ const save = () => {
       create = true;
     }
     it.then((result) => {
-      update = true;
       //console.log('result', result);
-      member = result.data;
+      member = result.data.member;
       if  ( create )  {
-        window.history.pushState(
-          null, "", `/member/entry/${member.id}`);
+        window.history.replaceState(
+          status, "", `/member/entry/${member.id}`);
       }
     });
   }
@@ -107,37 +139,18 @@ const save = () => {
   }
 };
 
-
-const clean = () => {
-  member = null;
-}
-
 const	back = (event) => {
-  clean();
-  dispatch('close', update);
+  dispatch('close');
+  currentMember.set(null);
+  window.history.back();
 }
 
 beforeUpdate(() => {
   //console.log('member-entry beforeUpdate', member);
-  update = false;
-  if	( !member )	{
-    member = {
-      legalName: ''
-    };
-  }
 });
 
-const	delete_ = (event) => {
-  try {
-    console.log('delete');
-    delete_member(member).then(() => {
-      back();
-    });
-  }
-  catch(e) {
-    console.log(e);
-    // can't delete
-    //	TODO alert
-  }
-}
+
+onMount(() => {
+  console.log('member-entry onMount', member);
+})
 </script>

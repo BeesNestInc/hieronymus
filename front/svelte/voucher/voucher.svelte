@@ -1,46 +1,4 @@
 {#if ( status.state === 'list' )}
-<div class="d-flex justify-content-between mb-3 mt-3">
-  <h1 class="fs-3">証票一覧</h1>
-  <button type="button" class="btn btn-primary"
-  	on:click={() => {
-    	openEntry(null);
-  	}}
-		id="voucher-info">証票入力&nbsp;<i class="bi bi-pencil-square"></i></button>
-</div>
-<ul class="nav me-auto mb-2">
-  {#each dates as date}
-    <li class="nav-item">
-      {#if ( status.params && (date.ym == status.params.get('month')) )}
-      <button type="button" class="btn btn-primary disabled me-2"
-        on:click={openMonth}
-        data-month="{date.year}-{date.month}">
-        {date.month}&nbsp;月
-      </button>
-      {:else}
-      <button type="button" class="btn btn-outline-primary me-2"
-        on:click={openMonth}
-        data-month="{date.year}-{date.month}">
-        {date.month}&nbsp;月
-      </button>
-      {/if}
-    </li>
-  {/each}
-  <li class="nav-item">
-    {#if ( !status.params || !status.params.get('month') )}
-    <button type="button" class="btn btn-primary disabled me-2"
-      data-month=""
-      on:click={openMonth}>
-      ALL
-    </button>
-    {:else}
-    <button type="button" class="btn btn-outline-primary me-2"
-      data-month=""
-      on:click={openMonth}>
-      ALL
-    </button>
-    {/if}
-  </li>
-</ul>
 <VoucherList
   bind:status={status}
   vouchers={vouchers}
@@ -49,6 +7,7 @@
   on:selectVoucherType={selectVoucherType}
   on:selectCustomerId={selectCustomer}
   on:selectAmount={selectAmount}
+  on:gotoMonth={gotoMonth}
   ></VoucherList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
 <VoucherEntry
@@ -61,7 +20,7 @@
   slip={slip}
   bind:modal={slipModal}
   term={status.term}
-  user={user}
+  user={status.user}
   accounts={accounts}
   bind:init={init}
   on:close={updateVouchers}></CrossSlipModal>
@@ -76,11 +35,11 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
-import {set_accounts} from '../../javascripts/cross-slip';
+import {setAccounts} from '../../javascripts/cross-slip';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentVoucher, getStore} from '../../javascripts/current-record.js'
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
-export let user;
 export let status;
 
 let	voucher;
@@ -93,7 +52,6 @@ let slip = {
   month: 0,
   lines: []
 };
-let dates = [];
 
 const selectVoucherType = (event) => {
   updateVouchers({});
@@ -114,27 +72,17 @@ const selectAmount = (event) => {
   });
 }
 
-const updateVouchers = (_params) => {
-  if	( !status.params )	{
-    status.params = new Map();
-  }
-  if	( _params )	{
-    Object.keys(_params).map((key) => {
-      if	( !_params[key] )	{
-        status.params.delete(key);
-      } else {
-        status.params.set(key,_params[key]);
-      }
-    });
-  }
-  console.log('current_params', status.params);
-  let _array = [];
-  status.params.forEach((value, key) => {
-    //console.log('key, value', key, value);
-    _array.push(encodeURI(`${key}=${value}`));
+const gotoMonth = (event) => {
+  let month = event.detail;
+  //console.log('month', month);
+  updateVouchers({
+    month: month
   });
-  let param = _array.join('&');
-  //console.log('param', param);
+}
+
+const updateVouchers = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
   axios.get(`/api/voucher?${param}`).then((result) => {
     vouchers = result.data.vouchers;
     //console.log('vouchers', vouchers);
@@ -145,46 +93,52 @@ const updateVouchers = (_params) => {
   }
 };
 
-const openMonth = (event) => {
-    event.preventDefault();
-  let month = event.currentTarget.dataset.month;
-  gotoMonth(month);
-}
-const gotoMonth = (month) => {
-  //console.log('month', month);
-  updateVouchers({
-    month: month
-  });
-}
-
 const	openSlip = (event)	=> {
-  //console.log('openSlip', event.detail);
-  slip = event.detail;
-  init = true;
-  //console.log('slip', slip)
-  slipModal.show();
+  let issue = event.detail;
+  if	( issue.no )	{
+    axios.get(`/api/cross_slip/${issue.year}/${issue.month}/${issue.no}`).then((result) => {
+      slip = result.data;
+      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
+      console.log('slip', slip);
+      init = true;
+      slipModal.show();
+    })
+  } else {
+    slip = {
+      year: parseInt(issue.year),
+      month: parseInt(issue.month),
+      day: parseInt(issue.day),
+      lines: [{
+        debitAccount: "",
+        debitSubAccount: 0,
+        debitAmount: "",
+        debitTax: "",
+        creditAccount: "",
+        creditSubAccount: 0,
+        creditAmount: "",
+        creditTax: "",
+      }]
+    };
+    init = true;
+    slipModal.show();
+  }
 };
 
 const	openEntry = (event)	=> {
   //console.log('open', event.detail);
-  if	( !event )	{
-		voucher = null;
+  voucher = event.detail;
+  if ( !voucher || !voucher.id )	{
+    voucher = null;
     status.state = 'new';
     window.history.pushState(
       status, "", `/voucher/${status.term}/new`);
   } else {
-  	voucher = event.detail;
-  	if ( !voucher.id )	{
-    	voucher = null;
-    	status.state = 'new';
-    	window.history.pushState(
-      	null, "", `/voucher/${status.term}/new`);
-  	} else {
-    	status.state = 'entry';
-    	window.history.pushState(
-      	null, "", `/voucher/${status.term}/entry/${voucher.id}`);
-  	}
-  	//console.log('voucher', voucher)
+    status.state = 'entry';
+    axios.get(`/api/voucher/${voucher.id}`).then((result) => {
+      voucher = result.data.voucher;
+      window.history.pushState(
+        status, "", `/voucher/${status.term}/entry/${voucher.id}`);
+    });
   }
 };
 
@@ -232,34 +186,15 @@ const checkPage = () => {
 onMount(async () => {
   console.log('voucher onMount', voucher);
   checkPage()
-  if	( !status.params )	{
-    status.params = new Map();
-  }
-  let _params = location.search.substring(1); // for leading '?'
-  if  ( _params )	{
-    _params.split('&').map((item) => {
-      let kv = item.split('=');
-      status.params.set(decodeURI(kv[0]), decodeURI(kv[1]));
-    });
-  }
-  axios.get(`/api/term/${status.term}`).then((result) => {
-    let fy = result.data;
-    status.term = fy.term;
-    for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
-      dates.push({
-        year: mon.getFullYear(),
-        month: mon.getMonth()+1,
-        ym: `${mon.getFullYear()}-${mon.getMonth()+1}`
-      });
-      mon.setMonth(mon.getMonth() + 1);
-    }
-    dates = dates;
-  });
-  axios.get(`/api/accounts`).then((res) => {
-    accounts = res.data;
-    set_accounts(accounts);
+  status.params = parseParams();
+  axios.get(`/api/voucher/classes`).then((result) => {
+    status.voucherClasses = result.data.values;
   });
   updateVouchers();
+  axios.get(`/api/accounts`).then((res) => {
+    accounts = res.data;
+    setAccounts(accounts);
+  });
   window.onpopstate = (event) => {
     if	( window.history.state )	{
       state = window.history.state;

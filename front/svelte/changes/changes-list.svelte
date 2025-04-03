@@ -1,5 +1,5 @@
 <table class="table table-bordered">
-  <thead class="table-light">
+  <thead>
     <tr>
       <th scope="col" colspan="2">
         年月
@@ -47,24 +47,11 @@
     {/each}
   </tbody>
 </table>
-<style>
-.fontsize-12pt {
-	font-size: 12pt;
-}
-.application {
-	padding: 0;
-}
-th {
-	text-align: center;
-}
-</style>
 
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
-export	let term;
-export	let	account;
 export	let lines = [];
 
 </script>

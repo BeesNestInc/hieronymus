@@ -18,7 +18,27 @@ export default (sequelize, DataTypes) => {
       this.hasMany(models.ItemFile, {
         foreignKey: 'itemId',
         as: 'files'
-      })
+      });
+			this.hasOne(models.Document, {
+				foreignKey: 'id',
+				sourceKey: 'documentId',
+        as: 'document'
+			});
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'handledBy',
+        as: 'handleUser'
+			});
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'createdBy',
+        as: 'createUser'
+			});
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'updatedBy',
+        as: 'updateUser'
+			});
     }
   }
   Item.init({
@@ -34,8 +54,10 @@ export default (sequelize, DataTypes) => {
     costPrice: DataTypes.DECIMAL(8),      //  原価
     unit: DataTypes.STRING,
     taxClass: DataTypes.INTEGER,
-    descriptionType: DataTypes.STRING,
-    description: DataTypes.TEXT
+    documentId: DataTypes.INTEGER,
+    handledBy: DataTypes.INTEGER,
+    createdBy: DataTypes.INTEGER,
+    updatedBy: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Item',

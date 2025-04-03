@@ -1,18 +1,18 @@
-{#if ( state === 'list' )}
-<div class="d-flex justify-content-between mb-3 mt-3">
-  <h1 class="fs-3">顧客台帳</h1>
-  <button type="button" class="btn btn-primary"
-    on:click={openEntry}>顧客入力&nbsp;<i class="bi bi-pencil-square"></i></button>
-</div>
+{#if ( status.state === 'list' )}
 <CustomerList
-    update={list_update}
-    on:open={openEntry}></CustomerList>
+	bind:status={status}
+  customers={customers}
+  on:selectKind={selectKind}
+  on:open={openEntry}></CustomerList>
+{:else if ( status.state === 'home')}
+<CustomerHome
+  bind:status={status}
+></CustomerHome>
 {:else}
 <CustomerEntry
-	on:save={update}
-  on:close={closeEntry}
-	customer={customer}>
-</CustomerEntry>
+	bind:status={status}
+	bind:customer={customer}
+  on:close={closeEntry}></CustomerEntry>
 {/if}
 
 <style>
@@ -23,80 +23,103 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import CustomerEntry from './customer-entry.svelte';
 import CustomerList from './customer-list.svelte';
+import {currentCustomer, getStore} from '../../javascripts/current-record.js'
+import { buildParam, parseParams } from '../../javascripts/params';
+import CustomerHome from './customer-home.svelte';
+
+export let status;
 
 let	customer;
-let	list_update;
-let state = 'list';
+let customers = [];
 
-const	update = (event) => {
-	console.log('update');
-	list_update = true;
-  state = 'list';
+const selectKind = (event) => {
+  updateCustomers({});
 }
 
+const updateCustomers = (_params) => {
+  let param = buildParam(status, _params);
+  //console.log('param', param);
+  axios.get(`/api/customer?${param}`).then((result) => {
+    customers = result.data.customers;
+    console.log({customers});
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
+};
+
 const	openEntry = (event)	=> {
-  if  ( !event )  {
-    customer = null;
-    state = 'new';
-      window.history.pushState(
-        null, "", `/customer/new`);
+  console.log('open', event.detail);
+  customer = event.detail;
+  if ( !customer || !customer.id )	{
+    status.state = 'new';
+    window.history.pushState(
+      status, "", `/customer/new`);
   } else {
-    console.log('open', event.detail);
-    customer = event.detail;
-    if ( !customer.id )	{
-      state = 'new';
+    status.state = 'entry';
+    axios(`/api/customer/${customer.id}`).then((result) => {
+      customer = result.data.customer;
       window.history.pushState(
-        null, "", `/customer/new`);
-    } else {
-      state = 'entry';
-      window.history.pushState(
-        null, "", `/customer/entry/${customer.id}`);
-    }
+        status, "", `/customer/entry/${customer.id}`);
+    });
   }
   //console.log('invoice', invoice)
 };
 
 const closeEntry = (event) => {
   console.log('close');
-  state = 'list';
+  status.state = 'list';
+  updateCustomers();
 }
 
-beforeUpdate(()	=> {
-  checkPage();
-});
-afterUpdate(() => {
-})
 const checkPage = () => {
   let args = location.pathname.split('/');
   // /customer/26
   // /customer/
   console.log('checkPage', {args});
-  if  (( args[2] === '') ||
-       ( args[2] === 'list' ))  {
-    state = 'list';
+  if	( args[2] === 'home' )	{
+		status.state = 'home';
   } else
-  if  ( args[2] === 'new' ) {
-    customer = {};
-    state = 'new';
-  } else {
-    state = 'entry';
-    if  ( !customer ) {
+  if  ( ( args[2] === 'entry' ) ||
+			  ( args[2] === 'new'   )) {
+    status.state = args[2];
+		if	( !customer )	{
       customer = {};
-      axios(`/api/customer/${args[2]}`).then((result) => {
-        customer = result.data.customer;
-        console.log({customer});
-      });
+      let value = getStore(currentCustomer);
+      //console.log({value});
+		  if	( value )	{
+        customer = value;
+      } else {
+        if	( status.state === 'entry' )	{
+          axios.get(`/api/customer/${args[3]}`).then((result) => {
+            customer = result.data.customer;
+            currentCustomer.set(customer)
+          });
+        } else {
+          currentCustomer.set(customer);
+        }
+      }
     }
+  } else {
+    status.state = 'list';
   }
 }
 
 onMount(() => {
   console.log('customer onMount');
-	window.onpopstate = (event) => {
-    console.log('maybe back');
-    customer = null;
-    checkPage();
-	}
-
+  status.params = parseParams();
+  axios.get(`/api/customer/kinds`).then((result) => {
+    status.customerClasses = result.data.values;
+  });
+  updateCustomers();
 })
+
+beforeUpdate(()	=> {
+  //console.log('customer.svelte', {customer});
+  checkPage();
+});
+afterUpdate(() => {
+})
+
 </script>

@@ -29,15 +29,16 @@ export default {
 					subAccountCode: sub_account,
 				}
 			});
-			remaining = await models.SubAccountRemaining.findOne({
-				where: {
-					[Op.and]: {
-						term: term,
-						subAccountId: sub_account_rec.id
+			if	( sub_account_rec )	{
+				remaining = await models.SubAccountRemaining.findOne({
+					where: {
+						[Op.and]: {
+							term: term,
+							subAccountId: sub_account_rec.id
+						}
 					}
-				}
-			});
-			
+				});
+			}
 		} else {
 			remaining = await models.AccountRemaining.findOne({
 				where: {

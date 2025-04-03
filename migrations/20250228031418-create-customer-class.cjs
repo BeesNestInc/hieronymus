@@ -12,8 +12,13 @@ module.exports = {
       name: {
         type: Sequelize.STRING
       },
-      order: {
-        type: Sequelize.INTEGER
+      displayOrder: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
+      },
+      isClient: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
       },
       createdAt: {
         allowNull: false,
@@ -27,37 +32,39 @@ module.exports = {
     await queryInterface.bulkInsert('CustomerClasses', [
       {
         name: '税金公共料金等',
-        order: 0,
+        displayOrder: 0,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '国内購買先',
-        order: 1,
+        displayOrder: 1,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '海外購買先',
-        order: 1,
+        displayOrder: 2,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '国内外注',
-        order: 2,
+        displayOrder: 3,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '海外外注',
-        order: 2,
+        displayOrder: 4,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '国内顧客',
-        order: 3,
+        displayOrder: 5,
+        isClient: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '海外顧客',
-        order: 3,
+        displayOrder: 6,
+        isClient: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }

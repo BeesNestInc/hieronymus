@@ -1,5 +1,5 @@
 <div class="container-fluid">
-  <div class="row mb-2">
+  <div class="row mb-3">
     <div class="col-5">
       <div class="input-group">
         <span class="input-group-text">{slip.year}年{slip.month}月</span>
@@ -28,7 +28,7 @@
         </div>
       </div>
     </div>
-</div>
+	</div>
   <div class="row">
     <table class="table table-striped table-bordered">
       <thead>
@@ -53,16 +53,15 @@
       <tbody id="cross-slip">
         {#if slip}
         {#each slip.lines as line, i}
-        <tr class=""
+        <tr
           on:drop|preventDefault={onDrop}
           on:dragenter|preventDefault={onDragEnter}
-              on:dragleave|preventDefault={onDragLeave}
-          ondragover="return false"
+          on:dragleave|preventDefault={onDragLeave}
+          on:dragover|preventDefault
           data-index={i}
           data-id={line.id}>
           <td>
             <Account accounts={accounts}
-                bind:init={_init}
                 bind:code={ line.debitAccount }
                 bind:sub_code={ line.debitSubAccount }></Account>
           </td>
@@ -72,21 +71,20 @@
               data-dc="d"
               bind:value={line.debitAmount}
               on:focusout={computeTax}>
-            {#if find_tax_class(line.debitAccount, line.debitSubAccount) != 0}
+            {#if findTaxClass(line.debitAccount, line.debitSubAccount) != 0}
             <input type="text" class="number" size="12" maxlength="13"
               bind:value={line.debitTax}
               on:focusout={makeTaxLine}>
             {/if}
           </td>
           <td>
-            <input type="text" size="24" maxlength="25"
+            <input type="text" size="50" maxlength="51"
               bind:value={line.application1}>
-            <input type="text" size="24" maxlength="25"
+            <input type="text" size="50" maxlength="51"
               bind:value={line.application2}>
           </td>
           <td>
             <Account accounts={accounts}
-                bind:init={_init}
                 bind:code={line.creditAccount}
                 bind:sub_code={line.creditSubAccount}></Account>
           </td>
@@ -96,31 +94,36 @@
               data-dc="c"
               bind:value={line.creditAmount}
               on:focusout={computeTax}>
-            {#if find_tax_class(line.creditAccount, line.creditSubAccount) != 0}
+            {#if findTaxClass(line.creditAccount, line.creditSubAccount) != 0}
             <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
               bind:value={line.creditTax}
               on:focusout={makeTaxLine}>
             {/if}
           </td>
           <td style="width:125px;">
+            {#if (!slip.approvedAt) }
             <button type="button" class="btn btn-primary btn-sm"
-              data-index={i}
-              on:click={computeSumAndNext}>
+              on:click={() => {
+                computeSumAndNext(i);
+              }}>
               <i class="fas fa-plus"></i>
             </button>
             {#if ( slip.lines.length > 1 )}
             <button type="button" class="btn btn-danger btn-sm"
-              data-index={i}
-              on:click={computeSumAndDelete}>
+              on:click={() => {
+                computeSumAndDelete(i);
+              }}>
               <i class="fas fa-minus"></i>
             </button>
             {/if}
             {#if ( ( line.debitVoucherId ) || ( line.creditVoucherId ))}
             <button type="button" class="btn btn-warning btn-sm"
-              data-index={i}
-              on:click={unbindVoucher}>
+              on:click={() => {
+                unbindVoucher(i);
+              }}>
               <i class="fas fa-link-slash"></i>
             </button>
+            {/if}
             {/if}
           </td>
         </tr>
@@ -155,7 +158,7 @@
 
 <script>
 import axios from 'axios';
-import {salesTax, find_tax_class} from '../../javascripts/cross-slip';
+import {salesTax, findTaxClass} from '../../javascripts/cross-slip';
 import {numeric} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import Account from './account.svelte';
@@ -163,11 +166,9 @@ import {field} from '../../../libs/parse_account_code';
 
 export let accounts;
 export let slip;
-export let init;
 export let fy;
 
 let	sums;
-let _init;
 
 const computeSum = () => {
   //console.log('computeSum');
@@ -190,10 +191,6 @@ const computeSum = () => {
   });
 }
 const updateAccount = (slip) => {
-  _init = [];
-  for	( let i = 0; i < slip.lines.length; i ++ )	{
-    _init.push(false);
-  }
 }
 
 const computeTax = (event) => {
@@ -204,7 +201,7 @@ const computeTax = (event) => {
     if	( ( slip.lines[index].creditAccount ) &&
           ( slip.lines[index].creditAccount.match(/^114|^308/) ) )	{
     } else {
-      let tax_class = find_tax_class(slip.lines[index].debitAccount, slip.lines[index].debitSubAccount);
+      let tax_class = findTaxClass(slip.lines[index].debitAccount, slip.lines[index].debitSubAccount);
       if  ( fy.taxIncluded )  {
         slip.lines[index].debitTax = 0;
       } else {
@@ -222,7 +219,7 @@ const computeTax = (event) => {
     if	( ( slip.lines[index].debitAccount ) &&
           ( slip.lines[index].debitAccount.match(/^114|^308/) )	)	{
     } else {
-      let tax_class = find_tax_class(slip.lines[index].creditAccount, slip.lines[index].creditSubAccount);
+      let tax_class = findTaxClass(slip.lines[index].creditAccount, slip.lines[index].creditSubAccount);
       if  ( fy.taxIncluded )  {
         slip.lines[index].creditTax = 0;
       } else {
@@ -269,7 +266,7 @@ const makeTaxLine = (event) => {
         }
         slip.lines[gap].debitAccount = debit;
         slip.lines[gap].debitAmount += numeric(slip.lines[i].debitTax);
-        let tax_class = find_tax_class(slip.lines[i].debitAccount,
+        let tax_class = findTaxClass(slip.lines[i].debitAccount,
                                        slip.lines[i].debitSubAccount);
         if	( tax_class !== 2 ) {
           slip.lines[gap].creditAccount = slip.lines[i].debitAccount;
@@ -301,7 +298,7 @@ const makeTaxLine = (event) => {
         }
         slip.lines[gap].creditAccount = credit;
         slip.lines[gap].creditAmount += numeric(slip.lines[i].creditTax);
-        let tax_class = find_tax_class(slip.lines[i].creditAccount,
+        let tax_class = findTaxClass(slip.lines[i].creditAccount,
                                        slip.lines[i].creditSubAccount);
         if	( tax_class !== 2 ) {
           slip.lines[gap].debitAccount = slip.lines[i].creditAccount;
@@ -313,19 +310,17 @@ const makeTaxLine = (event) => {
     }
   }
 }
-const computeSumAndNext = (event) => {
+const computeSumAndNext = (index) => {
   //console.log('computeSumAndNext');
-  let index = parseInt(event.currentTarget.dataset.index);
-
   computeSum();
   //console.log(index, slip.lines.length);
   slip.lines.splice(index + 1, 0, {});
   updateAccount(slip);
   slip = slip;
 }
-const computeSumAndDelete = (event) => {
-  //console.log('computeSumAndNext');
-  let index = parseInt(event.currentTarget.dataset.index);
+
+const computeSumAndDelete = (index) => {
+  //console.log('computeSumAndDelete');
 
   //console.log(index, slip.lines.length);
   slip.lines.splice(index, 1);
@@ -334,79 +329,72 @@ const computeSumAndDelete = (event) => {
   slip = slip;
 }
 
-const unbindVoucher = (event) => {
-  let i = parseInt(event.currentTarget.dataset.index);
+const unbindVoucher = (i) => {
   slip.lines[i].debitVoucherId = undefined;
   slip.lines[i].creditVoucherId = undefined;
   slip = slip;
 }
 const bindVoucher = (i, voucher_id) => {
   axios.get(`/api/voucher/${voucher_id}`).then((result) => {
-    return(result.data);
+    return(result.data.voucher);
   }).then((voucher) => {
-    //console.log('voucher', voucher);
+    console.log('voucher', voucher);
     let detail = slip.lines[i];
-    switch	(voucher.type)	{
-      case	1:	//	受取請求書
-      slip.lines[i].debitVoucherId = voucher.id;
-      detail.debitAmount = voucher.amount;
-      detail.debitTax = voucher.tax;
-      break;
-      case	2:	//	受取領収書
-      slip.lines[i].debitVoucherId = voucher.id;
-      detail.debitAmount = voucher.amount;
-      detail.debitTax = voucher.tax;
-      break;
-      case	11:	//	差出請求書
-      slip.lines[i].creditVoucherId = voucher.id;
+    if  ( voucher.voucherClass.send ) {
+      detail.creditVoucherId = voucher.id;
       detail.creditAmount = voucher.amount;
       detail.creditTax = voucher.tax;
-      break;
-      case	12:	//	差出領収書
-      slip.lines[i].creditVoucherId = voucher.id;
-      detail.creditAmount = voucher.amount;
-      detail.creditTax = voucher.tax;
-      break;
+    } else {
+      detail.debitVoucherId = voucher.id;
+      detail.debitAmount = voucher.amount;
+      detail.debitTax = voucher.tax;
     }
-    slip.lines[i].application2 = voucher.customer.name;
-    slip.lines[i].debitAmount = detail.debitAmount != null ? numeric(detail.debitAmount).toLocaleString() : '';
-    slip.lines[i].debitTax = detail.debitTax != null ? numeric(detail.debitTax).toLocaleString() : '';
-    slip.lines[i].creditAmount = detail.creditAmount != null ? numeric(detail.creditAmount).toLocaleString() : '';
-    slip.lines[i].creditTax =  detail.creditTax != null ? numeric(detail.creditTax).toLocaleString() : '';
+    detail.application2 = voucher.customer.name;
+    detail.debitAmount = detail.debitAmount != null ? numeric(detail.debitAmount).toLocaleString() : '';
+    detail.debitTax = detail.debitTax != null ? numeric(detail.debitTax).toLocaleString() : '';
+    detail.creditAmount = detail.creditAmount != null ? numeric(detail.creditAmount).toLocaleString() : '';
+    detail.creditTax =  detail.creditTax != null ? numeric(detail.creditTax).toLocaleString() : '';
+    slip = slip;
   })
 }
 
+let dragCounter = [];
 const onDrop = (event) => {
   let index = event.currentTarget.dataset.index;
   let voucher_id = event.dataTransfer.getData('id');
-  //console.log('onDrop', voucher_id);
+  console.log('onDrop', voucher_id);
   if  ( voucher_id )  {
     bindVoucher(index, voucher_id);
   }
+  dragCounter[index] = 0;
   event.currentTarget.classList.remove('over');
   event.stopPropagation();
 }
 
 const onDragEnter = (event) => {
-  event.currentTarget.classList.add('over');
+	console.log('enter');
+  let index = event.currentTarget.dataset.index;
+  dragCounter[index] ||= 0;
+  dragCounter[index] += 1;
+  if  ( dragCounter[index] === 1 ) {
+    event.currentTarget.classList.add('over');
+  }
   event.stopPropagation();
 }
 const onDragLeave = (event) => {
-  event.currentTarget.classList.remove('over');
+  console.log('leave');
+  let index = event.currentTarget.dataset.index;
+  dragCounter[index] ||= 0;
+  dragCounter[index] -= 1;
+  if  ( dragCounter[index] === 0 ) {
+    event.currentTarget.classList.remove('over');
+  }
   event.stopPropagation();
 }
 beforeUpdate(() => {
-  //console.log('cross-slip beforeUpdate', init);
+  //console.log('cross-slip beforeUpdate');
   sums = computeSum();
   //console.log('sums', sums);
-  if	( init )	{
-    _init = [];
-    if  ( slip.lines )  {
-      for	( let i = 0; i < slip.lines.length; i ++ )	{
-        _init.push(false);
-      }
-    }
-  }
 });
 afterUpdate(() => {
 })

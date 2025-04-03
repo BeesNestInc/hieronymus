@@ -3,95 +3,6 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.createTable('Documents', {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER
-      },
-      issueDate: {
-        type: Sequelize.DATEONLY
-      },
-      title: {
-        type: Sequelize.STRING
-      },
-      descriptionType: {
-        type: Sequelize.STRING
-      },
-      description: {
-        type: Sequelize.TEXT
-      },
-      handledBy: {
-        type: Sequelize.INTEGER,
-        references: {
-          model: 'Users',
-          field: 'id'
-        },
-        onDelete: 'restrict',
-        onUpdate: 'cascade'
-      },
-      createdBy: {
-        type: Sequelize.INTEGER,
-        references: {
-          model: 'Users',
-          field: 'id'
-        },
-        onDelete: 'restrict',
-        onUpdate: 'cascade'
-      },
-      updatedBy: {
-        type: Sequelize.INTEGER,
-        references: {
-          model: 'Users',
-          field: 'id'
-        },
-        onDelete: 'restrict',
-        onUpdate: 'cascade'
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
-    });
-    await queryInterface.createTable('DocumentFiles', {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER
-      },
-      documentId: {
-        type: Sequelize.INTEGER,
-        references: {
-          model: 'Documents',
-          field: 'id'
-        },
-        onDelete: 'cascade',
-        onUpdate: 'cascade'
-      },
-      name: {
-        type: Sequelize.STRING
-      },
-      mimeType: {
-        type: Sequelize.STRING
-      },
-      body: {
-        type: Sequelize.BLOB
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
-    });
     await queryInterface.createTable('Tasks', {
       id: {
         allowNull: false,
@@ -245,6 +156,113 @@ module.exports = {
         type: Sequelize.DATE
       }
     });
+    await queryInterface.createTable('TransactionKinds', {
+      id: {
+        allowNull: false,
+        autoIncrement: true,
+        primaryKey: true,
+        type: Sequelize.INTEGER
+      },
+      label: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      displayOrder: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
+      },
+      hasDetails: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      hasDocument: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
+      },
+      forCustomer: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: true
+      },
+      bookId: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'VoucherClasses',
+          field: 'id'
+        },
+        allowNull: true,
+        onDelete: 'set null',
+        onUpdate: 'cascade'
+      },
+      createdAt: {
+        allowNull: false,
+        type: Sequelize.DATE
+      },
+      updatedAt: {
+        allowNull: false,
+        type: Sequelize.DATE
+      }
+    });
+    await queryInterface.bulkInsert('TransactionKinds', [
+			{
+        label: '見積',
+        displayOrder: 0,
+        hasDetails: true,
+        hasDocument: 1,
+        forCustomer: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '注文請書',
+        displayOrder: 1,
+        hasDetails: true,
+        hasDocument: 1,
+        forCustomer: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '納品',
+        displayOrder: 2,
+        hasDetails: true,
+        hasDocument: 1,
+        forCustomer: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '請求',
+        displayOrder: 3,
+        hasDetails: true,
+        hasDocument: 1,
+        forCustomer: true,
+        bookId: 3,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '領収',
+        displayOrder: 4,
+        hasDetails: true,
+        hasDocument: 1,
+        forCustomer: true,
+        bookId: 4,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '議事録',
+        displayOrder: 5,
+        hasDetails: false,
+        hasDocument: 2,
+        forCustomer: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        label: '報告書',
+        displayOrder: 6,
+        hasDetails: false,
+        hasDocument: 2,
+        forCustomer: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ]);
     await queryInterface.createTable('TransactionDocuments', {
       id: {
         allowNull: false,
@@ -255,8 +273,15 @@ module.exports = {
       no: {
         type: Sequelize.STRING
       },
-      kind: {
-        type: Sequelize.INTEGER
+      kindId: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'TransactionKinds',
+          field: 'id'
+        },
+        allowNull: false,
+        onDelete: 'set null',
+        onUpdate: 'cascade'
       },
       issueDate: {
         type: Sequelize.DATEONLY
@@ -424,19 +449,18 @@ module.exports = {
       }
     });
 
-    await queryInterface.addColumn('FiscalYears', 'invoiceCount', {
+    await queryInterface.addColumn('FiscalYears', 'transactionCount', {
       type: Sequelize.INTEGER,
       defaultValue: 0
     });
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.removeColumn('FiscalYears', 'invoiceCount');
+    await queryInterface.removeColumn('FiscalYears', 'transactionCount');
     await queryInterface.dropTable('TransactionDetails');
     await queryInterface.dropTable('TransactionDocuments');
+    await queryInterface.dropTable('TransactionKinds');
     await queryInterface.dropTable('TaskDetails');
     await queryInterface.dropTable('Tasks');
-    await queryInterface.dropTable('DocumentFiles');
-    await queryInterface.dropTable('Documents');
   }
 };

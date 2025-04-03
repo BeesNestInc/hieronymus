@@ -3,17 +3,16 @@
 	<head>
 		<title>{{title}}::Hieronymus</title>
 		<meta http-equiv="Content-Language" content="ja" />
-		<link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
-		<link rel="stylesheet" href="/style/style.css">
-		<link rel="stylesheet" href="/dist/common.css">
-		<link rel="stylesheet" href="/dist/index.css">
 		<script src="/dist/common.js" type="module"></script>
+		<link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
+		<link rel="stylesheet" href="/dist/common.css">
+		<link rel="stylesheet" href="/style/style.css">
+		<link rel="stylesheet" href="/dist/index.css">
     	<link rel="icon" href="/public/favicon.ico" sizes="any">
 		<base href="/" />
 	</head>
 	<body class="layout-fixed" id="body" term={{term}}>
-		<div id="index" style="width:100%;">
-		</div>
+		<div class="wrapper" id="index"></div>
 		<script src="dist/index.js" type="module"></script>
 	</body>
 </html>

@@ -12,6 +12,7 @@ export default (sequelize, DataTypes) => {
   };
   MemberClass.init({
     title: DataTypes.STRING,
+    displayOrder: DataTypes.INTEGER,
     executive: DataTypes.BOOLEAN,       //  役員
     officer: DataTypes.BOOLEAN,         //  管理職
     fullTime: DataTypes.BOOLEAN,        //  常勤

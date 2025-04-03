@@ -43,6 +43,7 @@
         on:endregister
         register="true"
         input="input"
+        clientOnly="true"
         bind:customerId={task.customerId}
         bind:customerName={task.customerName}
         bind:chargeName={task.chargeName}
@@ -52,7 +53,7 @@
       />
       {:else}
       <span>{task.customerName}</span>
-      <button type="button" class="btn btn-danger"
+      <button type="button" class="btn btn-warning"
       	on:click={() => {
           task.customerId = null;
         }}>
@@ -132,17 +133,17 @@
 				<span>金額</span>
       </div>
       <div class="disabled">
-      	<span>{task.amount.toLocaleString()}</span>
+      	<span>{task.amount ? task.amount.toLocaleString(): '0'}</span>
       </div>
       <div class="label" style="width:120px;">
 				<span>
       		消費税(
-        		{TAX_CLASS.find((item) => item[1] === task.taxClass)[0]}
+        		{task.taxClass ? TAX_CLASS.find((item) => item[1] === task.taxClass)[0]: ''}
       		)
         </span>
       </div>
       <div class="disabled">
-      	<span>{task.tax.toLocaleString()}</span>
+      	<span>{task.tax ? task.tax.toLocaleString(): '0'}</span>
     	</div>
     </div>
     {/if}
@@ -212,7 +213,127 @@
     </div>
   </div>
   <div class="row mb-3">
-    
+    <div class="col-1">
+      取引
+      {#if ( viewTransaction )}
+      <a href="#" on:click|preventDefault={() => {
+        viewTransaction = false;
+      }}>
+        <i class="bi bi-arrows-collapse"></i>
+      </a>
+      {:else}
+      <a href="#" on:click|preventDefault={() => {
+        viewTransaction = true;
+      }}>
+        <i class="bi bi-arrows-expand"></i>
+      </a>
+      {/if}
+    </div>
+    <div class="col-11">
+      {#if (viewTransaction && transactions )}
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th scope="col" style="width: 100px;">
+              種別
+            </th>
+            <th scope="col" style="width: 100px;">
+              発生日
+              <a href=""
+              	on:click|preventDefault={() => {
+                if	( transactionOrder === 'asc' )	{
+									transactionOrder = 'desc';
+                } else {
+                  transactionOrder = 'asc';
+                }
+                transactionParams.set('order', transactionOrder);
+                transactions = null;
+              }}>
+							  {#if ( transactionOrder === 'asc')}
+                ▲
+                {:else}
+                ▼
+                {/if}
+              </a>
+            </th>
+            <th scope="col" style="">
+              件名
+            </th>
+            <th scope="col" style="width: 100px;">
+              担当
+            </th>
+            <th scope="col" style="width: 100px;">
+              金額
+            </th>
+          </tr>
+        </thead>
+				<tbody>
+          {#each transactions as line}
+          <tr>
+            <td>
+              {line.kindId ? line.kind.label : '_'}
+            </td>
+            <td>
+              {formatDate(line.issueDate)}
+            </td>
+            <td>
+              <a href="#" on:click|preventDefault={() => {
+                  openTransaction(line.id)
+                }}>
+                {line.subject ? line.subject : '__'}
+              </a>
+            </td>
+            <td>
+              { line.handleUser ? line.handleUser.member.tradingName: '__'}
+            </td>
+            <td class="number">
+              {numeric(line.amount).toLocaleString()}
+            </td>
+          </tr>
+          {/each}
+        </tbody>
+      </table>
+      <div class="row">
+        <div class="col-5">
+        	<button type="button" class="btn btn-info"
+        		on:click={() => {
+              transactionParams.delete('kind');
+              transactionParams.set('voucher','true');
+              transactions = null;
+          	}}>
+          	請求回収
+        	</button>
+        	<button type="button" class="btn btn-info"
+	        	on:click={() => {
+              transactionParams.delete('kind');
+              transactionParams.set('voucher', 'false');
+              transactions = null;
+        	  }}>
+          	業務関係
+        	</button>
+	        <button type="button" class="btn btn-info"
+  	      	on:click={() => {
+              transactionParams.delete('voucher');
+              transactionParams.delete('kind');
+              transactions = null;
+	        	}}>
+  	      全て
+    	    </button>
+      		<select class="form-select" style="display:inline;width:150px;"
+        		bind:value={kind}
+          	on:change={() => {
+              transactionParams.set('kind', kind);
+              transactions = null;
+          	}}>
+        		<option value={-1}></option>
+        		{#each transactionKinds as ent}
+        		<option value={ent.id}>{ent.label}</option>
+        		{/each}
+      		</select>
+      	</div>
+    	</div>
+			{/if}
+    </div>
   </div>
 </div>
 <style>
@@ -233,7 +354,8 @@
 </style>
 
 <script>
-import {numeric, TAX_CLASS} from '../../../libs/utils';
+import axios from 'axios';
+import {numeric, formatDate, TAX_CLASS} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import CustomerSelect from '../components/customer-select.svelte';
 import Document from '../components/document.svelte';
@@ -251,7 +373,14 @@ let documentEditting = false;
 let viewDescription = false;
 let viewFiles = false;
 let viewDetail = false;
+let viewTransaction = true;
 let sum;
+
+let transactionParams = new Map();
+let transactions;
+let transactionOrder = 'desc';
+let kind;
+let transactionKinds = [];
 
 $: computeTax();
 
@@ -277,7 +406,20 @@ const computeTax = (event) => {
 }
 
 beforeUpdate(() => {
-  //console.log('task-info beforeUpdate',customerEditting, task);
+  if	( !transactions && task && task.id )	{
+    transactions = [];
+    console.log(transactionParams);
+    let _array = [];
+  	transactionParams.forEach((value, key) => {
+    	console.log('key, value', key, value);
+    	_array.push(encodeURI(`${key}=${value}`));
+  	});
+  	let param = _array.join('&');
+    console.log({param});
+  	axios.get(`/api/transaction?task=${task.id}&${param}`).then((result) => {
+    	transactions = result.data.transactions;
+    });
+  }
 });
 
 onMount(() => {
@@ -307,7 +449,15 @@ onMount(() => {
       sum += details[i].amount;
     }
   }
+  axios.get(`/api/transaction/kinds`).then((result) => {
+    transactionKinds = result.data.values;
+    console.log({transactionKinds});
+  });
   computeTax();
 });
+
+const openTransaction = (id) => {
+  dispatch('openTransaction', id);
+}
 
 </script>

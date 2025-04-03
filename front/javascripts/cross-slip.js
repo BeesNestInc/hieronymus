@@ -1,13 +1,15 @@
-export const element_index = (element) => {
+import {numeric} from '../../libs/utils.js';
+
+export const elementIndex = (element) => {
   return parseInt(element.id.match(/.*\[(\d+)\]/)[1]);
 }
-export const element_dc = (element) => {
+export const elementDc = (element) => {
   return element.id.split('-')[0];
 }
 
 let accounts;
 
-export const find_account = (code) => {
+export const findAccount = (code) => {
   //console.log(`account [${code}]`);
   let account = { name: '', key: ''};
   if ( accounts ) {
@@ -20,7 +22,7 @@ export const find_account = (code) => {
   }
   return account;
 }
-export const find_sub_account = (account, code) => {
+export const findSubAccount = (account, code) => {
   let sub_account = { name: '', key: ''};
   
   if	( ( account ) &&
@@ -35,10 +37,10 @@ export const find_sub_account = (account, code) => {
   return sub_account;
 }
 
-export const find_sub_account_by_code = (account_code, code) => {
+export const findSubAccountByCode = (account_code, code) => {
   let sub_account = { name: '', key: ''};
 
-  let account = find_account(account_code);
+  let account = findAccount(account_code);
 
   if ( account.subAccounts ) {
     for ( let i = 0; i < account.subAccounts.length; i ++ ) {
@@ -51,7 +53,7 @@ export const find_sub_account_by_code = (account_code, code) => {
   return sub_account;
 }
 
-export const find_tax_class = (ac, sub) => {
+export const findTaxClass = (ac, sub) => {
   let tax = 0;
   //console.log(ac, sub);
   for ( let i = 0; i < accounts.length; i ++ ) {
@@ -74,7 +76,7 @@ export const find_tax_class = (ac, sub) => {
   return tax;
 }
 
-export const set_accounts = (arg) => {
+export const setAccounts = (arg) => {
   accounts = arg;
 }
 
@@ -120,7 +122,7 @@ export const salesTax = (tax_class, _amount) => {
   return	(tax)
 }
 
-export const tax_class = (taxClass) => {
+export const taxClass = (taxClass) => {
   switch(taxClass) {
     case 0:
       return ("");
@@ -134,15 +136,15 @@ export const tax_class = (taxClass) => {
   return ('');
 }
 export default {
-  set_accounts: set_accounts,
-  find_account: find_account,
-  find_sub_account: find_sub_account,
-  find_sub_account_by_code: find_sub_account_by_code,
-  find_tax_class: find_tax_class,
-  element_index: element_index,
-  element_dc: element_dc,
+  setAccounts: setAccounts,
+  findAccount: findAccount,
+  findSubAccount: findSubAccount,
+  findSubAccount_by_code: findSubAccountByCode,
+  findTaxClass: findTaxClass,
+  elementIndex: elementIndex,
+  elementDc: elementDc,
   invoiceStatus: invoiceStatus,
-  sales_tax: salesTax,
-  tax_class: tax_class,
+  salesTax: salesTax,
+  taxClass: taxClass,
 }
 
