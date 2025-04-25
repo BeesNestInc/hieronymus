@@ -1,9 +1,7 @@
-import {numeric} from '../../libs/utils.js';
-
-export const elementIndex = (element) => {
+export const element_index = (element) => {
   return parseInt(element.id.match(/.*\[(\d+)\]/)[1]);
 }
-export const elementDc = (element) => {
+export const element_dc = (element) => {
   return element.id.split('-')[0];
 }
 
@@ -40,7 +38,7 @@ export const findSubAccount = (account, code) => {
 export const findSubAccountByCode = (account_code, code) => {
   let sub_account = { name: '', key: ''};
 
-  let account = findAccount(account_code);
+  let account = find_account(account_code);
 
   if ( account.subAccounts ) {
     for ( let i = 0; i < account.subAccounts.length; i ++ ) {
@@ -136,15 +134,15 @@ export const taxClass = (taxClass) => {
   return ('');
 }
 export default {
-  setAccounts: setAccounts,
-  findAccount: findAccount,
-  findSubAccount: findSubAccount,
-  findSubAccount_by_code: findSubAccountByCode,
+  setAcounts: setAccounts,
+  findAcount: findAccount,
+  findSubAcount: findSubAccount,
+  findSuAcountByCode: findSubAccountByCode,
   findTaxClass: findTaxClass,
-  elementIndex: elementIndex,
-  elementDc: elementDc,
+  element_index: element_index,
+  element_dc: element_dc,
   invoiceStatus: invoiceStatus,
-  salesTax: salesTax,
+  sales_tax: salesTax,
   taxClass: taxClass,
 }
 

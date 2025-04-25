@@ -21,8 +21,8 @@ const form_out = async (req, res, form) => {
   let id = req.params.id;
   let transaction = await models.TransactionDocument.findByPk(id, {
     include: [{
-        model: models.Customer,
-        as: 'customer'
+        model: models.Company,
+        as: 'company'
       },
       {
         model: models.TransactionDetail,

@@ -205,7 +205,7 @@ module.exports = {
     });
     await queryInterface.renameColumn('Users', 'hash_password', 'hashPassword');
     await queryInterface.renameColumn('Users', 'fiscal_browsing', 'fiscalBrowsing');
-    await queryInterface.renameColumn('Users', 'customer_management', 'customerManagement');
+    await queryInterface.renameColumn('Users', 'company_management', 'companyManagement');
     await queryInterface.renameColumn('Users', 'inventory_management', 'inventoryManagement');
   },
   async down(queryInterface, Sequelize) {
@@ -215,7 +215,7 @@ module.exports = {
     await queryInterface.removeColumn('Users', 'mail');
     await queryInterface.renameColumn('Users', 'hashPassword', 'hash_password');
     await queryInterface.renameColumn('Users', 'fiscalBrowsing', 'fiscal_browsing');
-    await queryInterface.renameColumn('Users', 'customerManagement', 'customer_management');
+    await queryInterface.renameColumn('Users', 'companyManagement', 'company_management');
     await queryInterface.renameColumn('Users', 'inventoryManagement', 'inventory_management');
   }
 };

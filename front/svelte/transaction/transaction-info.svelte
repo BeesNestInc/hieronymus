@@ -41,16 +41,16 @@
   <div class="row mt-3">
     <div class="col-1">
       <label class="col-form-label">相手先</label>
-      {#if ( transaction.customerId )}
-      {#if (customerEditting)}
+      {#if ( transaction.companyId )}
+      {#if (companyEditting)}
       <a href="#" on:click|preventDefault={() => {
-        customerEditting = false
+        companyEditting = false
       }}>
         <i class="bi bi-check"></i>
       </a>
       {:else}
       <a href="#" on:click|preventDefault={() => {
-        customerEditting = true
+        companyEditting = true
       }}>
         <i class="bi bi-pencil"></i>
       </a>
@@ -58,24 +58,24 @@
       {/if}
     </div>
     <div class="col-11">
-      {#if (customerEditting || !transaction.customerId )}
+      {#if (companyEditting || !transaction.companyId )}
       <CustomerSelect
         on:startregister
         on:endregister
         register="true"
         input="input"
-        bind:customerId={transaction.customerId}
-        bind:customerName={transaction.customerName}
+        bind:companyId={transaction.companyId}
+        bind:companyName={transaction.companyName}
         bind:chargeName={transaction.chargeName}
         bind:zip={transaction.zip}
         bind:address1={transaction.address1}
         bind:address2={transaction.address2}
       />
       {:else}
-      <span>{transaction.customerName}</span>
+      <span>{transaction.companyName}</span>
       <button type="button" class="btn btn-warning"
       	on:click={() => {
-          transaction.customerId = null;
+          transaction.companyId = null;
         }}>
       	変更
     	</button>
@@ -107,8 +107,8 @@
                     let task = tasks[i];
                     //console.log('select', task);
                     transaction.task = task;
-                    transaction.customerId = task.customerId;
-                    transaction.customerName = task.customerName;
+                    transaction.companyId = task.companyId;
+                    transaction.companyName = task.companyName;
                     transaction.chargeName = task.chargeName;
                     transaction.zip = task.zip;
                     transaction.address1 = task.address1;
@@ -312,7 +312,7 @@ import {numeric, TAX_CLASS} from '../../../libs/utils.js';
 import {DOCUMENT_KIND} from '../../../libs/transaction-documents.js';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher, onDestroy, tick} from 'svelte';
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 import TransactionDetails from './transaction-details.svelte';
 import Document from '../components/document.svelte';
 import DocumentFiles from '../components/document-files.svelte';
@@ -325,10 +325,10 @@ export let transaction;
 export let users;
 export let files;
 
-let	original_customers;
-let customerKey;
+let	original_companys;
+let companyKey;
 let currentKind;
-let customerEditting = false;
+let companyEditting = false;
 let documentEditting = false;
 let viewDescription = false;
 let viewDetail = true;
@@ -393,8 +393,8 @@ const	openTask = (id)	=> {
       issueDate: transaction.issueDate,
       deliveryLimit: transaction.deliveryLimit,
       subject: transaction.subject,
-      customerId: transaction.customerId,
-      customerName: transaction.customerName,
+      companyId: transaction.companyId,
+      companyName: transaction.companyName,
       chargeName: transaction.chargeName,
       zip: transaction.zip,
       address1: transaction.address1,
@@ -444,13 +444,13 @@ const computeTax = (event) => {
 onMount(() => {
   console.log('transaction-info onMount', status);
   if	( transaction.id )	{
-    customerKey = transaction.customerName;
+    companyKey = transaction.companyName;
   } else {
-    customerKey = '';
+    companyKey = '';
   }
-  axios.get(`/api/customer/`).then((result) => {
-    original_customers = result.data;
-    console.log('customer update', original_customers);
+  axios.get(`/api/company/`).then((result) => {
+    original_companys = result.data;
+    console.log('company update', original_companys);
   });
   axios.get(`/api/transaction/kinds`).then((result) => {
     transactionKinds = result.data.values;

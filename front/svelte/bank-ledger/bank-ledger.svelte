@@ -132,7 +132,7 @@
 import axios from 'axios';
 import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-import {ledger_lines} from '../../../libs/ledger';
+import {ledgerLines} from '../../../libs/ledger';
 import {setAccounts} from '../../javascripts/cross-slip';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 
@@ -221,7 +221,7 @@ const updateList = () => {
 
       axios.get(`/api/ledger/${status.term}/${status.account}/${status.subAccount}`).then((result) => {
         let details = result.data;
-        let ret = ledger_lines(status.account, status.subAccount,
+        let ret = ledgerLines(status.account, status.subAccount,
                         remaining, details);
         lines = ret.lines;
         //console.log('lines', lines);

@@ -62,13 +62,49 @@ export const numeric = (s) => {
   return ret;
 }
 
-export const formatDate = (_date) => {
+export const formatDate = (_date, lang) => {
   let date;
   if ( _date )	{
-    date = new Date(_date);
-    return	`${date.getFullYear()}-${('0' + (date.getMonth()+1)).slice(-2)}-${('0' + date.getDate()).slice(-2)}`
+    if  ( typeof _date === "string" ) {
+      date = new Date(_date);
+    } else {
+      date = _date;
+    }
+    if	( lang === 'ja' )	{
+			return	`${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+    } else {
+    	return	`${date.getFullYear()}-${('0' + (date.getMonth()+1)).slice(-2)}-${('0' + date.getDate()).slice(-2)}`
+    }
   } else {
     return	('');
+  }
+}
+
+export const burstPage = (lines, number) => {
+  let pages = [];
+  let page = [];
+  for ( let line of lines) {
+    if  ( page.length === number ) {
+      pages.push(page)
+      page = [];
+    }
+    page.push(line);
+  }
+  pages.push(page);
+  return  (pages);
+}
+
+export const formatMoney = (_val) => {
+  let val;
+  if	( _val )	{
+    if	( typeof _val === "string" )	{
+      val = parseInt(_val);
+    } else {
+      val = _val;
+    }
+    return	`￥${val.toLocaleString()}`;
+  } else {
+    return	'';
   }
 }
 
@@ -85,3 +121,16 @@ export const TAX_CLASS = [
   [ '外税',   2],
   [ '別計算', 9]
 ];
+export const taxClass = (tC) => {
+  switch(tC) {
+    case 0:
+      return ("非課税");
+    case 1:
+      return ('内税');
+    case 2:
+      return ('外税');
+    case 9:
+      return ('別計算');
+  }
+  return ('');
+}

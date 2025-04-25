@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
-import company from '../config/company.js';
+import {print} from '../libs/print.js';
+import {DateString} from '../libs/utils.js';
 
 export default {
   get: async (req, res, next) => {
@@ -65,13 +66,13 @@ export default {
           ];
         }
       }
-      if	( req.query.customer )	{
+      if	( req.query.company )	{
         include.push(
           {
             model: models.Task,
             as: 'task',
             where: {
-              customerId: parseInt(req.query.customer)
+              companyId: parseInt(req.query.company)
             }
           })
       } else {
@@ -164,17 +165,61 @@ export default {
       models.TransactionDocument.findByPk(id, {
         include: include
       }).then((transaction) => {
-        console.log({transaction});
-        res.json({
-          code: 0,
-          transaction: transaction
-        });
+        //console.log({transaction});
+        if	( req.query.print )	{
+          if	( !transaction.voucherId )	{
+            console.log('create');
+						models.Company.findAll({
+            	where: {
+              	companyClassId: 1
+            	}
+          	}).then((companies) => {
+            	const company = companies[0];
+            	print(req.query.print, {
+              	transaction: transaction,
+              	company: company
+            	}).then((pdf) => {
+              	res.setHeader('Content-Type', 'application/pdf');
+              	res.send(pdf);
+            	});
+          	})
+          } else {
+            console.log('exist');
+            models.Voucher.findByPk(transaction.voucherId, {
+              include: [
+                {
+                  model: models.VoucherFile,
+                  as: 'files'
+                }
+              ]
+            }).then((voucher) => {
+              let file;
+              for	( let _file of voucher.files )	{
+								if	( _file.name === req.query.print )	{
+                  file = _file;
+                  break;
+                }
+              }
+              if	( file )	{
+              	res.setHeader('content-Type', file.mimeType);
+              	res.send(file.body);
+              } else {
+                res.status(404).end();
+              }
+            })
+          }
+        } else {
+        	res.json({
+          	code: 0,
+          	transaction: transaction
+        	});
+        }
       });
     }
   },
   post: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if  ( req.session.user.customerManagement )    {
+    if  ( req.session.user.companyManagement )    {
       let body = req.body;
       body.createdBy = req.session.user.id;
       body.updatedBy = req.session.user.id;
@@ -230,7 +275,7 @@ export default {
 		let body = req.body;
 		body.updatedBy = req.session.user.id;
 		let id = req.params.id ? parseInt(req.params.id) : body.id;
-    if  ( req.session.user.customerManagement )    {
+    if  ( req.session.user.companyManagement )    {
       models.TransactionDocument.findByPk(id, {
         include: [
           {
@@ -316,7 +361,7 @@ export default {
   delete: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id = parseInt(req.params.id);
-    if  ( req.session.user.customerManagement )   {
+    if  ( req.session.user.companyManagement )   {
       models.TransactionDocument.findByPk(id).then((transaction) => {
         transaction.destroy().then(() => {
           res.json({ code: 0});
@@ -330,6 +375,119 @@ export default {
   },
   allocateReceivable: (req, res, next) => {
 
+  },
+  book: (req, res, next) => {
+    models.TransactionDocument.findByPk(req.params.id, {
+      include: [
+        {
+          model: models.Task,
+          as: 'task'
+        },
+        {
+          model: models.TransactionDetail,
+          as: 'lines'
+        },
+        {
+					model: models.Company,
+          as: 'company'
+        },
+        {
+          model: models.TransactionKind,
+          as: 'kind',
+          include: [
+            {
+              model: models.VoucherClass,
+              as: 'book'
+            }
+          ]
+        },
+        {
+          model: models.User,
+          as: 'handleUser',
+          attributes: ['name'],
+          include: [
+            {
+              model: models.Member,
+              as: 'member',
+              attributes: ['legalName', 'tradingName']
+            }
+          ]
+        },
+        ]
+    }).then((transaction) => {
+			if	( transaction.kind.book && transaction.kind.book.form )	{
+        models.Company.findAll({
+          where: {
+            companyClassId: 1
+          }
+        }).then((companies) => {
+          const company = companies[0];
+          print(transaction.kind.book.form, {
+            transaction: transaction,
+            company: company
+          }).then((pdf) => {
+            let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
+            if	( transaction.voucherId )	{
+              console.log('update');
+              models.Voucher.findByPk(transaction.voucherId, {
+                include: [
+                  {
+                    model: models.VoucherFile,
+                    as: 'files'
+                  }
+                ]
+              }).then((voucher) => {
+                let file;
+                for ( let _file of voucher.files )	{
+                  if	( _file.name === transaction.kind.book.form )	{
+                    file = _file;
+                    break;
+                  }
+                }
+                if	( file )	{
+                	file.mimeType = 'application/pdf';
+                	file.body = pdf;
+                	file.name = name;
+                	file.save();
+                } else {
+                  models.VoucherFile.create({
+                    voucherId: voucher.id,
+                    name: name,
+                    mimeType: 'application/pdf',
+                    body: pdf
+                  });
+                }
+          		});
+            } else {
+              console.log('create');
+              models.Voucher.create({
+                voucherClassId: transaction.kind.bookId,
+                issueDate: new Date(),
+                companyId: transaction.companyId,
+                amount: transaction.amount,
+                tax: transaction.tax,
+                taxClass: transaction.taxClass,
+                description: transaction.description,
+                invoiceNo: transaction.company.invoiceNo,
+                createdBy: req.session.user.id,
+                updatedBy: req.session.user.id
+              }).then((voucher) => {
+                transaction.voucherId = voucher.id;
+                transaction.save();
+                models.VoucherFile.create({
+                  voucherId: voucher.id,
+                  name: name,
+                  mimeType: 'application/pdf',
+                  body: pdf
+                });
+              })
+            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.send(pdf);
+        	});
+      	});
+      }
+    });
   },
   kindsGet: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');

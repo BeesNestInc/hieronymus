@@ -83,6 +83,7 @@
   </div>
 <script>
 import Details from '../details.svelte';
+
 export let transaction;
 export let company;
    

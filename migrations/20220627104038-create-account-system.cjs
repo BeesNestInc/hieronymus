@@ -372,7 +372,7 @@ module.exports = {
         type: Sequelize.BOOLEAN,
         defaultValue: false
       },
-      customer_management: {
+      company_management: {
         type: Sequelize.BOOLEAN,
         defaultValue: false
       },
@@ -389,7 +389,7 @@ module.exports = {
         type: Sequelize.DATE
       }
     });
-    await queryInterface.createTable('Customers', {
+    await queryInterface.createTable('Companies', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -449,7 +449,7 @@ module.exports = {
         type: Sequelize.STRING
       },
       accountType: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       accountNo: {
         type: Sequelize.STRING
@@ -483,7 +483,7 @@ module.exports = {
       paymentDate: {
         type: Sequelize.DATEONLY
       },
-      customerId: {
+      companyId: {
         type: Sequelize.INTEGER
       },
       amount: {
@@ -555,7 +555,7 @@ module.exports = {
   async down (queryInterface, Sequelize) {
     await queryInterface.dropTable('VoucherFiles');
     await queryInterface.dropTable('Vouchers');
-    await queryInterface.dropTable('Customers');
+    await queryInterface.dropTable('Companies');
     await queryInterface.dropTable('Users');
     await queryInterface.dropTable('MonthlyLogs');
     await queryInterface.dropTable('FiscalYears');

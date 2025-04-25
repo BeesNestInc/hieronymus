@@ -36,8 +36,8 @@ export default {
     //console.log('/api/voucher/', id);
     let include = [
     	{
-        model: models.Customer,
-        as: 'customer'
+        model: models.Company,
+        as: 'company'
       },{
         model: models.User,
         as: 'updateUser'
@@ -145,12 +145,12 @@ export default {
         	};
         }
       }
-      if	( req.query.customer )	{
+      if	( req.query.company )	{
         where = {
           [Op.and]: [
             where,
             {
-              customerId: parseInt(req.query.customer)
+              companyId: parseInt(req.query.company)
             }
           ]
         };
@@ -291,13 +291,20 @@ export default {
     let body = req.body;
     let id = req.params.id ? req.params.id : body.id;
 
-    let voucher = await models.Voucher.findByPk(id);
-    if	( voucher )	{
+    models.Voucher.findByPk(id).then((voucher) => {
       voucher.destroy().then(() => {
         res.json({
           code: 0});
+      }).catch((err) => {
+        res.json({
+          code: -2
+        })
       });
-    }
+    }).catch((err) => {
+      res.json({
+        code: -1
+      })
+    });
   },
   upload: (req, res, next) => {
     let voucher_id = req.params.id ? parseInt(req.params.id): null;

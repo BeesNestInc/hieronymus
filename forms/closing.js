@@ -2,7 +2,7 @@ import models from '../models/index.js';
 import CrossSlipDetails from '../libs/crossslipdetails.js';
 import Accounts from '../libs/accounts.js';
 import {field, dc, numeric} from '../libs/parse_account_code.js';
-import {ledger_lines} from '../libs/ledger.js';
+import {ledgerLines} from '../libs/ledger.js';
 import TrialBalance from '../libs/trial_balance.js';
 
 const   fiscalYear = async (term) => {
@@ -68,8 +68,8 @@ const   Closing = async (arg, carry) => {
                         credit: numeric(sub.credit),
                         balance: numeric(sub.balance)
                     };
-                    details = await CrossSlipDetails.all(fy, acc.code, sub.code);
-                    let lines = ledger_lines(acc.code, sub.code, pickup, details);
+                    let details = await CrossSlipDetails.all(fy, acc.code, sub.code);
+                    let lines = ledgerLines(acc.code, sub.code, pickup, details);
                     rem.debit = lines.sums.debitAmount;
                     rem.credit = lines.sums.creditAmount;
                     rem.balance = lines.sums.balance;
@@ -112,8 +112,8 @@ const   Closing = async (arg, carry) => {
                     credit: numeric(acc.credit),
                     balance: numeric(acc.balance)
                 };
-                details = await CrossSlipDetails.all(fy, acc.code);
-                let lines = ledger_lines(acc.code, null, pickup, details);
+                let details = await CrossSlipDetails.all(fy, acc.code);
+                let lines = ledgerLines(acc.code, null, pickup, details);
                 rem.debit = lines.sums.debitAmount;
                 rem.credit = lines.sums.creditAmount ;
                 rem.balance = lines.sums.balance;

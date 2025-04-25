@@ -20,16 +20,16 @@
   <div class="row mb-3">
     <div class="col-1">
       <label class="col-form-label">相手先</label>
-      {#if ( task.customerId && task.id)}
-      {#if (customerEditting)}
+      {#if ( task.companyId && task.id)}
+      {#if (companyEditting)}
       <a href="#" on:click|preventDefault={() => {
-        customerEditting = false
+        companyEditting = false
       }}>
         <i class="bi bi-check"></i>
       </a>
       {:else}
       <a href="#" on:click|preventDefault={() => {
-        customerEditting = true
+        companyEditting = true
       }}>
         <i class="bi bi-pencil"></i>
       </a>
@@ -37,25 +37,25 @@
       {/if}
     </div>
     <div class="col-11">
-      {#if (customerEditting || !task.customerId)}
+      {#if (companyEditting || !task.companyId)}
       <CustomerSelect
         on:startregister
         on:endregister
         register="true"
         input="input"
         clientOnly="true"
-        bind:customerId={task.customerId}
-        bind:customerName={task.customerName}
+        bind:companyId={task.companyId}
+        bind:companyName={task.companyName}
         bind:chargeName={task.chargeName}
         bind:zip={task.zip}
         bind:address1={task.address1}
         bind:address2={task.address2}
       />
       {:else}
-      <span>{task.customerName}</span>
+      <span>{task.companyName}</span>
       <button type="button" class="btn btn-warning"
       	on:click={() => {
-          task.customerId = null;
+          task.companyId = null;
         }}>
       	変更
     	</button>
@@ -357,7 +357,7 @@
 import axios from 'axios';
 import {numeric, formatDate, TAX_CLASS} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 import Document from '../components/document.svelte';
 import DocumentFiles from '../components/document-files.svelte';
 import TaskDetails from '../transaction/transaction-details.svelte';
@@ -367,8 +367,8 @@ export let task;
 export let users;
 export let files;
 
-let customerKey;
-let customerEditting = false;
+let companyKey;
+let companyEditting = false;
 let documentEditting = false;
 let viewDescription = false;
 let viewFiles = false;
@@ -425,9 +425,9 @@ beforeUpdate(() => {
 onMount(() => {
   console.log('task-info onMount', task);
   if	( task.id )	{
-    customerKey = task.customerName;
+    companyKey = task.companyName;
   } else {
-    customerKey = '';
+    companyKey = '';
     viewDetail = true;
   }
   let details = task.lines;

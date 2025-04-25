@@ -1,7 +1,7 @@
 import TrialBalance from '../libs/trial_balance.js';
 import {Book, Page} from './book.js';
 import {field, numeric} from '../libs/parse_account_code.js';
-import SumTable from './sum_table.js';
+import SumTable from './sum-table.js';
 
 
 class TrialBalancePage  {

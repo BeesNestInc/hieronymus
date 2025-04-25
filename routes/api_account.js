@@ -91,6 +91,11 @@ export default {
     });
   },
   all2: async (req, res, next) => {
+    Accounts.all2(req.params.term).then((lines) => {
+      res.json(lines);
+    });
+  },
+  all3: async (req, res, next) => {
     Accounts.all3(req.params.term).then((lines) => {
       res.json(lines);
     });

@@ -24,7 +24,7 @@ export default {
       for ( let member of members ) {
         users.push({
           id: member.userId,
-          name: member.tradingName ? member.tradingName : member.officialName
+          name: member.tradingName ? member.tradingName : member.legalName
         })
       }
       res.json({
@@ -80,8 +80,8 @@ export default {
         if  ( req.body.inventoryManagement !== undefined )    {
           user.inventoryManagement = req.body.inventoryManagement;
         }
-        if  ( req.body.customerManagement !== undefined )    {
-          user.customerManagement = req.body.customerManagement;
+        if  ( req.body.companyManagement !== undefined )    {
+          user.companyManagement = req.body.companyManagement;
         }
         if  ( req.body.personnelManagement !== undefined )    {
           user.personnelManagement = req.body.personnelManagement;
@@ -148,7 +148,7 @@ export default {
             user.accounting = true;
             user.fiscalBrowsing = true;
             user.approvable = true;
-            user.customerManagement = true;
+            user.companyManagement = true;
             user.inventoryManagement = true;
             user.personnelManagement = true;
           } else {
@@ -156,7 +156,7 @@ export default {
             user.accounting = false;
             user.fiscalBrowsing = false;
             user.approvable = false;
-            user.customerManagement = false;
+            user.companyManagement = false;
             user.inventoryManagement = false;
             user.personnelManagement = false;
           }

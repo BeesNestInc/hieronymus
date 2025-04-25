@@ -12,9 +12,9 @@ export default (sequelize, DataTypes) => {
 				foreignKey: 'taskId',
 				as: 'lines'
 			});
-			this.belongsTo(models.Customer, {
-				sourceKey: 'customerId',
-        as: 'customer'
+			this.belongsTo(models.Company, {
+				sourceKey: 'companyId',
+        as: 'company'
 			});
 			this.hasMany(models.TransactionDocument, {
 				foreignKey: 'taskId',
@@ -47,14 +47,14 @@ export default (sequelize, DataTypes) => {
     issueDate: DataTypes.DATEONLY,
     deliveryLimit: DataTypes.DATEONLY,
     endedAt: DataTypes.DATEONLY,
-    customerId: DataTypes.INTEGER,
+    companyId: DataTypes.INTEGER,
     subject: DataTypes.STRING,
     paymentMethod: DataTypes.STRING,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
     taxClass: DataTypes.INTEGER,
     documentId: DataTypes.INTEGER,
-    customerName: DataTypes.STRING,
+    companyName: DataTypes.STRING,
     chargeName: DataTypes.STRING,
     zip: DataTypes.STRING,
     address1: DataTypes.STRING,

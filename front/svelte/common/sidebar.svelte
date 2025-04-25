@@ -185,10 +185,9 @@ const menuEditDone = (event) => {
     console.log('done');
   });
 }
-onMount(() => {
-  axios.get('/api/menu').then((result) => {
-    menuEntries = result.data.menus;
-  })
+onMount(async () => {
+  let result = await axios.get('/api/menu');
+  menuEntries = result.data.menus;
   axios.get('/api/menu/templates').then((result) => {
     menuTemplates = result.data.templates;
   })
@@ -207,7 +206,7 @@ onMount(() => {
   	  });
     }
   })
-  new Sortable(menuItems, {
+  const sortable = new Sortable(menuItems, {
     animation: 150,
     handle: ".drag-handle",
     fallbackOnBody: true,
@@ -219,10 +218,11 @@ onMount(() => {
         const moved = menuEntries[oldIndex];
         menuEntries.splice(oldIndex, 1);
         menuEntries.splice(newIndex, 0, moved);
-        menuEntries = menuEntries;
+        menuEntries = [...menuEntries];
       }
     }
   });
+  console.log({sortable})
 });
 
 let menuEntries = [];

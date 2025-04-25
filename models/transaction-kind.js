@@ -23,7 +23,8 @@ export default (sequelize, DataTypes) => {
     displayOrder: DataTypes.INTEGER,
     hasDetails: DataTypes.BOOLEAN,
     hasDocument: DataTypes.INTEGER,
-    forCustomer: DataTypes.BOOLEAN,
+    forCompany: DataTypes.BOOLEAN,
+    forBook: DataTypes.BOOLEAN,
     bookId: DataTypes.INTEGER
   }, {
     sequelize,

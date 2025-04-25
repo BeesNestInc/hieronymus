@@ -1,12 +1,15 @@
+// event-bus.js
+
 import mitt from 'mitt';
 
-const eventBus = mitt();
-eventBus.once = (type, handler) => {
-  const wrapper = (...args) => {
-    eventBus.off(type, wrapper);
+const emitter = mitt();
+
+emitter.once = (type, handler) => {
+  const onceHandler = (...args) => {
+    emitter.off(type, onceHandler);
     handler(...args);
   };
-  eventBus.on(type, wrapper);
+  emitter.on(type, onceHandler);
 };
-  
-export default eventBus;
+
+export default emitter;

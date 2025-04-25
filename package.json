@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "vite build",
+		"build-ssr": "vite build --config vite.config.ssr.js",
 		"watch": "vite build -w",
 		"prepublishOnly": "npm test",
 		"start-dev": "node ./bin/www",
@@ -59,6 +60,7 @@
 		"path-browserify": "^1.0.1",
 		"pg": "^8.6.0",
 		"pg-hstore": "^2.3.3",
+		"playwright": "^1.51.1",
 		"prismjs": "^1.29.0",
 		"sequelize": "^6.6.2",
 		"sequelize-cli": "^6.2.0",

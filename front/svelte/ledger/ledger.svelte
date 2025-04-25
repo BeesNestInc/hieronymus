@@ -82,7 +82,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import LedgerList from './ledger-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
-import {ledger_lines} from '../../../libs/ledger';
+import {ledgerLines} from '../../../libs/ledger';
 import AccountSelect from '../components/account-select.svelte';
 import SubAccountSelect from '../components/subaccount-select.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
@@ -247,7 +247,7 @@ const updateList = () => {
   pr.then((result) => {
     details = result.data;
     console.log('details', details);
-    let ret = ledger_lines(status.accountCode, status.subAccountCode,
+    let ret = ledgerLines(status.accountCode, status.subAccountCode,
         remaining, details);
     console.log('ret', ret);
     lines = ret.lines;

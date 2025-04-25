@@ -8,8 +8,8 @@ export default {
     console.log('/api/task/', id);
     let include = [
       {
-        model: models.Customer,
-        as: 'customer'
+        model: models.Company,
+        as: 'company'
       },
       {
         model: models.TaskDetail,
@@ -42,12 +42,12 @@ export default {
       } else {
         order = [
           [ "issueDate", "DESC" ],
-          [ "customerId", "ASC"]
+          [ "companyId", "ASC"]
         ]
       }
-      if	( req.query.customer )	{
+      if	( req.query.company )	{
         where = {
-          customerId: parseInt(req.query.customer)
+          companyId: parseInt(req.query.company)
         };
       }
       //console.log({where});
@@ -79,7 +79,7 @@ export default {
   },
   post: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if  ( req.session.user.customerManagement )    {
+    if  ( req.session.user.companyManagement )    {
       let body = req.body;
       body.createdBy = req.session.user.id;
       body.updatedBy = req.session.user.id;
@@ -129,7 +129,7 @@ export default {
 		let body = req.body;
 		body.updatedBy = req.session.user.id;
 		let id = req.params.id ? parseInt(req.params.id) : body.id;
-    if  ( req.session.user.customerManagement )    {
+    if  ( req.session.user.companyManagement )    {
       models.Task.findByPk(id, {
         include: [
           {
@@ -182,7 +182,7 @@ export default {
   delete: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id = parseInt(req.params.id);
-    if  ( req.session.user.customerManagement )   {
+    if  ( req.session.user.companyManagement )   {
       await models.Task.destroy({
         where: {
           id: id

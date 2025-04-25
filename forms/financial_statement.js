@@ -11,7 +11,7 @@ const	aggregate = (lines, code) => {
 		credit: 0,
 		balance: 0
 	}
-	for ( line of lines )  {
+	for ( let line of lines )  {
 		if      ( ( ( line.debit != 0 ) ||
 					( line.credit != 0 ) ||
 					( line.balance != 0 ) ) &&

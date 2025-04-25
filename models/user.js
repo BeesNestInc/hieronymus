@@ -52,7 +52,7 @@ export default (sequelize, DataTypes) => {
     fiscalBrowsing: DataTypes.BOOLEAN,
     approvable: DataTypes.BOOLEAN,
     administrable: DataTypes.BOOLEAN,
-    customerManagement: DataTypes.BOOLEAN,
+    companyManagement: DataTypes.BOOLEAN,
     inventoryManagement: DataTypes.BOOLEAN,
     personnelManagement: DataTypes.BOOLEAN
   }, {

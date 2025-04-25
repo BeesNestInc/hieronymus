@@ -51,7 +51,7 @@
             <CustomerSelect
               register=false
               clientOnly=true
-              bind:value={customerId}
+              bind:value={companyId}
               on:input={changeCustomer}>
             </CustomerSelect>
           </td>
@@ -70,15 +70,15 @@
             {line.kindId ? line.kind.label : '_'}
           </td>
           <td>
-            {#if (line.customerId)}
+            {#if (line.companyId)}
             <button type="button" class="btn btn-link"
               on:click={() => {
-                link(`/customer/entry/${line.customerId}`);
+                link(`/company/entry/${line.companyId}`);
               }}>
-              {line.customerName ? line.customerName : line.customer.name}
+              {line.companyName ? line.companyName : line.company.name}
             </button>
             {:else}
-            {line.customerName ? line.customerName : '__' }
+            {line.companyName ? line.companyName : '__' }
             {/if}
           </td>
           <td>
@@ -108,7 +108,7 @@
 <script>
 import axios from 'axios';
 
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {DOCUMENT_KIND} from '../../../libs/transaction-documents';
@@ -118,7 +118,7 @@ const dispatch = createEventDispatcher();
 export let status;
 export let transactions;
 
-let customerId;
+let companyId;
 let upperAmount;
 let lowerAmount;
 let transactionKinds = [];
@@ -142,9 +142,9 @@ beforeUpdate(() => {
 });
 
 const changeCustomer = (event) => {
-  let customerId = event.detail;
-  console.log({customerId});
-  dispatch('selectCustomerId', customerId);
+  let companyId = event.detail;
+  console.log({companyId});
+  dispatch('selectCustomerId', companyId);
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{

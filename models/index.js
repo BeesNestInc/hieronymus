@@ -4,8 +4,8 @@ import AccountClass from './accountclass.js';
 import AccountRemaining from './accountremaining.js';
 import CrossSlip from './crossslip.js';
 import CrossSlipDetail from './crossslipdetail.js';
-import Customer from './customer.js';
-import CustomerClass from './customer-class.js';
+import Company from './company.js';
+import CompanyClass from './company-class.js';
 import Document from './document.js';
 import DocumentFile from './document-file.js';
 import FiscalYear from './fiscalyear.js';
@@ -50,8 +50,8 @@ const models = {
   AccountRemaining: AccountRemaining(sequelize, DataTypes),
   CrossSlip: CrossSlip(sequelize, DataTypes),
   CrossSlipDetail: CrossSlipDetail(sequelize, DataTypes),
-  Customer: Customer(sequelize, DataTypes),
-  CustomerClass: CustomerClass(sequelize, DataTypes),
+  Company: Company(sequelize, DataTypes),
+  CompanyClass: CompanyClass(sequelize, DataTypes),
   Document: Document(sequelize, DataTypes),
   DocumentFile: DocumentFile(sequelize, DataTypes),
   FiscalYear: FiscalYear(sequelize, DataTypes),

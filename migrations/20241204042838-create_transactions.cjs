@@ -10,10 +10,10 @@ module.exports = {
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      customerId: {
+      companyId: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Customers',
+          model: 'Companies',
           field: 'id'
         },
         allowNull: true,
@@ -26,7 +26,7 @@ module.exports = {
       deliveryLimit: {
         type: Sequelize.DATEONLY
       },
-      customerName: {
+      companyName: {
         type: Sequelize.STRING
       },
       chargeName: {
@@ -179,9 +179,13 @@ module.exports = {
         type: Sequelize.INTEGER,
         defaultValue: 0
       },
-      forCustomer: {
+      forCompany: {
         type: Sequelize.BOOLEAN,
         defaultValue: true
+      },
+      forBook: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
       },
       bookId: {
         type: Sequelize.INTEGER,
@@ -208,7 +212,8 @@ module.exports = {
         displayOrder: 0,
         hasDetails: true,
         hasDocument: 1,
-        forCustomer: true,
+        forCompany: true,
+        bookId: 5,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
@@ -216,7 +221,7 @@ module.exports = {
         displayOrder: 1,
         hasDetails: true,
         hasDocument: 1,
-        forCustomer: true,
+        forCompany: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
@@ -224,7 +229,7 @@ module.exports = {
         displayOrder: 2,
         hasDetails: true,
         hasDocument: 1,
-        forCustomer: true,
+        forCompany: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
@@ -232,7 +237,8 @@ module.exports = {
         displayOrder: 3,
         hasDetails: true,
         hasDocument: 1,
-        forCustomer: true,
+        forCompany: true,
+        forBook: true,
         bookId: 3,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -241,7 +247,8 @@ module.exports = {
         displayOrder: 4,
         hasDetails: true,
         hasDocument: 1,
-        forCustomer: true,
+        forCompany: true,
+        forBook: true,
         bookId: 4,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -250,7 +257,7 @@ module.exports = {
         displayOrder: 5,
         hasDetails: false,
         hasDocument: 2,
-        forCustomer: true,
+        forCompany: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
@@ -258,7 +265,7 @@ module.exports = {
         displayOrder: 6,
         hasDetails: false,
         hasDocument: 2,
-        forCustomer: false,
+        forCompany: false,
         createdAt: new Date(),
         updatedAt: new Date()
       }
@@ -289,10 +296,10 @@ module.exports = {
       deliveryLimit: {
         type: Sequelize.DATEONLY
       },
-      customerId: {
+      companyId: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Customers',
+          model: 'Companies',
           field: 'id'
         },
         allowNull: true,
@@ -309,7 +316,7 @@ module.exports = {
         onDelete: 'set null',
         onUpdate: 'cascade'
       },
-      customerName: {
+      companyName: {
         type: Sequelize.STRING
       },
       chargeName: {

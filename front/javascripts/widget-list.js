@@ -1,7 +1,7 @@
 import Approve from '../svelte/widgets/approve.svelte';
 import Backup from '../svelte/widgets/backup.svelte';
 import Bookmark,{ create as createBookmark, activate as activateBookmark } from '../svelte/widgets/bookmark.svelte';
-import CustomerKinds from '../svelte/widgets/customer-kinds.svelte';
+import CompanyKinds from '../svelte/widgets/company-kinds.svelte';
 import FormPrint from '../svelte/widgets/form-print.svelte';
 import HTMLPanel from '../svelte/widgets/html-panel.svelte';
 import ItemClasses from '../svelte/widgets/item-classes.svelte';
@@ -52,14 +52,14 @@ export const componentList = [
       defaultH: 29,
       component: SelectTerm
     }, {
-      name: 'CustomerKinds',
+      name: 'CompanyKinds',
       title: '取引先種別',
       defaultW: 6,
       defaultH: 40,
       authority: (user, options) => {
         return  (user.administrable);
       },
-      component: CustomerKinds,
+      component: CompanyKinds,
     }, {
       name: 'TransactionKinds',
       title: '取引文書種別',

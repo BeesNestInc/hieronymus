@@ -1,7 +1,7 @@
 import CrossSlipDetails from '../libs/crossslipdetails.js';
 import Account from '../libs/accounts.js';
 import {Page} from './book.js';
-import {ledger_lines} from '../libs/ledger.js';
+import {ledgerLines} from '../libs/ledger.js';
 import {setAccounts} from '../front/javascripts/cross-slip.js';
 
 class LedgerPage{
@@ -439,12 +439,12 @@ export default class {
             this_page.make_header();
             let ret;
             if  ( subAccount )  {
-                ret = ledger_lines(account.code, subAccount.code, {
+                ret = ledgerLines(account.code, subAccount.code, {
                     debit: 0,
                     credit: 0,
                     balance: this_page.balance }, details);
             } else {
-                ret = ledger_lines(account.code, null, {
+                ret = ledgerLines(account.code, null, {
                     debit: 0,
                     credit: 0,
                     balance: this_page.balance }, details);

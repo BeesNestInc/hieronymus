@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 import fs from 'fs';
+import {is_authenticated} from '../libs/user.js';
+import closing from '../forms/closing.js';
 
 import journal from './api_journal.js';
 import ledger from './api_ledger.js';
@@ -8,7 +10,7 @@ import account from './api_account.js';
 import sub_account from './api_sub_account.js';
 import remaining from './api_remaining.js';
 import trial_balance from './api_trial_balance.js';
-import customer from './api_customer.js';
+import company from './api_company.js';
 import voucher from './api_voucher.js';
 import user from './api_user.js';
 import transaction from './api_transaction_document.js';
@@ -49,6 +51,7 @@ router.put('/transaction/kinds', transaction.kindsPut);
 router.get('/transaction/:id', transaction.get);
 router.post('/transaction', transaction.post);
 router.put('/transaction', transaction.update);
+router.post('/transaction/book/:id', transaction.book);
 router.put('/transaction/:id', transaction.update);
 router.delete('/transaction/:id', transaction.delete);
 
@@ -64,6 +67,17 @@ router.get('/journal/:year/:month', journal.get);
 router.get('/ledger/:term/:account', ledger.get);
 router.get('/ledger/:term/:account/:sub_account', ledger.get);
 
+router.post('/closing/:term', is_authenticated,(req, res, next) => {
+  if (( req.session.user.accounting ) ||
+      ( req.session.user.fiscalBrowsing )) {
+    closing(parseInt(req.params.term)).then(() => {
+      res.json({ code: 0});
+    })
+  } else {
+    res.json({ code: -10});
+  }
+})
+
 router.get('/changes/:term/:account', changes.get);
 router.get('/changes/:term/:account/:sub_account', changes.get);
 
@@ -71,7 +85,8 @@ router.get('/remaining/:term/:account', remaining.get);
 router.get('/remaining/:term/:account/:sub_account', remaining.get);
 
 router.get('/accounts', account.all);
-router.get('/accounts/:term', account.all2);
+router.get('/accounts2/:term', account.all2);
+router.get('/accounts3/:term', account.all3);
 router.get('/account/:code', account.get);
 router.get('/account-class/:id', account.get_class);
 router.put('/account/:term', account.update);
@@ -93,15 +108,15 @@ router.put('/cross-slip-detail', cross_slip_detail.update);
 router.get('/trial-balance/:term', trial_balance.get);
 router.get('/trial-balance/:term/:lastdate', trial_balance.get);
 
-router.get('/customer', customer.get);
-router.get('/customer/kinds', customer.kindsGet);
-router.put('/customer/kinds', customer.kindsPut);
-router.get('/customer/:id', customer.get);
-router.post('/customer', customer.post);
-router.put('/customer', customer.update);
-router.put('/customer/:id', customer.update);
-router.delete('/customer', customer.delete);
-router.delete('/customer/:id', customer.delete);
+router.get('/company', company.get);
+router.get('/company/kinds', company.kindsGet);
+router.put('/company/kinds', company.kindsPut);
+router.get('/company/:id', company.get);
+router.post('/company', company.post);
+router.put('/company', company.update);
+router.put('/company/:id', company.update);
+router.delete('/company', company.delete);
+router.delete('/company/:id', company.delete);
 
 router.get('/voucher/classes', voucher.classesGet);
 router.put('/voucher/classes', voucher.classesPut);

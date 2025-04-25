@@ -129,6 +129,15 @@ ul.nav {
   }
 }
 
+.card-frame,
+.button-frame {
+  padding:10px;
+}
+.button-frame {
+  border: 1px solid var(--bs-card-border-color);
+  border-radius: 4px;
+}
+
 .card:hover {
   background-color: #f7fdfd;
   transition: background-color 0.3s ease;

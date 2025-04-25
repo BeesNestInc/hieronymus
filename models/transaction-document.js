@@ -20,9 +20,9 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'taskId',
         as: 'task'
 			});
-			this.belongsTo(models.Customer, {
-				sourceKey: 'customerId',
-        as: 'customer'
+			this.belongsTo(models.Company, {
+				sourceKey: 'companyId',
+        as: 'company'
 			});
 			this.hasOne(models.Document, {
 				foreignKey: 'id',
@@ -56,10 +56,10 @@ export default (sequelize, DataTypes) => {
     kindId: DataTypes.INTEGER,
     issueDate: DataTypes.DATEONLY,
     deliveryLimit: DataTypes.DATEONLY,
-    customerId: DataTypes.INTEGER,
+    companyId: DataTypes.INTEGER,
     taskId: DataTypes.INTEGER,
     voucherId: DataTypes.INTEGER,
-    customerName: DataTypes.STRING,
+    companyName: DataTypes.STRING,
     chargeName: DataTypes.STRING,
     zip: DataTypes.STRING,
     address1: DataTypes.STRING,

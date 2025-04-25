@@ -1,5 +1,6 @@
 import express from 'express';
 const app = express();
+import axios from 'axios';
 
 import session from 'express-session';
 import fileStore from 'session-file-store';
@@ -25,6 +26,9 @@ import env from './config/env.js';
 global.env = env;
 
 const __dirname = import.meta.dirname;
+
+// SSRのためにローカルにaxiosを向けるため
+axios.defaults.baseURL = `http://localhost:${global.env.port}`;
 
 app.use(logger('dev'));		//	アクセスログを見たい時には有効にする
 app.use(express.json());

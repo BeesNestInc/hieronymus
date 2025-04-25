@@ -37,8 +37,7 @@ const home =  async (req, res, next) => {
       //console.log('term', req.session.term);
       console.log('user', req.session.user);
       res.render('index.spy', {
-        term: req.session.term,
-        user: req.session.user.name
+        term: req.session.term
       });
     } else {
       req.session.term = req.params.term;
@@ -63,13 +62,7 @@ const setup  =  async (req, res, next) => {
 router.get('/setup', setup);
 router.get('/home/:term', is_authenticated, home);
 router.get('/home', is_authenticated, home);
-router.get('/login', (req, res, next) => {
-  res.render('index.spy', {
-    title: '',
-    msg_type: '',
-    message: ''
-  });
-});
+router.get('/login', home);
 router.get('/logout', (req, res, next) => {
   //console.log('logout', req.user);
   req.logout((err) => {

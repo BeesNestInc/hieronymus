@@ -8,10 +8,10 @@ export default (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-			this.hasOne(models.Customer, {
+			this.hasOne(models.Company, {
 				foreignKey: 'id',
-				sourceKey: 'customerId',
-        as: 'customer'
+				sourceKey: 'companyId',
+        as: 'company'
 			});
 			this.hasOne(models.User, {
 				foreignKey: 'id',
@@ -37,7 +37,7 @@ export default (sequelize, DataTypes) => {
     voucherClassId: DataTypes.INTEGER,
     issueDate: DataTypes.DATEONLY,
     paymentDate: DataTypes.DATEONLY,
-    customerId: DataTypes.INTEGER,
+    companyId: DataTypes.INTEGER,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
     taxClass: DataTypes.INTEGER,

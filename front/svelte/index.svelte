@@ -64,10 +64,10 @@
       	bind:alert={alert}
       	bind:alert_level={alert_level}></Accounts>
 			{:else if ( status.current === 'customer' )}
-      <Customer
+      <Company
         bind:status={statusCustomer}
         bind:alert={alert}
-        bind:alert_level={alert_level}></Customer>
+        bind:alert_level={alert_level}></Company>
       {:else if ( status.current === 'task' )}
       <Task
         bind:status={statusTask}></Task>
@@ -123,7 +123,7 @@ import TrialBalance from './trial-balance/trial-balance.svelte';
 import Changes from './changes/changes.svelte';
 import Voucher from './voucher/voucher.svelte';
 import Accounts from './accounts/accounts.svelte';
-import Customer from './customer/customer.svelte';
+import Company from './company/company.svelte';
 
 import Users from './users/users.svelte';
 import Transaction from './transaction/transaction.svelte';

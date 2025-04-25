@@ -46,7 +46,7 @@
         on:endregister
         register=true
         input="view"
-        bind:customerId={voucher.customerId}/>
+        bind:companyId={voucher.companyId}/>
     </div>
   </div>
   <div class="row mt-3">
@@ -144,14 +144,14 @@ import {numeric, TAX_CLASS} from '../../../libs/utils';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 
 export	let	voucher;
 export  let status;
 export	let	files;
 
-let	original_customers;
-let customerKey;
+let	original_companys;
+let companyKey;
 
 beforeUpdate(() => {
   console.log('voucher-info beforeUpdate',voucher);
@@ -240,16 +240,16 @@ onMount(() => {
       axios.get(`/api/voucher/files/${voucher.id}`).then((result) => {
         files = result.data;
       });
-      customerKey = voucher.customer.name;
+      companyKey = voucher.company.name;
       voucher.amount = numeric(voucher.amount).toLocaleString();
       voucher.tax = numeric(voucher.tax).toLocaleString();
     } else {
-      customerKey = '';
+      companyKey = '';
     }
 
-  axios.get(`/api/customer/`).then((result) => {
-    original_customers = result.data;
-    console.log('customer update', original_customers);
+  axios.get(`/api/company/`).then((result) => {
+    original_companys = result.data;
+    console.log('company update', original_companys);
   });
 });
 

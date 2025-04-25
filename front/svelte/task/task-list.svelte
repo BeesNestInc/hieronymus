@@ -32,10 +32,10 @@
               register=false
               on:input={(event) => {
                 let value = parseInt(event.detail);
-                status.params.set('customer', value);
+                status.params.set('company', value);
                 dispatch('selectCustomerId');
               }}
-              customerId={status.params ? parseInt(status.params.get('customer')) : -1}>
+              companyId={status.params ? parseInt(status.params.get('company')) : -1}>
             </CustomerSelect>
           </td>
           <td>
@@ -48,15 +48,15 @@
         {#each tasks as line}
         <tr>
           <td>
-            {#if (line.customerId)}
+            {#if (line.companyId)}
             <button type="button" class="btn btn-link"
               on:click={() => {
-                link(`/customer/entry/${line.customerId}`)
+                link(`/company/entry/${line.companyId}`)
               }}>
-              {line.customerName ? line.customerName : line.customer.name}
+              {line.companyName ? line.companyName : line.company.name}
             </button>
             {:else}
-            {line.customerName ? line.customerName : '__' }
+            {line.companyName ? line.companyName : '__' }
             {/if}
           </td>
           <td>
@@ -81,7 +81,7 @@
 </div>
 
 <script>
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';

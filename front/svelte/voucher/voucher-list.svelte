@@ -90,7 +90,7 @@
           </td>
           <td>
             <CustomerSelect
-                bind:value={customerId}
+                bind:value={companyId}
                 on:input={changeCustomer}>
             </CustomerSelect>
           </td>
@@ -125,7 +125,7 @@
             </button>
           </td>
           <td>
-            {line.customer.name}
+            {line.company.name}
           </td>
           <td>
             {#if ( line.details.length > 0 ) }
@@ -218,7 +218,7 @@
 
 <script>
 import axios from 'axios';
-import CustomerSelect from '../components/customer-select.svelte';
+import CustomerSelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
@@ -227,7 +227,7 @@ const dispatch = createEventDispatcher();
 export let status;
 export let vouchers;
 
-let customerId;
+let companyId;
 let upperAmount;
 let lowerAmount;
 let dates = [];
@@ -251,9 +251,9 @@ const changeVoucherType = (event) => {
   dispatch('selectVoucherType');
 }
 const changeCustomer = (event) => {
-  let customerId = event.detail;
-  //console.log({customerId});
-  dispatch('selectCustomerId', customerId);
+  let companyId = event.detail;
+  //console.log({companyId});
+  dispatch('selectCustomerId', companyId);
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{

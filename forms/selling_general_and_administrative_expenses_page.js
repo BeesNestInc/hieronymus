@@ -1,5 +1,5 @@
 import {Book, Page} from './book.js';
-import SumTable from './sum_table.js';
+import SumTable from './sum-table.js';
 import {field, numeric} from '../libs/parse_account_code.js';
 
 export default class {

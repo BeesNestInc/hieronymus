@@ -80,28 +80,6 @@ module.exports = {
       onDelete: 'RESTRICT',
       onUpdate: 'CASCADE'
     });
-    await queryInterface.addConstraint('StickyStatuses', {
-      fields: ['stickyId'],
-      type: 'foreign key',
-      name: 'StickyStatuses_stickyId_fkey',
-      references: {
-        table: 'Stickies',
-        field: 'id'
-      },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE'
-    });
-    await queryInterface.addConstraint('StickyStatuses', {
-      fields: ['receiverId'],
-      type: 'foreign key',
-      name: 'StickyStatuses_receiverId_fkey',
-      references: {
-        table: 'Users',
-        field: 'id'
-      },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE'
-    });
     await queryInterface.addConstraint('SubAccounts', {
       fields: ['accountId'],
       type: 'foreign key',
@@ -114,11 +92,11 @@ module.exports = {
       onUpdate: 'CASCADE'
     });
     await queryInterface.addConstraint('Vouchers', {
-      fields: ['customerId'],
+      fields: ['companyId'],
       type: 'foreign key',
-      name: 'Vouchers_customerId_fkey',
+      name: 'Vouchers_companyId_fkey',
       references: {
-        table: 'Customers',
+        table: 'Companies',
         field: 'id'
       },
       onDelete: 'SET NULL',
@@ -207,10 +185,8 @@ module.exports = {
     await queryInterface.removeConstraint('CrossSlips', 'CrossSlips_createdBy_fkey');
     await queryInterface.removeConstraint('CrossSlips', 'CrossSlips_updatedBy_fkey');
     await queryInterface.removeConstraint('CrossSlips', 'CrossSlips_approvedBy_fkey');
-    await queryInterface.removeConstraint('StickyStatuses', 'StickyStatuses_stickyId_fkey');
-    await queryInterface.removeConstraint('StickyStatuses', 'StickyStatuses_receiverId_fkey');
     await queryInterface.removeConstraint('SubAccounts', 'SubAccounts_accountId_fkey');
-    await queryInterface.removeConstraint('Vouchers', 'Vouchers_customerId_fkey');
+    await queryInterface.removeConstraint('Vouchers', 'Vouchers_companyId_fkey');
     await queryInterface.removeConstraint('Vouchers', 'Vouchers_createdBy_fkey');
     await queryInterface.removeConstraint('Vouchers', 'Vouchers_updatedBy_fkey');
 
