@@ -38,7 +38,7 @@ export const findSubAccount = (account, code) => {
 export const findSubAccountByCode = (account_code, code) => {
   let sub_account = { name: '', key: ''};
 
-  let account = find_account(account_code);
+  let account = findAccount(account_code);
 
   if ( account.subAccounts ) {
     for ( let i = 0; i < account.subAccounts.length; i ++ ) {

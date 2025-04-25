@@ -208,11 +208,13 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       showCredit: showCredit
     });
   }
+/*
   if  ( dc(account_code) == 'D' )    {
     sums.creditAmount += sums.balance;
   } else {
     sums.debitAmount += sums.balance;
   }
+*/
   return ({
     lines: lines,
     sums: sums,

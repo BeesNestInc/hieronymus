@@ -70,13 +70,13 @@ export const formatDate = (_date, lang) => {
     } else {
       date = _date;
     }
-    if	( lang === 'ja' )	{
-			return	`${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-    } else {
-    	return	`${date.getFullYear()}-${('0' + (date.getMonth()+1)).slice(-2)}-${('0' + date.getDate()).slice(-2)}`
-    }
   } else {
-    return	('');
+    date = new Date();
+  }
+  if	( lang === 'ja' )	{
+		return	`${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  } else {
+    return	`${date.getFullYear()}-${('0' + (date.getMonth()+1)).slice(-2)}-${('0' + date.getDate()).slice(-2)}`
   }
 }
 

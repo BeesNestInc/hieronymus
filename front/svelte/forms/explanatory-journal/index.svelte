@@ -1,4 +1,4 @@
-{#if sgaPage}
+{#if dates}
 <ExplanatoryJournal
   {fy}
   {company}
@@ -23,6 +23,7 @@ let dates;
 onMount(async () => {
   company = await myCompany();
   ({fy, dates} = await initializeExplanatoryJournal(term));
+  console.log(dates);
 });
 
 </script>

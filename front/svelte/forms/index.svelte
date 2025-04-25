@@ -7,6 +7,15 @@
     <Invoice
       id=parseInt(args[4])></Invoice>
     {/if}
+  {:else if ( args[2] === 'explanatory_journal' )}
+  <ExplanatoryJournal
+    term={args[3]}></ExplanatoryJournal>
+  {:else if ( args[2] === 'general_ledger' )}
+  <GeneralLedger
+    term={args[3]}></GeneralLedger>
+  {:else if ( args[2] === 'subsidiary_ledger' )}
+  <SubsidiaryLedger
+    term={args[3]}></SubsidiaryLedger>
   {:else if ( args[2] === 'trial_balance' )}
     <TrialBalance
     term={args[3]}></TrialBalance>
@@ -21,6 +30,9 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 import Estimate from './estimate/estimate.svelte';
 import Invoice from './invoice/invoice.svelte';
 
+import ExplanatoryJournal from './explanatory-journal/index.svelte';
+import GeneralLedger from './general-ledger/index.svelte';
+import SubsidiaryLedger from './subsidiary-ledger/index.svelte';
 import TrialBalance from './trial-balance/index.svelte';
 import FinancialStatement from './financial-statement/index.svelte';
 

@@ -11,19 +11,19 @@
       <table class="table">
         <thead>
           <tr>
-            <th scope="col" style="width: 100px;">
+            <th style="width: 100px;">
               勘定科目
             </th>
-            <th scope="col" style="width: 100px;">
+            <th style="width: 120px;">
               繰越金額
             </th>
-            <th scope="col" style="width: 100px;">
+            <th style="width: 120px;">
               借方金額
             </th>
-            <th scope="col" style="width: 100px;">
+            <th style="width: 120px;">
               貸方金額
             </th>
-            <th scope="col" style="width: 100px;">
+            <th style="width: 120px;">
               残高
             </th>
           </tr>

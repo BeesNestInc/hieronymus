@@ -35,7 +35,8 @@ const ledgerPages = async (term, account) => {
   return  ({
     name: account.name,
     pages: pages,
-    sums: sums
+    sums: sums,
+    pickup: pickup.balance
   });
 }
 
@@ -49,6 +50,7 @@ export default async (term) => {
   let ledgerLines = [];
   for ( let account of accounts ) {
     let ledger = await ledgerPages(term, account);
+    //console.log({ledger});
     if  (( ledger.sums.debit ) ||
          ( ledger.sums.credit ) ||
          ( ledger.sums.balance )) {
@@ -56,8 +58,8 @@ export default async (term) => {
         code: account.code,
         name: account.name,
         taxClass: account.taxClass,
-        debit: ledger.sums.debit,
-        credit: ledger.sums.credit,
+        debit: ledger.sums.debitAmount,
+        credit: ledger.sums.creditAmount,
         balance: ledger.sums.balance
       });
       ledgerLines.push(ledger);

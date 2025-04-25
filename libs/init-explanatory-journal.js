@@ -1,13 +1,11 @@
 import axios from 'axios';
 import {numeric, burstPage } from './utils.js';
 import {setAccounts, findAccount, findSubAccountByCode} from '../front/javascripts/cross-slip.js';
-import myCompany from './my-company.js';
 
 let fy = {};
 let dates;
-let company = {};
 
-const LINES = 25;
+const LINES = 24;
 
 const setupDates = async (term) => {
   let result = await axios.get(`/api/term/${term}`);
@@ -65,10 +63,10 @@ const ready = (slips) => {
         approvedAt: slip.approvedAt,
         lineNo: line.lineNo,
 
-        debitAmount: line.debitAmount ? numeric(line.debitAmount).toLocaleString() : '',
-        debitTax: debitTax !== 0 ? debitTax.toLocaleString() : '&nbsp;',
-        creditAmount: line.creditAmount ? numeric(line.creditAmount).toLocaleString() : '',
-        creditTax: creditTax !== 0 ? creditTax.toLocaleString() : '&nbsp;',
+        debitAmount: line.debitAmount,
+        debitTax: debitTax,
+        creditAmount: line.creditAmount,
+        creditTax: creditTax,
            
         debitAccount: findAccount(line.debitAccount).name,
         debitSubAccount: findSubAccountByCode(line.debitAccount, line.debitSubAccount).name,
