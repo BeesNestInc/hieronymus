@@ -1,0 +1,100 @@
+<svelte:head>
+  <title>請求書::Hieronymus</title>
+  <meta http-equiv="Content-Language" content="ja" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/style/transaction.css">
+</svelte:head>
+
+<div class="transaction">
+  <header class="transaction-header">
+    <div class="window-recipient-info">
+      <p>〒{transaction.zip}</p>
+      <p>{transaction.address1}</p>
+      <p>{transaction.address2}</p>
+      <p>{transaction.companyName} 御中</p>
+    </div>
+    <div class="">
+      <div class="title-info">
+        <div class="title-line">
+          <h1>請 求 書</h1>
+          <div style="margin-left:20px;margin-top:10px;font-size:14px;">
+            <span>No. {transaction.no}</span>
+          </div>
+        </div>
+        <p>
+          発行日:&nbsp;
+          {date.getFullYear()}年
+          {date.getMonth() + 1}月
+          {date.getDate()}日
+        </p>
+      </div>
+      <div class="company-info">
+        {#if ( company.logoURL )}
+        <div class="company-name-with-logo">
+          <img src="{company.logoURL}" style="max-height:50px;">
+          <p class="name">{company.name}</p>
+        </div>
+        {:else}
+        <p class="name">{company.name}</p>
+        {/if}
+        <p class="zip">〒{company.zip}</p>
+        <p class="address">{company.address1}</p>
+        <p class="address">{company.address2}</p>
+        <p class="tel">
+        {#if ( company.tel ) }
+        <span>TEL {company.tel}</span>
+        {/if}
+        {#if ( company.fax ) }
+        <span>FAX {company.fax}</span>
+        {/if}
+        </p>
+        {#if ( company.url ) }
+        <p class="homepage">{company.url}</p>
+        {/if}
+        <p class="handler">
+          担当: &nbsp;
+          {transaction.handleUser.member.tradingName ? transaction.handleUser.member.tradingName :
+          																						 transaction.handleUser.member.legalName}
+        </p>
+        <p class="account">
+          [振込先]
+          {company.bankName}
+          {company.bankBranchName}
+          {BANK_ACCOUNT_TYPE.find((bank) => bank[0] === company.accountType)[1]}
+          {company.accountNo}
+        </p>
+      </div>
+    </div>
+  </header>
+	<main>
+  	<div class="salutation">
+    	<p>毎度ありがとうございます。</p>
+    	<p>下記のとおり御請求申し上げます。</p>
+  	</div>
+  	<div class="total-amount">
+	    <div class="title">
+  	    合計金額
+    	</div>
+	    <div class="amount">
+  	    ￥{(parseInt(transaction.tax) + parseInt(transaction.amount)).toLocaleString()}
+	    </div>
+	  </div>
+		<Details
+  	  {transaction}></Details>
+	</main>
+</div>
+<script>
+import Details from '../components/details.svelte';
+import {BANK_ACCOUNT_TYPE} from '../../../../libs/utils.js';
+
+export let transaction;
+export let company;
+   
+console.log('invoice.svelte');
+
+let date = new Date(transaction.issueDate);
+
+</script>
+      
+    
