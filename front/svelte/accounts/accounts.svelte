@@ -14,7 +14,7 @@
 
 <AccountModal
   account={account}
-  sub_account={sub_account}
+  subAccount={subAccount}
   mode={mode}
   status={status}
   modal={modal}
@@ -42,7 +42,7 @@ let	lines = [];
 let modal;
 let	mode;
 let	account = {};
-let	sub_account = {};
+let	subAccount = {};
 
 const ready = () => {
   lines = [];
@@ -50,23 +50,23 @@ const ready = () => {
   for ( let i = 0; i < accounts.length; i ++ ) {
     let account = accounts[i];
     let new_line = {
-      acl_id: account.acl_id,
-      acl_code: account.acl_code
+      aclId: account.acl_id,
+      aclCode: account.acl_code
     };
     if ( last_account.major_name != account.major_name ) {
-      new_line.major_name = account.major_name;
+      new_line.majorName = account.major_name;
     } else {
-      new_line.major_name = '';
+      new_line.majorName = '';
     }
     if ( last_account.middle_name != account.middle_name ) {
-      new_line.middle_name = account.middle_name;
+      new_line.middleName = account.middle_name;
     } else {
-      new_line.middle_name = '';
+      new_line.middleName = '';
     }
     if ( last_account.minor_name != account.minor_name ) {
-      new_line.minor_name = account.minor_name;
+      new_line.minorName = account.minor_name;
     } else {
-      new_line.minor_name = '';
+      new_line.minorName = '';
     }
     if		(( new_line.major_name != '') ||
          ( new_line.middle_name != '' ) ||
@@ -75,34 +75,34 @@ const ready = () => {
     }
     if	( account.name && ( account.name != '' ) )	{
       lines.push({
-        major_name: '',
-        middle_name: '',
-        minor_name: '',
-        account_name: account.name,
-        sub_account_name: '',
-        tax_class: 0,
+        majorName: '',
+        middleName: '',
+        minorName: '',
+        accountName: account.name,
+        subAccountName: '',
+        taxClass: ( account.subAccounts && account.subAccounts.length > 0 ) ? 0 : account.taxClass,
         key: account.key ? account.key : '',
         debit: account.debit ? numeric(account.debit) : 0,
         credit: account.credit ? numeric(account.credit) : 0,
         remaining: account.balance ? numeric(account.balance) : 0,
-        sub_code: -1,
+        subCode: -1,
         code: account.code
       });
       if ( account.subAccounts && account.subAccounts.length > 0 ) {
         for ( let j = 0; j < account.subAccounts.length; j ++) {
           let sub = account.subAccounts[j];
           lines.push({
-            major_name: '',
-            middle_name: '',
-            minor_name: '',
-            account_name: '',
-            sub_account_name: sub.name,
-            tax_class: sub.taxClass,
+            majorName: '',
+            middleName: '',
+            minorName: '',
+            accountName: '',
+            subAccountName: sub.name,
+            taxClass: sub.taxClass,
             key: sub.key,
             debit: sub.debit ? numeric(sub.debit) : 0,
             credit: sub.credit ? numeric(sub.credit) : 0,
             remaining: sub.balance ? numeric(sub.balance) : 0,
-            sub_code: sub.code,
+            subCode: sub.code,
             code: account.code
           });
         }
@@ -114,7 +114,7 @@ const ready = () => {
 
 
 const	updateAccounts = () => {
-  axios.get(`/api/accounts/${status.term}`).then((result) => {
+  axios.get(`/api/accounts2/${status.term}`).then((result) => {
     accounts = result.data;
     console.log('accounts', accounts);
     setAccounts(accounts);
@@ -152,7 +152,7 @@ const	openAccount = (event) => {
   console.log({args});
   mode = args.mode;
   account = args.account;
-  sub_account = args.sub_account;
+  subAccount = args.subAccount;
   openModal = true;
 }
 </script>

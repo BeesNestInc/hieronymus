@@ -40,14 +40,14 @@
     {#each lines as line}
     <tr>
       <td>
-        {line.major_name}
+        {line.majorName}
       </td>
       <td>
-        {line.middle_name}
+        {line.middleName}
       </td>
       <td>
-        {#if (line.minor_name != '')}
-        {line.minor_name}
+        {#if (line.minorName != '')}
+        {line.minorName}
         {/if}
       </td>
       <td>
@@ -56,12 +56,12 @@
           on:click={() => {
             editAccount(line.code);
           }}>
-          {line.account_name}
+          {line.accountName}
         </button>
         {:else}
         <button type="button" class="btn btn-primary btn-sm"
           on:click={() => {
-            newAccount(line.acl_id, line.acl_code);
+            newAccount(line.aclId, line.aclCode);
           }}>
           <i class="bi bi-plus"></i>
         </button>
@@ -73,13 +73,13 @@
         {/if}
       </td>
       <td>
-        {#if ( line.sub_code )}
-        {#if (line.sub_code >= 0)}
+        {#if ( line.subCode )}
+        {#if (line.subCode >= 0)}
         <button type="button" class="btn btn-link"
           on:click={() => {
-            editSubAccount(line.code, line.sub_code);
+            editSubAccount(line.code, line.subCode);
           }}>
-          {line.sub_account_name}
+          {line.subAccountName}
         </button>
         {:else}
         <button type="button" class="btn btn-primary btn-sm"
@@ -92,10 +92,10 @@
         {/if}
       </td>
       <td>
-        {line.tax_class ? line.tax_class : ''}
+        {line.taxClass ? taxClass(line.taxClass) : ''}
       </td>
       <td>
-        {line.code ? line.key : ''}
+        {line.key ? line.key : ''}
       </td>
       <td class="number">
         {line.code ? line.debit.toLocaleString() : ''}
@@ -121,6 +121,7 @@ th {
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {taxClass} from '../../../libs/utils.js';
 
 export	let	status;
 export	let	lines;
@@ -138,8 +139,8 @@ const editAccount = (code) => {
 	}
 	dispatch('open',{
 		account: account,
-		sub_account: null,
-		mode: 'edit_account'
+		subAccount: null,
+		mode: 'edit-account'
 	});
 }
 const	newAccount = (id, code) => {
@@ -160,7 +161,7 @@ const	newAccount = (id, code) => {
 	  };
 	  dispatch('open',{
 		  account: account,
-		  sub_account: null,
+		  subAccount: null,
 		  mode: 'new-account'
 	  });
   });
@@ -172,14 +173,14 @@ const	editSubAccount = (code, sub_code) => {
 		account = accounts[i];
 		if ( account.code === code ) break;
 	}
-	let sub_account = null;
+	let subAccount = null;
 	for ( let i = 0; i < account.subAccounts.length ; i ++) {
-		sub_account = account.subAccounts[i];
-		if ( sub_account.code === sub_code ) break;
+		subAccount = account.subAccounts[i];
+		if ( subAccount.code === sub_code ) break;
 	}
 	dispatch('open',{
 		account: account,
-		sub_account: sub_account,
+		subAccount: subAccount,
 		mode: "edit-sub-account"
 	});
 }
@@ -189,14 +190,14 @@ const	newSubAccount = async (code) => {
 		account = accounts[i];
 		if ( account.code == code ) break;
 	}
-	let sub_account  = {
+	let subAccount  = {
     debit: 0,
     credit: 0,
     balance: 0
 	}
 	dispatch('open',{
 		account: account,
-		sub_account: sub_account,
+		subAccount: subAccount,
 		mode: 'new-sub-account'
 	});
 }
