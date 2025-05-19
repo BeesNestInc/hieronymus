@@ -1,4 +1,4 @@
-<div class="container-fluid">
+<div class="container-fluid crossslip">
   <div class="row mb-3">
     <div class="col-5">
       <div class="input-group">
@@ -32,22 +32,22 @@
   <div class="row">
     <table class="table table-striped table-bordered">
       <thead>
-        <th scope="col">
+        <th>
           借方科目
         </th>
-        <th scope="col">
+        <th style="width:120px;">
           金額
         </th>
-        <th scope="col">
+        <th>
           適用
         </th>
-        <th scope="col">
+        <th>
           貸方科目
         </th>
-        <th scope="col">
+        <th style="width:120px;">
           金額
         </th>
-        <th scope="col">
+        <th>
         </th>
       </thead>
       <tbody id="cross-slip">
@@ -60,48 +60,96 @@
           on:dragover|preventDefault
           data-index={i}
           data-id={line.id}>
-          <td>
-            <Account accounts={accounts}
-                bind:code={ line.debitAccount }
-                bind:sub_code={ line.debitSubAccount }></Account>
+          <td class="input">
+            <Account
+              accounts={accounts}
+              bind:code={line.debitAccount }
+              bind:sub_code={line.debitSubAccount}></Account>
           </td>
-          <td class="number">
+          <td class="number input">
             <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
-              data-index={i}
-              data-dc="d"
               bind:value={line.debitAmount}
-              on:focusout={computeTax}>
-            {#if findTaxClass(line.debitAccount, line.debitSubAccount) != 0}
+              on:focusout={() => {
+                computeTax(i, 'd');
+              }}>
+            {#if (( line.creditAccount !== '3080000' ) &&
+                  ( findTaxClass(line.debitAccount, line.debitSubAccount) != 0 ))}
             <input type="text" class="number" size="12" maxlength="13"
               bind:value={line.debitTax}
               on:focusout={makeTaxLine}>
             {/if}
           </td>
-          <td>
-            <input type="text" size="50" maxlength="51"
-              bind:value={line.application1}>
-            <input type="text" size="50" maxlength="51"
-              bind:value={line.application2}>
+          <td class="input">
+            <div class="application">
+              <input type="text" size="50" maxlength="51"
+                bind:value={line.application1}>
+            </div>
+            <div class="application d-flex">
+              <div class="tax">
+                {#if (( line.creditAccount !== '3080000' ) &&
+                      ( findTaxClass(line.debitAccount, line.debitSubAccount) > 0 ))}
+                <select class="form-control" style="line-height:1;padding:0.375rem"
+                  bind:value={line.debitTaxRuleId}
+                  on:focusout={() => {
+                    computeTax(i, 'd');
+                    makeTaxLine();
+                  }}>
+                  <option value={null}> -- 未選択 --</option>
+                  {#each taxRules as ent}
+                  {#if ent.taxClass === findTaxClass(line.debitAccount, line.debitSubAccount)}
+                  <option value={ent.id}>{ent.label}</option>
+                  {/if}
+                  {/each}
+                </select>
+                {/if}
+              </div>
+              <input type="text" size="30" maxlength="51"
+                bind:value={line.application2}>
+              <div class="tax ms-auto">
+                {#if (( line.debitAccount !== '1140000' ) &&
+                      ( findTaxClass(line.creditAccount, line.creditSubAccount) > 0 ))}
+                <select class="form-control" style="line-height:1;padding:0.375rem"
+                  bind:value={line.creditTaxRuleId}
+                  on:focusout={() => {
+                    computeTax(i, 'c');
+                    makeTaxLine();
+                  }}>
+                  <option value={null}> -- 未選択 --</option>
+                  {#each taxRules as ent}
+                  {#if ent.taxClass === findTaxClass(line.creditAccount, line.creditSubAccount)}
+                  <option value={ent.id}>{ent.label}</option>
+                  {/if}
+                  {/each}
+                </select>
+                {/if}
+              </div>
+            </div>
           </td>
-          <td>
-            <Account accounts={accounts}
-                bind:code={line.creditAccount}
-                bind:sub_code={line.creditSubAccount}></Account>
+          <td class="input">
+            <Account
+              accounts={accounts}
+              bind:code={line.creditAccount}
+              bind:sub_code={line.creditSubAccount}></Account>
           </td>
-          <td class="number">
+          <td class="number input">
             <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
-              data-index={i}
-              data-dc="c"
               bind:value={line.creditAmount}
-              on:focusout={computeTax}>
-            {#if findTaxClass(line.creditAccount, line.creditSubAccount) != 0}
+              on:focusout={() => {
+                computeTax(i, 'c');
+              }}>
+            {#if (( line.debitAccount !== '1140000' ) &&
+                  ( findTaxClass(line.creditAccount, line.creditSubAccount) != 0))}
             <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
               bind:value={line.creditTax}
               on:focusout={makeTaxLine}>
             {/if}
           </td>
           <td style="width:125px;">
-            {#if (!slip.approvedAt) }
+            {#if (slip.approvedAt) }
+            {#if ( ( line.debitVoucherId !== null ) || ( line.creditVoucherId !== null ))}
+            <Icon icon="fa:file"></Icon>
+            {/if}
+            {:else}
             <button type="button" class="btn btn-primary btn-sm"
               on:click={() => {
                 computeSumAndNext(i);
@@ -158,16 +206,19 @@
 
 <script>
 import axios from 'axios';
-import {salesTax, findTaxClass} from '../../javascripts/cross-slip';
+import Icon from '@iconify/svelte';
+
+import {findTaxClass} from '../../javascripts/cross-slip';
 import {numeric} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import Account from './account.svelte';
 import {field} from '../../../libs/parse_account_code';
+import {findTaxRule, computeTax as _computeTax} from '../../../libs/sales-tax.js';
 
 export let accounts;
 export let slip;
 export let fy;
-
+export let taxRules;
 let	sums;
 
 const computeSum = () => {
@@ -193,19 +244,19 @@ const computeSum = () => {
 const updateAccount = (slip) => {
 }
 
-const computeTax = (event) => {
-  let index = event.currentTarget.dataset.index;
-  let dc = event.currentTarget.dataset.dc;
-  //console.log('index', index, dc);
+const computeTax = (index, dc) => {
   if	( dc == 'd' )	{
     if	( ( slip.lines[index].creditAccount ) &&
           ( slip.lines[index].creditAccount.match(/^114|^308/) ) )	{
     } else {
-      let tax_class = findTaxClass(slip.lines[index].debitAccount, slip.lines[index].debitSubAccount);
       if  ( fy.taxIncluded )  {
         slip.lines[index].debitTax = 0;
       } else {
-        slip.lines[index].debitTax = salesTax(tax_class, slip.lines[index].debitAmount);
+        const rule = findTaxRule(slip.lines[index].debitTaxRuleId, taxRules);
+        if  (( rule ) &&
+             (rule.taxClass != 9 ))  {
+          slip.lines[index].debitTax = _computeTax(slip.lines[index].debitAmount, rule);
+        }
       }
     }
   } else {
@@ -219,17 +270,20 @@ const computeTax = (event) => {
     if	( ( slip.lines[index].debitAccount ) &&
           ( slip.lines[index].debitAccount.match(/^114|^308/) )	)	{
     } else {
-      let tax_class = findTaxClass(slip.lines[index].creditAccount, slip.lines[index].creditSubAccount);
       if  ( fy.taxIncluded )  {
         slip.lines[index].creditTax = 0;
       } else {
-        slip.lines[index].creditTax = salesTax(tax_class, slip.lines[index].creditAmount);
+        const rule = findTaxRule(slip.lines[index].creditTaxRuleId, taxRules);
+        if  (( rule ) &&
+             (rule.taxClass != 9 ))  {
+          slip.lines[index].creditTax = _computeTax(slip.lines[index].creditAmount, rule);
+        }
       }
     }
   }
   slip = slip;
 }
-const makeTaxLine = (event) => {
+const makeTaxLine = () => {
   if	( !fy.taxIncluded )	{
     for ( let i = 0; i < slip.lines.length ; i ++ ) {
       if	( ( ( slip.lines[i].creditAccount ) &&
@@ -266,9 +320,8 @@ const makeTaxLine = (event) => {
         }
         slip.lines[gap].debitAccount = debit;
         slip.lines[gap].debitAmount += numeric(slip.lines[i].debitTax);
-        let tax_class = findTaxClass(slip.lines[i].debitAccount,
-                                       slip.lines[i].debitSubAccount);
-        if	( tax_class !== 2 ) {
+        const rule = findTaxRule(slip.lines[i].debitTaxRuleId, taxRules);
+        if	( rule.taxClass !== 2 ) {
           slip.lines[gap].creditAccount = slip.lines[i].debitAccount;
           slip.lines[gap].creditSubAccount = slip.lines[i].debitSubAccount;
           slip.lines[gap].creditAmount += numeric(slip.lines[i].debitTax);
@@ -298,9 +351,8 @@ const makeTaxLine = (event) => {
         }
         slip.lines[gap].creditAccount = credit;
         slip.lines[gap].creditAmount += numeric(slip.lines[i].creditTax);
-        let tax_class = findTaxClass(slip.lines[i].creditAccount,
-                                       slip.lines[i].creditSubAccount);
-        if	( tax_class !== 2 ) {
+        const rule = findTaxRule(slip.lines[i].creditTaxRuleId, taxRules);
+        if	( rule.taxClass !== 2 ) {
           slip.lines[gap].debitAccount = slip.lines[i].creditAccount;
           slip.lines[gap].debitSubAccount = slip.lines[i].creditSubAccount;
           slip.lines[gap].debitAmount += numeric(slip.lines[i].creditTax);
@@ -342,14 +394,16 @@ const bindVoucher = (i, voucher_id) => {
     let detail = slip.lines[i];
     if  ( voucher.voucherClass.send ) {
       detail.creditVoucherId = voucher.id;
-      detail.creditAmount = voucher.amount;
       detail.creditTax = voucher.tax;
+      detail.creditTaxRuleId = voucher.taxRuleId;
     } else {
       detail.debitVoucherId = voucher.id;
-      detail.debitAmount = voucher.amount;
       detail.debitTax = voucher.tax;
+      detail.debitTaxRuleId = voucher.taxRuleId;
     }
-    detail.application2 = voucher.customer.name;
+    detail.creditAmount = voucher.amount;
+    detail.debitAmount = voucher.amount;
+    detail.application2 = voucher.company.name;
     detail.debitAmount = detail.debitAmount != null ? numeric(detail.debitAmount).toLocaleString() : '';
     detail.debitTax = detail.debitTax != null ? numeric(detail.debitTax).toLocaleString() : '';
     detail.creditAmount = detail.creditAmount != null ? numeric(detail.creditAmount).toLocaleString() : '';
@@ -397,5 +451,8 @@ beforeUpdate(() => {
   //console.log('sums', sums);
 });
 afterUpdate(() => {
+})
+
+onMount(async () => {
 })
 </script>

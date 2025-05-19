@@ -41,7 +41,7 @@
 }
 
 .search-input {
-  margin-bottom: 8px;
+  margin-bottom: 0px;
 }
 </style>
 <script>
@@ -138,18 +138,11 @@ const subAccountSelect = (event) => {
   sub_list = [];
 }
 
-onMount(() => {
-  list = [];
-  setAccounts(accounts);
-  setAccount();
-  setSubAccount();
-  isInitialInput = true;
-})
 const setAccount = () => {
   list = [];
   if ( code )	{
     account = findAccount(code);
-    //console.log('account', account);
+    console.log('account', account);
     if	( account )	{
       inputAccount = account.name;
     } else {
@@ -173,6 +166,13 @@ const searchAccountByKey = (key) => {
               code: account.code
              });
       }
+    });
+  } else {
+    accounts.forEach((account) => {
+      list.push({
+        name: account.name,
+        code: account.code
+      });
     });
   }
   return (list);
@@ -212,7 +212,7 @@ let initialized = false;
 beforeUpdate(() => {
   //console.log('beforeUpdate account', init, code, sub_code);
   if	( !initialized )	{
-    //console.log('init');
+    console.log('init');
     list = [];
     setAccounts(accounts);
     setAccount();
@@ -221,9 +221,11 @@ beforeUpdate(() => {
     initialized = true;
   }
 });
-
-
-
-
-
+onMount(() => {
+  list = [];
+  setAccounts(accounts);
+  setAccount();
+  setSubAccount();
+  isInitialInput = true;
+})
 </script>

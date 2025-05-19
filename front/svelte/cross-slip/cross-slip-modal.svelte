@@ -19,8 +19,10 @@
         {/if}
         <CrossSlip
           bind:slip={slip}
-          fy={fy}
-          accounts={accounts}></CrossSlip>
+          fy={status.fy}
+          accounts={accounts}
+          {taxRules}
+          ></CrossSlip>
         {#if (vouchers)}
         <table class="table table-striped table-bordered">
           <thead>
@@ -56,7 +58,7 @@
                 {line.voucherClass ? line.voucherClass.name : '__'}
               </td>
               <td>
-                {line.customer.name}
+                {line.company.name}
               </td>
               <td class="number">
                 {numeric(line.amount).toLocaleString()}
@@ -73,13 +75,13 @@
       <div class="modal-footer">
         {#if (( !slip ) ||
             (( !slip.approvedAt ) &&
-             (( user.accounting ) ||
-              ( slip.createdBy == user.id )))) }
+             (( status.user.accounting ) ||
+              ( slip.createdBy == status.user.id )))) }
           <button type="button" class="btn btn-secondary"
           	on:click={openVouchers}>証票</button>
           {/if}
           {#if ( slip && slip.no > 0) }
-          {#if ( user.approvable )}
+          {#if ( status.user.approvable )}
             {#if ( slip.approvedAt )}
             <button type="button" class="btn btn-warning" id="disapprove-button"
               on:click={disapprove}>不承認</button>
@@ -93,8 +95,8 @@
         {/if}
         {#if (( !slip ) || 
             (( !slip.approvedAt ) &&
-             (( user.accounting ) ||
-              ( slip.createdBy == user.id ))))}
+             (( status.user.accounting ) ||
+              ( slip.createdBy == status.user.id ))))}
           <button type="button" class="btn btn-primary" id="save-button"
             on:click={save}>Save</button>
         {/if}
@@ -104,27 +106,31 @@
 </div>
 <script>
 
-import {numeric} from '../../../libs/utils';
+import {numeric, dateStr, DateString} from '../../../libs/utils';
 import axios from 'axios';
+import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CrossSlip from './cross-slip.svelte';
 
 
-export let modal;
 export let accounts;
 export let slip;
-export let term;
-export let user;
+export let status;
+export let popUp;
 export let id;
 
+let modal;
 let vouchers;
-let fy;
 let ok = true;
 let errorMessages = [];
+let taxRules = [];
+
 const clean_popup = () => {
   dispatch('close');
+  popUp = false;
   modal.hide();
+  modal.dispose();
   vouchers = undefined;
   errorMessages = [];
   ok = true;
@@ -136,13 +142,19 @@ const onDragStart = (event) => {
 const onDragEnd = (event) => {
 
 }
-onMount(() => {
-  //console.log('beforeUpdate cross-slip-modal', slip);
-  if  ( !fy ) {
-    axios(`/api/term/${term}`).then((result) => {
-      fy = result.data;
-    })
+onMount(async () => {
+  console.log('onMount cross-slip-modal', slip);
+  let date;
+  if  ( slip.year ) {
+    date = dateStr(slip.year, slip.month);
+  } else {
+    date = DateString(status.fy.startDate);
   }
+  const result = await axios.get(`/api/tax-rule?type=active&date=${date}`);
+  taxRules = result.data.taxRules;
+  console.log(taxRules);
+  modal = new Modal(document.getElementById('cross-slip-modal'));
+  modal.show();
 });
 beforeUpdate(() => {
   //console.log('cross-slip-modal', slip);
@@ -159,7 +171,7 @@ const save = (event) => {
   if	(	( slip.day )
     &&	( slip.day > 0 )
     &&	( slip.day <= 31 ) )	{
-    slip.term = parseInt(term);
+    slip.term = status.fy.term;
     let sums = {
       debit: 0,
       credit: 0
@@ -265,7 +277,7 @@ const approve = (event) => {
     no: slip.no,
     approvedAt: slip.approvedAt
   }).then(() => {
-    slip.approverName = user.name;
+    slip.approverName = status.user.name;
     close_();
   })
 }
