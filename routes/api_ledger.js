@@ -65,6 +65,12 @@ const	get_details = async (fy, account, sub_account) => {
             model: models.VoucherFile,
             as: 'files'
           }]
+        }, {
+          model: models.TaxRule,
+          as: 'debitTaxRule'
+        }, {
+          model: models.TaxRule,
+          as: 'creditTaxRule'
         }
       ],
       order: [

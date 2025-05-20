@@ -1,7 +1,7 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>元帳</h1>
-  	<a href="/forms/general_ledger/{status.term}" download="総勘定元帳.xlsx" class="btn btn-primary">
+  	<a href="/forms/general_ledger/{status.fy.term}" download="総勘定元帳.xlsx" class="btn btn-primary">
     	総勘定元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
 	</div>
@@ -23,8 +23,8 @@
   	{/if}
 	</nav>
 	{#if (account && (account.subAccounts.length > 0))}
-	<div class="page-subtitle d-flex justify-content-between">
-  	<div>
+  <div class="row page-subtitle">
+    <div class="col-8">
   		<SubAccountSelect
     		on:select={(event) => {
       		accountSelect(event.detail);
@@ -32,27 +32,27 @@
     		account={account}
     		sub_account_code={status.subAccountCode} />
     </div>
-    <div>
+    <div class="col-4" style="text-align:right;">
     	{#if status.subAccountCode}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.term}/${status.accountCode}/${status.subAccountCode}`)
+          link(`/changes/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`)
         }}>
       	推移表を見る
     	</button>
     	{:else}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.term}/${status.accountCode}`);
+          link(`/changes/${status.fy.term}/${status.accountCode}`);
         }}>
       	推移表を見る
     	</button>
     	{/if}
-      <a href="/forms/subsidiary_ledger/{status.term}" download="補助元帳.xlsx" class="btn btn-primary">
+      <a href="/forms/subsidiary_ledger/{status.fy.term}" download="補助元帳.xlsx" class="btn btn-primary">
           補助元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
       </a>
     </div>
-	</div>
+  </div>
 	{/if}
 	<LedgerList
   	account={account}
@@ -66,14 +66,16 @@
   	}}
   	on:open={openSlip}></LedgerList>
 </div>
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
   slip={slip}
-  bind:modal={modal}
-  term={status.term}
-  user={status.user}
+  status={status}
   accounts={accounts}
-  bind:init={init}
+  bind:popUp={popUp}
   on:close={updateList}></CrossSlipModal>
+{/key}
+{/if}
 
 <script>
 
@@ -90,6 +92,8 @@ import parse_account_code from '../../../libs/parse_account_code';
 
 export let status;
 
+let modalCount = 0;
+let popUp;
 let accounts = [];
 let account;
 let details;
@@ -103,7 +107,6 @@ let slip = {
 let pickup;
 let sums;
 let lines;
-let init;
 let fields = [
   {
     title: '資産',
@@ -137,9 +140,9 @@ const link = (href) => {
 const accountSelect = (code) => {
   let href;
   if  ( code.sub )  {
-    href = `/ledger/${status.term}/${code.code}/${code.sub}`;
+    href = `/ledger/${status.fy.term}/${code.code}/${code.sub}`;
   } else {
-    href = `/ledger/${status.term}/${code.code}`;
+    href = `/ledger/${status.fy.term}/${code.code}`;
   }
   status.pathname = href;
   status.accountCode = code.code;
@@ -151,7 +154,15 @@ const accountSelect = (code) => {
 const update = async (list) => {
   let args = status.pathname.split('/');
   status.current = args[1];
-  status.term = args[2];
+  let term = parseInt(args[2]);
+  if  ( status.fy.term !== term )  {
+    axios(`/api/term/${term}`).then((result) => {
+      let fy = res.data;
+      status.fy = fy;
+      status.fy.startDate = new Date(fy.startDate);
+      status.fy.endDate = new Date(fy.endDate);
+    });
+  }
   status.accountCode = args[3];
   status.subAccountCode = args[4] ? parseInt(args[4]) : undefined;
   let result = await axios.get(`/api/account/${status.accountCode}`);
@@ -162,9 +173,9 @@ const update = async (list) => {
     let pr;
   	if ( status.subAccountCode ) {
     	//console.log('sub');
-    	pr = axios.get(`/api/remaining/${status.term}/${status.accountCode}/${status.subAccountCode}`);
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
   	} else {
-    	pr = axios.get(`/api/remaining/${status.term}/${status.accountCode}`);
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}`);
   	}
   	remaining = [];
   	pr.then((result) => {
@@ -228,10 +239,12 @@ onMount(() => {
   }
   console.log('ledger onMount');
   update(false);
-  modal = new Modal(document.getElementById('cross-slip-modal'));
 })
 
 afterUpdate(() => {
+  if  (!popUp)  {
+    modalCount += 1;
+  }
 });
 
 const updateList = () => {
@@ -239,9 +252,9 @@ const updateList = () => {
   let pr;
   if ( status.subAccountCode ) {
     console.log('sub');
-    pr = axios.get(`/api/ledger/${status.term}/${status.accountCode}/${status.subAccountCode}`);
+    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
   } else {
-    pr = axios.get(`/api/ledger/${status.term}/${status.accountCode}`);
+    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}`);
   }
   details = [];
   pr.then((result) => {
@@ -270,8 +283,7 @@ const openSlip = (event) => {
         approverName: data.approver ? data.approver.name : '',
         lines: data.lines
     };
-    init = true;
-    modal.show();
+    popUp = true;
   });
 }
 </script>

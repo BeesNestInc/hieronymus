@@ -17,7 +17,10 @@
   <div class="row mt-3">
     <label for="issueDate" class="col-2 col-form-label">発生日</label>
     <div class="col-sm-3">
-      <input type="date" class="form-control" id="issueDate" bind:value={voucher.issueDate}>
+      <input type="date" class="form-control" id="issueDate"
+        bind:value={voucher.issueDate}
+        on:focusout={updateTax}
+      >
     </div>
   </div>
   <div class="row mt-3">
@@ -41,7 +44,7 @@
   <div class="row mt-3">
     <label for="zip" class="col-2 col-form-label">相手先</label>
     <div class="col-10">
-      <CustomerSelect
+      <CompanySelect
         on:startregister
         on:endregister
         register=true
@@ -62,10 +65,10 @@
     <label for="taxClass" class="col-2 col-form-label">消費税</label>
     <div class="col-sm-2">
       <select class="form-control" id="taxClass"
-        bind:value={voucher.taxClass}>
-        <option value={-1}> -- 未選択 --</option>
-        {#each TAX_CLASS as ent}
-        <option value={ent[1]}>{ent[0]}</option>
+        bind:value={voucher.taxRuleId}>
+        <option value={null}> -- 未選択 --</option>
+        {#each taxRules as ent}
+        <option value={ent.id}>{ent.label}</option>
         {/each}
       </select>
     </div>
@@ -140,11 +143,12 @@
 </style>
 
 <script>
-import {numeric, TAX_CLASS} from '../../../libs/utils';
+import {numeric} from '../../../libs/utils';
+import {findTaxRule, computeTax as _computeTax} from '../../../libs/sales-tax.js';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 
 export	let	voucher;
 export  let status;
@@ -152,6 +156,9 @@ export	let	files;
 
 let	original_companys;
 let companyKey;
+let taxRules = [];
+
+$: computeTax();
 
 beforeUpdate(() => {
   console.log('voucher-info beforeUpdate',voucher);
@@ -186,17 +193,9 @@ const delete_file = (event) => {
 
 const computeTax = (event) => {
   console.log('computeTax');
-  switch	(parseInt(voucher.taxClass))	{
-    case	0:
-    voucher.tax = 0;
-    break;
-    case	1:
-    voucher.tax = (Math.round(numeric(voucher.amount) / 110 * 10)).toLocaleString();
-    break;
-    case	2:
-    voucher.tax = (Math.round(numeric(voucher.amount) * 0.1)).toLocaleString();
-    break;
-  }
+  let rule = findTaxRule(voucher.taxRuleId, taxRules);
+  console.log({rule});
+  voucher.tax = _computeTax(voucher.amount, rule).toLocaleString();
 }
 const focusout = (event) => {
   console.log('focusout');
@@ -234,23 +233,27 @@ const upload = (file) => {
   });
 }
 
-onMount(() => {
+const updateTax = async () => {
+  const result = await axios.get(`/api/tax-rule?type=active&date=${voucher.issueDate}`);
+  taxRules = result.data.values;
+}
+onMount(async () => {
   console.log('voucher-info onMount');
   if	( voucher.id )	{
-      axios.get(`/api/voucher/files/${voucher.id}`).then((result) => {
-        files = result.data;
-      });
-      companyKey = voucher.company.name;
-      voucher.amount = numeric(voucher.amount).toLocaleString();
-      voucher.tax = numeric(voucher.tax).toLocaleString();
-    } else {
-      companyKey = '';
-    }
-
-  axios.get(`/api/company/`).then((result) => {
+    const result = await axios.get(`/api/voucher/files/${voucher.id}`);
+    files = result.data;
+    companyKey = voucher.company.name;
+    voucher.amount = numeric(voucher.amount).toLocaleString();
+    voucher.tax = numeric(voucher.tax).toLocaleString();
+  } else {
+    companyKey = '';
+  }
+  {
+    const result = await axios.get(`/api/company/`);
     original_companys = result.data;
     console.log('company update', original_companys);
-  });
+  }
+  await updateTax();
 });
 
 const onDragOver = (event) => {

@@ -22,6 +22,7 @@ import SubAccount from './subaccount.js';
 import SubAccountRemaining from './subaccountremaining.js';
 import Task from './task.js';
 import TaskDetail from './taskdetail.js';
+import TaxRule from './tax-rule.js';
 import TransactionDocument from './transaction-document.js';
 import TransactionDetail from './transaction-detail.js';
 import TransactionKind from './transaction-kind.js';
@@ -68,6 +69,7 @@ const models = {
   SubAccountRemaining: SubAccountRemaining(sequelize, DataTypes),
   Task: Task(sequelize, DataTypes),
   TaskDetail: TaskDetail(sequelize, DataTypes),
+  TaxRule: TaxRule(sequelize, DataTypes),
   TransactionDocument: TransactionDocument(sequelize, DataTypes),
   TransactionDetail: TransactionDetail(sequelize, DataTypes),
   TransactionKind: TransactionKind(sequelize, DataTypes),

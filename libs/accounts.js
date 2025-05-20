@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {make_klass} from  './parse_account_code.js';
+import * as utils from './utils.js';
 
 export default class {
   static accounts;
@@ -304,23 +305,6 @@ export default class {
   static sub_name(code, sub_code) {
     return this.find_sub_account(code, sub_code).name;
   }
-  static TAX_CLASS = {
-    non: 0,
-    included: 1,
-    excluded: 2,
-    other: 9
-  }
-  static tax_class(taxClass) {
-    switch(taxClass) {
-      case 0:
-        return ("非課税");
-      case 1:
-        return ('内税');
-      case 2:
-        return ('外税');
-      case 9:
-        return ('別計算');
-    }
-    return ('');
-  }
+  static TAX_CLASS = utils.TAX_CLASS;
+  static tax_class = utils.taxClass;
 }

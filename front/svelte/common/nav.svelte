@@ -2,19 +2,19 @@
   <ul class="navbar-nav">
   </ul>
   <span class="havbar-text">
-    {#if ( status.startDate && status.endDate )}
-    第{status.term}期
-    ({status.startDate.getFullYear()}年
-    ({wareki(status.startDate)})
-        {status.startDate.getMonth()+1}月
-        {status.startDate.getDate()}日
+    {#if ( status.fy.startDate && status.fy.endDate )}
+    第{status.fy.term}期
+    ({status.fy.startDate.getFullYear()}年
+    ({wareki(status.fy.startDate)})
+        {status.fy.startDate.getMonth()+1}月
+        {status.fy.startDate.getDate()}日
     〜
-    {status.endDate.getFullYear()}年
-    ({wareki(status.endDate)})
-        {status.endDate.getMonth()+1}月
-        {status.endDate.getDate()}日)
+    {status.fy.endDate.getFullYear()}年
+    ({wareki(status.fy.endDate)})
+        {status.fy.endDate.getMonth()+1}月
+        {status.fy.endDate.getDate()}日)
     {:else}
-      <span class="text-danger fw-bold"><i class="bi bi-exclamation-diamond-fill"></i>&nbsp; 会計年度を選択してください</span>
+    <span class="text-danger fw-bold"><i class="bi bi-exclamation-diamond-fill"></i>&nbsp; 会計年度を選択してください</span>
     {/if}
   </span>
   <ul class="navbar-nav ms-auto">
@@ -39,6 +39,4 @@ import {wareki} from '../../../libs/utils';
 
 export let status;
 
-beforeUpdate(() => {
-});
 </script>

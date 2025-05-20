@@ -99,7 +99,7 @@ export let address1;
 export let address2;
 export let clientOnly;
 
-let	original_companys;
+let	original_companies;
 let companyKey;
 let inputValue = '';
 let isInitialInput = true;
@@ -115,7 +115,7 @@ const onUserInput = (event) =>{
       companys = [];
   } else {
     companys = [];
-    original_companys.forEach((company) => {
+    original_companies.forEach((company) => {
       if  (( company.key && company.key.match(companyKey) ) ||
            ( company.name && company.name.match(companyKey)) ) {
         companys.push(company);
@@ -141,7 +141,7 @@ const clearInput = () => {
   inputValue = '';
   companyKey = '';
   isInitialInput = false;
-  companys = [...original_companys];
+  companys = [...original_companies];
 };
 
 
@@ -227,8 +227,9 @@ onMount(() => {
   isInitialInput = true;
   let param = clientOnly ? `?${encodeURI('clientOnly=true')}` : '';
   axios.get(`/api/company/${param}`).then((result) => {
-    original_companys = result.data.companys;
-    companys = original_companys;
+    original_companies = result.data.companies;
+    console.log({original_companies});
+    companys = original_companies;
     companyDecide(companyId);
     companys = [];
   });

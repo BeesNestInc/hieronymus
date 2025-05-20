@@ -31,6 +31,10 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'voucherClassId',
         as: 'voucherClass'
 			});
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'taxRuleId',
+        as: 'taxRule'
+			});
     }
   }
   Voucher.init({
@@ -40,7 +44,7 @@ export default (sequelize, DataTypes) => {
     companyId: DataTypes.INTEGER,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
-    taxClass: DataTypes.INTEGER,
+    taxRuleId: DataTypes.INTEGER,
     description: DataTypes.TEXT,
     invoiceNo: DataTypes.TEXT,
     createdBy: DataTypes.INTEGER,

@@ -92,7 +92,7 @@ const bind_file = async(file) => {
 const validateForm = () => {
   ok = true;
   errorMessages = [];
-  if ( voucher.customerId === undefined ) {
+  if ( voucher.companyId === undefined ) {
     ok = false;
     errorMessages.push("相手先が未入力もしくは、取引先に存在しない相手先が入力されました。");
   }
@@ -106,8 +106,8 @@ const save = (event) => {
   if	( voucher.type )	{
     voucher.type = parseInt(voucher.type);
   }
-  if	( voucher.customerId )	{
-    voucher.customerId = parseInt(voucher.customerId);
+  if	( voucher.companyId )	{
+    voucher.companyId = parseInt(voucher.companyId);
   }
   if	( voucher.amount )	{
     voucher.amount = numeric(voucher.amount);
@@ -115,7 +115,7 @@ const save = (event) => {
   if	( voucher.tax )	{
     voucher.tax = numeric(voucher.tax);
   }
-  voucher.taxClass = parseInt(voucher.taxClass);
+  voucher.taxRuleId = parseInt(voucher.taxRuleId);
   voucher.update = undefined;
   voucher.files = undefined;
   console.log('input', voucher);

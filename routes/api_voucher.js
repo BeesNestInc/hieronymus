@@ -44,6 +44,9 @@ export default {
       },{
         model: models.VoucherClass,
         as: 'voucherClass'
+      }, {
+        model: models.TaxRule,
+        as: 'taxRule'
       }
     ];
 

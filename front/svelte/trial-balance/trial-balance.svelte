@@ -1,7 +1,7 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>残高試算表</h1>
-  	<a href="/forms/trial_balance/{status.term}/{status.month}" download="残高試算表.xlsx" class="btn btn-primary">
+  	<a href="/forms/trial_balance/{status.fy.term}/{status.month}" download="残高試算表.xlsx" class="btn btn-primary">
     	残高試算表&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
 	</div>
@@ -69,108 +69,116 @@ const openMonth = (month) => {
   let href;
   status.month = month;
   if	( status.month )	{
-    href = `/trial-balance/${status.term}/${status.month}`;
+    href = `/trial-balance/${status.fy.term}/${status.month}`;
   } else {
-    href = `/trial-balance/${status.term}`;
+    href = `/trial-balance/${status.fy.term}`;
   }
   status.pathname = href;
   updateLines();
   window.history.pushState(status, "", href);
 }
 
-const updateLines = () => {
-  lines = [];
+const updateLines = async () => {
+  let _lines = [];
   let url;
   if  ( status.month ) {
-    url = `/api/trial-balance/${status.term}/${status.month}`;
+    url = `/api/trial-balance/${status.fy.term}/${status.month}`;
   } else {
-    url = `/api/trial-balance/${status.term}`;
+    url = `/api/trial-balance/${status.fy.term}`;
   }
-  axios.get(url).then((result) => {
-    let data = result.data;
-    //console.log('trial-balance update', data);
-    let trial_balance = data;
-    let last_account = {};
-    for ( let i = 0; i < trial_balance.length; i ++ ) {
-      let account = trial_balance[i];
-      if	( !account.code ) continue;
-      if	( account.code.length > 7 ) continue;
-      let new_line = {
-        name: account.name,
-        pickup: numeric(account.pickup),
-        debit: numeric(account.debit),
-        credit: numeric(account.credit),
-        code: account.code
-      };
-      //console.log('new_line', new_line);
-      if ( dc(account.code) == 'D' ) {
-        new_line.balance = new_line.pickup + new_line.debit - new_line.credit;
-      } else {
-        new_line.balance = new_line.pickup - new_line.debit + new_line.credit;
-      }
-
-      if ( last_account.middle_name != account.middle_name ) {
-        lines.push({
-          name: `【${account.middle_name}】`
-        });
-      }
-      if ( last_account.minor_name != account.minor_name ) {
-        lines.push({
-          name: account.minor_name
-        });
-      }
-      if	(( new_line.pickup != 0 ) ||
-         ( new_line.debit  != 0 ) ||
-         ( new_line.credit != 0 ) ||
-         ( new_line.balance != 0 )) {
-        lines.push(new_line);
-      }
-      last_account = account;	 
+  const result = await axios.get(url);
+  let data = result.data;
+  //console.log('trial-balance update', data);
+  let trial_balance = data;
+  let last_account = {};
+  for ( let i = 0; i < trial_balance.length; i ++ ) {
+    let account = trial_balance[i];
+    if	( !account.code ) continue;
+    if	( account.code.length > 7 ) continue;
+    let new_line = {
+      name: account.name,
+      pickup: numeric(account.pickup),
+      debit: numeric(account.debit),
+      credit: numeric(account.credit),
+      code: account.code
+    };
+    //console.log('new_line', new_line);
+    if ( dc(account.code) == 'D' ) {
+      new_line.balance = new_line.pickup + new_line.debit - new_line.credit;
+    } else {
+      new_line.balance = new_line.pickup - new_line.debit + new_line.credit;
     }
-    //console.log('lines', lines);
-    lines = lines;
-  });
+
+    if ( last_account.middle_name != account.middle_name ) {
+      _lines.push({
+        name: `【${account.middle_name}】`
+      });
+    }
+    if ( last_account.minor_name != account.minor_name ) {
+      _lines.push({
+        name: account.minor_name
+      });
+    }
+    if	(( new_line.pickup != 0 ) ||
+       ( new_line.debit  != 0 ) ||
+       ( new_line.credit != 0 ) ||
+       ( new_line.balance != 0 )) {
+      _lines.push(new_line);
+    }
+    last_account = account;	 
+  }
+  //console.log('lines', _lines);
+  lines = _lines;
 }
 
-const update = () => {
+const updateDates = () => {
+  let _dates = [];
+  console.log('updateDates', status.fy);
+  let mon = status.fy.startDate;
+  for ( let i = 0 ; i < 12 ; i += 1)  {
+    _dates.push({
+      year: mon.getFullYear(),
+      month: mon.getMonth()+1,
+      ym: `${mon.getFullYear()}-${mon.getMonth()+1}`
+    });
+    mon.setMonth(mon.getMonth() + 1);
+  }
+  console.log({_dates});
+  dates = _dates;
+}
+
+const checkPage = async () => {
   let args = status.pathname.split('/');
   status.current = args[1];
-  status.term = args[2];
+  let term = parseInt(args[2]);
+  const result = await axios(`/api/term/${term}`);
+  let fy = result.data;
+  status.fy = fy;
+  status.fy.startDate = new Date(fy.startDate);
+  status.fy.endDate = new Date(fy.endDate);
+  console.log('got', status);
   status.month = args[3];
-  updateLines();
-}
-
-const checkPage = () => {
-  update();
+  updateDates();
+  await updateLines();
 }
 
 let _status;
-beforeUpdate(()	=> {
+beforeUpdate(async ()	=> {
   console.log('trial-balance beforeUpdate', status);
   if  (( status.change ) ||
        ( _status !== status ))  {
     status.change = false;
     _status = status;
     console.log('run checkPage');
-    checkPage();
+    await checkPage();
   }
 });
 
-onMount(() => {
+onMount(async () => {
   dates = [];
-  axios.get(`/api/term/${status.term}`).then((result) => {
-    let fy = result.data;
-    for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
-      dates.push({
-        year: mon.getFullYear(),
-        month: mon.getMonth()+1,
-        ym: `${mon.getFullYear()}-${mon.getMonth()+1}`
-      });
-      mon.setMonth(mon.getMonth() + 1);
-    }
-    dates = dates;
-  });
-  updateLines();
+  const fy = status.fy;
+  console.log('onMount', {status});
+  await checkPage();
 })
 
 </script>

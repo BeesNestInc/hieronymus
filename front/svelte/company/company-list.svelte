@@ -44,7 +44,7 @@
             }}
             value={status.params ? parseInt(status.params.get('kind')) : -1}>
             <option value={-1}>全て</option>
-            {#each status.customerClasses as ent}
+            {#each companyClasses as ent}
             <option value={ent.id}>{ent.name}</option>
             {/each}
           </select>
@@ -55,7 +55,7 @@
         <td></td>
         <td></td>
       </tr>
-      {#each customers as line}
+      {#each companies as line}
       <tr class="fontsize-12pt">
         <td>
           <button type="button" class="btn btn-link"
@@ -64,7 +64,7 @@
           </button>
         </td>
         <td>
-          {line.customerClass ? line.customerClass.name : 'その他'}
+          {line.companyClass ? line.companyClass.name : 'その他'}
         </td>
         <td>
           {line.zip}
@@ -100,28 +100,34 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 
 export let status;
-export let customers;
+export let companies;
+
+let companyClasses = [];
 
 const openCustomer = (event) => {
-  let	customer;
+  let	company;
   if  ( event ) {
     let id = event.target.dataset.no;
 
     //console.log('openCustomer', id);
-    //console.log('customers', customers);
+    //console.log('companies', companies);
 
-    for ( let i = 0; i < customers.length; i ++ ) {
-      if ( customers[i].id == id ) {
-        customer = customers[i];
+    for ( let i = 0; i < companies.length; i ++ ) {
+      if ( companies[i].id == id ) {
+        company = companies[i];
         break;
       }
     }
   }
-  dispatch('open', customer);
+  dispatch('open', company);
 }
 
 onMount(() => {
-});
+  console.log('company-list onMount');
+  axios.get(`/api/company/kinds`).then((result) => {
+    companyClasses = result.data.values;
+  });
+})
 beforeUpdate(() => {
 });
 </script>

@@ -23,7 +23,10 @@
       {:else if ( status.current === '' || status.current === 'home' )}
       <Home
         bind:status={statusHome}
-        bind:toast={toast}></Home>
+        bind:toast={toast}
+        bind:alert={alert}
+        bind:alert_level={alert_level}
+        ></Home>
       {:else if ( status.current === 'menu' )}
       <Menu
         bind:status={statusMenu}
@@ -37,7 +40,8 @@
       <Ledger
         bind:status={statusLedger}
         bind:alert={alert}
-        bind:alert_level={alert_level}></Ledger>
+        bind:alert_level={alert_level}
+      ></Ledger>
       {:else if ( status.current === 'bank-ledger' )}
       <BankLedger
       	bind:status={statusBankLedger}
@@ -63,9 +67,9 @@
       	bind:status={statusAccounts}
       	bind:alert={alert}
       	bind:alert_level={alert_level}></Accounts>
-			{:else if ( status.current === 'customer' )}
+			{:else if ( status.current === 'company' )}
       <Company
-        bind:status={statusCustomer}
+        bind:status={statusCompany}
         bind:alert={alert}
         bind:alert_level={alert_level}></Company>
       {:else if ( status.current === 'task' )}
@@ -143,12 +147,14 @@ let modal;
 let alert;
 let alert_level;
 let status = {
-  term: term,
-  startDate: new Date(),  //  dummy
-  endDate: new Date(),    //  dummy
+  fy: {
+    term: term,
+    startDate: new Date(),
+    endDate: new Date()
+  },
   user: {},
   pathname: '',
-  customerClasses: [],
+  companyClasses: [],
   voucherClasses: [],
   current: 'login'
 }
@@ -161,7 +167,7 @@ let statusTrialBalance = status;
 let statusChanges = status;
 let statusVoucher = status;
 let statusAccounts = status;
-let statusCustomer = status;
+let statusCompany = status;
 let statusTask = status;
 let statusTransaction = status;
 let statusItem = status;
@@ -180,8 +186,10 @@ onMount(() => {
   });
   axios.get(`/api/term/${term}`).then((res) => {
     let fy = res.data;
-    status.startDate = new Date(fy.startDate);
-    status.endDate = new Date(fy.endDate);
+    status.fy = fy;
+    console.log({fy});
+    status.fy.startDate = new Date(fy.startDate);
+    status.fy.endDate = new Date(fy.endDate);
   });
 	window.onpopstate = (event) => {
     console.log('maybe back', event);
@@ -201,7 +209,7 @@ onMount(() => {
 
 beforeUpdate(() => {
   let args = location.pathname.split('/');
-  //console.log('index beforeUpdate', args);
+  console.log('index beforeUpdate', args);
   status.current = args[1];
   status = status;
   //console.log('index beforeUpdate', {status});
@@ -233,8 +241,8 @@ beforeUpdate(() => {
     case  'accounts':
       statusAccounts = status;
       break;
-    case  'customer':
-      statusCustomer = status;
+    case  'company':
+      statusCompany = status;
       break;
     case  'task':
       statusTask = status;

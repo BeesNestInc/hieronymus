@@ -18,9 +18,10 @@
   </thead>
   <tbody bind:this={tbody}>
     {#each values as line, i (line)}
-    <tr data-id={i}> <!-- 各行にIDを追加（Sortable のため） -->
+    <tr style="height:30px;"
+      data-id={i}> <!-- 各行にIDを追加（Sortable のため） -->
       {#if (reorder)}
-      <td class="drag-handle" style="cursor: grab;padding:13px 5px 0px 8px;">
+      <td class="drag-handle" style="cursor: grab;padding:0px 0px 0px 8px;">
         <i class="fas fa-grip-lines"></i> <!-- DnDのアイコン -->
       </td>
       {/if}
@@ -28,16 +29,17 @@
       {#if ( ( column.type !== 'hidden' ) &&
              ( column.type !== 'id') &&
              ( column.type !== 'order' ))}
-      <td style={column.align ? `text-align:${column.align}` : ""}>
+      <td style="padding:0;height:30px;{column.align ? `text-align:${column.align}` : ''}">
         <OmniInput
-          style="height:30px;margin:0px;font-size:12pt;"
+          style="height:30px;margin:0px;font-size:12pt;{column.width ? `width:${column.width}` : ""}"
           bind:value={line[column.name]}
           column={column}></OmniInput>
       </td>
       {/if}
       {/each}
-      <td style="padding:8px 4px;">
-        <button type="button" class="btn btn-primary btn-sm"
+      <td style="padding:0;width:68px;">
+        <button type="button"
+          class="btn btn-primary btn-sm"
           on:click={() => {
             values.splice(i + 1, 0, {});
             values = [...values];
@@ -59,9 +61,6 @@
   </tbody>
 </table>
 <style>
-td {
-  padding: 8px 5px 0px 5px;
-}
 </style>
 <script>
 import { onMount, beforeUpdate } from "svelte";

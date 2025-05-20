@@ -1,4 +1,5 @@
 import {format as DateFormat, parse as DateParse} from '@formkit/tempo';
+import company from '../config/company.js';
 
 export const wareki = (date) => {
   const dateTimeFormat = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', {year: 'numeric'});
@@ -11,6 +12,15 @@ export const DateString = (d) => {
 
 export const StringDate = (s) => {
   return	DateParse(s, 'YYYY-MM-DD');
+}
+
+export const dateStr = (year, month, day) => {
+  const fix2 = (num) => {
+    const str = '0' + num.toString();
+    return  (str.substring(str.length - 1, 2));
+  }
+  day = day || 1;
+  return `${year}-${fix2(month)}-${fix2(day)}`;
 }
 
 export const age = (s) => {
@@ -108,11 +118,28 @@ export const formatMoney = (_val) => {
   }
 }
 
+export const round = (val) => {
+  switch  (company.roundingMethod)  {
+    case  0:
+      return  Math.floor(val);
+    case  1:
+      return  Math.ceil(val);
+    default:
+      return  Math.round(val);
+  }
+}
+
 export const BANK_ACCOUNT_TYPE = [
   [ 0, '未設定'],
   [ 1, '普通'],
   [ 2, '当座'],
   [ 9, 'その他']
+]
+
+export const ROUNDING_METHOD = [
+  [ 0, '切り捨て'],
+  [ 1, '切り上げ'],
+  [ 2, '四捨五入'],
 ]
 
 export const TAX_CLASS = [

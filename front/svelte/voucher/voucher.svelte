@@ -16,21 +16,21 @@
   on:close={closeEntry}>
 </VoucherEntry>
 {/if}
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
-  slip={slip}
-  bind:modal={slipModal}
-  term={status.term}
-  user={status.user}
   accounts={accounts}
-  bind:init={init}
+  slip={slip}
+  status={status}
+  bind:popUp={popUp}
   on:close={updateVouchers}></CrossSlipModal>
-
+{/key}
+{/if}
 <style>
 </style>
 
 <script>
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
@@ -43,8 +43,6 @@ import {parseParams, buildParam} from '../../javascripts/params.js';
 export let status;
 
 let	voucher;
-let slipModal;
-let init;
 let vouchers = [];
 let accounts = [];
 let slip = {
@@ -52,6 +50,8 @@ let slip = {
   month: 0,
   lines: []
 };
+let modalCount = 0;
+let popUp;
 
 const selectVoucherType = (event) => {
   updateVouchers({});
@@ -100,8 +100,7 @@ const	openSlip = (event)	=> {
       slip = result.data;
       slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
       console.log('slip', slip);
-      init = true;
-      slipModal.show();
+      popUp = true;
     })
   } else {
     slip = {
@@ -119,8 +118,7 @@ const	openSlip = (event)	=> {
         creditTax: "",
       }]
     };
-    init = true;
-    slipModal.show();
+    popUp = true;
   }
 };
 
@@ -202,7 +200,6 @@ onMount(async () => {
       updateVouchers();
     }
   }
-  slipModal = new Modal(document.getElementById('cross-slip-modal'));
 })
 
 beforeUpdate(()	=> {
@@ -211,5 +208,8 @@ beforeUpdate(()	=> {
 });
 afterUpdate(() => {
   //console.log('voucher afterUpdate');
+  if  (!popUp)  {
+    modalCount += 1;
+  }
 })
 </script>

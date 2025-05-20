@@ -90,11 +90,36 @@
             {line.otherSubAccount}
           </td>
           <td>
-            <div class="appication">
-              {line.application1 ? line.application1 : ''}
+            <div class="application">
+              {line.application1}
+              {#if line.application2}
+              /
+              {line.application2}
+              {/if}
             </div>
-            <div class="appication">
-              {line.application2 ? line.application2 : ''}
+            <div class="application d-flex">
+              <div class="tax">
+                {line.otherTaxRule}
+              </div>
+              <div class="">
+                {#if (line.debitVoucher )}
+                {#each line.debitVoucher.files as file}
+                <a href="/voucher/file/{file.id}" target="_blank">
+                  <i class="fas fa-file"></i>
+                </a>
+                {/each}
+                {/if}
+                {#if (line.creditVoucher )}
+                {#each line.creditVoucher.files as file}
+                <a href="/voucher/file/{file.id}" target="_blank">
+                  <i class="fas fa-file"></i>
+                </a>
+                {/each}
+                {/if}
+              </div>
+              <div class="ms-auto tax">
+                {line.thisTaxRule}
+              </div>
             </div>
           </td>
           <td class="number">
@@ -116,25 +141,27 @@
     </table>
   </div>
 </div>
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
   slip={slip}
-  bind:modal={modal}
-  term={status.term}
-  user={status.user}
+  status={status}
   accounts={accounts}
-  bind:init={init}
+  bind:popUp={popUp}
   on:close={updateList}></CrossSlipModal>
-
+{/key}
+{/if}
+  
 <style>
 </style>
 
 <script>
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import {ledgerLines} from '../../../libs/ledger';
 import {setAccounts} from '../../javascripts/cross-slip';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
+import {DateString} from '../../../libs/utils.js';
 
 export let status;
 
@@ -145,9 +172,10 @@ let slip = {
     lines: []
   };
 let	lines = [];
-let	modal;
 let	accounts;
-let init;
+let modalCount = 0;
+let popUp;
+
 
 const BANK_ACCOUNTS = [
   [ '1010000',	'当座預金' ],
@@ -160,13 +188,13 @@ const openAccount = (account) => {
   status.account = account;
   updateAccount();
   window.history.pushState(status, "",
-    `/bank-ledger/${status.term}/${status.account}`);
+    `/bank-ledger/${status.fy.term}/${status.account}`);
 }
 const openBank = (id) => {
   status.subAccount = id;
   updateList();
   window.history.pushState(status, "",
-    `/bank-ledger/${status.term}/${status.account}/${status.subAccount}`);
+    `/bank-ledger/${status.fy.term}/${status.account}/${status.subAccount}`);
 }
 
 const update = () => {
@@ -175,27 +203,38 @@ const update = () => {
 }
 const checkPage = () => {
   let args = location.pathname.split('/');
-  status.term = parseInt(args[2]);
+  let term = parseInt(args[2]);
+  if  ( status.fy.term !== term )  {
+    axios(`/api/term/${term}`).then((result) => {
+      let fy = res.data;
+      status.fy = fy;
+      status.fy.startDate = new Date(fy.startDate);
+      status.fy.endDate = new Date(fy.endDate);
+    });
+  }
   status.account = args[3];
   status.subAccount = args[4] ? parseInt(args[4]) : undefined;
   update();
 }
 
-onMount(() => {
+onMount(async () => {
+  console.log({status});
   lines = [];
   bank_list = { subAccounts: []};
-  axios.get('/api/accounts').then((result) => {
-    accounts = result.data;
-    setAccounts(accounts);
-  });
+  let result = await axios.get('/api/accounts');
+  accounts = result.data;
+  setAccounts(accounts);
   update();
-  modal = new Modal(document.getElementById('cross-slip-modal'));
 });
+afterUpdate(() => {
+  if  (!popUp)  {
+    modalCount += 1;
+  }
+})
 
 let _status;
 beforeUpdate(() => {
   console.log('bank-ledger beforeUpdate', status);
-  console.log('ledger beforeUpdate', status);
   if  (( status.change ) ||
        ( _status !== status ))  {
     status.change = false;
@@ -215,11 +254,11 @@ const updateAccount = () => {
 
 const updateList = () => {
   if	( status.subAccount )	{
-    axios.get(`/api/remaining/${status.term}/${status.account}/${status.subAccount}`).then((result) => {
+    axios.get(`/api/remaining/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
       let remaining = result.data;
       //console.log('remaining', remaining);
 
-      axios.get(`/api/ledger/${status.term}/${status.account}/${status.subAccount}`).then((result) => {
+      axios.get(`/api/ledger/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
         let details = result.data;
         let ret = ledgerLines(status.account, status.subAccount,
                         remaining, details);
@@ -244,8 +283,7 @@ const	openSlip = (year, month, no) => {
       approverName: data.approver ? data.approver.name : '',
       lines: data.lines
     };
-    init = true;
-    modal.show();
+    popUp = true;
   });
 }
 </script>

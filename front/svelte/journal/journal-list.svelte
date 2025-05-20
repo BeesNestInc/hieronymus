@@ -1,5 +1,5 @@
 <div class="row full-height">
-  <table class="table table-bordered">
+  <table class="table table-bordered journal">
     <thead>
       <tr>
         <th scope="col" colspan="2">
@@ -47,27 +47,36 @@
           {line.debitSubAccount}
         </td>
         <td>
-          <div class="appication">
-            {line.application1}
-          </div>
-          <div class="appication">
-            {line.application2}
-          </div>
           <div class="application">
-            {#if (line.debitVoucher )}
-            {#each line.debitVoucher.files as file}
-            <a href="/voucher/file/{file.id}" target="_blank">
-              <i class="fas fa-file"></i>
-            </a>
-            {/each}
+            {line.application1}
+            {#if line.application2}
+            /
+            {line.application2}
             {/if}
-            {#if (line.creditVoucher )}
-            {#each line.creditVoucher.files as file}
-            <a href="/voucher/file/{file.id}" target="_blank">
-              <i class="fas fa-file"></i>
-            </a>
-            {/each}
-            {/if}
+          </div>
+          <div class="application d-flex">
+            <div class="tax">
+              {line.debitTaxRule}
+            </div>
+            <div class="">
+              {#if (line.debitVoucher )}
+              {#each line.debitVoucher.files as file}
+              <a href="/voucher/file/{file.id}" target="_blank">
+                <i class="fas fa-file"></i>
+              </a>
+              {/each}
+              {/if}
+              {#if (line.creditVoucher )}
+              {#each line.creditVoucher.files as file}
+              <a href="/voucher/file/{file.id}" target="_blank">
+                <i class="fas fa-file"></i>
+              </a>
+              {/each}
+              {/if}
+            </div>
+            <div class="ms-auto tax">
+              {line.creditTaxRule}
+            </div>
           </div>
         </td>
         <td>

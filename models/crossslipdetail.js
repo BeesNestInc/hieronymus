@@ -29,7 +29,14 @@ export default (sequelize, DataTypes) => {
 				onDelete: 'SET NULL',
 				onUpdate: 'cascade'
 			});
-
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'debitTaxRuleId',
+				as: 'debitTaxRule'
+			});
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'creditTaxRuleId',
+				as: 'creditTaxRule'
+			});
 		}
 	};
 	CrossSlipDetail.init({

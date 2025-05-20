@@ -53,14 +53,17 @@
   </div>
 </div>
 {/if}
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
 	slip={slip}
-	bind:modal={modal}
-	term={status.term}
+	status={status}
 	user={status.user}
 	accounts={accounts}
-	bind:init={init}
+	bind:popUp={popUp}
 	on:close={close_}></CrossSlipModal>
+{/key}
+{/if}
 {/if}
 <script>
 import axios from 'axios';
@@ -80,7 +83,8 @@ let slip = {
 };
 let init = true;
 let accounts;
-let modal;
+let modalCount = 0;
+let popUp;
 
 const setupAccount = () => {
 	accounts = [];
@@ -97,8 +101,7 @@ const close_ = (event) => {
 const openSlip = (year, month, no) => {
   axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
     slip = result.data;
-    init = true;
-    modal.show();
+    popUp = true;
   })
 }
 
@@ -114,6 +117,11 @@ onMount(() => {
     setupAccount();
   }
   getSlips();
-  modal = new Modal(document.getElementById('cross-slip-modal'));
 })
+afterUpdate(() => {
+  if  (!popUp)  {
+    modalCount += 1;
+  }
+})
+
 </script>

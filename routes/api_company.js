@@ -55,7 +55,8 @@ export default {
       models.Company.findOne({
         where: {
           id: id
-        }
+        },
+        include: include
       }).then((company) => {
         res.json({
           code: 0,

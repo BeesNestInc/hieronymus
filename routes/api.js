@@ -23,6 +23,7 @@ import document from './api_document.js';
 import task from './api_task.js';
 import menu from './api_menu.js';
 import term from './api-term.js';
+import taxRule from './api-tax.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
@@ -179,6 +180,9 @@ router.get('/term/:year/:month', term.get);
 router.get('/term/:term', term.get);
 router.get('/term', term.get);
 router.put('/term/:id', term.update);
+
+router.get('/tax-rule/', taxRule.get);
+router.put('/tax-rule/', taxRule.put);
 
 router.post('/setup', setup)
 

@@ -1,3 +1,5 @@
+import {numeric} from '../../libs/utils.js';
+
 export const element_index = (element) => {
   return parseInt(element.id.match(/.*\[(\d+)\]/)[1]);
 }
@@ -53,7 +55,7 @@ export const findSubAccountByCode = (account_code, code) => {
 
 export const findTaxClass = (ac, sub) => {
   let tax = 0;
-  //console.log(ac, sub);
+  //console.log('findTaxClass', ac, sub);
   for ( let i = 0; i < accounts.length; i ++ ) {
     let account = accounts[i];
     if ( account.code == ac ) {
@@ -102,24 +104,6 @@ export const invoiceStatus = (code) => {
   }
 }
 
-export const salesTax = (tax_class, _amount) => {
-  let amount = numeric(_amount);
-  let tax;
-  switch ( parseInt(tax_class) ) {
-    case 1:
-    tax = Math.round(amount - amount / 110 * 100);
-    break;
-    case 2:
-    tax = Math.round(amount * 0.1);
-    break;
-    default:
-    tax = '';
-    break;
-  }
-  //console.log('tax', tax);
-  return	(tax)
-}
-
 export const taxClass = (taxClass) => {
   switch(taxClass) {
     case 0:
@@ -142,7 +126,6 @@ export default {
   element_index: element_index,
   element_dc: element_dc,
   invoiceStatus: invoiceStatus,
-  sales_tax: salesTax,
   taxClass: taxClass,
 }
 

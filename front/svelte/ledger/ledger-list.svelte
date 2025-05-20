@@ -71,9 +71,10 @@
       <td>
         <div class="appication">
           {line.application1 ? line.application1 : ''}
-        </div>
-        <div class="appication">
-          {line.application2 ? line.application2 : ''}
+          {#if line.application2 }
+          /
+          {line.application2}
+          {/if}
         </div>
         <div class="application">
           {#if (line.debitVoucher )}
@@ -106,7 +107,7 @@
         {/if}
       </td>
       <td class="number">
-        {line.thisTaxClass}<br/>
+        {line.debitTaxRule}<br/>
         {#if (line.showDebit)}
         <span>
           {line.pureDebitAmount ? line.pureDebitAmount.toLocaleString(): ''}<br/>
@@ -115,7 +116,7 @@
         {/if}
       </td>
       <td class="number">
-        {line.otherTaxClass}<br/>
+        {line.creditTaxRule}<br/>
         {#if (line.showCredit)}
         <span>
           {line.pureCreditAmount ? line.pureCreditAmount.toLocaleString(): ''}<br/>

@@ -16,6 +16,10 @@ module.exports = {
         type: Sequelize.INTEGER,
         defaultValue: 0
       },
+      send: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
       form: {
         type: Sequelize.STRING
       },
@@ -42,18 +46,21 @@ module.exports = {
       }, {
         name: '差出請求書',
         displayOrder: 2,
+        send: true,
         form: 'invoice',
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '差出領収書',
         displayOrder: 3,
+        send: true,
         form: 'receipt',
         createdAt: new Date(),
         updatedAt: new Date()
       }, {
         name: '差出見積書',
         displayOrder: 4,
+        send: true,
         form: 'estimate',
         createdAt: new Date(),
         updatedAt: new Date()

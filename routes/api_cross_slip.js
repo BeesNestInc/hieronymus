@@ -67,7 +67,32 @@ export default {
       include: [
         {
           model: models.CrossSlipDetail,
-          as: 'lines'
+          as: 'lines',
+          include: [
+            {
+              model: models.Voucher,
+              required: false,
+              as: 'debitVoucher',
+              include: [{
+                model: models.VoucherFile,
+                as: 'files'
+              }]
+            }, {
+              model: models.Voucher,
+              required: false,
+              as: 'creditVoucher',
+              include: [{
+                model: models.VoucherFile,
+                as: 'files'
+              }]
+            }, {
+              model: models.TaxRule,
+              as: 'debitTaxRule'
+            }, {
+              model: models.TaxRule,
+              as: 'creditTaxRule'
+            }
+          ]
         },
         {
           model: models.User,
@@ -77,6 +102,9 @@ export default {
           model: models.User,
           as: 'approver'
         }
+      ],
+      order: [
+        ['lines', 'lineNo', 'ASC']
       ]
     });
     //console.log(cross_slip);

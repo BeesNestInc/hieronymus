@@ -113,7 +113,6 @@ ul.nav {
   }
 }
 .page-subtitle {
-  height: 45px;
   margin-bottom: 5px;
   h2 {
     font-size: 1.5rem;
@@ -244,7 +243,13 @@ tr.over td {
 
 .entry,
 .list {
+  .application {
+    padding: 0;
+    margin-top: 2px;
+    height: 20px;
+  }
 }
+
 .entry-content {
     padding-top: 20px;
 }
@@ -310,9 +315,6 @@ tr.over td {
     border-radius: 4px;
     border: 1px solid #ccc;
   }
-}
-.application {
-  padding: 0;
 }
 
 .tox-promotion,
@@ -417,3 +419,17 @@ a.link {
   padding-left: 0.3rem;
   padding-right: 0.3rem;
 }
+
+.journal,
+.crossslip  {
+  .tax {
+    width: 120px;
+    font-weight: bold;
+  }
+.input {
+    padding: 0;
+    .application {
+    }
+  }
+}
+

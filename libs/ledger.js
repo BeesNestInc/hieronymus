@@ -44,8 +44,8 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
     let otherSubAccount;
     let thisAccount;
     let thisSubAccount;
-    let thisTaxClass;
-    let otherTaxClass;
+    let thisTaxRule;
+    let otherTaxRule;
     let pureDebitAmount;
     let pureCreditAmount;
     let pureDebitTax;
@@ -55,39 +55,17 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
 
     //  本体と税の正規化
     pureDebitTax = numeric(detail.debitTax);
+    debitAmount = numeric(detail.debitamount);
     if  ( detail.debitAccount ) {
-      let taxClass;
-      if  ( detail.debitSubAccount > 0 )      {
-        taxClass = findSubAccountByCode(detail.debitAccount, detail.debitSubAccount).taxClass;
-      } else {
-        taxClass = findAccount(detail.debitAccount).taxClass;
-      }
-      debitAmount = numeric(detail.debitAmount);
-      if  ( taxClass == 1 )  {
-        //pureDebitAmount = debitAmount - pureDebitTax;
-        pureDebitAmount = debitAmount;              //  元帳を税込で作る
-      } else {
-        pureDebitAmount = debitAmount;
-      }
+      pureDebitAmount = debitAmount;              //  元帳を税込で作る
     } else {
       debitAmount = 0;
       pureDebitAmount = 0;
     }
     pureCreditTax = numeric(detail.creditTax);
+    creditAmount = numeric(detail.creditAmount)
     if  ( detail.creditAccount ) {
-      let taxClass;
-      if  ( detail.creditSubAccount > 0 )      {
-        taxClass = findSubAccountByCode(detail.creditAccount, detail.creditSubAccount).taxClass;
-      } else {
-        taxClass = findAccount(detail.creditAccount).taxClass;
-      }
-      creditAmount = numeric(detail.creditAmount);
-      if  ( taxClass == 1 )  {
-        //pureCreditAmount = creditAmount - pureCreditTax;
-        pureCreditAmount = creditAmount;
-      } else {
-        pureCreditAmount = creditAmount;
-      }
+      pureCreditAmount = creditAmount;
     } else {
       creditAmount = 0;
       pureCreditAmount = 0;
@@ -101,8 +79,10 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       //  借方が帳簿の科目と一致している
       thisAccount = detail.debitAccount;
       thisSubAccount = detail.debitSubAccount;
+      thisTaxRule = detail.debitTaxRule;
       otherAccount = detail.creditAccount;
       otherSubAccount = detail.creditSubAccount;
+      otherTaxRule = detail.creditTaxRule;
 
       sums.debitAmount += pureDebitAmount;
       sums.debitTax += pureDebitTax;
@@ -135,8 +115,10 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       //  貸方が帳簿の科目と一致している
       thisAccount = detail.creditAccount;
       thisSubAccount = detail.creditSubAccount;
+      thisTaxRule = detail.creditTaxRule;
       otherAccount = detail.debitAccount;
       otherSubAccount = detail.debitSubAccount;
+      otherTaxRule = detail.debitTaxRule;
       //console.log(otherAccount);
 
       sums.creditAmount += pureCreditAmount;
@@ -166,14 +148,6 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
         }
       }
     }
-    thisTaxClass = thisAccount ? 
-                    ( thisSubAccount > 0 ?
-                      findSubAccountByCode(thisAccount, thisSubAccount).taxClass :
-                      findAccount(thisAccount).taxClass ) :
-                    null;
-    otherTaxClass = otherSubAccount ?
-                      findSubAccountByCode(otherAccount, otherSubAccount).taxClass :
-                      findAccount(otherAccount).taxClass;
     lines.push({
       year: detail.crossSlip.year,
       month: detail.crossSlip.month,
@@ -188,8 +162,10 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       otherAccount: (findAccount(otherAccount).name == '') ? '諸口' : findAccount(otherAccount).name,
       otherSubAccount: findSubAccountByCode(otherAccount, otherSubAccount).name,
 
-      thisTaxClass: taxClass(thisTaxClass),
-      otherTaxClass: taxClass(otherTaxClass),
+      thisTaxRule: thisTaxRule ? thisTaxRule.label : '',
+      otherTaxRule: otherTaxRule ? otherTaxRule.label : '',
+      debitTaxRule: detail.debitTaxRule ? detail.debitTaxRule.label : '',
+      creditTaxRule: detail.creditTaxRule ? detail.creditTaxRule.label : '',
 
       application1: detail.application1,
       application2: detail.application2,
@@ -200,7 +176,9 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       otherAccountCode: otherAccount,
       otherSubAccountCode: otherSubAccount,
       pureDebitAmount: pureDebitAmount,
+      pureDebitTax: pureDebitTax,
       pureCreditAmount: pureCreditAmount,
+      pureCreditTax: pureCreditTax,
       pureBalance: sums.balance,
       debitAmount: debitAmount,
       creditAmount: creditAmount,

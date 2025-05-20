@@ -151,7 +151,7 @@ onMount(async () => {
     date = DateString(status.fy.startDate);
   }
   const result = await axios.get(`/api/tax-rule?type=active&date=${date}`);
-  taxRules = result.data.taxRules;
+  taxRules = result.data.values;
   console.log(taxRules);
   modal = new Modal(document.getElementById('cross-slip-modal'));
   modal.show();

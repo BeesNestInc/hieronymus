@@ -19,8 +19,8 @@
   {/if}
 </nav>
 {#if (account && (account.subAccounts.length > 0))}
-<div class="page-subtitle d-flex justify-content-between">
-  <div>
+<div class="row page-subtitle">
+  <div class="col-9">
     <SubAccountSelect
     	on:select={(event) => {
       	accountSelect(event.detail);
@@ -28,7 +28,7 @@
       account={account}
       sub_account_code={status.subAccountCode}/>
   </div>
-  <div>
+  <div class="col-3" style="text-align:right;">
     {#if status.subAccountCode}
       <button type="button"
         on:click={() => {

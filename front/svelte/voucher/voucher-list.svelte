@@ -89,10 +89,10 @@
             </select>
           </td>
           <td>
-            <CustomerSelect
+            <CompanySelect
                 bind:value={companyId}
                 on:input={changeCustomer}>
-            </CustomerSelect>
+            </CompanySelect>
           </td>
           <td>
           </td>
@@ -218,7 +218,7 @@
 
 <script>
 import axios from 'axios';
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';

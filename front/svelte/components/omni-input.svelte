@@ -4,8 +4,11 @@
 {:else if (column.type === 'numeric')}
 <input type="text" style="text-align:right;{style}" class="w-100"
   bind:value={value}/>
+{:else if (column.type === 'date')}
+<input type="date" style="{style}"
+  bind:value={value}/>
 {:else if (column.type === 'checkbox')}
-<input type="checkbox" style="{style}" class="w-100"
+<input type="checkbox" style="{style};height:20px;margin-top:5px;" class="w-100"
   bind:checked={value}/>
 {:else if (column.type === 'dropdown')}
 <select style="{style}" class="w-100"

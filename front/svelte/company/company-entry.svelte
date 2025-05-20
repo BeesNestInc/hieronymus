@@ -1,6 +1,6 @@
 <div class="entry">
   <div class="page-title d-flex justify-content-between">
-    <h1>取引先基本情報</h1>
+    <h1>法人等基本情報</h1>
   </div> 
   <div class="row full-height fontsize-12pt">
     <div class="content">
@@ -64,13 +64,16 @@ const create_company = async (company) => {
   let result = await axios.post('/api/company', company);
 
   console.log(result);
+  return  (result);
 }
 const update_company = async (company) => {
   console.log('save_company', company);
   let result = await axios.put('/api/company', company);
      
   console.log(result);
+  return  (result);
 }
+
 const delete_company = async (company) => {
   title = '顧客情報の削除';
   description = `
@@ -165,10 +168,16 @@ const save = (event) => {
       pr = create_company(company);
       create = true;
     }
-    pr.then(() => {
+    pr.then((result) => {
       if	( create )	{
-        window.history.replaceState(
-          status, "", `/company/entry/${company.id}`);
+        console.log({result});
+        const id = result.data.id;
+        axios.get(`/api/company/${id}`).then((res) => {
+          company = res.data.company;
+          currentCompany.set(company);
+          window.history.replaceState(
+            status, "", `/company/entry/${id}`);
+        })
       }
     });
   } catch(e) {

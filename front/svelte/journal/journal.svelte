@@ -41,26 +41,26 @@
   	sums={sums}
   	on:open={openSlip}></JournalList>
 </div>
-
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
-  slip={slip}
-  bind:modal={modal}
-  term={status.term}
-  user={status.user}
   accounts={accounts}
-  bind:init={init}
+  slip={slip}
+  status={status}
+  bind:popUp={popUp}
   on:close={close_}></CrossSlipModal>
+{/key}
+{/if}
 <style>
 </style>
 
   <script>
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import JournalList from './journal-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {setAccounts, findAccount, findSubAccountByCode} from '../../javascripts/cross-slip';
-import {numeric} from '../../../libs/utils.js';
+import {numeric, dateStr} from '../../../libs/utils.js';
 
 export let status;
 
@@ -69,12 +69,12 @@ let month;
 let fy;
 let slip = { lines: []};
 let dates = [];
-let modal;
 let accounts;
 let	sums;
 let	lines = [];
 let slips;
-let init;
+let modalCount = 0;
+let popUp;
 
 const openMonth = (_year, _month) => {
   year = _year;
@@ -118,8 +118,10 @@ const ready = (slips) => {
 
         debitAmount: line.debitAmount !== null ? numeric(line.debitAmount).toLocaleString() : '',
         debitTax: line.debitTax != null ? numeric(line.debitTax).toLocaleString() : '',
+        debitTaxRule: line.debitTaxRule ? line.debitTaxRule.label : '',
         creditAmount: line.creditAmount !== null ? numeric(line.creditAmount).toLocaleString() : '',
         creditTax: line.creditTax != null ? numeric(line.creditTax).toLocaleString() : '',
+        creditTaxRule: line.creditTaxRule ? line.creditTaxRule.label : '',
            
         debitAccount: findAccount(line.debitAccount).name,
         debitSubAccount: findSubAccountByCode(line.debitAccount, line.debitSubAccount).name,
@@ -139,13 +141,14 @@ const ready = (slips) => {
   }
   lines = _lines;
   sums = _sums;
-  //console.log('lines', lines);
+  console.log('lines', lines);
 }
 
 const updateList = () => {
   console.log('updateList');
   axios.get(`/api/journal/${year}/${month}`).then((result) => {
-    slips = result.data;
+    slips = result.data.journal;
+    //console.log(slips);
     ready(slips);
   });
 }
@@ -164,7 +167,7 @@ const setupDates = () => {
     }
     dates = dates;
   });
-  console.log('dates', dates);
+  //console.log('dates', dates);
 }
 
 const setupAccount = () => {
@@ -174,7 +177,8 @@ const setupAccount = () => {
     setAccounts(accounts);
   }).then(() => {
     axios.get(`/api/journal/${year}/${month}`).then((result) => {
-      slips = result.data;
+      slips = result.data.journal;
+      //console.log(slips);
       ready(slips);
     });
   });
@@ -202,7 +206,12 @@ beforeUpdate(()	=> {
     checkPage();
   }
 });
-onMount(() => {
+afterUpdate(() => {
+  if  (!popUp)  {
+    modalCount += 1;
+  }
+})
+onMount(async () => {
   console.log('journal onMount');
   if  ( !status.pathname ) {
     status.pathname = location.pathname;
@@ -217,12 +226,7 @@ onMount(() => {
       month: month,
       lines: []
   };
-  modal = new Modal(document.getElementById('cross-slip-modal'));
 })
-
-afterUpdate(() => {
-  console.log('journal afterUpdate');
-});
 
 const openSlip = (event) => {
   slip = event.detail;
@@ -242,7 +246,6 @@ const openSlip = (event) => {
       }]
     };
   }
-  init = true;
-  modal.show();
+  popUp = true;
 }
 </script>
