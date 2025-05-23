@@ -91,7 +91,7 @@
           <td>
             <CompanySelect
                 bind:value={companyId}
-                on:input={changeCustomer}>
+                on:input={changeCompany}>
             </CompanySelect>
           </td>
           <td>
@@ -250,10 +250,10 @@ const changeVoucherType = (event) => {
   status.params.set('type', value);
   dispatch('selectVoucherType');
 }
-const changeCustomer = (event) => {
+const changeCompany = (event) => {
   let companyId = event.detail;
   //console.log({companyId});
-  dispatch('selectCustomerId', companyId);
+  dispatch('selectCompanyId', companyId);
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{

@@ -72,7 +72,8 @@
               on:focusout={() => {
                 computeTax(i, 'd');
               }}>
-            {#if (( line.creditAccount !== '3080000' ) &&
+            {#if (( !fy.taxIncluded ) &&
+                  ( line.creditAccount !== '3080000' ) &&
                   ( findTaxClass(line.debitAccount, line.debitSubAccount) != 0 ))}
             <input type="text" class="number" size="12" maxlength="13"
               bind:value={line.debitTax}
@@ -84,6 +85,7 @@
               <input type="text" size="50" maxlength="51"
                 bind:value={line.application1}>
             </div>
+            {#if (!fy.taxIncluded)}
             <div class="application d-flex">
               <div class="tax">
                 {#if (( line.creditAccount !== '3080000' ) &&
@@ -91,6 +93,7 @@
                 <select class="form-control" style="line-height:1;padding:0.375rem"
                   bind:value={line.debitTaxRuleId}
                   on:focusout={() => {
+                    console.log('debit focusout');
                     computeTax(i, 'd');
                     makeTaxLine();
                   }}>
@@ -106,7 +109,8 @@
               <input type="text" size="30" maxlength="51"
                 bind:value={line.application2}>
               <div class="tax ms-auto">
-                {#if (( line.debitAccount !== '1140000' ) &&
+                {#if (( !fy.taxIncluded ) &&
+                      ( line.debitAccount !== '1140000' ) &&
                       ( findTaxClass(line.creditAccount, line.creditSubAccount) > 0 ))}
                 <select class="form-control" style="line-height:1;padding:0.375rem"
                   bind:value={line.creditTaxRuleId}
@@ -124,6 +128,12 @@
                 {/if}
               </div>
             </div>
+            {:else}
+            <div class="application">
+              <input type="text" size="50" maxlength="51"
+                bind:value={line.application2}>
+            </div>
+            {/if}
           </td>
           <td class="input">
             <Account
@@ -321,7 +331,7 @@ const makeTaxLine = () => {
         slip.lines[gap].debitAccount = debit;
         slip.lines[gap].debitAmount += numeric(slip.lines[i].debitTax);
         const rule = findTaxRule(slip.lines[i].debitTaxRuleId, taxRules);
-        if	( rule.taxClass !== 2 ) {
+        if	( rule && rule.taxClass !== 2 ) {
           slip.lines[gap].creditAccount = slip.lines[i].debitAccount;
           slip.lines[gap].creditSubAccount = slip.lines[i].debitSubAccount;
           slip.lines[gap].creditAmount += numeric(slip.lines[i].debitTax);
@@ -352,7 +362,7 @@ const makeTaxLine = () => {
         slip.lines[gap].creditAccount = credit;
         slip.lines[gap].creditAmount += numeric(slip.lines[i].creditTax);
         const rule = findTaxRule(slip.lines[i].creditTaxRuleId, taxRules);
-        if	( rule.taxClass !== 2 ) {
+        if	( rule && rule.taxClass !== 2 ) {
           slip.lines[gap].debitAccount = slip.lines[i].creditAccount;
           slip.lines[gap].debitSubAccount = slip.lines[i].creditSubAccount;
           slip.lines[gap].debitAmount += numeric(slip.lines[i].creditTax);

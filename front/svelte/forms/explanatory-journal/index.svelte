@@ -23,7 +23,7 @@ let dates;
 onMount(async () => {
   company = await myCompany();
   ({fy, dates} = await initializeExplanatoryJournal(term));
-  console.log(dates);
+  //console.log(dates);
 });
 
 </script>

@@ -28,15 +28,15 @@
       <tbody>
         <tr>
           <td style="padding:5px;">
-            <CustomerSelect
+            <CompanySelect
               register=false
               on:input={(event) => {
                 let value = parseInt(event.detail);
                 status.params.set('company', value);
-                dispatch('selectCustomerId');
+                dispatch('selectCompanyId');
               }}
               companyId={status.params ? parseInt(status.params.get('company')) : -1}>
-            </CustomerSelect>
+            </CompanySelect>
           </td>
           <td>
           </td>
@@ -81,7 +81,7 @@
 </div>
 
 <script>
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';

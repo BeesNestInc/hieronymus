@@ -1,5 +1,7 @@
 import models from '../models/index.js';
+import fs from 'fs';
 const Op = models.Sequelize.Op;
+import {getCompanyInfo, putCompanyInfo} from '../libs/utils.js';
 
 export default {
   get: async (req, res, next) => {
@@ -145,5 +147,20 @@ export default {
         values: kinds
       })
     })
+  },
+  infoGet: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    let company = await getCompanyInfo();
+    console.log({company});
+    res.json({
+      company: company
+    });
+  },
+  infoPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    putCompanyInfo(res.body);
+    res.json({
+      code: 0
+    });
   }
 };

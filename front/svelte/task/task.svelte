@@ -4,7 +4,7 @@
     tasks={tasks}
     on:open={openEntry}
     on:selectKind={selectKind}
-    on:selectCustomerId={selectCustomer}
+    on:selectCompanyId={selectCompany}
     ></TaskList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
   <TaskEntry
@@ -34,7 +34,7 @@ let users = [];
 const selectKind = (event) => {
   updateTasks({});
 }
-const selectCustomer = (event) => {
+const selectCompany = (event) => {
   updateTasks({
   });
 }
@@ -112,8 +112,8 @@ const checkPage = () => {
         }]};
       let transaction = getStore(currentTransaction);
       if	( transaction )	{
-				task.customerId = transaction.customerId;
-        task.customerName = transaction.customerName;
+				task.companyId = transaction.companyId;
+        task.companyName = transaction.companyName;
         task.chargeName = transaction.chargeName;
         task.zip = transaction.zip;
         task.address1 = transaction.address1;

@@ -15,7 +15,7 @@ const setupDates = async (term) => {
     let year = mon.getFullYear();
     let month = mon.getMonth() + 1;
     let result = await axios.get(`/api/journal/${year}/${month}`)
-    const ret = ready(result.data);
+    const ret = ready(result.data.journal);
 
     let pages = burstPage(ret.lines, LINES);
     dates.push({
@@ -65,8 +65,10 @@ const ready = (slips) => {
 
         debitAmount: line.debitAmount,
         debitTax: debitTax,
+        debitTaxRule: line.debitTaxRule,
         creditAmount: line.creditAmount,
         creditTax: creditTax,
+        creditTaxRule: line.creditTaxRule,
            
         debitAccount: findAccount(line.debitAccount).name,
         debitSubAccount: findSubAccountByCode(line.debitAccount, line.debitSubAccount).name,

@@ -3,7 +3,7 @@ const router = express.Router();
 import {is_authenticated} from '../libs/user.js';
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
-import company from '../config/company.js';
+import myCompany from '../libs/my-company.js';
 
 const screen = (req, res, next) => {
     console.log('command', req.params.command);
@@ -19,6 +19,7 @@ const screen = (req, res, next) => {
 
 const form_out = async (req, res, form) => {
   let id = req.params.id;
+  const company = await myCompany();
   let transaction = await models.TransactionDocument.findByPk(id, {
     include: [{
         model: models.Company,

@@ -66,7 +66,7 @@
             }}>
         	</td>
           <td class="checkbox">
-            <input type="checkbox" class="w-100" bind:checked={line.customerManagement}
+            <input type="checkbox" class="w-100" bind:checked={line.companyManagement}
             on:change={() => {
               change(line);
             }}>

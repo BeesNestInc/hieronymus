@@ -5,7 +5,7 @@
   on:open={openEntry}
   on:openSlip={openSlip}
   on:selectVoucherType={selectVoucherType}
-  on:selectCustomerId={selectCustomer}
+  on:selectCompanyId={selectCompany}
   on:selectAmount={selectAmount}
   on:gotoMonth={gotoMonth}
   ></VoucherList>
@@ -56,11 +56,11 @@ let popUp;
 const selectVoucherType = (event) => {
   updateVouchers({});
 }
-const selectCustomer = (event) => {
-  let	customerId = event.detail;
-  //console.log({customerId});
+const selectCompany = (event) => {
+  let	companyId = event.detail;
+  //console.log({companyId});
   updateVouchers({
-    customer: customerId
+    company: companyId
   });
 }
 const selectAmount = (event) => {

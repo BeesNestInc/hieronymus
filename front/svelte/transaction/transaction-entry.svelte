@@ -29,6 +29,7 @@
         <button type="button" class="btn btn-info" disabled={disabled}
           on:click={() => {
               transaction.id = undefined;
+              transaction.no = undefined;
               save()
             }
           }
@@ -99,7 +100,7 @@ const deleteTransaction = (event) => {
 <table style="font-size:12px;">
   <tbody>
     <tr>
-			<td>相手先</td><td>${transaction.customerName}</td>
+			<td>相手先</td><td>${transaction.companyName}</td>
 		</tr>
     <tr>
 			<td>件名</td><td>${transaction.subject}</td>
@@ -130,8 +131,8 @@ const save = () => {
   errorMessages = [];
   let ok = true;
   console.log('input', transaction);
-  if	( transaction.customerId )	{
-    transaction.customerId = parseInt(transaction.customerId);
+  if	( transaction.companyId )	{
+    transaction.companyId = parseInt(transaction.companyId);
   }
   if	( transaction.amount )	{
     transaction.amount = numeric(transaction.amount);

@@ -38,8 +38,11 @@
         </td>
         <td class="number">
           {#if ( line.debitAccount !== '')}
-          {line.debitAmount}<br/>
+          {line.debitAmount}
+          {#if ( !fy.taxIncluded )}
+          <br/>
           {line.debitTax}
+          {/if}
           {/if}
         </td>
         <td>
@@ -55,9 +58,11 @@
             {/if}
           </div>
           <div class="application d-flex">
+            {#if ( !fy.taxIncluded )}
             <div class="tax">
               {line.debitTaxRule}
             </div>
+            {/if}
             <div class="">
               {#if (line.debitVoucher )}
               {#each line.debitVoucher.files as file}
@@ -74,9 +79,11 @@
               {/each}
               {/if}
             </div>
+            {#if !fy.taxIncluded}
             <div class="ms-auto tax">
               {line.creditTaxRule}
             </div>
+            {/if}
           </div>
         </td>
         <td>
@@ -85,8 +92,11 @@
         </td>
         <td class="number">
           {#if ( line.creditAccount !== '')}
-          {line.creditAmount}<br/>
+          {line.creditAmount}
+          {#if ( !fy.taxIncluded )}
+          <br/>
           {line.creditTax}
+          {/if}
           {/if}
         </td>
       </tr>
@@ -98,8 +108,11 @@
         <td>
         </td>
         <td class="number">
-          {sums.debitAmount.toLocaleString()}<br/>
+          {sums.debitAmount.toLocaleString()}
+          {#if ( !fy.taxIncluded )}
+          <br/>
           {sums.debitTax.toLocaleString()}
+          {/if}
         </td>
         <td>
         </td>
@@ -109,8 +122,11 @@
         <td>
         </td>
         <td class="number">
-          {sums.creditAmount.toLocaleString()}<br/>
+          {sums.creditAmount.toLocaleString()}
+          {#if ( !fy.taxIncluded )}
+          <br/>
           {sums.creditTax.toLocaleString()}
+          {/if}
         </td>
       </tr>
       {/if}
@@ -136,6 +152,7 @@ const dispatch = createEventDispatcher();
 export	let	lines;
 export	let sums;
 export	let	slips;
+export  let fy;
 
 let slip;
 

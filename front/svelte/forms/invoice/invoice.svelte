@@ -3,6 +3,7 @@
   <meta http-equiv="Content-Language" content="ja" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/style/paperA4.css">
   <link rel="stylesheet" href="/style/transaction.css">
 </svelte:head>
 
@@ -77,7 +78,11 @@
   	    合計金額
     	</div>
 	    <div class="amount">
-  	    ￥{(parseInt(transaction.tax) + parseInt(transaction.amount)).toLocaleString()}
+        {#if transaction.taxClass === 2 || transaction.taxClass === 9}
+        {formatMoney(parseInt(transaction.tax) + parseInt(transaction.amount))}
+        {:else}
+        {formatMoney(transaction.amount)}
+        {/if}
 	    </div>
 	  </div>
 		<Details
@@ -86,7 +91,7 @@
 </div>
 <script>
 import Details from '../components/details.svelte';
-import {BANK_ACCOUNT_TYPE} from '../../../../libs/utils.js';
+import {BANK_ACCOUNT_TYPE, formatMoney} from '../../../../libs/utils.js';
 
 export let transaction;
 export let company;

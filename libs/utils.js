@@ -1,5 +1,47 @@
 import {format as DateFormat, parse as DateParse} from '@formkit/tempo';
-import company from '../config/company.js';
+import axios from 'axios';
+
+export let company;
+
+export const isNode = () =>
+  typeof process !== 'undefined' &&
+  process.versions?.node;
+
+export const isBrowser = () =>
+  typeof window !== 'undefined' &&
+  typeof document !== 'undefined';
+
+export const getCompanyInfo = async () => {
+  if (isNode()) {
+    const { readFile } = await import('node:fs/promises');
+    company = JSON.parse(await readFile('./config/company.json', 'utf-8'));
+    return company;
+  } else if (isBrowser()) {
+    const response = await axios.get('/api/company/info');
+    console.log(response);
+    company = response.data.company;
+    console.log({company});
+    return company;
+  } else {
+    throw new Error('Unsupported environment');
+  }
+};
+
+export const putCompanyInfo = async(info) => {
+  if (isNode()) {
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile('./config/company.json', JSON.stringify(info, ' ', 2));
+    company = info;
+    return company;
+  } else if (isBrowser()) {
+    const axios = await import('axios');
+    await axios.put('/api/company/info', info);
+    const company = info;
+    return company;
+  } else {
+    throw new Error('Unsupported environment');
+  }
+}
 
 export const wareki = (date) => {
   const dateTimeFormat = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', {year: 'numeric'});
@@ -17,7 +59,7 @@ export const StringDate = (s) => {
 export const dateStr = (year, month, day) => {
   const fix2 = (num) => {
     const str = '0' + num.toString();
-    return  (str.substring(str.length - 1, 2));
+    return  (str.substring(str.length - 2));
   }
   day = day || 1;
   return `${year}-${fix2(month)}-${fix2(day)}`;
@@ -161,3 +203,5 @@ export const taxClass = (tC) => {
   }
   return ('');
 }
+
+getCompanyInfo();

@@ -74,19 +74,19 @@
     </div>
   {/if}
 {:else}
-  <CustomerEntry
+  <CompanyEntry
     inline=true
 	  on:save={update}
     on:close={closeEntry}
 	  bind:company={company}>
-  </CustomerEntry>
+  </CompanyEntry>
 {/if}
 
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
-import CustomerEntry from '../company/company-entry.svelte';
+import CompanyEntry from '../company/company-entry.svelte';
 
 export let companyId;
 export let register;

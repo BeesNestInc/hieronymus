@@ -1,44 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 	<head>
-		<title>Login</title>
-		<link rel="stylesheet" href="/style/style.css">
+		<title>{{title}}::Hieronymus</title>
+		<meta http-equiv="Content-Language" content="ja" />
+		<script src="/dist/common.js" type="module"></script>
 		<link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="icon" href="/public/favicon.ico" sizes="any">
-		<script defer src="/dist/common.js"></script>
+		<link rel="stylesheet" href="/dist/common.css">
+		<link rel="stylesheet" href="/style/style.css">
+		<link rel="stylesheet" href="/dist/index.css">
+    	<link rel="icon" href="/public/favicon.ico" sizes="any">
+		<base href="/" />
 	</head>
-  	<body class="layout-fixed hold-transition login-page" id="body">
-    	<div class="login-box">
-  			<div class="login-logo">
-    			<img src="/public/logo.png" alt="Logo" class="pe-1">Hieronyms
-  			</div>
-    		<div class="card">
-        		<div class="card-body login-card-body">
-          		<p class="fs-4 text-center ">ログイン</p>
-					<form action="/login" method="post">
-                  <p class="text-danger text-center">{{ message }}</p>
-          				<div class="mb-3">
-                    <label for="user_input">ユーザー名</label>
-              			<input type="text" name="user_name" id="user_input" class="form-control" placeholder="ユーザー名">
-          				</div>
-          				<div class="mb-3">
-                  <label for="password_input">パスワード</label>
-        					<input type="password" name="password" id"password_input" class="form-control" placeholder="パスワード">
-    					</div>
-      					<div class="row d-flex justify-content-center">
-          					<div class="col-lg-8 col-4 d-grid">
-            					<button type="submit" class="btn btn-primary mb-3" id="login_submit">ログイン</button>
-                      <a href="/signup" class="text-center">アカウント登録はこちら</a>
-          					</div>
-        				</div>
-      				</form>
-      				<p class="mb-0">
-        				
-      				</p>
-    			</div>
-			</div>
-      	<div class="text-center text-light-emphasis">version {{version}}</div>
-		</div>
-		<script defer src="/dist/login.js"></script>
+	<body class="layout-fixed" id="body">
+		<div class="wrapper" id="index"></div>
+		<script src="dist/login.js" type="module"></script>
 	</body>
 </html>

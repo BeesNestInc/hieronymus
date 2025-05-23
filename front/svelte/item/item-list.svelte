@@ -82,15 +82,15 @@
               on:click={() => {
                 openItem(line.id);
               }}>
-              {line.name}<br/>
-              {line.globalCode}
+              {line.name || '____'}<br/>
+              {line.globalCode || ''}
             </button>
           </td>
           <td>
-            {line.spec ? line.spec : ''}
+            {line.spec || ''}
           </td>
           <td>
-            {line.unit ? line.unit : ''}
+            {line.unit || ''}
           </td>
           <td class="number">
             {numeric(line.standardPrice).toLocaleString()}<br/>

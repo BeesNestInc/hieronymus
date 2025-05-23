@@ -63,6 +63,14 @@
               <div class="appication">
                 {line.application2}
               </div>
+              <div class="application d-flex">
+                <div class="tax">
+                  {line.debitTaxRule ? line.debitTaxRule.label : ''}
+                </div>
+                <div class="tax ms-auto">
+                  {line.creditTaxRule ? line.creditTaxRule.label : ''}
+                </div>
+              </div>
             </td>
             <td>
               {line.creditAccount}<br/>

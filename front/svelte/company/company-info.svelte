@@ -108,6 +108,14 @@
       <input type="text" class="form-control" id="url" bind:value={company.url}>
     </div>
   </div>
+  {#if company.companyClassId === 1 }
+  <div class="row mb-3">
+    <label for="logourl" class="col-2 col-form-label">ロゴURL</label>
+    <div class="col-4">
+      <input type="text" class="form-control" id="logourl" bind:value={company.logoURL}>
+    </div>
+  </div>
+  {/if}
   <div class="row mb-3">
     <label for="chargeName" class="col-2 col-form-label">担当者名</label>
     <div class="col-sm-3">

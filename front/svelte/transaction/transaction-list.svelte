@@ -48,12 +48,12 @@
             </select>
           </td>
           <td style="padding:5px;">
-            <CustomerSelect
+            <CompanySelect
               register=false
               clientOnly=true
               bind:value={companyId}
-              on:input={changeCustomer}>
-            </CustomerSelect>
+              on:input={changeCompany}>
+            </CompanySelect>
           </td>
           <td>
           </td>
@@ -108,10 +108,9 @@
 <script>
 import axios from 'axios';
 
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {DOCUMENT_KIND} from '../../../libs/transaction-documents';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
@@ -141,10 +140,10 @@ beforeUpdate(() => {
   //sconsole.log('transaction-list beforeUpdate');
 });
 
-const changeCustomer = (event) => {
+const changeCompany = (event) => {
   let companyId = event.detail;
   console.log({companyId});
-  dispatch('selectCustomerId', companyId);
+  dispatch('selectCompanyId', companyId);
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{

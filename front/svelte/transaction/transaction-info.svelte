@@ -59,7 +59,7 @@
     </div>
     <div class="col-11">
       {#if (companyEditting || !transaction.companyId )}
-      <CustomerSelect
+      <CompanySelect
         on:startregister
         on:endregister
         register="true"
@@ -312,7 +312,7 @@ import {numeric, TAX_CLASS} from '../../../libs/utils.js';
 import {DOCUMENT_KIND} from '../../../libs/transaction-documents.js';
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher, onDestroy, tick} from 'svelte';
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 import TransactionDetails from './transaction-details.svelte';
 import Document from '../components/document.svelte';
 import DocumentFiles from '../components/document-files.svelte';

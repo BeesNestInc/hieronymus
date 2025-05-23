@@ -2,7 +2,7 @@
   <h1>顧客台帳</h1>
   <button type="button" class="btn btn-primary"
     on:click={() => {
-      openCustomer(null);
+      openCompany(null);
     }}>顧客入力&nbsp;<i class="bi bi-pencil-square"></i></button>
 </div>
 <div class="fontsize-12pt">
@@ -59,7 +59,7 @@
       <tr class="fontsize-12pt">
         <td>
           <button type="button" class="btn btn-link"
-            on:click={openCustomer} data-no={line.id}>
+            on:click={openCompany} data-no={line.id}>
             {line.name}
           </button>
         </td>
@@ -104,12 +104,12 @@ export let companies;
 
 let companyClasses = [];
 
-const openCustomer = (event) => {
+const openCompany = (event) => {
   let	company;
   if  ( event ) {
     let id = event.target.dataset.no;
 
-    //console.log('openCustomer', id);
+    //console.log('openCompany', id);
     //console.log('companies', companies);
 
     for ( let i = 0; i < companies.length; i ++ ) {
@@ -118,6 +118,8 @@ const openCustomer = (event) => {
         break;
       }
     }
+  } else {
+    company = {};
   }
   dispatch('open', company);
 }

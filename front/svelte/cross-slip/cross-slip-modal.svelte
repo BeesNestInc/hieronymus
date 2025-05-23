@@ -106,7 +106,7 @@
 </div>
 <script>
 
-import {numeric, dateStr, DateString} from '../../../libs/utils';
+import {numeric, dateStr, DateString, getCompanyInfo} from '../../../libs/utils';
 import axios from 'axios';
 import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
@@ -150,6 +150,7 @@ onMount(async () => {
   } else {
     date = DateString(status.fy.startDate);
   }
+  console.log({date});
   const result = await axios.get(`/api/tax-rule?type=active&date=${date}`);
   taxRules = result.data.values;
   console.log(taxRules);

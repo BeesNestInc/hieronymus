@@ -114,7 +114,7 @@ const ready = () => {
 
 
 const	updateAccounts = () => {
-  axios.get(`/api/accounts2/${status.term}`).then((result) => {
+  axios.get(`/api/accounts4/${status.term}`).then((result) => {
     accounts = result.data;
     console.log('accounts', accounts);
     setAccounts(accounts);

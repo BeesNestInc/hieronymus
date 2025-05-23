@@ -76,7 +76,7 @@
               {/if}
             </td>
             <td class="number">
-              {line.thisTaxClass}<br/>
+              {line.thisTaxRule}<br/>
               {#if (line.showDebit)}
               <span>
                 {formatMoney(line.pureDebitAmount)}<br/>
@@ -85,7 +85,7 @@
               {/if}
             </td>
             <td class="number">
-              {line.otherTaxClass}<br/>
+              {line.otherTaxRule}<br/>
               {#if (line.showCredit)}
               <span>
                 {formatMoney(line.pureCreditAmount)}<br/>
@@ -127,7 +127,7 @@
 {/each}
 <script>
 import PageHeader from '../components/page-header.svelte';
-import {formatMoney, taxClass} from '../../../../libs/utils.js';
+import {formatMoney} from '../../../../libs/utils.js';
 
 export let company;
 export let fy;

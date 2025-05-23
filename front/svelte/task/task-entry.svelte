@@ -33,8 +33,8 @@
         <button type="button" class="btn btn-primary" disabled={disabled}
           on:click={save}
           id="save-button">保存</button>
-        {#if ( task && task.id && !transaction)}
-        <button type="button" class="btn btn-info"
+        {#if ( task && task.id && ( !transaction || !transaction.id ))}
+        <button type="button" class="btn btn-warning"
           on:click={create}
           id="save-button">取引文書作成</button>
 				{/if}
@@ -95,7 +95,7 @@ const deleteTask = (event) => {
 <table style="font-size:12px;">
   <tbody>
     <tr>
-			<td>相手先</td><td>${task.customerName}</td>
+			<td>相手先</td><td>${task.companyName}</td>
 		</tr>
     <tr>
 			<td>件名</td><td>${task.subject}</td>
@@ -122,8 +122,8 @@ const doDelete = async (event) => {
 }
 
 const save = () => {
-  if	( task.customerId )	{
-    task.customerId = parseInt(task.customerId);
+  if	( task.companyId )	{
+    task.companyId = parseInt(task.companyId);
   }
   try {
     let	pr;

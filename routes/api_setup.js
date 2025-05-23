@@ -1,5 +1,6 @@
 import models from '../models/index.js';
 import parseAccounts from '../libs/parse_accounts.js';
+import {getCompanyInfo, putCompanyInfo} from '../libs/utils.js';
 
 const createInitialAccount = async (term, t) => {
   const now = new Date();
@@ -87,6 +88,10 @@ export const setup = async (req, res, next) => {
         year: req.body.year
       },{ transaction: t });
       await createInitialAccount(req.body.term, t);
+      getCompanyInfo().then(async (company) => {
+        company.roundingMethod = req.body.roundingMethod;
+        await putCompanyInfo(company);
+      })
       await t.commit();
       req.session.term = req.body.term;
       req.session.save();

@@ -36,6 +36,7 @@
   	</div>
 	</div>
 	<JournalList
+    fy={fy}
   	slips={slips}
   	lines={lines}
   	sums={sums}
@@ -66,7 +67,7 @@ export let status;
 
 let year;
 let month;
-let fy;
+let fy = {};
 let slip = { lines: []};
 let dates = [];
 let accounts;

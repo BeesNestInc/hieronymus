@@ -4,7 +4,7 @@
     transactions={transactions}
     on:open={openEntry}
     on:selectKind={selectKind}
-    on:selectCustomerId={selectCustomer}
+    on:selectCompanyId={selectCompany}
     on:selectAmount={selectAmount}
     ></TransactionList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
@@ -33,11 +33,11 @@ let users = [];
 const selectKind = (event) => {
   updateTransactions({});
 }
-const selectCustomer = (event) => {
-  let	customerId = event.detail;
-  console.log({customerId});
+const selectCompany = (event) => {
+  let	companyId = event.detail;
+  console.log({companyId});
   updateTransactions({
-    customer: customerId
+    company: companyId
   });
 }
 const selectAmount = (event) => {
@@ -116,8 +116,8 @@ const checkPage = () => {
       let task = getStore(currentTask);
       if	( task )	{
         transaction.taskId = task.id;
-				transaction.customerId = task.customerId;
-        transaction.customerName = task.customerName;
+				transaction.companyId = task.companyId;
+        transaction.companyName = task.companyName;
         transaction.chargeName = task.chargeName;
         transaction.zip = task.zip;
         transaction.address1 = task.address1;

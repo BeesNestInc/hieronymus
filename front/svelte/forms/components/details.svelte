@@ -25,7 +25,7 @@
         <td class="number">{formatNumber(line.itemNumber)}</td>
         <td>{line.unit || ' '}</td>
         {/if}
-        <td class="number">¥{formatNumber(line.amount)}</td>
+        <td class="number">{formatMoney(line.amount)}</td>
         <td class="description">{line.description}</td>
       </tr>
       {/each}
@@ -34,7 +34,7 @@
       <tr>
         <td colspan="2" rowspan={transaction.taxClass !== 0 ? 3 : 2}></td>
         <td colspan="2" class="sums">小&nbsp;&nbsp;&nbsp;計</td>
-        <td class="number">¥{formatNumber(transaction.amount)}</td>
+        <td class="number">{formatMoney(transaction.amount)}</td>
         <td rowspan={transaction.taxClass !== 0 ? 3 : 2}></td>
       </tr>
       {#if transaction.taxClass !== 0}
@@ -42,9 +42,9 @@
         <td colspan="2" class="sums">消費税</td>
         <td class="number">
           {#if transaction.taxClass === 2 || transaction.taxClass === 9}
-          ¥{formatNumber(transaction.tax)}
+          {formatMoney(transaction.tax)}
           {:else}
-          (¥{formatNumber(transaction.tax)})
+          ({formatMoney(transaction.tax)})
           {/if}
         </td>
       </tr>
@@ -54,9 +54,9 @@
         <td class="number">
           <strong>
             {#if transaction.taxClass === 2 || transaction.taxClass === 9}
-            ¥{formatNumber(parseInt(transaction.tax) + parseInt(transaction.amount))}
+            {formatMoney(parseInt(transaction.tax) + parseInt(transaction.amount))}
             {:else}
-            ¥{formatNumber(transaction.amount)}
+            {formatMoney(transaction.amount)}
             {/if}
           </strong>
         </td>
@@ -64,6 +64,8 @@
     </tfoot>
   </table>
 <script>
+import {formatMoney} from '../../../../libs/utils.js';
+
 export let transaction;
 
 const formatNumber = (num) => {

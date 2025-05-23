@@ -38,7 +38,7 @@
     </div>
     <div class="col-11">
       {#if (companyEditting || !task.companyId)}
-      <CustomerSelect
+      <CompanySelect
         on:startregister
         on:endregister
         register="true"
@@ -357,7 +357,7 @@
 import axios from 'axios';
 import {numeric, formatDate, TAX_CLASS} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-import CustomerSelect from '../components/company-select.svelte';
+import CompanySelect from '../components/company-select.svelte';
 import Document from '../components/document.svelte';
 import DocumentFiles from '../components/document-files.svelte';
 import TaskDetails from '../transaction/transaction-details.svelte';

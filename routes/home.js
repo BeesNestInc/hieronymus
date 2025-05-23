@@ -48,6 +48,11 @@ const home =  async (req, res, next) => {
   }
 };
 
+const login =  async (req, res, next) => {
+  res.render('login.spy', {
+  });
+};
+
 const setup  =  async (req, res, next) => {
   const countFy = await models.FiscalYear.count();
   if ( countFy === 0 ){
@@ -59,10 +64,10 @@ const setup  =  async (req, res, next) => {
   }
 };
 
-router.get('/setup', setup);
+router.get('/setup', is_authenticated, setup);
 router.get('/home/:term', is_authenticated, home);
 router.get('/home', is_authenticated, home);
-router.get('/login', home);
+router.get('/login', login);
 router.get('/logout', (req, res, next) => {
   //console.log('logout', req.user);
   req.logout((err) => {
