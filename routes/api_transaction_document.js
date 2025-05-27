@@ -15,7 +15,13 @@ export default {
       },
       {
         model: models.TransactionDetail,
-        as: 'lines'
+        as: 'lines',
+        include: [
+          {
+            model: models.TaxRule,
+            as: 'taxRule'
+          }
+        ]
       },
       {
         model: models.User,

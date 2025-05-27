@@ -26,24 +26,29 @@ export default {
         }
         let cross_slips = await models.CrossSlip.findAll({
           where: where,
-          include: [{
-            model: models.User,
-            as: 'creater'
-          }, {
-            model: models.User,
-            as: 'approver'
-          }, {
-            model: models.User,
-            as: 'updater'
-          }
-        ],
-        order: [
-          [ 'year', 'ASC'],
-          [ 'month', 'ASC'],
-          [ 'day', 'ASC' ],
-          [ 'no', 'ASC' ]
-        ]
-          });
+          include: [
+            {
+              model: models.User,
+              as: 'creater'
+            }, {
+              model: models.User,
+              as: 'approver'
+            }, {
+              model: models.User,
+              as: 'updater'
+            }, {
+              model: models.CrossSlipDetail,
+              as: 'lines',
+            }
+          ],
+          order: [
+            [ 'year', 'ASC'],
+            [ 'month', 'ASC'],
+            [ 'day', 'ASC' ],
+            [ 'no', 'ASC' ],
+            ['lines', 'lineNo', 'ASC']
+          ]
+        });
         res.json(cross_slips);
         break;
       default:

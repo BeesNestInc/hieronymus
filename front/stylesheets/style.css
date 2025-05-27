@@ -457,11 +457,13 @@ a.link {
 }
 
 .journal .tax,
-.crossslip .tax {
+.crossslip .tax,
+table.details .tax {
   width: 120px;
   font-weight: bold;
 }
 .journal .input,
-.crossslip .input {
+.crossslip .input,
+table.details .input {
   padding: 0;
 }

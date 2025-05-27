@@ -8,6 +8,7 @@
 		"build": "vite build",
 		"build-ssr": "vite build --config vite.config.ssr.js",
 		"watch": "vite build -w",
+		"watch-ssr": "vite build -w --config vite.config.ssr.js",
 		"prepublishOnly": "npm test",
 		"start-dev": "node ./bin/www",
 		"start": "NODE_ENV='production' node ./bin/www"

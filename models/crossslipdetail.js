@@ -47,11 +47,13 @@ export default (sequelize, DataTypes) => {
 		debitAmount: DataTypes.DECIMAL(12),
 		debitTax: DataTypes.DECIMAL(12),
 		debitVoucherId: DataTypes.INTEGER,
+		debitTaxRuleId: DataTypes.INTEGER,
 		creditAccount: DataTypes.STRING,
 		creditSubAccount: DataTypes.INTEGER,
 		creditAmount: DataTypes.DECIMAL(12),
 		creditTax: DataTypes.DECIMAL(12),
 		creditVoucherId: DataTypes.INTEGER,
+		creditTaxRuleId: DataTypes.INTEGER,
 		application1: DataTypes.STRING,
 		application2: DataTypes.STRING
 	}, {

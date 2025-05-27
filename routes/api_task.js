@@ -13,7 +13,13 @@ export default {
       },
       {
         model: models.TaskDetail,
-        as: 'lines'
+        as: 'lines',
+        include: [
+          {
+            model: models.TaxRule,
+            as: 'taxRule'
+          }
+        ]
       },
       {
         model: models.User,

@@ -18,9 +18,9 @@ export const getCompanyInfo = async () => {
     return company;
   } else if (isBrowser()) {
     const response = await axios.get('/api/company/info');
-    console.log(response);
+    //console.log(response);
     company = response.data.company;
-    console.log({company});
+    //console.log({company});
     return company;
   } else {
     throw new Error('Unsupported environment');

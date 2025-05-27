@@ -421,12 +421,13 @@ a.link {
 }
 
 .journal,
-.crossslip  {
+.crossslip,
+table.details  {
   .tax {
     width: 120px;
     font-weight: bold;
   }
-.input {
+  .input {
     padding: 0;
     .application {
     }

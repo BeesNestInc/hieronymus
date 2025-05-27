@@ -15,35 +15,41 @@
 	  <div class="row full-height" style="overflow-y: scroll;">
 		  <table class="table table-bordered">
         <thead>
-          <th scope="col" colspan="2">
+          <th colspan="2">
             日付 / 伝番
           </th>
-          <th scope="col" style="width: 100px;">
+          <th style="width: 100px;">
             作成者
           </th>
-          <th scope="col" style="width: 100px;">
+          <th style="width: 100px;">
             更新者
+          </th>
+          <th>
+            適用
           </th>
         </thead>
         <tbody>
-          {#each slips as line}
+          {#each slips as slip}
           <tr>
-            <td style="width:20px;text-align:center;">
-              {line.month}/{line.day}
+            <td style="width:50px;text-align:center;">
+              {slip.month}/{slip.day}
             </td>
-            <td style="width:20px;" class='number'>
-              <a href="#"
+            <td style="width:50px;" class='number'>
+              <button type="button" class="btn btn-link"
                 on:click|preventDefault={() => {
-                  openSlip(line.year, line.month, line.no);
+                  openSlip(slip.year, slip.month, slip.no);
                 }}>
-                {line.no}
-              </a>
+                {slip.no}
+              </button>
             </td>
             <td class="">
-              {line.creater ? line.creater.name: ''}
+              {slip.creater ? slip.creater.name: ''}
             </td>
             <td class="">
-              {line.updater ? line.updater.name: ''}
+              {slip.updater ? slip.updater.name: ''}
+            </td>
+            <td>
+              {slip.lines[0]?.application1}/{slip.lines[0]?.application2 || ''}
             </td>
           </tr>
           {/each}

@@ -33,7 +33,7 @@
 </div>
 <div class="row">
   {#if ( status.user.approvable )}
-  <div class="col-6" style="padding:10px;">
+  <div class="col-7" style="padding:10px;">
     <Approve
       bind:status={status}
       bind:toast={toast} />
