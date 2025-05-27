@@ -191,7 +191,9 @@
       <TransactionDetails
       	bind:details={transaction.lines}
       	bind:sum={sum}
-      	on:sum={computeTax}
+        bind:tax={tax}
+        bind:total={total}
+        taxRules={taxRules}
     	></TransactionDetails>
       {/if}
     </div>
@@ -204,16 +206,8 @@
     </div>
   </div>
   <div class="row mt-3">
-    <label for="taxClass" class="col-1 col-form-label">消費税</label>
-    <div class="col-sm-1">
-      <select class="form-control" id="taxClass"
-        bind:value={transaction.taxClass}>
-        {#each TAX_CLASS as ent}
-        <option value={ent[1]}>{ent[0]}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="col-sm-2">
+    <label for="tax" class="col-1 col-form-label">消費税</label>
+    <div class="col-sm-3">
       {#if ( parseInt(transaction.taxClass) === 9 )}
       <input type="text" class="form-control number" id="tax"
         bind:value={transaction.tax}>
@@ -335,22 +329,25 @@ let viewDetail = true;
 let viewFiles = false;
 let viewTasks = false;
 let sum = 0;
+let tax = 0;
+let total = 0;
 let transactionKinds = [];
 let tasks = [];
-
-//$: computeTax();
+let taxRules = [];
 
 beforeUpdate(() => {
   if	( !currentKind && transaction && transaction.kind )	{
   	currentKind = transaction.kind;
   }
-  computeTax();
+  transaction.tax = tax;
+  transaction.amount = total;
 })
 
 const selectTasks = () => {
   if	( tasks.length === 0 )	{
 		axios.get('/api/task').then((result) => {
-			tasks = result.data;
+			tasks = result.data.tasks;
+      console.log({tasks});
     	viewTasks = true;
   	});
   } else {
@@ -400,7 +397,6 @@ const	openTask = (id)	=> {
       address1: transaction.address1,
       address2: transaction.address2,
       lines: [...transaction.lines],
-      taxClass: transaction.taxClass,
       tax: transaction.tax,
       amount: transaction.amount
     };
@@ -421,26 +417,6 @@ const	openTask = (id)	=> {
   }
 }
 
-const computeTax = (event) => {
-  console.log('computeTax');
-  switch	(parseInt(transaction.taxClass))	{
-    case	0:
-    	transaction.tax = 0;
-      break;
-    case	1:
-    	transaction.tax = Math.round(sum / 110 * 10);
-    	transaction.amount = sum;
-      break;
-    case	2:
-    	transaction.tax = Math.round(sum * 0.1);
-    	transaction.amount = sum + transaction.tax;
-      break;
-    case  9:
-    	transaction.amount = sum + parseInt(transaction.tax);
-    	break;
-  }
-}
-
 onMount(() => {
   console.log('transaction-info onMount', status);
   if	( transaction.id )	{
@@ -456,6 +432,17 @@ onMount(() => {
     transactionKinds = result.data.values;
     console.log({transactionKinds});
   });
+  let date;
+  if  ( transaction.issueDate ) {
+    date = transaction.issueDate;
+  } else {
+    date = DateString(new Date());
+  }
+  console.log({date});
+  axios.get(`/api/tax-rule?type=active&date=${date}`).then((result) => {
+    taxRules = result.data.values;
+    console.log({taxRules});
+  })
   eventBus.on('taskSelected', (task) => {
     console.log('taskSelected', {task});
     transaction = getStore(currentTransaction);

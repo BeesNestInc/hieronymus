@@ -51,9 +51,8 @@
         <p class="name">{company.name}</p>
         {/if}
         <p class="zip">〒{company.zip}</p>
-        {#each company.address as address}
-        <p class="address">{address}</p>
-        {/each}
+        <p class="address">{company.address1}</p>
+        <p class="address">{company.address2}</p>
         <p class="tel">
           {#if company.tel}<span>TEL {company.tel}</span>{/if}
           {#if company.fax}<span>FAX {company.fax}</span>{/if}
@@ -75,14 +74,15 @@
   <main>
     <div class="total-amount">
       <div class="title">合計金額</div>
-      <div class="amount">￥{formatNumber(parseInt(transaction.tax) + parseInt(transaction.amount))}</div>
+      <div class="amount">{formatMoney(transaction.amount)}</div>
     </div>
     <Details
       {transaction}></Details>
     </main>
   </div>
 <script>
-import Details from '../details.svelte';
+import Details from '../components/details.svelte';
+import {formatMoney} from '../../../../libs/utils.js';
 
 export let transaction;
 export let company;
@@ -95,9 +95,6 @@ const formatDate = (dateStr, fallback) => {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 };
       
-const formatNumber = (num) => {
-  return num.toLocaleString();
-};
 </script>
       
     

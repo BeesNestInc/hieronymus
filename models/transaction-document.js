@@ -68,7 +68,6 @@ export default (sequelize, DataTypes) => {
     paymentMethod: DataTypes.STRING,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
-    taxClass: DataTypes.INTEGER,
     documentId: DataTypes.INTEGER,
     description: DataTypes.TEXT,
     handledBy: DataTypes.INTEGER,

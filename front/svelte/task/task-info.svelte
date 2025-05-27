@@ -102,27 +102,16 @@
       <TaskDetails
       	bind:details={task.lines}
       	bind:sum={sum}
-      	on:sum={computeTax}
+        bind:tax={tax}
+        bind:total={total}
+        taxRules={taxRules}
     	></TaskDetails>
       <div class="row">
         <div class="row mb-3">
           <label for="taxClass" class="col-1 col-form-label">消費税</label>
           <div class="col-sm-2">
-            <select class="form-control" id="taxClass"
-              bind:value={task.taxClass}>
-              {#each TAX_CLASS as ent}
-              <option value={ent[1]}>{ent[0]}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="col-sm-2">
-            {#if ( parseInt(task.taxClass) === 9 )}
-            <input type="text" class="form-control number" id="tax"
-              bind:value={task.tax}>
-            {:else}
             <input type="text" class="form-control number" id="tax" disabled="true"
-              value={task.tax.toLocaleString()}>
-            {/if}
+              value={numeric(task.tax).toLocaleString()}>
           </div>
         </div>
       </div>
@@ -374,36 +363,16 @@ let viewDescription = false;
 let viewFiles = false;
 let viewDetail = false;
 let viewTransaction = true;
-let sum;
+let sum = 0;
+let tax = 0;
+let total = 0;
 
 let transactionParams = new Map();
 let transactions;
 let transactionOrder = 'desc';
 let kind;
 let transactionKinds = [];
-
-$: computeTax();
-
-const computeTax = (event) => {
-  //console.log('computeTax', task.taxClass, sum);
-  switch	(parseInt(task.taxClass))	{
-    case	0:
-      task.tax = 0;
-      break;
-    case	1:
-      task.tax = Math.round(sum / 110 * 10);
-      task.amount = sum;
-      break;
-    case	2:
-      task.tax = Math.round(sum * 0.1);
-      task.amount = sum + task.tax;
-      break;
-    case  9:
-      task.amount = sum + parseInt(task.tax);
-      break;
-  }
-  //console.log(task.tax, task.amount);
-}
+let taxRules = [];
 
 beforeUpdate(() => {
   if	( !transactions && task && task.id )	{
@@ -430,30 +399,21 @@ onMount(() => {
     companyKey = '';
     viewDetail = true;
   }
-  let details = task.lines;
-  sum = 0;
-  for ( let i = 0 ; i < details.length ; i += 1 ) {
-    //console.log(details[i]);
-    if  ( details[i].ssum ) {
-      details[i].itemId = 0;
-    }
-    details[i].ssum = false;
-    if  ( details[i].itemId === 0 ) {
-      details[i].amount = sum;
-      details[i].ssum = true;
-    } else
-    if  ( details[i].itemId ) {
-      details[i].amount = parseInt(details[i].unitPrice) * parseFloat(details[i].itemNumber);
-      sum += details[i].amount;
-    } else {
-      sum += details[i].amount;
-    }
-  }
   axios.get(`/api/transaction/kinds`).then((result) => {
     transactionKinds = result.data.values;
     console.log({transactionKinds});
   });
-  computeTax();
+  let date;
+  if  ( task.issueDate ) {
+    date = task.issueDate;
+  } else {
+    date = DateString(new Date());
+  }
+  console.log({date});
+  axios.get(`/api/tax-rule?type=active&date=${date}`).then((result) => {
+    taxRules = result.data.values;
+    console.log({taxRules});
+  })
 });
 
 const openTransaction = (id) => {

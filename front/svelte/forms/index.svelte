@@ -27,7 +27,7 @@
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 
-import Estimate from './estimate/estimate.svelte';
+import Estimate from './estimate/index.svelte';
 import Invoice from './invoice/index.svelte';
 
 import ExplanatoryJournal from './explanatory-journal/index.svelte';

@@ -90,6 +90,13 @@ module.exports = {
         startDate: '2019-10-01',
         createdAt: new Date(),
         updatedAt: new Date()
+      }, {
+        label: '非課税',
+        displayOrder: 5,
+        taxClass: 9,
+        startDate: '2019-10-01',
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     ]);
 
@@ -125,7 +132,6 @@ module.exports = {
       onDelete: 'RESTRICT',
       onUpdate: 'RESTRICT'
     })
-
   },
 
   async down (queryInterface, Sequelize) {
@@ -137,11 +143,15 @@ module.exports = {
      */
     //await queryInterface.removeConstraint('Vouchers', 'Vouchers_taxRuleId_fkey');
     //await queryInterface.renameColumn('Vouchers', 'taxRuleId', 'taxClass');
-
     await queryInterface.removeConstraint('CrossSlipDetails', 'CrossSlipDetails_debitTaxRuleId_fkey');
     await queryInterface.removeConstraint('CrossSlipDetails', 'CrossSlipDetails_creditTaxRuleId_fkey');
     await queryInterface.removeColumn('CrossSlipDetails', 'debitTaxRuleId');
     await queryInterface.removeColumn('CrossSlipDetails', 'creditTaxRuleId');
-    await queryInterface.dropTable('TaxTules');
+    await queryInterface.removeConstraint('Vouchers', 'Vouchers_taxRuleId_fkey');
+    await queryInterface.removeColumn('Vouchers', 'taxRuleId');
+    await queryInterface.dropTable('TaxRules');
+    await queryInterface.addColumn('Vouchers', 'taxClass', {
+      type: Sequelize.INTEGER
+    });
   }
 };

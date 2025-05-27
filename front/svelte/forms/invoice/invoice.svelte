@@ -55,14 +55,17 @@
         {/if}
         <p class="handler">
           担当: &nbsp;
-          {transaction.handleUser.member.tradingName ? transaction.handleUser.member.tradingName :
-          																						 transaction.handleUser.member.legalName}
+          {#if transaction.handleUser.member.tradingName}
+          {transaction.handleUser.member.tradingName}
+          {:else}
+          {transaction.handleUser.member.officialName}
+          {/if}
         </p>
         <p class="account">
           [振込先]
           {company.bankName}
           {company.bankBranchName}
-          {BANK_ACCOUNT_TYPE.find((bank) => bank[0] === company.accountType)[1]}
+          {BANK_ACCOUNT_TYPE.find((bank) => bank[0] === company.accountType)}
           {company.accountNo}
         </p>
       </div>
@@ -78,11 +81,7 @@
   	    合計金額
     	</div>
 	    <div class="amount">
-        {#if transaction.taxClass === 2 || transaction.taxClass === 9}
-        {formatMoney(parseInt(transaction.tax) + parseInt(transaction.amount))}
-        {:else}
         {formatMoney(transaction.amount)}
-        {/if}
 	    </div>
 	  </div>
 		<Details

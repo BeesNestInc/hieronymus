@@ -1,17 +1,17 @@
 import {Model} from 'sequelize';
 
 export default (sequelize, DataTypes) => {
-  class TransactionDetail extends Model {
+  class TaskDetail extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-			this.hasOne(models.TransactionDocument, {
-				sourceKey: 'transactionDocumentId',
+			this.hasOne(models.Task, {
+				sourceKey: 'taskId',
 				foreignKey: 'id',
-				as: 'transactionDocument',
+				as: 'task',
 				onDelete: 'CASCADE'
 			});
 			this.hasOne(models.Item, {
@@ -25,8 +25,8 @@ export default (sequelize, DataTypes) => {
 			});
     }
   }
-  TransactionDetail.init({
-    transactionDocumentId: DataTypes.INTEGER,
+  TaskDetail.init({
+    taskId: DataTypes.INTEGER,
     lineNo: DataTypes.INTEGER,
     itemId: DataTypes.INTEGER,
     itemName: DataTypes.TEXT,
@@ -40,7 +40,7 @@ export default (sequelize, DataTypes) => {
     description: DataTypes.TEXT
   }, {
     sequelize,
-    modelName: 'TransactionDetail',
+    modelName: 'TaskDetail',
   });
-  return TransactionDetail;
+  return TaskDetail;
 };
