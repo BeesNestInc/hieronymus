@@ -7,13 +7,18 @@ RUN apt-get update && apt-get install -y \
   g++ \
   curl \
   postgresql-client \
+  gosu \
   && rm -rf /var/lib/apt/lists/*
 
 USER node
 WORKDIR /app/hieronymus
 COPY --chown=node:node . .
+COPY --chown=node:node docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 RUN npm install
 RUN npm run build
 RUN npm run build-ssr
 COPY --chown=node:node config/docker-config.json.sample ./config/config.json
-CMD ["./bin/docker-www"]
+
+USER root
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

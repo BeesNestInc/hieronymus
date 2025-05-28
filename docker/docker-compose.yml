@@ -31,6 +31,10 @@ services:
       - POSTGRES_PASSWORD=hieronymus
       - POSTGRES_DATABASE=hieronymus
       - CASSETTE_SERVER=false
+      - BACKUP_DIR=/app/backups
+    volumes:
+      - backups_data:/app/backups
     init: true
 volumes:
   postgres_data:   
+  backups_data:

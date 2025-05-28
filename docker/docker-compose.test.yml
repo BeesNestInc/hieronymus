@@ -3,5 +3,7 @@ services:
     tmpfs: /var/lib/postgresql/data
 
   web:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     image: ""
