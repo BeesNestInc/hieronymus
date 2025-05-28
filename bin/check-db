@@ -37,6 +37,7 @@ const applyMigration = async () => {
     await applyMigration();
   }catch (e){
     console.log(e.message);
+    process.exit(1);
   }finally{
     await sequelize.close();
   }

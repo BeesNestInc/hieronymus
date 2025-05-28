@@ -24,7 +24,7 @@ HieronymusはDBにPostgresを使用します。あらかじめインストール
 
 1. ソースコードの取得
 ```
-$ git clone https://github.com/waspcojp/hieronymus.git
+$ git clone https://github.com/beesnestinc/hieronymus.git
 ```
 2. 設定ファイルの作成
 ```
@@ -49,10 +49,20 @@ $ npm run start
 デフォルトでは3010番ポートで動きます。
 
 ### Dockerを使用したインストール
+#### 最新版
 ```
-$ git clone https://github.com/waspcojp/hieronymus.git
+$ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
-$ docker compose up
+$ docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+```
+しばらくすると、3010番ポートから利用を開始できます。
+
+#### バージョン指定
+```
+$ git clone https://github.com/beesnestinc/hieronymus.git
+$ cd hieronymus
+$ cp .env.example .env # DOCKER_IMAGE_VERSION=[バージョン]に変更
+$ docker compose up -d
 ```
 しばらくすると、3010番ポートから利用を開始できます。
 
