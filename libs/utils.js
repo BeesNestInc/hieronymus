@@ -14,7 +14,11 @@ export const isBrowser = () =>
 export const getCompanyInfo = async () => {
   if (isNode()) {
     const { readFile } = await import('node:fs/promises');
-    company = JSON.parse(await readFile('./config/company.json', 'utf-8'));
+    try {
+      company = JSON.parse(await readFile('./config/company.json', 'utf-8'));
+    } catch (e) {
+      company = {};
+    }
     return company;
   } else if (isBrowser()) {
     const response = await axios.get('/api/company/info');
