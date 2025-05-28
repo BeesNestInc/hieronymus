@@ -40,7 +40,7 @@ app.use(cors({
 app.use(multipart());
 
 app.use(session({
-  secret: 'hieronymus',
+  secret: env.expressSecret,
   resave: true,
   saveUninitialized: false,
   name: 'hieronymus2',					//	ここの名前は起動するnode.js毎にユニークにする
