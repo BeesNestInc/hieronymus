@@ -169,8 +169,64 @@ router.get('/financial_statement/:term', is_authenticated, async (req, res, next
 	}
 });
 
-router.get('/transaction/:form/:id', is_authenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, '../views/form.html'));
+router.get('/transaction/:form/:id', is_authenticated, async (req, res) => {
+  if  (( !req.query ) ||
+       ( req.query.format === 'html' )) {
+    res.sendFile(path.join(__dirname, '../views/form.html'));
+  } else
+  if  ( req.query.format === 'pdf' )  {
+    const company = await myCompany();
+    const transaction = await models.TransactionDocument.findByPk(req.params.id, {
+      include: [
+        {
+          model: models.Task,
+          as: 'task'
+        },
+        {
+          model: models.TransactionDetail,
+          as: 'lines',
+          include: [
+            {
+              model: models.TaxRule,
+              as: 'taxRule'
+            }
+          ]
+        },
+        {
+          model: models.Company,
+          as: 'company'
+        },
+        {
+          model: models.TransactionKind,
+          as: 'kind',
+          include: [
+            {
+              model: models.VoucherClass,
+              as: 'book'
+            }
+          ]
+        },
+        {
+          model: models.User,
+          as: 'handleUser',
+          attributes: ['name'],
+          include: [
+            {
+              model: models.Member,
+              as: 'member',
+              attributes: ['legalName', 'tradingName']
+            }
+          ]
+        },
+        ]
+    });
+    const pdf = await print(transaction.kind.book.form, {
+      transaction: transaction,
+      company: company
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.send(pdf);
+  }
 })
 
 export default router;

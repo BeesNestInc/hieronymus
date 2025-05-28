@@ -77,6 +77,7 @@
         bind:status={statusTask}></Task>
       {:else if ( status.current === 'transaction' )}
       <Transaction
+        bind:toast={toast}
         bind:status={statusTransaction}></Transaction>
       {:else if ( status.current === 'item')}
       <Item
