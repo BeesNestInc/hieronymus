@@ -10,6 +10,7 @@
 {:else if ( status.state === 'entry' || status.state === 'new' )}
   <TransactionEntry
     bind:status={status}
+    bind:toast={toast}
     bind:transaction={transaction}
     bind:users={users}
     on:close={closeEntry}>
@@ -25,6 +26,7 @@ import {currentTransaction, currentTask, getStore} from '../../javascripts/curre
 import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
+export let toast;
 
 let transaction;
 let transactions = [];

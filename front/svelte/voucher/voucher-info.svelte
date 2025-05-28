@@ -196,6 +196,7 @@ const computeTax = (event) => {
   let rule = findTaxRule(voucher.taxRuleId, taxRules);
   console.log({rule});
   voucher.tax = _computeTax(voucher.amount, rule).toLocaleString();
+  voucher.amount = numeric(voucher.amount).toLocaleString();
 }
 const focusout = (event) => {
   console.log('focusout');

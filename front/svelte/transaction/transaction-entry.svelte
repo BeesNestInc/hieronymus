@@ -43,7 +43,24 @@
         <a href="/forms/transaction/{transaction.kind.book.form}/{transaction.id}"
         	class="btn btn-info" target="_blank" disabled={disabled}>
           {transaction.kind.label}書作成
+          <Icon icon="mdi:language-html5" width="24" color="#E34F26" />
         </a>
+        <a href="/forms/transaction/{transaction.kind.book.form}/{transaction.id}?format=pdf"
+        	class="btn btn-info" target="_blank" disabled={disabled}>
+          {transaction.kind.label}書作成
+          <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
+        </a>
+        {#if (transaction.voucherId)}
+        <button type="button" class="btn btn-info" disabled={disabled}
+          on:click={() => {
+            link(`/voucher/${status.term}/entry/${transaction.voucherId}`)
+          }
+        }>証票参照</button>
+        {:else}
+        <button type="button" class="btn btn-info" disabled={disabled}
+          on:click={book}
+          >計上</button>
+        {/if}
         {/if}
         {/if}
       </div>
@@ -58,6 +75,7 @@
   ></OkModal>
 <script>
 import axios from 'axios';
+import Icon from '@iconify/svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
@@ -68,6 +86,7 @@ import {currentTransaction} from '../../javascripts/current-record.js'
 import {bindFile} from '../../javascripts/document.js';
 
 export	let	status;
+export let toast;
 export	let transaction;
 export	let users;
 
@@ -80,6 +99,19 @@ let title;
 let description;
 let operation = () => {};
 
+const link = (href) => {
+  let pathes = href.split('/');
+  status.current = pathes[1];
+  window.history.pushState(status, "", href);
+  status.pathname = href;
+  console.log({status});
+}
+
+const book = (event) => {
+  axios.post(`/api/transaction/book/${transaction.id}`).then((result) => {
+    toast.show(`${transaction.kind.label}書`, '計上しました')
+  })
+}
 const create_transaction = async (_transaction) => {
   let result = await axios.post('/api/transaction', _transaction);
   console.log(result);

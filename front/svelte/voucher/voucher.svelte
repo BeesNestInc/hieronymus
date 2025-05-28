@@ -195,7 +195,7 @@ onMount(async () => {
   });
   window.onpopstate = (event) => {
     if	( window.history.state )	{
-      state = window.history.state;
+      status = window.history.state;
       //console.log({current_params});
       updateVouchers();
     }
