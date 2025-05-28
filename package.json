@@ -34,6 +34,7 @@
 		"connect-multiparty": "^2.2.0",
 		"cookie-parser": "^1.4.5",
 		"cors": "^2.8.5",
+		"dotenv": "^16.5.0",
 		"ejs": "^3.1.10",
 		"exceljs": "^4.2.1",
 		"express": "^4.17.1",
