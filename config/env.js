@@ -1,3 +1,7 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 /**
  * Normalize a port into a number, string, or false.
  */
@@ -21,6 +25,6 @@ export default {
 	port: normalizePort(process.env.PORT || '3010'),
 	home: process.env.HOME,
 	session_ttl: 3600 * 24 * 7,
-	session_path: `./sessions`,
-	backup_dir:  `./backups`
+	session_path: process.env.SESSION_PATH || './sessions',
+	backup_dir:  process.env.BACKUP_DIR || './backups'
 };
