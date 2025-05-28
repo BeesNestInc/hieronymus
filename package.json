@@ -58,6 +58,7 @@
 		"mime": "^3.0.0",
 		"mitt": "^3.0.1",
 		"morgan": "^1.10.0",
+		"morphdom": "^2.7.5",
 		"passport": "^0.7.0",
 		"passport-local": "^1.0.0",
 		"path-browserify": "^1.0.1",
