@@ -1,10 +1,12 @@
-FROM node:21-bookworm-slim
+FROM node:23-bookworm-slim
 
 USER root
 RUN apt-get update && apt-get install -y \
   python3 \
   make \
   g++ \
+  curl \
+  postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
 USER node

@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+import fs from 'fs/promises';
+
+//const configFilePath = '/app/hieronymus/config/config.json';
+const configFilePath = './config/config.json';
+//const sampleFilePath = '/app/hieronymus/config/config.json.sample';
+const sampleFilePath = './config/config.json.sample';
+const envVariables = {
+    username: process.env.POSTGRES_USER,
+    password: process.env.POSTGRES_PASSWORD,
+    database: process.env.POSTGRES_DATABASE,
+    host: process.env.POSTGRES_HOST
+};
+async function fileExists(path) {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureFileExists(targetPath, samplePath) {
+  const exists = await fileExists(targetPath);
+
+  try{
+    if (exists) {
+        console.log(`ファイルは既に存在します: ${targetPath}`);
+    } else {
+        await fs.copyFile(samplePath, targetPath);
+        console.log(`ファイルが作成されました: ${targetPath}`);
+    }
+    const fileContent = await fs.readFile(targetPath, 'utf8');
+    const jsonData = JSON.parse(fileContent);
+
+    let isModified = false;
+    for (const envkey in jsonData) {
+      if ( envkey === process.env.NODE_ENV ){
+        for(const key in jsonData[envkey]){
+          if (envVariables[key] !== undefined) {
+            console.log(`キー "${key}" の値を更新します: ${jsonData[envkey][key]} → ${envVariables[key]}`);
+            jsonData[envkey][key] = envVariables[key];
+            isModified = true;
+          }
+        }
+      }
+    }
+
+    if (isModified) {
+      const updatedJsonContent = JSON.stringify(jsonData, null, 2); // 見やすく整形
+      await fs.writeFile(targetPath, updatedJsonContent, 'utf8');
+      console.log(`更新されたJSONファイルを保存しました: ${targetPath}`);
+    } else {
+      console.log('JSONファイルは環境変数と一致しています。更新は不要です。');
+    }
+  }catch (err){
+    throw err;
+  }
+}
+
+(async () => {
+  try {
+    await ensureFileExists(configFilePath, sampleFilePath,envVariables);
+  } catch (err) {
+    console.error('プログラム実行中にエラーが発生しました:', err.message);
+    process.exit(1);
+  }
+})();
