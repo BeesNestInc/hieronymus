@@ -282,7 +282,7 @@
           {/each}
         </tbody>
       </table>
-      <div class="row">
+      <!-- div class="row">
         <div class="col-5">
         	<button type="button" class="btn btn-info"
         		on:click={() => {
@@ -320,7 +320,7 @@
         		{/each}
       		</select>
       	</div>
-    	</div>
+    	</div -->
 			{/if}
     </div>
   </div>
