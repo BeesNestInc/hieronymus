@@ -12,9 +12,6 @@
         <a href="/forms/explanatory_journal/{status.fy.term}?format=pdf" download="仕訳日記帳-{today}.pdf">
           <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
         </a>
-        <a href="/forms/explanatory_journal/{status.fy.term}" download="仕訳日記帳-{today}.xlsx">
-          <Icon icon="mdi:microsoft-excel" width="24" color="#217346" />
-        </a>
       </li>
       <li class="list-group-item">
         総勘定元帳ダウンロード
@@ -23,9 +20,6 @@
         </a>
         <a href="/forms/general_ledger/{status.fy.term}?format=pdf" download="総勘定元帳-{today}.pdf">
           <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
-        </a>
-        <a href="/forms/general_ledger/{status.fy.term}" download="総勘定元帳-{today}.xlsx">
-          <Icon icon="mdi:microsoft-excel" width="24" color="#217346" />
         </a>
       </li>
       <li class="list-group-item">
@@ -36,9 +30,6 @@
         <a href="/forms/subsidiary_ledger/{status.fy.term}?format=pdf" download="補助元帳-{today}.pdf">
           <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
         </a>
-        <a href="/forms/subsidiary_ledger/{status.fy.term}" download="補助元帳-{today}.xlsx">
-          <Icon icon="mdi:microsoft-excel" width="24" color="#217346" />
-        </a>
       </li>
       <li class="list-group-item">
         残高試算表ダウンロード
@@ -48,9 +39,6 @@
         <a href="/forms/trial_balance/{status.fy.term}?format=pdf" download="残高試算表-{today}.pdf">
           <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
         </a>
-        <a href="/forms/trial_balance/{status.fy.term}" download="残高試算表-{today}.xlsx">
-          <Icon icon="mdi:microsoft-excel" width="24" color="#217346" />
-        </a>
       </li>
       <li class="list-group-item">
         決算報告書ダウンロード
@@ -59,9 +47,6 @@
         </a>
         <a href="/forms/financial_statement/{status.fy.term}?format=pdf" download="決算報告書-{today}.pdf">
           <Icon icon="mdi:file-pdf-box" width="24" color="#D32F2F" />
-        </a>
-        <a href="/forms/financial_statement/{status.fy.term}" download="決算報告書-{today}.xlsx">
-          <Icon icon="mdi:microsoft-excel" width="24" color="#217346" />
         </a>
       </li>
     </ul>

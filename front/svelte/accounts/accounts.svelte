@@ -36,7 +36,6 @@ import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 
-let fy;
 let accounts;
 let	lines = [];
 let modal;
@@ -114,7 +113,7 @@ const ready = () => {
 
 
 const	updateAccounts = () => {
-  axios.get(`/api/accounts4/${status.term}`).then((result) => {
+  axios.get(`/api/accounts4/${status.fy.term}`).then((result) => {
     accounts = result.data;
     console.log('accounts', accounts);
     setAccounts(accounts);
@@ -128,12 +127,7 @@ const checkPage = () => {
 onMount(() => {
   status.params = parseParams();
   modal = new Modal(document.getElementById('account-modal'));
-  status.term = location.pathname.split('/')[2];
-  axios.get(`/api/term/${status.term}`).then((result) => {
-    fy = result.data;
-  }).then(() => {
-    updateAccounts();
-  });
+  updateAccounts();
 })
 
 beforeUpdate(() => {

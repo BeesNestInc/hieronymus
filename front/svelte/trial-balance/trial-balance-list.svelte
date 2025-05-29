@@ -26,7 +26,7 @@
           {#if (line.code)}
           <button type="button" class="btn btn-link"
           	on:click={() => {
-              link(`/ledger/${status.term}/${line.code}`);
+              link(`/ledger/${line.code}`);
             }}>
             __ {line.name}
           </button>

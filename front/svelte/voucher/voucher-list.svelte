@@ -287,9 +287,8 @@ const openVoucher = (id) => {
   dispatch('open', voucher);
 }
 onMount(() => {
-  axios.get(`/api/term/${status.term}`).then((result) => {
+  axios.get(`/api/term/${status.fy.term}`).then((result) => {
     let fy = result.data;
-    status.term = fy.term;
     for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
       dates.push({
         year: mon.getFullYear(),

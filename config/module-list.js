@@ -21,7 +21,7 @@ export default [
     title: '元帳',
     match: /^\/ledger\//,
     href: (status) => {
-      return	(`/ledger/${status.fy.term}/1000000`);
+      return	(`/ledger/1000000`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -36,7 +36,7 @@ export default [
     title: '銀行元帳',
     match: /^\/bank-ledger\//,
     href: (status) => {
-      return	(`/bank-ledger/${status.fy.term}`);
+      return	(`/bank-ledger`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -50,7 +50,7 @@ export default [
     title: '残高試算表',
     match: /^\/trial-balance\//,
     href: (status) => {
-      return	(`/trial-balance/${status.fy.term}`);
+      return	(`/trial-balance`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -62,7 +62,7 @@ export default [
     title: '推移表',
     match: /^\/changes\//,
     href: (status) => {
-      return	(`/changes/${status.fy.term}/6000000`);
+      return	(`/changes/6000000`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -76,7 +76,7 @@ export default [
     title: '証憑管理',
     match: /^\/voucher\//,
     href: (status) => {
-      return	(`/voucher/${status.fy.term}`);
+      return	(`/voucher`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -92,7 +92,7 @@ export default [
     title: '勘定科目管理',
     match: /^\/accounts\//,
     href: (status) => {
-      return	(`/accounts/${status.fy.term}`);
+      return	(`/accounts`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );

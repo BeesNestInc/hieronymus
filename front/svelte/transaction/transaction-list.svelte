@@ -90,7 +90,7 @@
             </button>
           </td>
           <td>
-            { line.handleUser ? line.handleUser.member.tradingName: '__'}
+            { line.handleUser ? (line.handleUser.member.tradingName || '') : '__'}
           </td>
           <td>
             {formatDate(line.issueDate)}

@@ -129,13 +129,13 @@ const	openEntry = (event)	=> {
     voucher = null;
     status.state = 'new';
     window.history.pushState(
-      status, "", `/voucher/${status.term}/new`);
+      status, "", `/voucher/new`);
   } else {
     status.state = 'entry';
     axios.get(`/api/voucher/${voucher.id}`).then((result) => {
       voucher = result.data.voucher;
       window.history.pushState(
-        status, "", `/voucher/${status.term}/entry/${voucher.id}`);
+        status, "", `/voucher/entry/${voucher.id}`);
     });
   }
 };
@@ -148,9 +148,9 @@ const closeEntry = (event) => {
 const checkPage = () => {
   let args = location.pathname.split('/');
   console.log({args});
-  if  ( ( args[3] === 'entry' ) ||
-			  ( args[3] === 'new'   )) {
-    status.state = args[3];
+  if  ( ( args[2] === 'entry' ) ||
+			  ( args[2] === 'new'   )) {
+    status.state = args[2];
     if  ( !voucher ) {
       voucher = {
       	issueDate: formatDate(new Date()),
@@ -165,7 +165,7 @@ const checkPage = () => {
         voucher = value;
       } else {
         if	( status.state === 'entry' )	{
-          axios(`/api/voucher/${args[4]}`).then((result) => {
+          axios.get(`/api/voucher/${args[3]}`).then((result) => {
         		voucher = result.data.voucher;
         		//console.log({voucher});
             currentVoucher.set(voucher);
@@ -178,7 +178,6 @@ const checkPage = () => {
   } else {
     status.state = 'list';
   }
-  status.term = parseInt(args[2]);
 }
 
 onMount(async () => {

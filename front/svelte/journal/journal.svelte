@@ -1,8 +1,8 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>仕訳日記帳</h1>
-  	<a href="/forms/explanatory_journal/{status.term}" download="仕訳日記帳.xlsx" class="btn btn-primary">
-    	仕訳日記帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
+  	<a href="/forms/explanatory_journal/{status.fy.term}?format=pdf" download="仕訳日記帳-{today}.pdf" class="btn btn-primary">
+    	仕訳日記帳をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
 	</div>
 	<ul class="page-subtitle nav">
@@ -57,6 +57,8 @@
 
   <script>
 import axios from 'axios';
+import Icon from '@iconify/svelte';
+
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import JournalList from './journal-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
@@ -76,6 +78,7 @@ let	lines = [];
 let slips;
 let modalCount = 0;
 let popUp;
+let today;
 
 const openMonth = (_year, _month) => {
   year = _year;
@@ -146,7 +149,7 @@ const ready = (slips) => {
 }
 
 const updateList = () => {
-  console.log('updateList');
+  console.log('updateList', year, month);
   axios.get(`/api/journal/${year}/${month}`).then((result) => {
     slips = result.data.journal;
     //console.log(slips);
@@ -158,7 +161,7 @@ const setupDates = () => {
   dates = [];
   axios.get(`/api/term/${year}/${month}`).then((result) => {
     fy = result.data;
-    status.term = fy.term;
+    //status.fy= fy;
     for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
       dates.push({
         year: mon.getFullYear(),
@@ -167,8 +170,8 @@ const setupDates = () => {
       mon.setMonth(mon.getMonth() + 1);
     }
     dates = dates;
+    console.log('dates', dates);
   });
-  //console.log('dates', dates);
 }
 
 const setupAccount = () => {
@@ -186,10 +189,6 @@ const setupAccount = () => {
 }
 
 const update = () => {
-  let args = status.pathname.split('/');
-  status.current = args[1];
-  year = args[2];
-  month = args[3];
 	updateList();
 }
 const checkPage = () => {
@@ -198,9 +197,14 @@ const checkPage = () => {
 
 let _status;
 beforeUpdate(()	=> {
-  console.log('journal beforeUpdate', status.change);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
+  let args = status.pathname.split('/');
+  status.current = args[1];
+  year = args[2];
+  month = args[3];
+  console.log('journal beforeUpdate', status.change, year, month);
+  if  (( year < 10000 ) &&
+       (( status.change ) ||
+        ( _status !== status )))  {
     status.change = false;
     _status = status;
     console.log('run checkPage');
@@ -222,6 +226,8 @@ onMount(async () => {
   month = args[3];
   setupDates();
   setupAccount();
+  let now = new Date();
+  today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
   slip = {
       year: year,
       month: month,

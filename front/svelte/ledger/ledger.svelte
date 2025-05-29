@@ -1,8 +1,8 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>元帳</h1>
-  	<a href="/forms/general_ledger/{status.fy.term}" download="総勘定元帳.xlsx" class="btn btn-primary">
-    	総勘定元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
+  	<a href="/forms/general_ledger/{status.fy.term}?format=pdf" download="総勘定元帳-{today}.pdf" class="btn btn-primary">
+    	総勘定元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
 	</div>
 	<AccountSelect
@@ -36,20 +36,20 @@
     	{#if status.subAccountCode}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`)
+          link(`/changes/${status.accountCode}/${status.subAccountCode}`)
         }}>
       	推移表を見る
     	</button>
     	{:else}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.fy.term}/${status.accountCode}`);
+          link(`/changes/${status.accountCode}`);
         }}>
       	推移表を見る
     	</button>
     	{/if}
-      <a href="/forms/subsidiary_ledger/{status.fy.term}" download="補助元帳.xlsx" class="btn btn-primary">
-          補助元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
+      <a href="/forms/subsidiary_ledger/{status.fy.term}?format=pdf" download="補助元帳-{today}.pdf" class="btn btn-primary">
+          補助元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
       </a>
     </div>
   </div>
@@ -80,7 +80,6 @@
 <script>
 
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import LedgerList from './ledger-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
@@ -98,7 +97,6 @@ let accounts = [];
 let account;
 let details;
 let remaining;
-let modal;
 let slip = {
     year: 0,
     month: 0,
@@ -128,6 +126,7 @@ let fields = [
     accounts: []
   }
 ];
+let today;
 
 const _link = (event) => {
   link(event.detail);
@@ -140,9 +139,9 @@ const link = (href) => {
 const accountSelect = (code) => {
   let href;
   if  ( code.sub )  {
-    href = `/ledger/${status.fy.term}/${code.code}/${code.sub}`;
+    href = `/ledger/${code.code}/${code.sub}`;
   } else {
-    href = `/ledger/${status.fy.term}/${code.code}`;
+    href = `/ledger/${code.code}`;
   }
   status.pathname = href;
   status.accountCode = code.code;
@@ -154,17 +153,8 @@ const accountSelect = (code) => {
 const update = async (list) => {
   let args = status.pathname.split('/');
   status.current = args[1];
-  let term = parseInt(args[2]);
-  if  ( status.fy.term !== term )  {
-    axios(`/api/term/${term}`).then((result) => {
-      let fy = res.data;
-      status.fy = fy;
-      status.fy.startDate = new Date(fy.startDate);
-      status.fy.endDate = new Date(fy.endDate);
-    });
-  }
-  status.accountCode = args[3];
-  status.subAccountCode = args[4] ? parseInt(args[4]) : undefined;
+  status.accountCode = args[2];
+  status.subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   let result = await axios.get(`/api/account/${status.accountCode}`);
   account = result.data;
   //console.log('account', account);
@@ -237,6 +227,9 @@ onMount(() => {
   if  ( !status.pathname ) {
     status.pathname = location.pathname;
   }
+  let now = new Date();
+  today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
+
   console.log('ledger onMount');
   update(false);
 })
