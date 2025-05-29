@@ -109,7 +109,8 @@ const link = (href) => {
 
 const book = (event) => {
   axios.post(`/api/transaction/book/${transaction.id}`).then((result) => {
-    toast.show(`${transaction.kind.label}書`, '計上しました')
+    toast.show(`${transaction.kind.label}書`, '計上しました');
+    transaction = transaction;
   })
 }
 const create_transaction = async (_transaction) => {

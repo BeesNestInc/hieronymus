@@ -76,7 +76,7 @@ module.exports = [
         "options": {
           "title": "仕訳日記帳",
           "name": "journal",
-          "href": "/journal/2020/4",
+          "href": "/journal",
           "description": "\n  伝票入力等の基本画面です。<br/>\n  入力した伝票の閲覧、伝票の入力(修正)が可能です。"
         }
       },
@@ -91,7 +91,7 @@ module.exports = [
         "options": {
           "title": "元帳",
           "name": "ledger",
-          "href": "/ledger/14/1000000",
+          "href": "/ledger/1000000",
           "description": "<p>総勘定元帳と補助元帳が複合した画面です。<br>科目及び補助科目毎の明細が表示されます。<br>ここから直接伝票を修正することも可能です。</p>"
         }
       },
@@ -106,7 +106,7 @@ module.exports = [
         "options": {
           "title": "銀行元帳",
           "name": "bank-ledger",
-          "href": "/bank-ledger/14",
+          "href": "/bank-ledger",
           "description": "<p>基本的には元帳画面と同じですが、預金通帳を模した表示となっています。<br>会計データと預金通帳の整合を確認するためのものです。</p>"
         }
       },
@@ -121,7 +121,7 @@ module.exports = [
         "options": {
           "title": "残高試算表",
           "name": "trial-balance",
-          "href": "/trial-balance/14",
+          "href": "/trial-balance",
           "description": "残高試算表が確認できます。"
         }
       },
@@ -136,7 +136,7 @@ module.exports = [
         "options": {
           "title": "推移表",
           "name": "changes",
-          "href": "/changes/14/6000000",
+          "href": "/changes/6000000",
           "description": "\n科目毎の月次集計の推移をグラフ表示します。<br/>\n年度内だけではなく、前年同月比較や通年表示もできます。"
         }
       },
@@ -181,7 +181,7 @@ module.exports = [
         "minimize": false,
         "component": "Bookmark",
         "options": {
-          "href": "/voucher/14?type=1",
+          "href": "/voucher?type=1",
           "title": "受取請求書",
           "name": "voucher",
           "description": "<p>電子化証憑のうち、受取請求書の管理を行います。<br>伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。</p>"
@@ -197,7 +197,7 @@ module.exports = [
         "minimize": false,
         "component": "Bookmark",
         "options": {
-          "href": "/voucher/14?type=2",
+          "href": "/voucher?type=2",
           "title": "受取領収書",
           "name": "voucher",
           "description": "<p>電子化証憑のうち、受取領収書の管理を行います。<br>伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。</p>"
@@ -213,7 +213,7 @@ module.exports = [
         "minimize": false,
         "component": "Bookmark",
         "options": {
-          "href": "/voucher/14?type=3",
+          "href": "/voucher?type=3",
           "title": "差出請求書",
           "name": "voucher",
           "description": "<p>電子化証憑のうち、差出請求書の管理を行います。<br>伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。</p>"
@@ -229,7 +229,7 @@ module.exports = [
         "minimize": false,
         "component": "Bookmark",
         "options": {
-          "href": "/voucher/14?type=4",
+          "href": "/voucher?type=4",
           "title": "差出領収書",
           "name": "voucher",
           "description": "<p>電子化証憑のうち、差出領収書の管理を行います。<br>伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。</p>"
@@ -247,7 +247,7 @@ module.exports = [
         "options": {
           "title": "勘定科目管理",
           "name": "accounts",
-          "href": "/accounts/14",
+          "href": "/accounts",
           "description": "\n勘定科目を追加変更ができます。<br/>\nなお「削除」はできません。"
         }
       }
@@ -280,7 +280,7 @@ module.exports = [
         "minimize": false,
         "component": "Bookmark",
         "options": {
-          "href": "http://10.3.254.11:3010/company/?kind=7",
+          "href": "/company/?kind=7",
           "title": "顧客管理(海外)",
           "name": "company",
           "description": "<p>海外の顧客を管理します。</p>"

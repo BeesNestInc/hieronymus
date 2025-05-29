@@ -1,8 +1,9 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>残高試算表</h1>
-  	<a href="/forms/trial_balance/{status.fy.term}/{status.month}" download="残高試算表.xlsx" class="btn btn-primary">
-    	残高試算表&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
+  	<a href="/forms/trial_balance/{status.fy.term}?format=pdf"
+      download="残高試算表.pdf" class="btn btn-primary">
+    	残高試算表をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
 	</div>
 	<ul class="page-subtitle nav me-auto">
@@ -150,14 +151,7 @@ const updateDates = () => {
 const checkPage = async () => {
   let args = status.pathname.split('/');
   status.current = args[1];
-  let term = parseInt(args[2]);
-  const result = await axios(`/api/term/${term}`);
-  let fy = result.data;
-  status.fy = fy;
-  status.fy.startDate = new Date(fy.startDate);
-  status.fy.endDate = new Date(fy.endDate);
-  console.log('got', status);
-  status.month = args[3];
+  status.month = args[2];
   updateDates();
   await updateLines();
 }

@@ -32,14 +32,14 @@
         {#if ( status.subAccount === bank.id )}
         <button type="button" class="btn btn-info"
           on:click|preventDefault={() => {
-            openBank(bank.id);
+            openBank(bank.subAccountCode);
           }}>
           {bank.name}
         </button>
         {:else}
         <button type="button" class="btn btn-outline-info"
           on:click|preventDefault={() => {
-            openBank(bank.id);
+            openBank(bank.subAccountCode);
           }}>
           {bank.name}
         </button>
@@ -91,7 +91,7 @@
           </td>
           <td>
             <div class="application">
-              {line.application1}
+              {line.application1 || ''}
               {#if line.application2}
               /
               {line.application2}
@@ -188,13 +188,13 @@ const openAccount = (account) => {
   status.account = account;
   updateAccount();
   window.history.pushState(status, "",
-    `/bank-ledger/${status.fy.term}/${status.account}`);
+    `/bank-ledger/${status.account}`);
 }
 const openBank = (id) => {
   status.subAccount = id;
   updateList();
   window.history.pushState(status, "",
-    `/bank-ledger/${status.fy.term}/${status.account}/${status.subAccount}`);
+    `/bank-ledger/${status.account}/${status.subAccount}`);
 }
 
 const update = () => {
@@ -202,18 +202,6 @@ const update = () => {
   updateList();
 }
 const checkPage = () => {
-  let args = location.pathname.split('/');
-  let term = parseInt(args[2]);
-  if  ( status.fy.term !== term )  {
-    axios(`/api/term/${term}`).then((result) => {
-      let fy = res.data;
-      status.fy = fy;
-      status.fy.startDate = new Date(fy.startDate);
-      status.fy.endDate = new Date(fy.endDate);
-    });
-  }
-  status.account = args[3];
-  status.subAccount = args[4] ? parseInt(args[4]) : undefined;
   update();
 }
 
@@ -234,6 +222,9 @@ afterUpdate(() => {
 
 let _status;
 beforeUpdate(() => {
+  let args = location.pathname.split('/');
+  status.account = args[2];
+  status.subAccount = args[3] ? parseInt(args[3]) : undefined;
   console.log('bank-ledger beforeUpdate', status);
   if  (( status.change ) ||
        ( _status !== status ))  {
@@ -248,6 +239,7 @@ const updateAccount = () => {
   if	( status.account )	{
     axios.get(`/api/account/${status.account}`).then((result) => {
       bank_list = result.data;
+      console.log({bank_list});
     });
   }
 }
@@ -260,10 +252,11 @@ const updateList = () => {
 
       axios.get(`/api/ledger/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
         let details = result.data;
+        console.log('details', details);
         let ret = ledgerLines(status.account, status.subAccount,
                         remaining, details);
         lines = ret.lines;
-        //console.log('lines', lines);
+        console.log('lines', lines);
       });
     });
   }

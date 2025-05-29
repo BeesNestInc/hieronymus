@@ -32,14 +32,14 @@
     {#if status.subAccountCode}
       <button type="button"
         on:click={() => {
-          link(`/ledger/${status.term}/${status.accountCode}/${status.subAccountCode}`)
+          link(`/ledger/${status.accountCode}/${status.subAccountCode}`)
         }} class="btn btn-info">
       補助元帳を見る
     </button>
     {:else}
     <button type="button"
       on:click={() => {
-        link(`/ledger/${status.term}/${status.accountCode}`);
+        link(`/ledger/${status.accountCode}`);
       }} class="btn btn-info">
       元帳を見る
     </button>
@@ -324,9 +324,8 @@ const makeLines = (accountCode, subAccountCode, remaining, details) => {
 const update = () => {
   let args = status.pathname.split('/');
   status.current = args[1];
-  status.term = args[2];
-  status.accountCode = args[3];
-  status.subAccountCode = args[4] ? parseInt(args[4]) : undefined;
+  status.accountCode = args[2];
+  status.subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   changeAccount(true);
 }
 const checkPage = () => {
