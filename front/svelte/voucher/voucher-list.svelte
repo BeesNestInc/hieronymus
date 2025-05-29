@@ -3,7 +3,7 @@
     <h1>証票一覧</h1>
     <button type="button" class="btn btn-primary"
   	  on:click={() => {
-    	  openEntry(null);
+    	  openVoucher(null);
   	  }}
 		  id="voucher-info">証票入力&nbsp;<i class="bi bi-pencil-square"></i>
     </button>
@@ -276,10 +276,12 @@ const openSlip = (year, month, day, no) => {
 const openVoucher = (id) => {
   let	voucher;
 
-  for ( let i = 0; i < vouchers.length; i ++ ) {
-    if ( vouchers[i].id == id ) {
-      voucher = vouchers[i];
-      break;
+  if  ( id )  {
+    for ( let i = 0; i < vouchers.length; i ++ ) {
+      if ( vouchers[i].id == id ) {
+        voucher = vouchers[i];
+        break;
+      }
     }
   }
   dispatch('open', voucher);
