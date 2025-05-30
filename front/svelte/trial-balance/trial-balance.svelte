@@ -135,7 +135,7 @@ const updateLines = async () => {
 const updateDates = () => {
   let _dates = [];
   console.log('updateDates', status.fy);
-  let mon = status.fy.startDate;
+  let mon = new Date(status.fy.startDate);
   for ( let i = 0 ; i < 12 ; i += 1)  {
     _dates.push({
       year: mon.getFullYear(),
@@ -170,7 +170,6 @@ beforeUpdate(async ()	=> {
 
 onMount(async () => {
   dates = [];
-  const fy = status.fy;
   console.log('onMount', {status});
   await checkPage();
 })
