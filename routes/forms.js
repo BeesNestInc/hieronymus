@@ -170,7 +170,9 @@ router.get('/financial_statement/:term', is_authenticated, async (req, res, next
 });
 
 router.get('/transaction/:form/:id', is_authenticated, async (req, res) => {
+  console.log(req.query);
   if  (( !req.query ) ||
+       ( !req.query.format ) ||
        ( req.query.format === 'html' )) {
     res.sendFile(path.join(__dirname, '../views/form.html'));
   } else
