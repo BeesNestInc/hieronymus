@@ -185,6 +185,11 @@ const link = (href) => {
 }
 
 beforeUpdate(() => {
+  if  (( !status.fy ) ||
+       ( !status.fy.term )) {
+    alert = '期を選択してください。';
+    alert_level = 'danger';
+  }
 })
 
 onMount(() => {
