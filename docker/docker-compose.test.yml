@@ -1,9 +1,11 @@
 services:
   db:
     tmpfs: /var/lib/postgresql/data
+    restart: no
 
   web:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: ""
+    restart: no
