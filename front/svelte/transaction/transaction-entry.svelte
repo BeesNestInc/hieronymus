@@ -1,7 +1,7 @@
 <div class="entry">
   <div class="page-title d-flex justify-content-between">
     <h1>取引文書(見積/請求/取引情報)</h1>
-    {#if transaction.no}
+    {#if transaction?.no}
     <span>管理番号:&nbsp;{transaction.no}</span>
     {:else}
     <span>新規</span>

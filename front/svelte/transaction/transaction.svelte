@@ -33,6 +33,7 @@ let transactions = [];
 let users = [];
 
 const selectKind = (event) => {
+  console.log('selectKind');
   updateTransactions({});
 }
 const selectCompany = (event) => {
@@ -53,7 +54,7 @@ const selectAmount = (event) => {
 
 const updateTransactions = (_params) => {
   let param = buildParam(status, _params);
-  //console.log('param', param);
+  console.log('param', param);
   axios.get(`/api/transaction?${param}`).then((result) => {
     transactions = result.data.transactions;
     console.log('transactions', transactions);
@@ -65,8 +66,11 @@ const updateTransactions = (_params) => {
 };
 
 const	openEntry = (event)	=> {
+  status.change = true;
   if  ( !event )  {
     transaction = null;
+    currentTransaction.set(null);
+    currentTask.set(null);
     status.state = 'new';
     window.history.pushState(
       status, "", `/transaction/new`);
@@ -79,17 +83,15 @@ const	openEntry = (event)	=> {
         status, "", `/transaction/new`);
     } else {
       status.state = 'entry';
-      axios.get(`/api/transaction/${transaction.id}`).then((result) => {
-        transaction = result.data.transaction;
-      	window.history.pushState(
-        	status, "", `/transaction/entry/${transaction.id}`);
-      });
+      window.history.pushState(
+        status, "", `/transaction/entry/${transaction.id}`);
     }
   }
   //console.log('transaction', transaction)
 };
 const closeEntry = (event) => {
   status.state = 'list';
+  console.log('closeEntry');
   updateTransactions();
 }
 const checkPage = () => {
@@ -113,6 +115,7 @@ const checkPage = () => {
           itemNumber: 0,
           unit: '',
           amount: 0,
+          tax: 0,
           description: ''
         }]};
       let task = getStore(currentTask);
@@ -149,8 +152,12 @@ const checkPage = () => {
     }
     console.log({transaction});
   } else {
-    status.state = 'list';
+    updateTransactions();
+    if  ( status.state !== 'list' ) {
+      status.state = 'list';
+    }
   }
+  console.log(status.state);
 }
 
 onMount(() => {
@@ -162,8 +169,14 @@ onMount(() => {
   })
 })
 
+let _status;
 beforeUpdate(()	=> {
-  checkPage();
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    checkPage();
+  }
 });
 afterUpdate(() => {
   //console.log('transactions afterUpdate');

@@ -100,9 +100,6 @@ const deleteTask = (event) => {
     <tr>
 			<td>件名</td><td>${task.subject}</td>
 		</tr>
-    <tr>
-			<td>担当</td><td>${task.handleUser.member.tradingName}</td>
-    </tr>
   </tbody>
 `;
   operation = doDelete;

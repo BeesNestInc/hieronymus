@@ -157,9 +157,14 @@ onMount(() => {
   })
 })
 
+let _status;
 beforeUpdate(()	=> {
-  //console.log('task beforeUpdate');
-  checkPage();
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    checkPage();
+  }
 });
 afterUpdate(() => {
   //console.log('tasks afterUpdate');

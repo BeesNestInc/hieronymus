@@ -251,5 +251,6 @@ const link = (href) => {
   status.current = pathes[1];
   window.history.pushState(status, "", href);
   status.pathname = href;
+  status.change = true;
 }
 </script>

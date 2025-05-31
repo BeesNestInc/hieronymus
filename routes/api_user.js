@@ -22,10 +22,12 @@ export default {
     }).then((members) => {
       let users = [];
       for ( let member of members ) {
-        users.push({
-          id: member.userId,
-          name: member.tradingName ? member.tradingName : member.legalName
-        })
+        if  ( member.userId ) {
+          users.push({
+            id: member.userId,
+            name: member.tradingName ? member.tradingName : member.legalName
+          })
+        }
       }
       res.json({
         users: users
