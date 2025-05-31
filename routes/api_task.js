@@ -5,7 +5,7 @@ export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id =  req.params.id;
-    console.log('/api/task/', id);
+    //console.log('/api/task/', id);
     let include = [
       {
         model: models.Company,
@@ -42,7 +42,7 @@ export default {
     if	( !id )	{
       let	order;
       let where;
-      console.log('query', req.query);
+      //console.log('query', req.query);
       if	( req.query.order )	{
         order = req.params.order;
       } else {
@@ -114,7 +114,7 @@ export default {
           	lines.push(line.dataValues);
           }
         }
-        console.log(lines);
+        //console.log(lines);
         let _task = task.dataValues;
         _task.document = document.dataValues;
         _task.lines = lines;
@@ -163,7 +163,7 @@ export default {
           	lines.push(_line.dataValues);
           }
         };
-        console.log({lines});
+        //console.log({lines});
         task.document.issueDate = body.issueDate;
         task.document.title = body.subject;
         task.document.descriptionType = body.document.descriptionType;
@@ -173,7 +173,7 @@ export default {
         task.document.updatedBy = body.updatedBy;
         await task.document.save();
         task.dataValues.lines = lines;
-        console.log(JSON.stringify(task, ' ', 2 ));
+        //console.log(JSON.stringify(task, ' ', 2 ));
         res.json({
           task: task
         });

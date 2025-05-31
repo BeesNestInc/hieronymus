@@ -12,13 +12,13 @@
   {/if}
   {#if ( viewDescription )}
   {#if ( editting )}
-  <div class="row mt-3">
+  <div class="row">
     <DocumentFormat
       bind:type={document.descriptionType}
       disabled={document.descriptionType && ( document.description !== '')}></DocumentFormat>
   </div>
   {/if}
-  <div class="row mt-3">
+  <div class="row">
     <div class="col-12">
       {#if ( editting )}
       <Editor
@@ -32,7 +32,7 @@
     </div>
   </div>
   {:else}
-  <div class="row mt-3">
+  <div class="row">
     <div class="col-12">
       <div class="abstract">
         {@html textConvert(document.description, document.descriptionType, 'text')}

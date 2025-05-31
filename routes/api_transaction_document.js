@@ -7,7 +7,6 @@ export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id =  req.params.id;
-    console.log('/api/transaction/', id);
     let include = [
       {
         model: models.Task,
@@ -57,7 +56,7 @@ export default {
         [ "lines", "lineNo", "ASC"]
       ];
     	let where;
-      console.log('query', req.query);
+      //console.log('query', req.query);
       if  ( !req.query )  {
         res.json({
           no: company.transactionNo,
@@ -174,7 +173,7 @@ export default {
         //console.log({transaction});
         if	( req.query.print )	{
           if	( !transaction.voucherId )	{
-            console.log('create');
+            //console.log('create');
 						models.Company.findAll({
             	where: {
               	companyClassId: 1
@@ -190,7 +189,7 @@ export default {
             	});
           	})
           } else {
-            console.log('exist');
+            //console.log('exist');
             models.Voucher.findByPk(transaction.voucherId, {
               include: [
                 {
@@ -240,7 +239,7 @@ export default {
         body.no = `${fy.year}-${fy.transactionCount}`;
       }
       body.id = undefined;
-      console.log(JSON.stringify(body, ' ', 2 ));
+      //console.log(JSON.stringify(body, ' ', 2 ));
       let document = await models.Document.create({
         issueDate: body.issueDate,
         title: body.subject,
@@ -250,10 +249,10 @@ export default {
         createdBy: body.createdBy,
         updatedBy: body.updatedBy
       });
-      console.log({document});
+      //console.log({document});
       body.documentId = document.id;
       models.TransactionDocument.create(body).then(async (transaction)=> {
-        console.log({transaction});
+        //console.log({transaction});
         for ( let i = 0 ; i < body.lines.length ; i ++ )  {
           let line = body.lines[i];
           if	(( typeof line.itemId === 'number ') ||
@@ -262,7 +261,7 @@ export default {
             line.lineNo = i;
             line.id = undefined;
             line = await models.TransactionDetail.create(line);
-            console.log({line});
+            //console.log({line});
           }
         }
         res.json({
@@ -294,7 +293,7 @@ export default {
           }
         ]
       }).then(async (transaction) => {
-        console.log(JSON.stringify(transaction, ' ', 2));
+        //console.log(JSON.stringify(transaction, ' ', 2));
         let kind = transaction.kind;
         let documentId = transaction.documentId;
         transaction.set(body);
@@ -342,7 +341,7 @@ export default {
             transaction.documentId = document.id;
           }
         }
-        console.log(JSON.stringify(transaction, ' ', 2));
+        //console.log(JSON.stringify(transaction, ' ', 2));
         await transaction.save();
         _transaction.lines = lines;
         //console.log(JSON.stringify(_transaction, ' ', 2 ));
@@ -434,7 +433,7 @@ export default {
         });
         let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
         if	( transaction.voucherId )	{
-          console.log('update');
+          //console.log('update');
           const voucher = await models.Voucher.findByPk(transaction.voucherId, {
             include: [
               {
@@ -464,7 +463,7 @@ export default {
             });
           }
         } else {
-          console.log('create');
+          //console.log('create');
           let rule;
           transaction.lines.forEach(async (line) => {
             if  ( rule ) {

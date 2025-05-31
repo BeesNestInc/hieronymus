@@ -106,6 +106,7 @@
           bind:tax={tax}
           bind:total={total}
           taxRules={taxRules}
+          on:sum={updateAmount}
     	  ></TaskDetails>
       </div>
       <div class="row mb-3">
@@ -378,6 +379,10 @@ let kind;
 let transactionKinds = [];
 let taxRules = [];
 
+const updateAmount = (ev) => {
+  task.amount = total;
+  task.tax = tax;
+}
 beforeUpdate(() => {
   if	( !transactions && task && task.id )	{
     transactions = [];
