@@ -164,6 +164,8 @@ const openTransaction = (id) => {
         break;
       }
     }
+  } else {
+    transaction = null;
   }
   dispatch('open', transaction);
 }

@@ -145,12 +145,14 @@
       	on:click={selectTasks}>
         案件選択
       </button>
+      {#if ( transaction.id )}
       <button type="button" class="btn btn-primary"
       	on:click={() => {
           openTask(null);
         }}>
         案件作成
       </button>
+      {/if}
       {/if}
     </div>
   </div>

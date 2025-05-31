@@ -66,7 +66,7 @@ const deleteMember = (event) => {
 			<td>役職</td><td>${member.memberClass.title}</td>
 		</tr>
     <tr>
-			<td>誕生日</td><td>${formatDate(member.birthDate)}</td>
+			<td>誕生日</td><td>${member.birthDate ? formatDate(member.birthDate) : ''}</td>
     </tr>
   </tbody>
 `;

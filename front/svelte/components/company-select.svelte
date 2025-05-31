@@ -214,7 +214,6 @@ beforeUpdate(() => {
 let initialized = false;
 beforeUpdate(() => {
   if (!initialized && companyName) {
-    inputValue = companyName;
     companyKey = companyName;
     isInitialInput = true;
     initialized = true;

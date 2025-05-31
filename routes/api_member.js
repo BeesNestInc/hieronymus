@@ -32,7 +32,7 @@ export default {
           }
         }
       }
-      console.log(JSON.stringify(query, ' ', 2));
+      //console.log(JSON.stringify(query, ' ', 2));
       models.Member.findAll(query).then( async(members) => {
         res.json({
           members: members
