@@ -1,6 +1,7 @@
 services:
   db:
     tmpfs: /var/lib/postgresql/data
+    volumes: []
     restart: no
 
   web:
