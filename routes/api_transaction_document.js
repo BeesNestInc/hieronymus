@@ -241,19 +241,19 @@ export default {
       }
       body.id = undefined;
       console.log(JSON.stringify(body, ' ', 2 ));
-      if	( body.document.descriptionType )	{
-        let document = await models.Document.create({
-        	issueDate: body.issueDate,
-        	title: body.subject,
-        	descriptionType: body.document.descriptionType,
-        	description: body.document.description,
-        	handledBy: body.handledBy,
-        	createdBy: body.createdBy,
-        	updatedBy: body.updatedBy
-      	});
-      	body.documentId = document.id;
-      }
+      let document = await models.Document.create({
+        issueDate: body.issueDate,
+        title: body.subject,
+        descriptionType: body.document.descriptionType,
+        description: body.document.description,
+        handledBy: body.handledBy,
+        createdBy: body.createdBy,
+        updatedBy: body.updatedBy
+      });
+      console.log({document});
+      body.documentId = document.id;
       models.TransactionDocument.create(body).then(async (transaction)=> {
+        console.log({transaction});
         for ( let i = 0 ; i < body.lines.length ; i ++ )  {
           let line = body.lines[i];
           if	(( typeof line.itemId === 'number ') ||
@@ -262,6 +262,7 @@ export default {
             line.lineNo = i;
             line.id = undefined;
             line = await models.TransactionDetail.create(line);
+            console.log({line});
           }
         }
         res.json({
@@ -293,6 +294,7 @@ export default {
           }
         ]
       }).then(async (transaction) => {
+        console.log(JSON.stringify(transaction, ' ', 2));
         let kind = transaction.kind;
         let documentId = transaction.documentId;
         transaction.set(body);
@@ -302,15 +304,6 @@ export default {
             	transactionDocumentId: transaction.id
           	}
         	});
-        }
-        if	(( !body.document.descriptionType ) &&
-          	 ( transaction.documentId ) )	{
-          await models.Document.destroy({
-            where: {
-              id: transaction.documentId
-            }
-          })
-          transaction.documentDocumentId = null;
         }
         let lines = [];
         let _transaction = transaction.dataValues;
@@ -349,6 +342,7 @@ export default {
             transaction.documentId = document.id;
           }
         }
+        console.log(JSON.stringify(transaction, ' ', 2));
         await transaction.save();
         _transaction.lines = lines;
         //console.log(JSON.stringify(_transaction, ' ', 2 ));

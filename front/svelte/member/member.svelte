@@ -115,7 +115,7 @@ onMount(() => {
     console.log(result);
     classes = result.data.classes;
   })
-  axios.get('/api/users').then((result) => {
+  axios.get('/api/users?nomember=true').then((result) => {
     users = result.data.users;
   })
 })

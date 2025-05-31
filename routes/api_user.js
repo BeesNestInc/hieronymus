@@ -35,15 +35,39 @@ export default {
     })
   },
   list: (req, res, next) => {
-    models.User.findAll({
-      order: [
-        ["name", "ASC"]
-      ]
-    }).then((users) => {
-      res.json({
-        users: users
+    if  ( req.query && req.query.nomember ) {
+      models.User.findAll({
+        include: [
+          {
+            model: models.Member,
+            as: 'member'
+          }
+        ],
+        order: [
+          ["name", "ASC"]
+        ]
+      }).then((_users) => {
+        let users = [];
+        _users.forEach((user) => {
+          if  ( !user.member )  {
+            users.push(user);
+          }
+        })
+        res.json({
+          users: users
+        });
       });
-    });
+    } else {
+      models.User.findAll({
+        order: [
+          ["name", "ASC"]
+        ]
+      }).then((users) => {
+        res.json({
+          users: users
+        });
+      });
+    }
   },
   get: (req, res, next) => {
     let id = req.params.id;

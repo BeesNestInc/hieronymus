@@ -95,10 +95,10 @@ const deleteTask = (event) => {
 <table style="font-size:12px;">
   <tbody>
     <tr>
-			<td>相手先</td><td>${task.companyName}</td>
+			<td>相手先</td><td>${task.companyName || ''}</td>
 		</tr>
     <tr>
-			<td>件名</td><td>${task.subject}</td>
+			<td>件名</td><td>${task.subject || ''}</td>
 		</tr>
   </tbody>
 `;

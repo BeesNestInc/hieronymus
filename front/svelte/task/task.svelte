@@ -75,6 +75,7 @@ const	openEntry = (event)	=> {
 const openTransaction = (event) => {
   let id = event.detail;
   status.state = 'entry';
+  status.change = true;
   window.history.pushState(
     status, "", `/transaction/entry/${id}`);
 }

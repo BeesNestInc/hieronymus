@@ -269,6 +269,7 @@
   	<div class="col-11">
     	<Document
       editting={documentEditting}
+      noTitle={true}
       {viewDescription}
       bind:document={transaction.document}></Document>
 		</div>

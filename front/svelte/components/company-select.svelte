@@ -88,15 +88,15 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import CompanyEntry from '../company/company-entry.svelte';
 
-export let companyId;
-export let register;
-export let input;
+export let companyId = '';
+export let register = '';
+export let input = '';
 export let style;
-export let companyName;
-export let chargeName;
-export let zip;
-export let address1;
-export let address2;
+export let companyName = '';
+export let chargeName = '';
+export let zip = '';
+export let address1 = '';
+export let address2 = '';
 export let clientOnly;
 
 let	original_companies;

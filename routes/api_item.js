@@ -66,6 +66,10 @@ export default {
         });
       });
     } else {
+      include.push({
+        model: models.ItemClass,
+        as: 'itemClass'
+      });
       models.Item.findByPk(id, {
         include: include
       }).then((item) => {
@@ -82,24 +86,28 @@ export default {
     body.updatedBy = req.session.user.id;
     body.id = undefined;
     console.log(JSON.stringify(body, ' ', 2 ));
-    if	( body.document.descriptionType )	{
-      let document = await models.Document.create({
-        issueDate: new Date(),
-        title: body.name,
-        descriptionType: body.document.descriptionType,
-        description: body.document.description,
-        handledBy: body.handledBy,
-        createdBy: body.createdBy,
-        updatedBy: body.updatedBy
+    if  ( body.itemClassId > 0 )  {
+      if	( body.document.descriptionType )	{
+        let document = await models.Document.create({
+          issueDate: new Date(),
+          title: body.name,
+          descriptionType: body.document.descriptionType,
+          description: body.document.description,
+          handledBy: body.handledBy,
+          createdBy: body.createdBy,
+          updatedBy: body.updatedBy
+        });
+        body.documentId = document.id;
+      }
+      models.Item.create(body).then((item) => {
+        //console.log(item);
+        res.json({
+          item: item
+    	  });
       });
-      body.documentId = document.id;
+    } else {
+      /*  TODO 何かエラー  */
     }
-    models.Item.create(body).then((item) => {
-      //console.log(item);
-      res.json({
-        item: item
-    	});
-    });
   },
   update: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
