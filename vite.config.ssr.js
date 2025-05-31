@@ -31,6 +31,7 @@ export default defineConfig({
       input: {
         invoice: inputFile('invoice/invoice.svelte'),
         estimate: inputFile('estimate/estimate.svelte'),
+        receipt: inputFile('receipt/receipt.svelte'),
         'explanatory-journal': inputFile('explanatory-journal/explanatory-journal.svelte'),
         'general-ledger': inputFile('general-ledger/general-ledger.svelte'),
         'subsidiary-ledger': inputFile('subsidiary-ledger/subsidiary-ledger.svelte'),

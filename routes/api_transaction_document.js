@@ -427,86 +427,88 @@ export default {
         },
         ]
     });
-		if	( transaction.kind.book && transaction.kind.book.form )	{
-      const company = await models.Company.findOne({
-        where: {
-          companyClassId: 1
-        }
-      });
-      const pdf = await print(transaction.kind.book.form, {
-        transaction: transaction,
-        company: company
-      });
-      let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
-      if	( transaction.voucherId )	{
-        console.log('update');
-        const voucher = await models.Voucher.findByPk(transaction.voucherId, {
-          include: [
-            {
-              model: models.VoucherFile,
-              as: 'files'
-            }
-          ]
-        })
-        let file;
-        for ( let _file of voucher.files )	{
-          if	( _file.name === transaction.kind.book.form )	{
-            file = _file;
-            break;
+    if  ( transaction.kind.forBook )  {
+		  if	( transaction.kind.book && transaction.kind.book.form )	{
+        const company = await models.Company.findOne({
+          where: {
+            companyClassId: 1
           }
-        }
-        if	( file )	{
-          file.mimeType = 'application/pdf';
-          file.body = pdf;
-          file.name = name;
-          file.save();
+        });
+        const pdf = await print(transaction.kind.book.form, {
+          transaction: transaction,
+          company: company
+        });
+        let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
+        if	( transaction.voucherId )	{
+          console.log('update');
+          const voucher = await models.Voucher.findByPk(transaction.voucherId, {
+            include: [
+              {
+                model: models.VoucherFile,
+                as: 'files'
+              }
+            ]
+          })
+          let file;
+          for ( let _file of voucher.files )	{
+            if	( _file.name === transaction.kind.book.form )	{
+              file = _file;
+              break;
+            }
+          }
+          if	( file )	{
+            file.mimeType = 'application/pdf';
+            file.body = pdf;
+            file.name = name;
+            file.save();
+          } else {
+            models.VoucherFile.create({
+              voucherId: voucher.id,
+              name: name,
+              mimeType: 'application/pdf',
+              body: pdf
+            });
+          }
         } else {
-          models.VoucherFile.create({
+          console.log('create');
+          let rule;
+          transaction.lines.forEach(async (line) => {
+            if  ( rule ) {
+              if  ( rule.id !== line.taxRule.id ) {
+                rule = await models.TaxRule.findOne({
+                  where: {
+                    taxClass: 9
+                  }
+                });
+              }
+            } else {
+              rule = line.taxRule;
+            }
+          })
+          const voucher = await models.Voucher.create({
+            voucherClassId: transaction.kind.bookId,
+            issueDate: transaction.issueDate,
+            companyId: transaction.companyId,
+            amount: transaction.amount,
+            tax: transaction.tax,
+            taxRule: rule,
+            description: transaction.description,
+            invoiceNo: transaction.company.invoiceNo,
+            createdBy: req.session.user.id,
+            updatedBy: req.session.user.id
+          });
+          transaction.voucherId = voucher.id;
+          await transaction.save();
+          await models.VoucherFile.create({
             voucherId: voucher.id,
             name: name,
             mimeType: 'application/pdf',
             body: pdf
           });
         }
-      } else {
-        console.log('create');
-        let rule;
-        transaction.lines.forEach(async (line) => {
-          if  ( rule ) {
-            if  ( rule.id !== line.taxRule.id ) {
-              rule = await models.TaxRule.findOne({
-                where: {
-                  taxClass: 9
-                }
-              });
-            }
-          } else {
-            rule = line.taxRule;
-          }
-        })
-        const voucher = await models.Voucher.create({
-          voucherClassId: transaction.kind.bookId,
-          issueDate: transaction.issueDate,
-          companyId: transaction.companyId,
-          amount: transaction.amount,
-          tax: transaction.tax,
-          taxRule: rule,
-          description: transaction.description,
-          invoiceNo: transaction.company.invoiceNo,
-          createdBy: req.session.user.id,
-          updatedBy: req.session.user.id
-        });
-        transaction.voucherId = voucher.id;
-        await transaction.save();
-        await models.VoucherFile.create({
-          voucherId: voucher.id,
-          name: name,
-          mimeType: 'application/pdf',
-          body: pdf
-        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.send(pdf);
       }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.send(pdf);
     }
   },
   kindsGet: (req, res, next) => {

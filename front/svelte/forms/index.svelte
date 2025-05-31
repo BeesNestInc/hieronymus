@@ -6,6 +6,9 @@
     {:else if ( args[3] === 'invoice' )}
     <Invoice
       id={parseInt(args[4])}></Invoice>
+    {:else if ( args[3] === 'receipt' )}
+    <Receipt
+      id={parseInt(args[4])}></Receipt>
     {/if}
   {:else if ( args[2] === 'explanatory_journal' )}
   <ExplanatoryJournal
@@ -29,6 +32,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 
 import Estimate from './estimate/index.svelte';
 import Invoice from './invoice/index.svelte';
+import Receipt from './receipt/index.svelte';
 
 import ExplanatoryJournal from './explanatory-journal/index.svelte';
 import GeneralLedger from './general-ledger/index.svelte';
