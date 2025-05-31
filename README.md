@@ -36,11 +36,15 @@ config/config.jsonはDBの接続情報です。usernameやpassword等自身の�
 3. セットアップ
 
 ```
-$ export NODE_ENV=production
 $ npm install
-$ npm run build-production
+$ sudo npx playwright install --with-deps
+$ npx playwright install
+$ npm run build
+$ npm run build-ssr
+$ export NODE_ENV=production
 $ npx sequelize-cli db:create
 $ npx sequelize-cli db:migrate
+$ mkdir backups
 ```
 4. 起動
 ```
@@ -53,7 +57,7 @@ $ npm run start
 ```
 $ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
-$ docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+$ docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d
 ```
 しばらくすると、3010番ポートから利用を開始できます。
 
@@ -62,13 +66,13 @@ $ docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
 $ git clone https://github.com/beesnestinc/hieronymus.git
 $ cd hieronymus
 $ cp .env.example .env # DOCKER_IMAGE_VERSION=[バージョン]に変更
-$ docker compose up -d
+$ docker compose -f docker/docker-compose.yml  up -d
 ```
 しばらくすると、3010番ポートから利用を開始できます。
 
-### 前バージョンからの移行
+### v1 バージョンからの移行
 
-前のバージョンまではCommonJSで書かれていましたが、今バージョンからはEcmaScript Moduleで書かれています。そのため、migrationのファイル名が変わってしまい、うまくmigrationがかかりません。そこで、**migrationをかける前に**データベースの整合を取るために以下のSQL文を走らせてください。
+v1 バージョンまではCommonJSで書かれていましたが、今バージョンからはEcmaScript Moduleで書かれています。そのため、migrationのファイル名が変わってしまい、うまくmigrationがかかりません。そこで、**migrationをかける前に**データベースの整合を取るために以下のSQL文を走らせてください。
 
 ```
 $ psql <データベースの指定>
@@ -93,6 +97,8 @@ $ npx sequelize-cli db:migrate
 
 初期アカウント等は設定されていません。
 初期ログインの時に自分でユーザ登録を行ってから使って下さい。
+
+ログイン後、ホーム画面上の自社情報より自社情報を作成してください。
 
 ## 機能
 
