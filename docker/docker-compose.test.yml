@@ -1,12 +1,43 @@
+version: '3'
 services:
   db:
+    image: 'postgres:15'
+    environment:
+      - 'POSTGRES_PASSWORD=hieronymus'
+      - 'POSTGRES_USER=hieronymus'
     tmpfs: /var/lib/postgresql/data
-    volumes: []
     restart: no
+    container_name: hieronymus-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hieronymus -d hieronymus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   web:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: ""
+    ports:
+      - '3010:3010'
+    working_dir: /app/hieronymus
+    depends_on:
+      db:
+        condition: service_healthy
     restart: no
+    container_name: hieronymus-app
+    environment:
+      - HOME=/app/hieronymus
+      - NODE_ENV=production
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=hieronymus
+      - POSTGRES_PASSWORD=hieronymus
+      - POSTGRES_DATABASE=hieronymus
+      - CASSETTE_SERVER=false
+      - BACKUP_DIR=/app/backups
+    volumes:
+      - backups_data:/app/backups
+    init: true
+volumes:
+  backups_data:
