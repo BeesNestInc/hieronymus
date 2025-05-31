@@ -20,7 +20,7 @@ jobs:
         run: cp .env.example .env
 
       - name: Build and Start Services
-        run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+        run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.test.yml up -d --build
 
       - name: Wait for services to start
         run: sleep 10  # DB 起動待ち
@@ -29,4 +29,4 @@ jobs:
         run: curl -I http://localhost:3010 || exit 1
 
       - name: Stop and Clean up
-        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down
+        run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.test.yml down
