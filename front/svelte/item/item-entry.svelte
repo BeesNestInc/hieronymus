@@ -88,13 +88,13 @@ const deleteItem = (event) => {
 			<td>種別</td><td>${item.itemClass.name}</td>
 		</tr>
     <tr>
-			<td>一般名</td><td>${item.name}</td>
+			<td>一般名</td><td>${item.name || ''}</td>
 		</tr>
     <tr>
-			<td>正式名</td><td>${item.normalName}</td>
+			<td>正式名</td><td>${item.normalName || ''}</td>
 		</tr>
     <tr>
-			<td>規格</td><td>${item.spec}</td>
+			<td>規格</td><td>${item.spec || ''}</td>
     </tr>
   </tbody>
 `;

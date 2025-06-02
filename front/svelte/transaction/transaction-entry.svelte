@@ -15,9 +15,11 @@
         <TransactionInfo
           on:startregister={() => { disabled = true}}
           on:endregister={() => { disabled = false}}
-          users={users}
+          bind:status={status}
           bind:transaction={transaction}
-          bind:status={status}></TransactionInfo>
+          users={users}
+          bind:files={files}
+          ></TransactionInfo>
       </div>
       <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
@@ -201,8 +203,9 @@ const save = () => {
       	console.log('result', result);
       	if  ( !result.data.code ) {
         	let id = result.data.id;
-          let documentId = result.data.id;
-          bindFile(files,documentId);
+          let documentId = result.data.documentId;
+          //console.log({documentId});
+          bindFile(files, documentId);
           axios.get(`/api/transaction/${id}`).then((result) => {
         		console.log('new load', result.data);
         		transaction = result.data.transaction;
