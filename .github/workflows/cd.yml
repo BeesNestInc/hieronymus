@@ -30,7 +30,7 @@ jobs:
       - name: Set env
         run: |
           echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          REF_NAME="${github.ref_name}"
+          REF_NAME="${{ github.ref_name }}"
           if [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "MAJOR_VERSION=$(echo ${{ github.ref_name }} | cut -d '.' -f 1)" >> $GITHUB_ENV
             echo "LATEST=latest" >> $GITHUB_ENV
