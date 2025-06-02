@@ -119,6 +119,20 @@ app.use('/:current/:command/:arg1', is_authenticated, screen);
 app.use('/:current/:id', is_authenticated, screen);
 app.use('/:current', is_authenticated, screen);
 
+app.use((err, req, res, next) => {
+    console.error(`[${new Date().toISOString()}] 500エラー:`, {
+        message: err.message,
+        stack: err.stack,
+        url: req.originalUrl,
+        method: req.method,
+        headers: req.headers
+    });
+    
+    res.status(500).send(`
+        <h1>500 - Internal Server Error</h1>
+        <p>${err.message}</p>
+    `);
+});
 
 export default app;
 
