@@ -9,9 +9,8 @@
         <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
           <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
           <ul>
-          {#each errorMessages as errorMessage}
-            <li class="text-danger">{errorMessage}</li>
-          {/each}
+          <FormError
+        	  messages={errorMessages}></FormError>
           </ul>
         </div>
         {/if}
@@ -130,7 +129,10 @@ const save = () => {
     ok = false;
     errorMessages.push("呼び出しキーが未入力です。");
   }
-  if  ( !ok ) return;
+  if  ( !ok )  {
+    errorMessages = errorMessages;
+    return;
+  }
   if	( item.standardPrice )	{
     item.standardPrice = numeric(item.standardPrice);
   }

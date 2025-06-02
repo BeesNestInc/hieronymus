@@ -214,6 +214,9 @@ const save = () => {
               currentTransaction.set(transaction);
             }
           });
+        } else {
+          errorMessages.push('保存できませんでした。');
+          errorMessages = errorMessages;
         }
     	});
   	}

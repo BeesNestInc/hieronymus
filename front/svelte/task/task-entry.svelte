@@ -122,6 +122,7 @@ const save = () => {
   if	( task.companyId )	{
     task.companyId = parseInt(task.companyId);
   }
+  errorMessages = [];
   try {
     let	pr;
     let create = false;
@@ -137,12 +138,15 @@ const save = () => {
       if  ( !result.data.code ) {
         task = result.data.task;
         bindFile(files,task.documentId);
-      }
-      eventBus.emit('taskSelected', task);
-      console.log('save', {status})
-      if  ( create )  {
-        window.history.replaceState(
-          status, "", `/task/entry/${task.id}`);
+        eventBus.emit('taskSelected', task);
+        console.log('save', {status})
+        if  ( create )  {
+          window.history.replaceState(
+            status, "", `/task/entry/${task.id}`);
+        }
+      } else {
+        errorMessages.push('保存できませんでした。');
+        errorMessages = errorMessages;
       }
     });
   }
