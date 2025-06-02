@@ -22,7 +22,7 @@
       <div class="footer">
         <button type="button" class="btn btn-secondary"
           on:click={back}>もどる</button>
-        {#if (company && company.id && company.id > 0)}
+        {#if (!inline && company && company.id && company.id > 0)}
         <button type="button" class="btn btn-danger"
           on:click={delete_}>削除</button>
         {/if}
@@ -81,8 +81,14 @@ const delete_company = async (company) => {
   <tbody>
     <tr>
       <td>名前</td><td>${company.name}</td>
-      <td>種別</td><td>${company.companyClass.name}</td>
+    </tr>
+    <tr>
+      <td>種別</td><td>${company.companyClass?.name}</td>
+    </tr>
+    <tr>
       <td>住所</td><td>${company.address1}<br>${company.address2}</td>
+    </tr>
+    <tr>
       <td>担当者</td><td>${company.chargeName}</td>
     </tr>
   </tbody>

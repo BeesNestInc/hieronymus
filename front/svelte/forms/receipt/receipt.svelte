@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>請求書::Hieronymus</title>
+  <title>領収書::Hieronymus</title>
   <meta http-equiv="Content-Language" content="ja" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="/public/bootstrap-icons/font/bootstrap-icons.css">
@@ -18,7 +18,7 @@
     <div class="">
       <div class="title-info">
         <div class="title-line">
-          <h1>請 求 書</h1>
+          <h1>領 収 書</h1>
           <div style="margin-left:20px;margin-top:10px;font-size:14px;">
             <span>No. {transaction.no}</span>
           </div>
@@ -74,7 +74,7 @@
 	<main>
   	<div class="salutation">
     	<p>毎度ありがとうございます。</p>
-    	<p>下記のとおり御請求申し上げます。</p>
+    	<p>下記のとおり領収いたしました。</p>
   	</div>
   	<div class="total-amount">
 	    <div class="title">
@@ -95,7 +95,7 @@ import {BANK_ACCOUNT_TYPE, formatMoney} from '../../../../libs/utils.js';
 export let transaction;
 export let company;
    
-console.log('invoice.svelte');
+console.log('receipt.svelte');
 
 let date = new Date(transaction.issueDate);
 

@@ -39,7 +39,7 @@
           on:click={save}
           id="save-button">保存</button>
         {#if ( transaction && transaction.id && transaction.id > 0 )}
-        {#if ( transaction.kind.book.form )}
+        {#if ( transaction.kind.book && transaction.kind.book.form )}
         <a href="/forms/transaction/{transaction.kind.book.form}/{transaction.id}"
         	class="btn btn-info" target="_blank" disabled={disabled}>
           {transaction.kind.label}書作成
@@ -57,9 +57,11 @@
           }
         }>証票参照</button>
         {:else}
+        {#if ( transaction.kind.forBook )}
         <button type="button" class="btn btn-info" disabled={disabled}
           on:click={book}
           >計上</button>
+        {/if}
         {/if}
         {/if}
         {/if}

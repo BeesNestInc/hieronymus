@@ -67,10 +67,10 @@ const updateTransactions = (_params) => {
 
 const	openEntry = (event)	=> {
   status.change = true;
+  currentTransaction.set(null);
+  currentTask.set(null);
   if  ( !event )  {
     transaction = null;
-    currentTransaction.set(null);
-    currentTask.set(null);
     status.state = 'new';
     window.history.pushState(
       status, "", `/transaction/new`);
@@ -79,6 +79,7 @@ const	openEntry = (event)	=> {
     transaction = event.detail;
     if ( !transaction || !transaction.id )	{
       status.state = 'new';
+      transaction = null;
       window.history.pushState(
         status, "", `/transaction/new`);
     } else {

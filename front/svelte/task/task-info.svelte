@@ -99,40 +99,44 @@
     </div>
     {#if (viewDetail || !task.id)}
     <div class="col-11">
-      <TaskDetails
-      	bind:details={task.lines}
-      	bind:sum={sum}
-        bind:tax={tax}
-        bind:total={total}
-        taxRules={taxRules}
-    	></TaskDetails>
       <div class="row">
-        <div class="row mb-3">
-          <label for="taxClass" class="col-1 col-form-label">消費税</label>
-          <div class="col-sm-2">
-            <input type="text" class="form-control number" id="tax" disabled="true"
-              value={numeric(task.tax).toLocaleString()}>
-          </div>
+        <TaskDetails
+      	  bind:details={task.lines}
+      	  bind:sum={sum}
+          bind:tax={tax}
+          bind:total={total}
+          taxRules={taxRules}
+          on:sum={updateAmount}
+    	  ></TaskDetails>
+      </div>
+      <div class="row mb-3">
+        <div class="label" style="width:100px;">
+				  <span>金額</span>
         </div>
+        <div class="disabled">
+      	  <span>{task.amount ? formatMoney(numeric(task.amount)): '0'}</span>
+        </div>
+        <div class="label" style="width:100px;">
+				  <span>消費税</span>
+        </div>
+        <div class="disabled">
+      	  <span>{task.tax ? formatMoney(numeric(task.tax)): '0'}</span>
+    	  </div>
       </div>
     </div>
     {:else}
     <div class="col-11">
-      <div class="label" style="width:70px;">
+      <div class="label" style="width:100px;">
 				<span>金額</span>
       </div>
       <div class="disabled">
-      	<span>{task.amount ? task.amount.toLocaleString(): '0'}</span>
+      	<span>{task.amount ? formatMoney(numeric(task.amount)): '0'}</span>
       </div>
-      <div class="label" style="width:120px;">
-				<span>
-      		消費税(
-        		{task.taxClass ? TAX_CLASS.find((item) => item[1] === task.taxClass)[0]: ''}
-      		)
-        </span>
+      <div class="label" style="width:100px;">
+				<span>消費税</span>
       </div>
       <div class="disabled">
-      	<span>{task.tax ? task.tax.toLocaleString(): '0'}</span>
+      	<span>{task.tax ? formatMoney(numeric(task.tax)): '0'}</span>
     	</div>
     </div>
     {/if}
@@ -172,6 +176,7 @@
     <div class="col-11">
       <Document
         editting={documentEditting}
+        noTitle={true}
         {viewDescription}
         bind:document={task.document}></Document>
     </div>
@@ -344,7 +349,7 @@
 
 <script>
 import axios from 'axios';
-import {numeric, formatDate, TAX_CLASS} from '../../../libs/utils';
+import {numeric, formatDate, formatMoney} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import CompanySelect from '../components/company-select.svelte';
 import Document from '../components/document.svelte';
@@ -374,6 +379,10 @@ let kind;
 let transactionKinds = [];
 let taxRules = [];
 
+const updateAmount = (ev) => {
+  task.amount = total;
+  task.tax = tax;
+}
 beforeUpdate(() => {
   if	( !transactions && task && task.id )	{
     transactions = [];

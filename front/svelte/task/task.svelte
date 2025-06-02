@@ -10,6 +10,7 @@
   <TaskEntry
     users={users}
     bind:status={status}
+    bind:toast={toast}
     bind:task={task}
     on:openTransaction={openTransaction}
     on:open={openEntry}
@@ -26,6 +27,7 @@ import {numeric, formatDate} from '../../../libs/utils.js';
 import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
+export let toast;
 
 let task;
 let tasks = [];
@@ -52,6 +54,9 @@ const updateTasks = (_params) => {
 };
 
 const	openEntry = (event)	=> {
+  status.change = true;
+  currentTransaction.set(null);
+  currentTask.set(null);
   if  ( !event )  {
     task = null;
     status.state = 'new';
@@ -70,11 +75,12 @@ const	openEntry = (event)	=> {
         status, "", `/task/entry/${task.id}`);
     }
   }
-  console.log('task', task)
+  //console.log('task', task)
 };
 const openTransaction = (event) => {
   let id = event.detail;
   status.state = 'entry';
+  status.change = true;
   window.history.pushState(
     status, "", `/transaction/entry/${id}`);
 }
@@ -144,6 +150,7 @@ const checkPage = () => {
     }
   } else {
     status.state = 'list';
+    updateTasks();
   }
   console.log({status});
 }
@@ -159,6 +166,7 @@ onMount(() => {
 
 let _status;
 beforeUpdate(()	=> {
+  console.log('task beforeUpdate');
   if  (( status.change ) ||
        ( _status !== status ))  {
     status.change = false;

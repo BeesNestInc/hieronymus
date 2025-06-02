@@ -5,6 +5,16 @@
   <div class="row full-height fontsize-12pt">
     <div class="content">
       <div class="body">
+        {#if !ok }
+        <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
+          <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
+          <ul>
+          {#each errorMessages as errorMessage}
+            <li class="text-danger">{errorMessage}</li>
+          {/each}
+          </ul>
+        </div>
+        {/if}
         <ItemInfo
           bind:files={files}
           bind:item={item}
@@ -13,7 +23,7 @@
       <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={back}>もどる</button>
-        {#if ( status.item && status.item.id && status.item.id > 0 )}
+        {#if ( item && item.id && item.id > 0 )}
         <button type="button" class="btn btn-danger" disabled={disabled}
           on:click={deleteItem}
           id="delete-button">削除</button>
@@ -48,6 +58,7 @@ export let item;
 
 let disabled = false;
 let errorMessages = [];
+let ok = true;
 let files;
 
 let modal;
@@ -95,7 +106,7 @@ const deleteItem = (event) => {
 const doDelete = async (event) => {
   if	( event.detail )	{
   	try {
-  		let result = await axios.delete(`/api/task/${item.id}`);
+  		let result = await axios.delete(`/api/item/${item.id}`);
   		console.log(result);
     	back();
   	} catch (e) {
@@ -106,9 +117,20 @@ const doDelete = async (event) => {
 
 const save = () => {
   console.log('item', item);
+  ok = true;
+  errorMessages = [];
   if	( item.itemClassId )	{
     item.itemClassId = parseInt(item.itemClassId);
+  } else {
+    ok = false;
+    errorMessages.push('種別が未入力です')
   }
+  if  (( !item.key ) ||
+       ( item.key === ''))  {
+    ok = false;
+    errorMessages.push("呼び出しキーが未入力です。");
+  }
+  if  ( !ok ) return;
   if	( item.standardPrice )	{
     item.standardPrice = numeric(item.standardPrice);
   }

@@ -23,6 +23,7 @@
 
 ## TODO
 
+* svelte5対応
 * 品目一覧にサムネ
 * beforeUpdateとonMountを最適化する
 * APIにも権限管理を入れる

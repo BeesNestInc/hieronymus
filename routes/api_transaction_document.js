@@ -7,7 +7,6 @@ export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     let id =  req.params.id;
-    console.log('/api/transaction/', id);
     let include = [
       {
         model: models.Task,
@@ -57,7 +56,7 @@ export default {
         [ "lines", "lineNo", "ASC"]
       ];
     	let where;
-      console.log('query', req.query);
+      //console.log('query', req.query);
       if  ( !req.query )  {
         res.json({
           no: company.transactionNo,
@@ -174,7 +173,7 @@ export default {
         //console.log({transaction});
         if	( req.query.print )	{
           if	( !transaction.voucherId )	{
-            console.log('create');
+            //console.log('create');
 						models.Company.findAll({
             	where: {
               	companyClassId: 1
@@ -190,7 +189,7 @@ export default {
             	});
           	})
           } else {
-            console.log('exist');
+            //console.log('exist');
             models.Voucher.findByPk(transaction.voucherId, {
               include: [
                 {
@@ -240,20 +239,20 @@ export default {
         body.no = `${fy.year}-${fy.transactionCount}`;
       }
       body.id = undefined;
-      console.log(JSON.stringify(body, ' ', 2 ));
-      if	( body.document.descriptionType )	{
-        let document = await models.Document.create({
-        	issueDate: body.issueDate,
-        	title: body.subject,
-        	descriptionType: body.document.descriptionType,
-        	description: body.document.description,
-        	handledBy: body.handledBy,
-        	createdBy: body.createdBy,
-        	updatedBy: body.updatedBy
-      	});
-      	body.documentId = document.id;
-      }
+      //console.log(JSON.stringify(body, ' ', 2 ));
+      let document = await models.Document.create({
+        issueDate: body.issueDate,
+        title: body.subject,
+        descriptionType: body.document.descriptionType,
+        description: body.document.description,
+        handledBy: body.handledBy,
+        createdBy: body.createdBy,
+        updatedBy: body.updatedBy
+      });
+      //console.log({document});
+      body.documentId = document.id;
       models.TransactionDocument.create(body).then(async (transaction)=> {
+        //console.log({transaction});
         for ( let i = 0 ; i < body.lines.length ; i ++ )  {
           let line = body.lines[i];
           if	(( typeof line.itemId === 'number ') ||
@@ -262,6 +261,7 @@ export default {
             line.lineNo = i;
             line.id = undefined;
             line = await models.TransactionDetail.create(line);
+            //console.log({line});
           }
         }
         res.json({
@@ -293,6 +293,7 @@ export default {
           }
         ]
       }).then(async (transaction) => {
+        //console.log(JSON.stringify(transaction, ' ', 2));
         let kind = transaction.kind;
         let documentId = transaction.documentId;
         transaction.set(body);
@@ -302,15 +303,6 @@ export default {
             	transactionDocumentId: transaction.id
           	}
         	});
-        }
-        if	(( !body.document.descriptionType ) &&
-          	 ( transaction.documentId ) )	{
-          await models.Document.destroy({
-            where: {
-              id: transaction.documentId
-            }
-          })
-          transaction.documentDocumentId = null;
         }
         let lines = [];
         let _transaction = transaction.dataValues;
@@ -349,6 +341,7 @@ export default {
             transaction.documentId = document.id;
           }
         }
+        //console.log(JSON.stringify(transaction, ' ', 2));
         await transaction.save();
         _transaction.lines = lines;
         //console.log(JSON.stringify(_transaction, ' ', 2 ));
@@ -427,86 +420,88 @@ export default {
         },
         ]
     });
-		if	( transaction.kind.book && transaction.kind.book.form )	{
-      const company = await models.Company.findOne({
-        where: {
-          companyClassId: 1
-        }
-      });
-      const pdf = await print(transaction.kind.book.form, {
-        transaction: transaction,
-        company: company
-      });
-      let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
-      if	( transaction.voucherId )	{
-        console.log('update');
-        const voucher = await models.Voucher.findByPk(transaction.voucherId, {
-          include: [
-            {
-              model: models.VoucherFile,
-              as: 'files'
-            }
-          ]
-        })
-        let file;
-        for ( let _file of voucher.files )	{
-          if	( _file.name === transaction.kind.book.form )	{
-            file = _file;
-            break;
+    if  ( transaction.kind.forBook )  {
+		  if	( transaction.kind.book && transaction.kind.book.form )	{
+        const company = await models.Company.findOne({
+          where: {
+            companyClassId: 1
           }
-        }
-        if	( file )	{
-          file.mimeType = 'application/pdf';
-          file.body = pdf;
-          file.name = name;
-          file.save();
+        });
+        const pdf = await print(transaction.kind.book.form, {
+          transaction: transaction,
+          company: company
+        });
+        let name = `${transaction.companyName}-${transaction.kind.book.form}-${DateString(new Date())} .pdf`;
+        if	( transaction.voucherId )	{
+          //console.log('update');
+          const voucher = await models.Voucher.findByPk(transaction.voucherId, {
+            include: [
+              {
+                model: models.VoucherFile,
+                as: 'files'
+              }
+            ]
+          })
+          let file;
+          for ( let _file of voucher.files )	{
+            if	( _file.name === transaction.kind.book.form )	{
+              file = _file;
+              break;
+            }
+          }
+          if	( file )	{
+            file.mimeType = 'application/pdf';
+            file.body = pdf;
+            file.name = name;
+            file.save();
+          } else {
+            models.VoucherFile.create({
+              voucherId: voucher.id,
+              name: name,
+              mimeType: 'application/pdf',
+              body: pdf
+            });
+          }
         } else {
-          models.VoucherFile.create({
+          //console.log('create');
+          let rule;
+          transaction.lines.forEach(async (line) => {
+            if  ( rule ) {
+              if  ( rule.id !== line.taxRule.id ) {
+                rule = await models.TaxRule.findOne({
+                  where: {
+                    taxClass: 9
+                  }
+                });
+              }
+            } else {
+              rule = line.taxRule;
+            }
+          })
+          const voucher = await models.Voucher.create({
+            voucherClassId: transaction.kind.bookId,
+            issueDate: transaction.issueDate,
+            companyId: transaction.companyId,
+            amount: transaction.amount,
+            tax: transaction.tax,
+            taxRule: rule,
+            description: transaction.description,
+            invoiceNo: transaction.company.invoiceNo,
+            createdBy: req.session.user.id,
+            updatedBy: req.session.user.id
+          });
+          transaction.voucherId = voucher.id;
+          await transaction.save();
+          await models.VoucherFile.create({
             voucherId: voucher.id,
             name: name,
             mimeType: 'application/pdf',
             body: pdf
           });
         }
-      } else {
-        console.log('create');
-        let rule;
-        transaction.lines.forEach(async (line) => {
-          if  ( rule ) {
-            if  ( rule.id !== line.taxRule.id ) {
-              rule = await models.TaxRule.findOne({
-                where: {
-                  taxClass: 9
-                }
-              });
-            }
-          } else {
-            rule = line.taxRule;
-          }
-        })
-        const voucher = await models.Voucher.create({
-          voucherClassId: transaction.kind.bookId,
-          issueDate: transaction.issueDate,
-          companyId: transaction.companyId,
-          amount: transaction.amount,
-          tax: transaction.tax,
-          taxRule: rule,
-          description: transaction.description,
-          invoiceNo: transaction.company.invoiceNo,
-          createdBy: req.session.user.id,
-          updatedBy: req.session.user.id
-        });
-        transaction.voucherId = voucher.id;
-        await transaction.save();
-        await models.VoucherFile.create({
-          voucherId: voucher.id,
-          name: name,
-          mimeType: 'application/pdf',
-          body: pdf
-        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.send(pdf);
       }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.send(pdf);
     }
   },
   kindsGet: (req, res, next) => {

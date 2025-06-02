@@ -48,11 +48,11 @@
           <p class="name">{company.name}</p>
         </div>
         {:else}
-        <p class="name">{company.name}</p>
+        <p class="name">{company.name || ''}</p>
         {/if}
-        <p class="zip">〒{company.zip}</p>
-        <p class="address">{company.address1}</p>
-        <p class="address">{company.address2}</p>
+        <p class="zip">〒{company.zip || ''}</p>
+        <p class="address">{company.address1 || ''}</p>
+        <p class="address">{company.address2 || ''}</p>
         <p class="tel">
           {#if company.tel}<span>TEL {company.tel}</span>{/if}
           {#if company.fax}<span>FAX {company.fax}</span>{/if}
