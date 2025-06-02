@@ -119,8 +119,10 @@ const doDelete = async (event) => {
 }
 
 const save = () => {
-  if	( task.companyId )	{
+  if	( task.companyId !== '' )	{
     task.companyId = parseInt(task.companyId);
+  } else {
+    task.companyId = undefined;
   }
   errorMessages = [];
   try {
