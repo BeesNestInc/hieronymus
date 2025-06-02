@@ -45,6 +45,7 @@ router.put('/user/:id', user.update);
 router.delete('/user/:id', user.delete);
 router.get('/users/member', user.members);
 router.get('/users', user.list);
+router.get('/users/:id', user.list);
 
 router.get('/transaction', transaction.get);
 router.get('/transaction/kinds', transaction.kindsGet);

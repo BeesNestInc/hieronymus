@@ -156,6 +156,7 @@ const update = (event) => {
 }
 const closeEntry = (event) => {
   status = 'select';
+  update();
   dispatch('endregister');
 }
 const	openEntry = async (event)	=> {

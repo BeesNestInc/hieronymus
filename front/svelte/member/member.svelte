@@ -73,7 +73,7 @@ const closeEntry = (event) => {
   updateMember();
 }
 
-const checkPage = () => {
+const checkPage = async () => {
   let args = location.pathname.split('/');
   console.log({args});
   if  ( args[2] === 'home' )  {
@@ -91,9 +91,16 @@ const checkPage = () => {
         member = value;
       } else {
         if  ( status.state === 'entry' ) {
+          const result = await axios.get('/api/users?nomember=true');
+          users = result.data.users;
           axios(`/api/member/${args[3]}`).then((result) => {
             member = result.data.member;
             console.log({member});
+            if  ( member.user ) {
+              users.push(member.user);
+              users = users;
+            }
+            console.log('checkPage', {users});
             currentMember.set(member);
           });
         } else {
@@ -114,9 +121,6 @@ onMount(() => {
   axios.get('/api/member/classes').then((result) => {
     console.log(result);
     classes = result.data.classes;
-  })
-  axios.get('/api/users?nomember=true').then((result) => {
-    users = result.data.users;
   })
 })
 

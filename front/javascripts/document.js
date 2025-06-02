@@ -13,7 +13,7 @@ export const bindFile = (files, documentId) => {
   if  ( files && files.length > 0 ) {
     console.log('files', files.length);
     for	( let i = 0; i < files.length ; i += 1 )	{
-      console.log('documentId', files[i].documentId);
+      //console.log('documentId', files[i].documentId);
       if	( !files[i].documentId )	{
         files[i].documentId = documentId;
         bind_file(files[i]);
