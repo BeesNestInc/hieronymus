@@ -125,6 +125,7 @@ const	openSlip = (event)	=> {
 const	openEntry = (event)	=> {
   //console.log('open', event.detail);
   voucher = event.detail;
+  status.change = true;
   if ( !voucher || !voucher.id )	{
     voucher = null;
     status.state = 'new';
@@ -132,11 +133,8 @@ const	openEntry = (event)	=> {
       status, "", `/voucher/new`);
   } else {
     status.state = 'entry';
-    axios.get(`/api/voucher/${voucher.id}`).then((result) => {
-      voucher = result.data.voucher;
-      window.history.pushState(
-        status, "", `/voucher/entry/${voucher.id}`);
-    });
+    window.history.pushState(
+      status, "", `/voucher/entry/${voucher.id}`);
   }
 };
 

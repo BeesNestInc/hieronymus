@@ -119,36 +119,37 @@ const save = () => {
   } else {
     member.memberClassId = 0;
   }
-  if  ( !member.memberClassId || member.memberClassId === 0 )  {
+  if  ( !member.memberClassId || member.memberClassId < 1 )  {
     errorMessages.push('種別を入力してください');
   }
   console.log('input', member);
   if  ( errorMessages.length === 0 )  {
-    try {
-      let	it;
-      let create = false;
-      if ( member.id  ) {
-        member.id = parseInt(member.id);
-        it = update_member(member);
-      } else {
-        it = create_member(member);
-        create = true;
-      }
-      it.then((result) => {
-        //console.log('result', result);
-        member = result.data.member;
+    let	it;
+    let create = false;
+    if ( member.id  ) {
+      member.id = parseInt(member.id);
+      it = update_member(member);
+    } else {
+      it = create_member(member);
+      create = true;
+    }
+    it.then((result) => {
+      //console.log('result', result);
+      member = result.data.member;
+      if  ( member )  {
         if  ( create )  {
           window.history.replaceState(
             status, "", `/member/entry/${member.id}`);
         }
-      });
-    }
-    catch(e) {
+      } else {
+        errorMessages.push('保存できませんでした。');
+      }
+    }).catch((e) => {
       console.log(e);
       errorMessages.push('保存できませんでした。');
       // can't save
       //	TODO alert
-    }
+    });
   }
   errorMessages = errorMessages;
 };
