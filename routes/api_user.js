@@ -49,9 +49,7 @@ export default {
       }).then((_users) => {
         let users = [];
         _users.forEach((user) => {
-          if  (( !user.member ) ||
-               (( req.params.id ) &&
-                ( user.id == req.params.id )))  {
+          if  ( !user.member )  {
             users.push(user);
           }
         })
