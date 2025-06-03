@@ -10,10 +10,10 @@
 <div class="transaction">
   <header class="transaction-header">
     <div class="window-recipient-info">
-      <p>〒{transaction.zip}</p>
-      <p>{transaction.address1}</p>
-      <p>{transaction.address2}</p>
-      <p>{transaction.companyName} 御中</p>
+      <p>〒{transaction.zip || ''}</p>
+      <p>{transaction.address1 || ''}</p>
+      <p>{transaction.address2 || ''}</p>
+      <p>{transaction.companyName || ''} 御中</p>
     </div>
     <div class="">
       <div class="title-info">

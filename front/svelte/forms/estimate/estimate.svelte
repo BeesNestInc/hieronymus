@@ -9,8 +9,8 @@
 <div class="transaction">
   <header class="estimate-header">
     <div class="info">
-      <p class="strong">{transaction.companyName} 御中</p>
-      <p class="strong"><span>件名</span>&nbsp;{transaction.subject}</p>
+      <p class="strong">{transaction.companyName || ''} 御中</p>
+      <p class="strong"><span>件名</span>&nbsp;{transaction.subject || ''}</p>
       <div class="salutation">
         <p>下記の通り御見積申し上げます。</p>
       </div>
