@@ -177,6 +177,7 @@ const checkPage = () => {
     }
   } else {
     status.state = 'list';
+    updateVouchers();
   }
 }
 
@@ -201,9 +202,15 @@ onMount(async () => {
   }
 })
 
+let _status;
 beforeUpdate(()	=> {
   //console.log('voucher beforeUpdate');
-  checkPage();
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    checkPage();
+  }
 });
 afterUpdate(() => {
   //console.log('voucher afterUpdate');

@@ -12,30 +12,9 @@ const home =  async (req, res, next) => {
     res.redirect('/setup');
   }else{
     if	( !req.params.term )	{
-      if	( !req.session.term )	{
-        let now = new Date('2020-10-10');	//	dummy
-        //console.log(now);
-        let fy = await models.FiscalYear.findOne({
-          where: {
-            [Op.and]:	{
-              startDate: {
-                [Op.lte]: now
-              },
-              endDate: {
-                [Op.gte]: now
-              }
-            }
-          }
-        });
-        //console.log(fy);
-        if	( fy )	{
-          req.session.term = fy.term;
-        } else {
-          req.session.term = 15;
-        }
+      if  ( !req.session.term ) {
+        req.session.term = 1;
       }
-      //console.log('term', req.session.term);
-      console.log('user', req.session.user);
       res.render('index.spy', {
         term: req.session.term
       });

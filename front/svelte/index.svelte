@@ -186,10 +186,14 @@ onMount(() => {
   });
   axios.get(`/api/term/${term}`).then((res) => {
     let fy = res.data;
-    status.fy = fy;
-    console.log({fy});
-    status.fy.startDate = new Date(fy.startDate);
-    status.fy.endDate = new Date(fy.endDate);
+    if  ( fy )  {
+      status.fy = fy;
+      console.log({fy});
+      status.fy.startDate = new Date(fy.startDate);
+      status.fy.endDate = new Date(fy.endDate);
+    } else {
+      status.fy = {};
+    }
   });
 	window.onpopstate = (event) => {
     console.log('maybe back', event);

@@ -126,7 +126,7 @@ const save = () => {
     task.companyId = undefined;
   }
   if  ( !task.subject ) {
-    errorMessages.push('案件名を入れてください');
+    errorMessages.push('件名を入れてください');
   }
   if  ( errorMessages.length === 0 )  {
     try {
