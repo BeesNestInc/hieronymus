@@ -114,8 +114,10 @@ const checkPage = async () => {
   console.log({status});
 }
 
-onMount(() => {
+onMount(async () => {
   console.log('member onMount')
+  const result = await axios.get('/api/users?nomember=true');
+  users = result.data.users;
   status.params = parseParams();
   updateMember();
   axios.get('/api/member/classes').then((result) => {
