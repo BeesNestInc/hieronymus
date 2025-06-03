@@ -5,15 +5,8 @@
   <div class="row full-height fontsize-12pt">
     <div class="content">
       <div class="body">
-        {#if !ok }
-        <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
-          <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
-          <ul>
-          <FormError
-        	  messages={errorMessages}></FormError>
-          </ul>
-        </div>
-        {/if}
+        <FormError
+        	messages={errorMessages}></FormError>
         <ItemInfo
           bind:files={files}
           bind:item={item}

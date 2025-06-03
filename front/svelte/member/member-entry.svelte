@@ -3,14 +3,16 @@
     <h1>役職員情報</h1>
   </div> 
   <div class="row full-height fontsize-12pt">
-    <div class="entry-content">
-      <div class="entry-body">
+    <div class="content">
+      <div class="body">
+        <FormError
+        	messages={errorMessages}></FormError>
         <MemberInfo
           classes={classes}
           users={users}
           bind:member={member} />
       </div>
-      <div class="entry-footer">
+      <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={back}>もどる</button>
         {#if ( member && member.id && member.id > 0 )}
@@ -37,6 +39,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import {numeric, formatDate} from '../../../libs/utils.js';
 import MemberInfo from './member-info.svelte';
+import FormError from '../common/form-error.svelte';
 import OkModal from '../common/ok-modal.svelte';
 import {currentMember, getStore} from '../../javascripts/current-record.js'
 
@@ -46,6 +49,7 @@ export  let users;
 export let status;
 
 let disabled = false;
+let errorMessages = [];
 let modal;
 let title;
 let description;
@@ -108,35 +112,42 @@ const delete_member = async (member) => {
 }
 
 const save = () => {
+  errorMessages = [];
   console.log('member', member);
   if	( member.memberClassId )	{
     member.memberClassId = parseInt(member.memberClassId);
+  } else {
+    errorMessages.push('種別を入力してください');
   }
   console.log('input', member);
-  try {
-    let	it;
-    let create = false;
-    if ( member.id  ) {
-      member.id = parseInt(member.id);
-      it = update_member(member);
-    } else {
-      it = create_member(member);
-      create = true;
-    }
-    it.then((result) => {
-      //console.log('result', result);
-      member = result.data.member;
-      if  ( create )  {
-        window.history.replaceState(
-          status, "", `/member/entry/${member.id}`);
+  if  ( errorMessages.length === 0 )  {
+    try {
+      let	it;
+      let create = false;
+      if ( member.id  ) {
+        member.id = parseInt(member.id);
+        it = update_member(member);
+      } else {
+        it = create_member(member);
+        create = true;
       }
-    });
+      it.then((result) => {
+        //console.log('result', result);
+        member = result.data.member;
+        if  ( create )  {
+          window.history.replaceState(
+            status, "", `/member/entry/${member.id}`);
+        }
+      });
+    }
+    catch(e) {
+      console.log(e);
+      errorMessages.push('保存できませんでした。');
+      // can't save
+      //	TODO alert
+    }
   }
-  catch(e) {
-    console.log(e);
-    // can't save
-    //	TODO alert
-  }
+  errorMessages = errorMessages;
 };
 
 const	back = (event) => {
