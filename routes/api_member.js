@@ -50,21 +50,19 @@ export default {
   },
   post: (req, res, next) => {
     let body = req.body;
-    try {
-      models.Member.create(body).then((member) => {
-        //console.log(member);
-        res.json({
-          member: member
-        });
+    models.Member.create(body).then((member) => {
+      //console.log(member);
+      res.json({
+        member: member
       });
-    } catch (e) {
+    }).catch ((e) => {
       console.log(e);
       res.status(500);
       res.json({
         code: -1,
         message: 'DB error at post'
       })
-    }
+    });
   },
   update: async(req, res, next) => {
     let body = req.body;
@@ -77,7 +75,13 @@ export default {
         res.json({
           member: member
         });
-      });
+      }).catch((e) => {
+        console.log(e);
+        res.status(500);
+        res.json({
+          code: -1
+        });
+      })
     }
   },
   delete: async(req, res, next) => {

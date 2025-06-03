@@ -17,7 +17,7 @@
 {/if}
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, beforeUpdate, afterUpdate, tick, createEventDispatcher} from 'svelte';
 import MemberEntry from './member-entry.svelte';
 import MemberList from './member-list.svelte';
 import {currentMember, getStore} from '../../javascripts/current-record.js'
@@ -52,6 +52,7 @@ const updateMember = (_params) => {
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
   member = event.detail;
+  status.change = true;
   if ( !member || !member.id )	{
     status.state = 'new';
     member = null;
@@ -59,11 +60,8 @@ const	openEntry = (event)	=> {
       status, "", `/member/new`);
   } else {
     status.state = 'entry';
-    axios.get(`/api/member/${member.id}`).then((result) => {
-      member = result.data.member;
-      window.history.pushState(
-        status, "", `/member/entry/${member.id}`);
-    });
+    window.history.pushState(
+      status, "", `/member/entry/${member.id}`);
   }
   console.log('member', member)
 };
@@ -107,9 +105,12 @@ const checkPage = async () => {
           currentMember.set(member);
         }
       }
+    } else {
+      users.push(member.user);
     }
   } else {
     status.state = 'list';
+    updateMember();
   }
   console.log({status});
 }
@@ -126,8 +127,15 @@ onMount(async () => {
   })
 })
 
-beforeUpdate(()	=> {
-  checkPage();
+let _status;
+beforeUpdate(async ()	=> {
+  //console.log('member beforeUpdate', status.change);
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    checkPage();
+  }
 });
 afterUpdate(() => {
   //console.log('member afterUpdate');

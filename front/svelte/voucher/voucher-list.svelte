@@ -283,6 +283,8 @@ const openVoucher = (id) => {
         break;
       }
     }
+  } else {
+    voucher = null;
   }
   dispatch('open', voucher);
 }

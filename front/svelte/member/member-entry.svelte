@@ -119,7 +119,7 @@ const save = () => {
   } else {
     member.memberClassId = 0;
   }
-  if  ( !member.memberClassId )  {
+  if  ( !member.memberClassId || member.memberClassId === 0 )  {
     errorMessages.push('種別を入力してください');
   }
   console.log('input', member);
