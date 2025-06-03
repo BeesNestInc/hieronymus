@@ -119,44 +119,51 @@ const doDelete = async (event) => {
 }
 
 const save = () => {
+  errorMessages = [];
   if	( task.companyId !== '' )	{
     task.companyId = parseInt(task.companyId);
   } else {
     task.companyId = undefined;
   }
-  errorMessages = [];
-  try {
-    let	pr;
-    let create = false;
-    if ( task.id  ) {
-      task.id = parseInt(task.id);
-      pr = update_task(task);
-    } else {
-      pr = create_task(task);
-      create = true;
-    }
-    pr.then((result) => {
-      console.log('result', result);
-      if  ( !result.data.code ) {
-        task = result.data.task;
-        bindFile(files,task.documentId);
-        eventBus.emit('taskSelected', task);
-        console.log('save', {status})
-        if  ( create )  {
-          window.history.replaceState(
-            status, "", `/task/entry/${task.id}`);
-        }
+  if  ( !task.subject ) {
+    errorMessages.push('案件名を入れてください');
+  }
+  if  ( errorMessages.length === 0 )  {
+    try {
+      let	pr;
+      let create = false;
+      if ( task.id  ) {
+        task.id = parseInt(task.id);
+        pr = update_task(task);
       } else {
-        errorMessages.push('保存できませんでした。');
-        errorMessages = errorMessages;
+        pr = create_task(task);
+        create = true;
       }
-    });
+      pr.then((result) => {
+        console.log('result', result);
+        if  ( !result.data.code ) {
+          task = result.data.task;
+          bindFile(files,task.documentId);
+          eventBus.emit('taskSelected', task);
+          console.log('save', {status})
+          if  ( create )  {
+            window.history.replaceState(
+              status, "", `/task/entry/${task.id}`);
+          }
+        } else {
+          errorMessages.push('保存できませんでした。');
+          errorMessages = errorMessages;
+        }
+      });
+    }
+    catch(e) {
+      console.log(e);
+      errorMessages.push('保存できませんでした。');
+    }
+  } else {
+
   }
-  catch(e) {
-    console.log(e);
-    // can't save
-    //	TODO alert
-  }
+  errorMessages = errorMessages;
 }
 
 const create = () => {
