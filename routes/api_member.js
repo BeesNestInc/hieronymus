@@ -50,12 +50,21 @@ export default {
   },
   post: (req, res, next) => {
     let body = req.body;
-    models.Member.create(body).then((member) => {
-      //console.log(member);
-      res.json({
-        member: member
+    try {
+      models.Member.create(body).then((member) => {
+        //console.log(member);
+        res.json({
+          member: member
+        });
       });
-    });
+    } catch (e) {
+      console.log(e);
+      res.status(500);
+      res.json({
+        code: -1,
+        message: 'DB error at post'
+      })
+    }
   },
   update: async(req, res, next) => {
     let body = req.body;

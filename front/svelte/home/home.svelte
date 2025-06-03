@@ -206,6 +206,11 @@ onMount(() => {
       alert_level = 'danger';
     }
     console.log({company});
+    if  (( !status.fy ) ||
+         ( !status.fy.term )) {
+      alert = '期を選択してください。';
+      alert_level = 'danger';
+    }
   })
 })
 

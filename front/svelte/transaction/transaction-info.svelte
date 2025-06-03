@@ -121,7 +121,7 @@
         	  }}>
         	  <option value={0}>未選択</option>
         	  {#each tasks as task}
-        	  <option value={task.id}>{task.subject}</option>
+        	  <option value={task.id}>{task.subject || '未入力'}</option>
         	  {/each}
       	  </select>
         </div>
