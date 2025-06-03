@@ -114,9 +114,10 @@ const delete_member = async (member) => {
 const save = () => {
   errorMessages = [];
   console.log('member', member);
-  member.memberClassId = 0;
   if	( member.memberClassId )	{
     member.memberClassId = parseInt(member.memberClassId);
+  } else {
+    member.memberClassId = 0;
   }
   if  ( !member.memberClassId )  {
     errorMessages.push('種別を入力してください');
