@@ -2,7 +2,7 @@
   <div class="page-title d-flex justify-content-between">
     <h1>役職員情報</h1>
   </div> 
-  <div class="row full-height fontsize-12pt">
+  <div class="full-height fontsize-12pt">
     <div class="content">
       <div class="body">
         <FormError

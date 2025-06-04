@@ -256,6 +256,7 @@ tr.over td {
 
 .entry,
 .list {
+  padding-top: 20px;
   .application {
     padding: 0;
     margin-top: 2px;
@@ -268,7 +269,6 @@ tr.over td {
 }
 .entry {
   .content {
-    padding-top: 20px;
     .body {
       background-color: #fff;
       padding: 2em 1em;

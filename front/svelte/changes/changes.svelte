@@ -1,4 +1,4 @@
-<div class="page-title d-flex justify-content-between">
+<div class="page-title d-flex justify-content-between mt-2">
   <h1>推移表</h1>
 </div>
 <AccountSelect
