@@ -87,7 +87,6 @@ let slips = [];
 let slip = {
   lines:[]
 };
-let init = true;
 let accounts;
 let modalCount = 0;
 let popUp;
