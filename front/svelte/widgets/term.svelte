@@ -22,7 +22,7 @@
 	      {#each lines as line}
   	    <tr>
     	    <td>
-      	    {#if ( line.term != status.term)}
+      	    {#if ( line.term != status.fy.term)}
         	  <a href="/home/{line.term}">
           	  {line.term}期
 	          </a>

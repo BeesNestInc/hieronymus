@@ -74,7 +74,7 @@ export default [
   }, {
     name: 'voucher',
     title: '証憑管理',
-    match: /^\/voucher\//,
+    match: /^\/voucher/,
     href: (status) => {
       return	(`/voucher`);
     },
@@ -90,7 +90,7 @@ export default [
 	}, {
     name: 'accounts',
     title: '勘定科目管理',
-    match: /^\/accounts\//,
+    match: /^\/accounts/,
     href: (status) => {
       return	(`/accounts`);
     },

@@ -62,7 +62,6 @@ import OkModal from '../common/ok-modal.svelte';
 export let toast;
 
 let files;
-let answer;
 let modal;
 let description;
 let title;
@@ -116,17 +115,20 @@ const doRestore = (ev) => {
   }
 }
 const doRemove = (ev) => {
-  axios.delete(`/api/admin/backup/${removeFile.toJSON()}`).then(() => {
-    toast.show('バックアップ', 'バックアップ削除しました')
-    files = undefined;
-  })
+console.log(ev.detail);
+  if  ( ev.detail ) {
+    axios.delete(`/api/admin/backup/${removeFile.toJSON()}`).then(() => {
+      toast.show('バックアップ', 'バックアップ削除しました')
+      files = undefined;
+    })
+  }
 }
 
 const backup = () => {
   toast.show('バックアップ', 'バックアップ開始しました')
   axios.post('/api/admin/backup').then(() => {
     toast.remove();
-    toast.show('バックアップ', 'バックアップ終了しました')
+    toast.show('バックアップ', 'バックアップ終了しました');
     files = undefined;
   })
 }
@@ -138,6 +140,7 @@ beforeUpdate(()=> {
       for ( let m of result.data )  {
         files.push(new Date(m));
       }
+      files = files;
     })
   }
 })

@@ -1,7 +1,7 @@
 <div class="menu">
   <div class="header">
     <button class="btn btn-primary" on:click|preventDefault={backup}>
-      バックアップ作成
+      バックアップ
     </button>
   </div>
   <div class="body">
@@ -40,17 +40,27 @@
     </table>
   </div>
 </div>
+<OkModal
+  bind:this={modal}
+  title={title}
+  description={description}
+  on:answer={operation}
+  ></OkModal>
 
 <script>
 import axios from 'axios';
-import {onMount} from 'svelte';
+import {onMount, beforeUpdate} from 'svelte';
 import eventBus from '../../javascripts/event-bus.js';
+import OkModal from '../common/ok-modal.svelte';
 
 export let toast;
 export let status;
 
 let files = [];
 let modal;
+let description;
+let title;
+let operation;
 let restoreFile;
 let removeFile;
 
@@ -61,32 +71,53 @@ const fileName = (file) => {
 const remove = (i) => {
   console.log('remove');
   removeFile = files[i];
-  let description;
   if  ( i > 0 ) {
     description = `${fileName(removeFile)}に取得した<br />${i}世代前のバックアップを削除します。<br />よろしいですか？`;
   } else {
     description = `${fileName(removeFile)}に取得した<br />バックアップを削除します。<br />よろしいですか？`;
   }
-  eventBus.emit('okModal', {
-    title: 'バックアップの削除',
-    description: description,
-    reply: 'doRemove'
-  });
+  title = 'バックアップの削除';
+  operation = doRemove;
+  modal.show();
 }
 const restore = (i) => {
   console.log('restore');
   restoreFile = files[i];
-  let description;
   if  ( i > 0 ) {
     description = `${fileName(restoreFile)}に取得した<br />${i}世代前のバックアップから復元します。<br />よろしいですか？`;
   } else {
     description = `${fileName(restoreFile)}に取得した<br />バックアップから復元します。<br />よろしいですか？`;
   }
-  eventBus.emit('okModal', {
-    title:'バックアップの復元',
-    description: description,
-    reply: 'doRestore'
-  });
+  title = 'バックアップの復元';
+  operation = doRestore;
+  modal.show();
+}
+const doRestore = (ev) => {
+  console.log(ev.detail);
+  if  ( ev.detail ) {
+    console.log('Yes');
+    toast.show('バックアップ', '復元開始しました');
+    axios.post('/api/admin/restore', {
+      date: restoreFile
+    }).then((result) => {
+      let data = result.data;
+      if  ( data.code === 0 ) {
+        window.location = '/home';
+        toast.remove();
+        toast.show('バックアップ', '復元完了しました');
+      }
+    })
+  }
+}
+const doRemove = (ev) => {
+  console.log(ev.detail);
+  if  ( ev.detail ) {
+    console.log('Yes');
+    axios.delete(`/api/admin/backup/${removeFile.toJSON()}`).then(() => {
+      toast.show('バックアップ', 'バックアップ削除しました')
+      files = undefined;
+    })
+  }
 }
 
 const backup = () => {
@@ -94,43 +125,27 @@ const backup = () => {
   axios.post('/api/admin/backup').then(() => {
     toast.remove();
     toast.show('バックアップ', 'バックアップ終了しました')
-    updateFiles();
+    files = undefined;
   })
 }
+beforeUpdate(()=> {
+  if  ( !files )  {
+    axios.get('/api/admin/backups').then((result) => {
+      files = [];
+      for ( let m of result.data )  {
+        files.push(new Date(m));
+      }
+      files = files;
+    })
+  }
+})
 
-const updateFiles = () => {
-  files = [];
+onMount(()=> {
   axios.get('/api/admin/backups').then((result) => {
+    console.log('backup', {result});
+    files = [];
     for ( let m of result.data )  {
       files.push(new Date(m));
-    }
-    files = files;
-  })
-}
-onMount(()=> {
-  updateFiles();
-  eventBus.once('doRemove', (ok) => {
-    if  ( ok )  {
-      axios.delete(`/api/admin/backup/${removeFile.toJSON()}`).then(() => {
-        toast.show('バックアップ', 'バックアップ削除しました');
-        updateFiles();
-      })
-    }
-  })
-  eventBus.once('doRestore', (ok) => {
-    if  ( ok ) {
-      console.log('Yes');
-      toast.show('バックアップ', '復元開始しました');
-      axios.post('/api/admin/restore', {
-        date: restoreFile
-      }).then((result) => {
-        let data = result.data;
-        if  ( data.code === 0 ) {
-          window.location = '/home';
-          toast.remove();
-          toast.show('バックアップ', '復元完了しました');
-        }
-      })
     }
   })
 })

@@ -371,63 +371,59 @@ module.exports = [
     title: 'システム管理',
     menu: [
       {
-        "id": "1",
-        "x": 0,
-        "y": 0,
-        "w": 3,
-        "h": 26,
-        "minimize": false,
-        "component": "Backup",
-        "options": {
-          "title": "バックアップ"
+        "id":"1",
+        "x":7,
+        "y":0,
+        "w":4,
+        "h":26,
+        "minimize":false,
+        "component":"Backup",
+        "options":{
+          "title":"バックアップ"
         }
-      },
-      {
-        "id": "2",
-        "x": 0,
-        "y": 27,
-        "w": 6,
-        "h": 40,
-        "minimize": false,
-        "component": "CompanyKinds",
-        "options": {
-          "title": "取引先種別"
+      },{
+        "id":"2",
+        "x":0,
+        "y":41,
+        "w":6,
+        "h":40,
+        "minimize":false,
+        "component":"CompanyKinds",
+        "options":{
+          "title":"取引先種別"
         }
-      },
-      {
-        "id": "3",
-        "x": 6,
-        "y": 27,
-        "w": 6,
-        "h": 40,
-        "minimize": false,
-        "component": "TransactionKinds",
-        "options": {
-          "title": "取引文書種別"
+      },{
+        "id":"3",
+        "x":0,
+        "y":0,
+        "w":7,
+        "h":40,
+        "minimize":false,
+        "component":"TransactionKinds",
+        "options":{
+          "title":"取引文書種別"
         }
-      },
-      {
-        "id": "4",
-        "x": 0,
-        "y": 68,
-        "w": 6,
-        "h": 40,
-        "minimize": false,
-        "component": "VoucherClasses",
-        "options": {
-          "title": "証憑種別"
+      },{
+        "id":"4",
+        "x":0,
+        "y":82,
+        "w":6,
+        "h":40,
+        "minimize":false,
+        "component":"VoucherClasses",
+        "options":{
+          "title":"証憑種別"
         }
-      },
-      {
-        "id": "5",
-        "x": 6,
-        "y": 68,
-        "w": 6,
-        "h": 40,
-        "minimize": false,
-        "component": "ItemClasses",
-        "options": {
-          "title": "品目種別"
+      },{
+        "id":"5",
+        "x":6,
+        "y":41,
+        "w":6,
+        "h":40,
+        "minimize":false,
+        "component":"ItemClasses",
+        "options":{
+          "title":"品目種別"
         }
       }
     ]

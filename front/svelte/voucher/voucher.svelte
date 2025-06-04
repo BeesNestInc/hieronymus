@@ -129,6 +129,7 @@ const	openEntry = (event)	=> {
   if ( !voucher || !voucher.id )	{
     voucher = null;
     status.state = 'new';
+    currentVoucher.set(null);
     window.history.pushState(
       status, "", `/voucher/new`);
   } else {
