@@ -1,25 +1,40 @@
 // color(logo base)
 :root {
-  --bs-body-bg:       #dff5f4;
-  --bs-body-color:    #333333;
-  --bs-primary:       #008c8c;
-  --bs-secondary:     #7bc400;
+  --bs-body-bg: #f4f4f4;
+  --bs-body-color: #333;
+  --bs-primary: #2a9d8f;
+  --bs-secondary: #264653;
+  --bs-danger: #e76f51;
+  --bs-warning: #f6c453;
+  --bs-warning-hover: #e0ac3f;
+  --header-bg-color: #2f3e46;
+  --sidebar-bg: #264653;
+  --sidebar-text: #eeeeee;
+  --sidebar-text-active: #fff;
+  --bs-btn-disabled-bg: #469c92;
+  --bs-btn-disabled-border-color: #469c92;
   --bs-link-color:    #008c8c;
   --bs-link-color-rgb: var(--bs-link-color);
-  --bs-border-color:  #b0d9d9;
   --bs-link-hover-color: #c4ebe5;
   --bs-card-bg:       #ffffff;
   --bs-card-border-color: #c0eeee;
   --bs-body-bg-rgb: var(--bs-body-bg)
 }
 
+.card, .form-control, table {
+  background-color: #fff;
+  border-radius: 0.3rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
 .nav-pills .nav-link.active {
-  background-color: #bae3dd;
-  color: #333333;
+  color: var(--sidebar-text-active);
+  font-weight: bold;
+  background-color: var(--bs-primary);
+  border-radius: 0;
 }
 
 .nav-link {
-  color: var(--bs-body-color);
+  color: var(--sidebar-text);
 }
 
 html {
@@ -55,7 +70,8 @@ input, optgroup, select, textarea {
     margin-left: 250px;
 }
 .main-header {
-  background-color:  #b0d9d9;
+  background-color: var(--header-bg-color);
+  color: white;
 }
 .main-sidebar {
   bottom: 0;
@@ -74,16 +90,16 @@ input, optgroup, select, textarea {
     width: inherit;
 }
 .main-sidebar .sidebar {
-  height: calc(100vh - (calc(3.5rem + 1px)));
+  height: calc(100vh - (calc(3.5rem + 0px)));
 }
 .sidebar {
   overflow-x: hidden;
   overflow-y: auto;
   padding-bottom: 0.5rem;
   padding-left: 0rem;
-  padding-right: 0.5rem;
+  padding-right: 0rem;
   padding-top: 0.5rem;
-	background-color: var(--bs-primary);
+  background-color: var(--sidebar-bg);
   color: white;
   a {
     &:hover {
@@ -137,11 +153,6 @@ ul.nav {
   border-radius: 4px;
 }
 
-.card:hover {
-  background-color: #f7fdfd;
-  transition: background-color 0.3s ease;
-}
-
 .number {
   text-align: right;
 }
@@ -172,7 +183,8 @@ tr.over td {
   padding: 0.8125rem 0.5rem;
   white-space: nowrap;
   overflow: hidden;
-  background-color:  #b0d9d9;
+  //background-color:  #b0d9d9;
+  background-color: var(--header-bg-color);
   font-size: 1.25rem;
   padding: 0.8125rem 0.5rem;
   white-space: nowrap;
@@ -181,7 +193,8 @@ tr.over td {
     color: var(--body-color);
   }
   .brand-link {
-    color: var(--body-color);
+    //color: var(--body-color);
+    color: #fff;
     .brand-image {
       float: left;
       line-height: .8;
@@ -257,7 +270,9 @@ tr.over td {
   .content {
     padding-top: 20px;
     .body {
-
+      background-color: #fff;
+      padding: 2em 1em;
+      border-radius: 0.3rem;
     }
     .footer {
       padding: 10px 5px;
@@ -434,3 +449,150 @@ table.details  {
   }
 }
 
+
+/* ========== PRIMARY ========== */
+.btn-primary {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background-color: #23897a;
+  border-color: #23897a;
+  color: #fff;
+}
+
+/* Outline version */
+.btn-outline-primary {
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  background-color: transparent;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+  background-color: var(--bs-primary);
+  color: #fff;
+  border-color: var(--bs-primary);
+}
+
+/* ========== SECONDARY ========== */
+.btn-secondary {
+  background-color: var(--bs-secondary);
+  border-color: var(--bs-secondary);
+  color: #fff;
+}
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-secondary:active {
+  background-color: #1e333d;
+  border-color: #1e333d;
+  color: #fff;
+}
+
+.btn-outline-secondary {
+  color: var(--bs-secondary);
+  border-color: var(--bs-secondary);
+  background-color: transparent;
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:active {
+  background-color: var(--bs-secondary);
+  color: #fff;
+  border-color: var(--bs-secondary);
+}
+
+/* ========== DANGER ========== */
+.btn-danger {
+  background-color: var(--bs-danger);
+  border-color: var(--bs-danger);
+  color: #fff;
+}
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active {
+  background-color: #c35c44;
+  border-color: #c35c44;
+  color: #fff;
+}
+
+.btn-outline-danger {
+  color: var(--bs-danger);
+  border-color: var(--bs-danger);
+  background-color: transparent;
+}
+.btn-outline-danger:hover,
+.btn-outline-danger:focus,
+.btn-outline-danger:active {
+  background-color: var(--bs-danger);
+  color: #fff;
+  border-color: var(--bs-danger);
+}
+/* ========== PRIMARY disabled ========== */
+.btn-primary:disabled,
+.btn-primary.disabled {
+  background-color: #a5d5cc;
+  border-color: #a5d5cc;
+  color: #ffffff;
+  opacity: 0.65;
+}
+
+/* outline */
+.btn-outline-primary:disabled,
+.btn-outline-primary.disabled {
+  color: #a5d5cc;
+  border-color: #a5d5cc;
+  background-color: transparent;
+  opacity: 0.65;
+}
+
+/* ========== SECONDARY disabled ========== */
+.btn-secondary:disabled,
+.btn-secondary.disabled {
+  background-color: #8da2aa;
+  border-color: #8da2aa;
+  color: #ffffff;
+  opacity: 0.65;
+}
+
+.btn-outline-secondary:disabled,
+.btn-outline-secondary.disabled {
+  color: #8da2aa;
+  border-color: #8da2aa;
+  background-color: transparent;
+  opacity: 0.65;
+}
+
+/* ========== DANGER disabled ========== */
+.btn-danger:disabled,
+.btn-danger.disabled {
+  background-color: #f3b1a1;
+  border-color: #f3b1a1;
+  color: #ffffff;
+  opacity: 0.65;
+}
+
+.btn-outline-danger:disabled,
+.btn-outline-danger.disabled {
+  color: #f3b1a1;
+  border-color: #f3b1a1;
+  background-color: transparent;
+  opacity: 0.65;
+}
+
+.btn-warning {
+  background-color: var(--bs-warning);
+  border-color: var(--bs-warning-hover);
+  color: #333;
+}
+
+.btn-warning:hover,
+.btn-warning:focus,
+.btn-warning:active {
+  background-color: #e0ac3f;
+  border-color: #d99a2b;
+  color: #333;
+}
