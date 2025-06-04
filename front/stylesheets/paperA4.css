@@ -1,0 +1,188 @@
+@charset "UTF-8";
+body {
+  font-family: "Noto Sans JP", sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f9f9f9;
+  line-height: 1.5;
+}
+
+.page {
+  width: 210mm;
+  height: 297mm;
+  max-width: 100%;
+  margin: 0mm auto;
+  padding-left: 17.8mm;
+  padding-top: 2mm;
+  background: white;
+  transform-origin: top;
+  position: relative;
+  -moz-column-break-after: page;
+       break-after: page;
+  overflow: hidden;
+}
+.page .title-page {
+  position: relative;
+  top: 20px;
+  text-align: center;
+}
+.page .title-page .title {
+  position: absolute;
+  top: 300px;
+  font-size: 32pt;
+  font-weight: bold;
+  width: 100%;
+}
+.page .title-page .company-name {
+  position: absolute;
+  top: 840px;
+  font-size: 16pt;
+  font-weight: bold;
+  width: 100%;
+}
+.page .title-page .term {
+  position: absolute;
+  top: 880px;
+  font-size: 14pt;
+  font-weight: bold;
+  width: 100%;
+}
+.page .title-page .month {
+  position: absolute;
+  top: 910px;
+  font-size: 14pt;
+  font-weight: bold;
+  width: 100%;
+}
+.page .detail-page {
+  position: relative;
+}
+.page .detail-page .page-header {
+  position: relative;
+  top: 0px;
+  height: 80px;
+  overflow-y: hidden;
+}
+.page .detail-page .page-header .ledger-title {
+  text-align: center;
+  font-size: 16pt;
+  border-bottom: 2px solid black;
+  position: absolute;
+  left: 200px;
+  top: 20px;
+  width: 340px;
+  height: 30px;
+}
+.page .detail-page .page-header .company-name {
+  font-size: 12pt;
+  position: absolute;
+  top: 20px;
+}
+.page .detail-page .page-header .term {
+  position: absolute;
+  top: 52px;
+  left: 280px;
+  width: 200px;
+  font-size: 12pt;
+  text-align: center;
+}
+.page .detail-page .page-header .date {
+  position: absolute;
+  top: 52px;
+  right: 35px;
+  font-size: 12pt;
+}
+.page .detail-page .page-header .left-item {
+  position: absolute;
+  top: 50px;
+  font-size: 14pt;
+}
+.page .detail-page .page-header .right-item {
+  position: absolute;
+  top: 10px;
+  right: 35px;
+  font-size: 12pt;
+}
+.page .detail-page .page-body {
+  position: absolute;
+  top: 80px;
+  height: 1000px;
+}
+.page .detail-page .page-body table.table {
+  font-size: 8pt;
+  border-collapse: collapse;
+  border: 2px solid rgb(140, 140, 140);
+  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+  letter-spacing: 1px;
+  width: 760px;
+}
+.page .detail-page .page-body table.table-report {
+  font-size: 12pt;
+  border-collapse: collapse;
+  border: 2px solid rgb(140, 140, 140);
+  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+  letter-spacing: 1px;
+  width: 760px;
+}
+.page .detail-page .page-body table.table-narrow {
+  font-size: 12pt;
+  border-collapse: collapse;
+  border: 2px solid rgb(140, 140, 140);
+  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+  letter-spacing: 0.1em;
+  width: 500px;
+  margin-left: 150px;
+}
+.page .detail-page .page-body tr.title {
+  background-color: #E0E0E0;
+}
+.page .detail-page .page-body tr.total,
+.page .detail-page .page-body td.total {
+  background-color: #E0E0E0;
+}
+.page .detail-page .page-body th,
+.page .detail-page .page-body td {
+  border: 1px solid #000;
+  padding: 2px 5px;
+}
+.page .detail-page .page-body th.no-border,
+.page .detail-page .page-body td.no-border {
+  border: none;
+  padding: 2px 5px;
+}
+.page .detail-page .page-body th.left-border,
+.page .detail-page .page-body td.left-border {
+  border-top: none;
+  border-left: 1px solid #333;
+  border-right: none;
+  border-bottom: none;
+  padding: 2px 5px;
+}
+.page .detail-page .page-body th {
+  text-align: center;
+}
+.page .detail-page .page-body td.number {
+  text-align: right;
+}
+.page .detail-page .page-body td.pl-line {
+  border-top: none;
+  border-left: 1px solid #333;
+  border-right: none;
+  border-bottom: 1px solid #333;
+}
+.page .detail-page .page-footer {
+  position: absolute;
+  top: 1080px;
+  width: 100%;
+  text-align: center;
+}
+
+@page {
+  margin: 0;
+  size: 210mm 297mm;
+}
+@media print {
+  .page {
+    transform: scaleY(1.076);
+  }
+}/*# sourceMappingURL=paperA4.css.map */

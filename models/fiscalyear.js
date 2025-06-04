@@ -1,8 +1,6 @@
-'use strict';
-const {
-  Model
-} = require('sequelize');
-module.exports = (sequelize, DataTypes) => {
+import {Model} from 'sequelize';
+
+export default (sequelize, DataTypes) => {
 	class FiscalYear extends Model {
 		/**
 		 * Helper method for defining associations.
@@ -17,7 +15,9 @@ module.exports = (sequelize, DataTypes) => {
 		startDate: DataTypes.DATE,
 		endDate: DataTypes.DATE,
 		term: DataTypes.INTEGER,
-		year: DataTypes.INTEGER
+		year: DataTypes.INTEGER,
+		taxIncluded: DataTypes.BOOLEAN,
+		transactionCount: DataTypes.INTEGER
 	}, {
 		sequelize,
 		modelName: 'FiscalYear',

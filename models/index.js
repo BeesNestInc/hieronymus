@@ -1,12 +1,42 @@
-'use strict';
+// see https://zenn.dev/tatsuyasusukida/articles/sequelize-cjs-to-esm
+import Account from './account.js';
+import AccountClass from './accountclass.js';
+import AccountRemaining from './accountremaining.js';
+import CrossSlip from './crossslip.js';
+import CrossSlipDetail from './crossslipdetail.js';
+import Company from './company.js';
+import CompanyClass from './company-class.js';
+import Document from './document.js';
+import DocumentFile from './document-file.js';
+import FiscalYear from './fiscalyear.js';
+import MonthlyLog from './monthlylog.js';
+import Item from './item.js';
+import ItemClass from './itemclass.js';
+import ItemFile from './itemfile.js';
+import Member from './member.js';
+import MemberClass from './memberclass.js';
+import Menu from './menu.js';
+import Sticky from './sticky.js';
+import StickyStatus from './stickystatus.js';
+import SubAccount from './subaccount.js';
+import SubAccountRemaining from './subaccountremaining.js';
+import Task from './task.js';
+import TaskDetail from './task-detail.js';
+import TaxRule from './tax-rule.js';
+import TransactionDocument from './transaction-document.js';
+import TransactionDetail from './transaction-detail.js';
+import TransactionKind from './transaction-kind.js';
+import User from './user.js';
+import Voucher from './voucher.js';
+import VoucherClass from './voucherclass.js';
+import VoucherFile from './voucherfile.js';
+import {Sequelize, DataTypes} from 'sequelize';
+import fs from 'fs';
 
-const fs = require('fs');
-const path = require('path');
-const Sequelize = require('sequelize');
-const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.json')[env];
-const db = {};
+
+const jsonData = JSON.parse(fs.readFileSync('config/config.json', 'utf-8'));
+const config = jsonData[env];
 
 let sequelize;
 if (config.use_env_variable) {
@@ -15,23 +45,47 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js');
-  })
-  .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
+const models = {
+  Account: Account(sequelize, DataTypes),
+  AccountClass: AccountClass(sequelize, DataTypes),
+  AccountRemaining: AccountRemaining(sequelize, DataTypes),
+  CrossSlip: CrossSlip(sequelize, DataTypes),
+  CrossSlipDetail: CrossSlipDetail(sequelize, DataTypes),
+  Company: Company(sequelize, DataTypes),
+  CompanyClass: CompanyClass(sequelize, DataTypes),
+  Document: Document(sequelize, DataTypes),
+  DocumentFile: DocumentFile(sequelize, DataTypes),
+  FiscalYear: FiscalYear(sequelize, DataTypes),
+  Item: Item(sequelize, DataTypes),
+  ItemClass: ItemClass(sequelize, DataTypes),
+  ItemFile: ItemFile(sequelize, DataTypes),
+  Member: Member(sequelize, DataTypes),
+  MemberClass: MemberClass(sequelize, DataTypes),
+  Menu: Menu(sequelize, DataTypes),
+  MonthlyLog: MonthlyLog(sequelize, DataTypes),
+  Sticky: Sticky(sequelize, DataTypes),
+  StickyStatus: StickyStatus(sequelize, DataTypes),
+  SubAccount: SubAccount(sequelize, DataTypes),
+  SubAccountRemaining: SubAccountRemaining(sequelize, DataTypes),
+  Task: Task(sequelize, DataTypes),
+  TaskDetail: TaskDetail(sequelize, DataTypes),
+  TaxRule: TaxRule(sequelize, DataTypes),
+  TransactionDocument: TransactionDocument(sequelize, DataTypes),
+  TransactionDetail: TransactionDetail(sequelize, DataTypes),
+  TransactionKind: TransactionKind(sequelize, DataTypes),
+  User: User(sequelize, DataTypes),
+  Voucher: Voucher(sequelize, DataTypes),
+  VoucherClass: VoucherClass(sequelize, DataTypes),
+  VoucherFile: VoucherFile(sequelize, DataTypes)
+}
 
-Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
+Object.keys(models).forEach(key => {
+  if (models[key].associate) {
+    models[key].associate(models)
   }
-});
+})
 
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
+models.sequelize = sequelize;
+models.Sequelize = Sequelize;
 
-module.exports = db;
+export default models;

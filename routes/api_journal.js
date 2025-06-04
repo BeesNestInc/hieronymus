@@ -1,97 +1,119 @@
-const models = require('../models');
+import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
-module.exports = {
-	get: async (req, res, next) => {
-		let year =  req.params.year;
-		let month =  req.params.month;
-		//console.log('/api/journal/', year, month);
-		
-		let cross_slips = [];
+export default {
+  get: async (req, res, next) => {
+    let year =  parseInt(req.params.year);
+    let month =  parseInt(req.params.month);
+    //console.log('/api/journal/', year, month);
+    
+    let cross_slips = [];
 
-		let slips = await models.CrossSlip.findAll({
-			where: {
-				[Op.and]: {
-					year: year,
-					month: month
-				}
-			},
-			order: [
-				[ 'year', 'ASC'],
-				[ 'month', 'ASC'],
-				[ 'day', 'ASC' ],
-				[ 'no', 'ASC' ]
-			]
-		});
-		//console.log('slips', slips);
+    let slips = await models.CrossSlip.findAll({
+      where: {
+        [Op.and]: {
+          year: year,
+          month: month
+        }
+      },
+      include: [{
+          model: models.User,
+          as: 'creater'
+        }, {
+          model: models.User,
+          as: 'approver'
+        }
+      ],
+      order: [
+        [ 'year', 'ASC'],
+        [ 'month', 'ASC'],
+        [ 'day', 'ASC' ],
+        [ 'no', 'ASC' ]
+      ]
+    });
+    //console.log('slips', slips);
 
-		for ( i = 0; i < slips.length; i ++ ) {
-			let slip = slips[i];
-			let details = await models.CrossSlipDetail.findAll({
-				where: {
-					crossSlipId: slip.id
-				},
-				include: [
-					{
-						model: models.Voucher,
-						required: false,
-						as: 'debitVoucher',
-						include: [{
-							model: models.VoucherFile,
-							as: 'files'
-						}]
-					},
-					{
-						model: models.Voucher,
-						required: false,
-						as: 'creditVoucher',
-						include: [{
-							model: models.VoucherFile,
-							as: 'files'
-						}]
-					}
-				],
-					order: [
-					['lineNo', 'ASC' ]
-				]
-			});
-			let lines = [];
-			for ( j = 0; j < details.length; j ++ ) {
-				detail = details[j];
-				lines.push({
-					id: detail.id,
-					lineNo: detail.lineNo,
-					debitAmount: detail.debitAmount,
-					debitTax: detail.debitTax,
+    for ( let i = 0; i < slips.length; i ++ ) {
+      let slip = slips[i];
+      let details = await models.CrossSlipDetail.findAll({
+        where: {
+          crossSlipId: slip.id
+        },
+        include: [
+          {
+            model: models.Voucher,
+            required: false,
+            as: 'debitVoucher',
+            include: [{
+              model: models.VoucherFile,
+              as: 'files'
+            }]
+          }, {
+            model: models.Voucher,
+            required: false,
+            as: 'creditVoucher',
+            include: [{
+              model: models.VoucherFile,
+              as: 'files'
+            }]
+          }, {
+            model: models.TaxRule,
+            as: 'debitTaxRule'
+          }, {
+            model: models.TaxRule,
+            as: 'creditTaxRule'
+          }
+        ],
+          order: [
+          ['lineNo', 'ASC' ]
+        ]
+      });
+      let lines = [];
+      for ( let j = 0; j < details.length; j ++ ) {
+        let detail = details[j];
+        lines.push({
+          id: detail.id,
+          lineNo: detail.lineNo,
+          debitAmount: detail.debitAmount,
+          debitTax: detail.debitTax,
+          debitTaxRule: detail.debitTaxRule,
+          debitTaxRuleId: detail.debitTaxRuleId,
 
-					debitAccount: detail.debitAccount,
-					debitSubAccount: detail.debitSubAccount,
-					debitVoucherId: detail.debitVoucherId,
-					debitVoucher: detail.debitVoucher,
+          debitAccount: detail.debitAccount,
+          debitSubAccount: detail.debitSubAccount,
+          debitVoucherId: detail.debitVoucherId,
+          debitVoucher: detail.debitVoucher,
 
-					application1: detail.application1,
-					application2: detail.application2,
+          application1: detail.application1,
+          application2: detail.application2,
 
-					creditAmount: detail.creditAmount,
-					creditTax: detail.creditTax,
-					creditVoucherId: detail.creditVoucherId,
-					creditVoucher: detail.creditVoucher,
+          creditAmount: detail.creditAmount,
+          creditTax: detail.creditTax,
+          creditTaxRule: detail.creditTaxRule,
+          creditTaxRuleId: detail.creditTaxRuleId,
+          creditVoucherId: detail.creditVoucherId,
+          creditVoucher: detail.creditVoucher,
 
-					creditAccount: detail.creditAccount,
-					creditSubAccount: detail.creditSubAccount
-				});
-			}
-			cross_slips.push({
-				id: slip.id,
-				year: slip.year,
-				month: slip.month,
-				day: slip.day,
-				no: slip.no,
-				term: slip.term,
-				lines: lines
-			});
-		}
-		//console.log(cross_slips);
-		res.json(cross_slips);
-	},
+          creditAccount: detail.creditAccount,
+          creditSubAccount: detail.creditSubAccount
+        });
+      }
+      cross_slips.push({
+        id: slip.id,
+        year: slip.year,
+        month: slip.month,
+        day: slip.day,
+        no: slip.no,
+        term: slip.term,
+        createrName: slip.creater ? slip.creater.name : '',
+        approverName: slip.approver ? slip.approver.name : '',
+        approvedAt: slip.approvedAt,
+        lines: lines
+      });
+    }
+    //console.log(JSON.stringify(cross_slips, ' ', 2));
+    res.json({
+      journal: cross_slips
+    });
+  },
 };

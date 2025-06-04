@@ -1,237 +1,282 @@
-<div class="d-flex justify-content-between mb-3 mt-3">
-  <h1 class="fs-3">元帳</h1>
-  <a href="/forms/general_ledger/{term}" download="総勘定元帳.xlsx" class="btn btn-primary">
-    総勘定元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
-  </a>
-</div>
-<ul class="nav">
-  {#each fields as field, index}
-  <li class="nav-item dropdown pe-2">
-    <a class="btn btn-outline-primary dropdown-toggle" href="#" id="field_{index}" rolw="button" data-bs-toggle="dropdown" aria-expanded="false">
-      {field.title}
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="field_{index}">
-      {#each field.accounts as account}
-      <li>
-        <a class="dropdown-item" href="/ledger/{term}/{account.code}">{account.name}</a>
-      </li>
-      {/each}
-    </ul>
-  </li>
-  {/each}
-</ul>
-<nav class="navbar navbar-expand-lg">
-  {#if (account)}
-  <a class="navbar-brand fs-4" href="/ledger/{term}/{account.accountCode}">
-    { account ? account.name : ''}
-  </a>
-  {/if}
-</nav>
-{#if (account && (account.SubAccounts.length > 0))}
-<div class="d-flex justify-content-between mb-2">
-  <div>
-    <ul class="nav">
-      {#each account.SubAccounts as sub}
-        <li class="nav-item pe-2">
-          <a class="btn {sub.subAccountCode == sub_account_code ? ' btn-primary disabled' : 'btn-outline-primary'}"
-              href="/ledger/{term}/{account.accountCode}/{sub.subAccountCode}">
-            {sub.name}
-          </a>
-        </li>
-      {/each}
-  </ul>
+<div class="list">
+  <div class="page-title d-flex justify-content-between">
+  	<h1>元帳</h1>
+  	<a href="/forms/general_ledger/{status.fy.term}?format=pdf" download="総勘定元帳-{today}.pdf" class="btn btn-primary">
+    	総勘定元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
+  	</a>
+	</div>
+	<AccountSelect
+  	on:select={(event) => {
+    	accountSelect(event.detail);
+  	}}
+  	fields={fields}/>
+	<nav class="page-subtitle navbar">
+  	{#if (account)}
+  	<button class="btn btn-link fs-4"
+    	on:click={() => {
+      	accountSelect({
+        	code: account.accountCode
+      	})
+    	}}>
+    	{ account ? account.name : ''}
+  	</button>
+  	{/if}
+	</nav>
+	{#if (account && (account.subAccounts.length > 0))}
+  <div class="row page-subtitle">
+    <div class="col-8">
+  		<SubAccountSelect
+    		on:select={(event) => {
+      		accountSelect(event.detail);
+    		}}
+    		account={account}
+    		sub_account_code={status.subAccountCode} />
+    </div>
+    <div class="col-4" style="text-align:right;">
+    	{#if status.subAccountCode}
+      <button type="button" class="btn btn-info"
+        on:click={() => {
+          link(`/changes/${status.accountCode}/${status.subAccountCode}`)
+        }}>
+      	推移表を見る
+    	</button>
+    	{:else}
+      <button type="button" class="btn btn-info"
+        on:click={() => {
+          link(`/changes/${status.accountCode}`);
+        }}>
+      	推移表を見る
+    	</button>
+    	{/if}
+      <a href="/forms/subsidiary_ledger/{status.fy.term}?format=pdf" download="補助元帳-{today}.pdf" class="btn btn-primary">
+          補助元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
+      </a>
+    </div>
   </div>
-  <div>
-    <a href="/forms/subsidiary_ledger/{term}" download="補助元帳.xlsx" class="btn btn-primary">
-      補助元帳.xlsx&nbsp;をダウンロード&nbsp;<i class="bi bi-download"></i>
-    </a>
-  </div>
+	{/if}
+	<LedgerList
+  	account={account}
+  	pickup={pickup}
+  	sums={sums}
+  	lines={lines}
+  	bind:status={status}
+  	on:link={_link}
+  	on:select={(event) => {
+    	accountSelect(event.detail);
+  	}}
+  	on:open={openSlip}></LedgerList>
 </div>
-{/if}
-<LedgerList
-  modal={modal}
-  account={account}
-  pickup={pickup}
-  sums={sums}
-  lines={lines}
-  accounts={accounts}
-  term={term}
-  on:open={openSlip}></LedgerList>
-
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
-	slip={slip}
-	modal={modal}
-	term={term}
-	accounts={accounts}
-	bind:init={init}
-	on:close={updateList}></CrossSlipModal>
-
-<style>
-</style>
+  slip={slip}
+  status={status}
+  accounts={accounts}
+  bind:popUp={popUp}
+  on:close={updateList}></CrossSlipModal>
+{/key}
+{/if}
 
 <script>
 
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
-import {set_accounts, find_account} from '../../javascripts/cross-slip';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-import parse_account_code from 'parse_account_code';
-
 import LedgerList from './ledger-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
-import {ledger_lines} from '../../../libs/ledger';
+import {ledgerLines} from '../../../libs/ledger';
+import AccountSelect from '../components/account-select.svelte';
+import SubAccountSelect from '../components/subaccount-select.svelte';
+import {setAccounts} from '../../javascripts/cross-slip';
+import parse_account_code from '../../../libs/parse_account_code';
 
+export let status;
 
-let term;
-let accounts;
-let account_code;
+let modalCount = 0;
+let popUp;
+let accounts = [];
 let account;
-let sub_account_code;
-let fields;
 let details;
 let remaining;
-let modal;
-let slip;
+let slip = {
+    year: 0,
+    month: 0,
+    lines: []
+  };
 let pickup;
 let sums;
 let lines;
-let init;
+let fields = [
+  {
+    title: '資産',
+    accounts: []
+  },{
+    title: '負債',
+    accounts: []
+  },{
+    title: '純資産',
+    accounts: []
+  },{
+    title: '売上高',
+    accounts: []
+  },{
+    title: '売上原価',
+    accounts: []
+  },{
+    title: '営業外',
+    accounts: []
+  }
+];
+let today;
 
-beforeUpdate(() => {
-	console.log('ledger beforeUpdate');
-	let args = location.pathname.split('/');
-	term = args[2];
-	account_code = args[3];
-	sub_account_code = args[4];
+const _link = (event) => {
+  link(event.detail);
+}
+const link = (href) => {
+  window.history.pushState(status, "", href);
+  status.change = true;
+}
 
-	if	( !accounts )	{
-		accounts = [];
-		fields = [];
-		axios.get(`/api/accounts`).then((res) => {
-			accounts = res.data;
-			set_accounts(accounts);
-		}).then(() => {
-			fields = [
-				{
-					title: '資産',
-					accounts: []
-				},{
-					title: '負債',
-					accounts: []
-				},{
-					title: '純資産',
-					accounts: []
-				},{
-					title: '売上高',
-					accounts: []
-				},{
-					title: '売上原価',
-					accounts: []
-				},{
-					title: '営業外',
-					accounts: []
-				}];
-			for ( let i = 0; i < accounts.length; i ++ ) {
-				let account = accounts[i];
-				switch (parse_account_code.field(account.code)) {
-				  case '1':
-				  case '2':
-					fields[0].accounts.push(account);
-					break;
-				  case '3':
-				  case '4':
-					fields[1].accounts.push(account);
-					break;
-				  case '5':
-					fields[2].accounts.push(account);
-					break;
-				  case '6':
-					fields[3].accounts.push(account);
-					break;
-				  case '7':
-					fields[4].accounts.push(account);
-					break;
-				  default:
-					fields[5].accounts.push(account);
-					break;
-				}
-			}
-		});
-	}
-	if	( !account )	{
-		axios.get(`/api/account/${account_code}`).then((result) => {
-			account = result.data;
-			console.log('account', account);
-			remaining = [];
-			let pr;
-			if ( sub_account_code > 0 ) {
-				pr = axios.get(`/api/remaining/${term}/${account_code}/${sub_account_code}`);
-			} else {
-				pr = axios.get(`/api/remaining/${term}/${account_code}`);
-			}
-			pr.then((result) => {
-				remaining = result.data;
-				console.log('remaining', remaining);
-				details = [];
-				updateList();
-			});
-		});
-	}
-	if	( !slip )	{
-		slip = {
-			year: 0,
-			month: 0,
-			lines: []
-		}
-	}
+const accountSelect = (code) => {
+  let href;
+  if  ( code.sub )  {
+    href = `/ledger/${code.code}/${code.sub}`;
+  } else {
+    href = `/ledger/${code.code}`;
+  }
+  status.pathname = href;
+  status.accountCode = code.code;
+  status.subAccountCode = code.sub;
+  update(true);
+  window.history.pushState(status, "", href);
+}
+
+const update = async (list) => {
+  let args = status.pathname.split('/');
+  status.current = args[1];
+  status.accountCode = args[2];
+  status.subAccountCode = args[3] ? parseInt(args[3]) : undefined;
+  let result = await axios.get(`/api/account/${status.accountCode}`);
+  account = result.data;
+  //console.log('account', account);
+  //console.log(status.accountCode, status.subAccountCode);
+  if  ( list )  {
+    let pr;
+  	if ( status.subAccountCode ) {
+    	//console.log('sub');
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
+  	} else {
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}`);
+  	}
+  	remaining = [];
+  	pr.then((result) => {
+    	remaining = result.data;
+    	//console.log('remaining', remaining);
+      updateList();
+  	});
+  }
+}
+const checkPage = () => {
+  update(true);
+}
+
+let _status;
+beforeUpdate(()	=> {
+  console.log('ledger beforeUpdate', status);
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    console.log('run checkPage');
+    checkPage();
+  }
 });
-
-let openModal = false;
 afterUpdate(() => {
-	if	( !modal )	{
-		modal = new Modal(document.getElementById('cross-slip-modal'));
-		console.log('modal new')
-	}
-	if	( openModal )	{
-		modal.show();
-		openModal = false;
-	}
+  console.log('ledger afterUpdate');
+})
+onMount(() => {
+  axios.get(`/api/accounts`).then((res) => {
+    accounts = res.data;
+    setAccounts(accounts);
+    for ( let i = 0; i < accounts.length; i ++ ) {
+      let account = accounts[i];
+      switch (parse_account_code.field(account.code)) {
+        case '1':
+        case '2':
+          fields[0].accounts.push(account);
+          break;
+        case '3':
+        case '4':
+          fields[1].accounts.push(account);
+          break;
+        case '5':
+          fields[2].accounts.push(account);
+          break;
+        case '6':
+          fields[3].accounts.push(account);
+          break;
+        case '7':
+          fields[4].accounts.push(account);
+          break;
+        default:
+          fields[5].accounts.push(account);
+          break;
+      }
+    }
+    fields = fields;
+  });
+  if  ( !status.pathname ) {
+    status.pathname = location.pathname;
+  }
+  let now = new Date();
+  today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
+
+  console.log('ledger onMount');
+  update(false);
+})
+
+afterUpdate(() => {
+  if  (!popUp)  {
+    modalCount += 1;
+  }
 });
 
 const updateList = () => {
-	console.log('updateList', term, account_code, sub_account_code);
-	let pr;
-	if ( sub_account_code > 0 ) {
-		console.log('with sub_account');
-		pr = axios.get(`/api/ledger/${term}/${account_code}/${sub_account_code}`);
-	} else {
-		pr = axios.get(`/api/ledger/${term}/${account_code}`);
-	}
-	pr.then((result) => {
-		details = result.data;
-		console.log('details', details);
-		let ret = ledger_lines(account_code, sub_account_code,
-				remaining, details);
-		console.log('ret', ret);
-		lines = ret.lines;
-		sums = ret.sums;
-		pickup = ret.pickup;
-	});
+  console.log('updateList', status);
+  let pr;
+  if ( status.subAccountCode ) {
+    console.log('sub');
+    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
+  } else {
+    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}`);
+  }
+  details = [];
+  pr.then((result) => {
+    details = result.data;
+    console.log('details', details);
+    let ret = ledgerLines(status.accountCode, status.subAccountCode,
+        remaining, details);
+    console.log('ret', ret);
+    lines = ret.lines;
+    sums = ret.sums;
+    pickup = ret.pickup;
+  });
 }
 const openSlip = (event) => {
-	let dataset = event.detail;
-	axios.get(`/api/cross_slip/${dataset.year}/${dataset.month}/${dataset.no}`).then((result) => {
-		let data = result.data;
-		slip = {
-				year: data.year,
-				month: data.month,
-				day: data.day,
-				no: data.no,
-				lines: data.lines
-		};
-		openModal = true;
-		init = true;
-		console.log('slip', slip);
-	});
+  let dataset = event.detail;
+  axios.get(`/api/cross_slip/${dataset.year}/${dataset.month}/${dataset.no}`).then((result) => {
+    let data = result.data;
+    slip = {
+        year: data.year,
+        month: data.month,
+        day: data.day,
+        no: data.no,
+        createdBy: data.createdBy,
+        approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
+        createrName: data.creater ? data.creater.name: '',
+        approverName: data.approver ? data.approver.name : '',
+        lines: data.lines
+    };
+    popUp = true;
+  });
 }
 </script>

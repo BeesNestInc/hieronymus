@@ -1,127 +1,138 @@
-const express = require('express');
+import express from 'express';
 const app = express();
-const session = require('express-session');
-const FileStore = require('session-file-store')(session);
-const passport = require('passport');
-const multipart = require('connect-multiparty');
+import axios from 'axios';
 
-const cors = require('cors');
-const sprightly = require('sprightly');
-const path = require('path');
+import session from 'express-session';
+import fileStore from 'session-file-store';
+const FileStore = fileStore(session);
+import passport from 'passport';
+import multipart from 'connect-multiparty';
 
-const apiRouter = require('./routes/api');
-const logger = require('morgan');
-const cookieParser = require('cookie-parser');
-const homeRouter = require('./routes/home');
-const formsRouter = require('./routes/forms');
-const customerRouter = require('./routes/customer');
-const voucherRouter = require('./routes/voucher');
-const {User, is_authenticated} = require('./libs/user');
+import cors from 'cors';
+import sprightly from 'sprightly';
+import ejs from 'ejs';
+import path from 'path';
 
-global.env = require('./config/env');
+import apiRouter from './routes/api.js';
+import logger from 'morgan';
+import cookieParser from 'cookie-parser';
+import homeRouter from './routes/home.js';
+import formsRouter from './routes/forms.js';
+import {is_authenticated} from './libs/user.js';
+import models from './models/index.js';
+
+import modules from './config/module-list.js';
+import env from './config/env.js';
+global.env = env;
+
+const __dirname = import.meta.dirname;
+
+// SSRのためにローカルにaxiosを向けるため
+axios.defaults.baseURL = `http://localhost:${global.env.port}`;
 
 app.use(logger('dev'));		//	アクセスログを見たい時には有効にする
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(cors({
-	origin: ['*']
+  origin: ['*']
 }));
 app.use(multipart());
 
 app.use(session({
-	secret: 'hieronymus',
-	resave: true,
-	saveUninitialized: false,
-	name: 'hieronymus',					//	ここの名前は起動するnode.js毎にユニークにする
-	store: new FileStore({
-		ttl: global.env.session_ttl,	//	default 3600(s)
-		reapInterval: global.env.session_ttl,
-		path: global.env.session_path	//	default path
-	}),
+  secret: env.expressSecret,
+  resave: true,
+  saveUninitialized: false,
+  name: 'hieronymus2',					//	ここの名前は起動するnode.js毎にユニークにする
+  store: new FileStore({
+    ttl: global.env.session_ttl,	//	default 3600(s)
+    reapInterval: global.env.session_ttl,
+    path: global.env.session_path	//	default path
+  }),
 
-	cookie: {
-		httpOnly: true,
-		secure: false,
-		maxage: null
-	}
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    maxage: null
+  }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 
+app.set('views', './views');
 
 app.engine('spy', sprightly);
-app.set('views', './views');
 app.set('view engine', 'spy');
+//app.engine('ejs', ejs);
+app.set('view engine', 'ejs');
 
 app.use('/dist', express.static(path.join(__dirname, './dist')));
 app.use('/style', express.static(path.join(__dirname, './front/stylesheets')));
 app.use('/public', express.static(path.join(__dirname, './public')));
 
-app.use('/api', apiRouter);
+const screen = (req, res, next) => {
+  console.log('current', req.params.current);
+  console.log('command', req.params.command);
+  let per = modules.find((ent) => {
+    return	( req.params.current === ent.name );
+  })
+  if	( per )	{
+  	if ( !per.authority || per.authority(req.session.user) )	{
+    	res.render('index.spy', {
+      	title: per.title,
+      	term: req.session.term,
+    	});
+  	} else {
+    	res.redirect('/home');
+    }
+  } else {
+    res.sendStatus(404);
+  }
+}
 
-/*
-app.use('/journal/:term', is_authenticated, (req, res, next) => {
-	res.render('journal.spy', {
-		term: req.params.term,
-		user: User.current(req)
-	});
-});
-*/
-app.use('/journal/:year/:month', is_authenticated, (req, res, next) => {
-	res.render('journal.spy', {
-		year: req.params.year,
-		month: req.params.month,
-		term: req.session.term,
-		user: User.current(req)
-	});
-});
+const voucherFile = (req, res, next) => {
+  console.log('/voucher/file', req.params.id);
+  if ( req.session.user.accounting )	{
+    models.VoucherFile.findOne({
+      where: {
+        id: req.params.id
+      }
+    }).then((content) => {
+      res.set('Content-Type', content.mimeType);
+      res.send(content.body);
+    })
+  } else {
+    res.redirect('/home');
+  }
+}
 
-app.use('/ledger/:term/:account', is_authenticated, (req, res, next) => {
-	res.render('ledger.spy', {
-		term: req.session.term,
-		account: req.params.account,
-		user: User.current(req)
-	});
-});
-app.use('/bank-ledger/:term', is_authenticated, (req, res, next) => {
-	res.render('bank-ledger.spy', {
-		term: req.session.term,
-		account: req.params.account,
-		user: User.current(req)
-	});
-});
-app.use('/bank-ledger/:term/:account', is_authenticated, (req, res, next) => {
-	res.render('bank-ledger.spy', {
-		term: req.session.term,
-		account: req.params.account,
-		user: User.current(req)
-	});
-});
-app.use('/bank-ledger/:term/:account/:subaccount', is_authenticated, (req, res, next) => {
-	res.render('bank-ledger.spy', {
-		term: req.session.term,
-		account: req.params.account,
-		user: User.current(req)
-	});
-});
-app.use('/accounts/:term', is_authenticated, (req, res, next) => {
-	res.render('accounts.spy', {
-		term: req.session.term,
-		user: User.current(req)
-	});
-});
-app.use('/trial-balance', is_authenticated,(req, res, next) => {
-	res.render('trial-balance.spy', {
-		term: req.session.term,
-		user: User.current(req)
-	});
-});
-
-app.use('/customer', customerRouter);
-app.use('/voucher', voucherRouter);
-app.use('/forms', formsRouter);
 
 app.use('/', homeRouter);
 
-module.exports = app;
+app.get('/voucher/file/:id', is_authenticated, voucherFile);
+app.use('/forms', formsRouter);
+app.use('/api', apiRouter);
+
+app.use('/:current/:command/:arg1/:arg2/:arg3', is_authenticated, screen);
+app.use('/:current/:command/:arg1/:arg2', is_authenticated, screen);
+app.use('/:current/:command/:arg1', is_authenticated, screen);
+app.use('/:current/:id', is_authenticated, screen);
+app.use('/:current', is_authenticated, screen);
+
+app.use((err, req, res, next) => {
+    console.error(`[${new Date().toISOString()}] 500エラー:`, {
+        message: err.message,
+        stack: err.stack,
+        url: req.originalUrl,
+        method: req.method,
+        headers: req.headers
+    });
+    
+    res.status(500).send(`
+        <h1>500 - Internal Server Error</h1>
+        <p>${err.message}</p>
+    `);
+});
+
+export default app;
+

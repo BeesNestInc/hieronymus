@@ -1,12 +1,16 @@
-const trial_balance = require('../libs/trial_balance.js');
+import trial_balance from '../libs/trial_balance.js';
 
+export default {
+  get: (req, res, next) => {
+    let term = parseInt(req.params.term);
+    let lastDate;
+    if	( req.params.lastdate )	{
+      let ymd = req.params.lastdate.split('-');
+      lastDate = new Date(parseInt(ymd[0]), parseInt(ymd[1]), 1);
+    }
 
-module.exports = {
-	get: (req, res, next) => {
-		let term = req.params.term;
-
-		trial_balance(term).then((ret) => {
-			res.json(ret.lines);
-		})
-	},
+    trial_balance(term, lastDate).then((ret) => {
+      res.json(ret.lines);
+    })
+  },
 }

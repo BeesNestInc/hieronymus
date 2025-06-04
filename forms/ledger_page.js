@@ -1,8 +1,8 @@
-const CrossSlipDetails = require('../libs/crossslipdetails');
-const Account = require('../libs/accounts');
-const {Page} = require('./book');
-const {ledger_lines} = require('../libs/ledger');
-const {set_accounts} = require('../front/javascripts/cross-slip');
+import CrossSlipDetails from '../libs/crossslipdetails.js';
+import Account from '../libs/accounts.js';
+import {Page} from './book.js';
+import {ledgerLines} from '../libs/ledger.js';
+import {setAccounts} from '../front/javascripts/cross-slip.js';
 
 class LedgerPage{
     constructor(book, account, subAccount) {
@@ -421,11 +421,11 @@ class LedgerPage{
 
     }
 }
-module.exports = class {
+export default class {
     constructor(book, accounts) {
         this.book = book;
         this.accounts = accounts;
-        set_accounts(accounts);
+        setAccounts(accounts);
     }
     async page(account, subAccount) {
         //console.log('account', account, subAccount);
@@ -439,12 +439,12 @@ module.exports = class {
             this_page.make_header();
             let ret;
             if  ( subAccount )  {
-                ret = ledger_lines(account.code, subAccount.code, {
+                ret = ledgerLines(account.code, subAccount.code, {
                     debit: 0,
                     credit: 0,
                     balance: this_page.balance }, details);
             } else {
-                ret = ledger_lines(account.code, null, {
+                ret = ledgerLines(account.code, null, {
                     debit: 0,
                     credit: 0,
                     balance: this_page.balance }, details);

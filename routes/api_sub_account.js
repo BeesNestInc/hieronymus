@@ -1,8 +1,8 @@
-const models = require('../models');
+import models from '../models/index.js';
 const Op = models.Sequelize.Op;
-const Acc = require('../libs/parse_account_code.js');
+import Acc from '../libs/parse_account_code.js';
 
-module.exports = {
+export default {
 	get: async (req, res, next) => {
 		let account_code = req.params.code;
 
@@ -13,7 +13,7 @@ module.exports = {
 			include: [{
 				model: models.SubAccount,
 				order: ['subAccountId', 'ASC'],
-				as: 'SubAccounts'
+				as: 'subAccounts'
 			}],
 		});
 		//console.log(account);
@@ -49,7 +49,9 @@ module.exports = {
 		})
 	},
 	update: async(req, res, next) => {
+		console.log(req.body);
 		let sub_code = req.body.sub_code;
+		let term = parseInt(req.params.term);
 		let account = await models.Account.findOne({
 			where: {
 				accountCode: req.body.code
@@ -70,14 +72,14 @@ module.exports = {
 			let rem = await models.SubAccountRemaining.findOne({
 				where: {
 					[Op.and]: {
-						term: req.params.term,
+						term: term,
 						subAccountId: sub.id
 					}
 				}
 			});
 			if ( !rem ) {
 				rem = new models.SubAccountRemaining({
-					term: req.params.term,
+					term: term,
 					subAccountId: sub.id
 				});
 			}

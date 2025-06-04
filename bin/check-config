@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const fs = require('fs/promises');
+import fs from 'fs/promises';
 
 //const configFilePath = '/app/hieronymus/config/config.json';
 const configFilePath = './config/config.json';

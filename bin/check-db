@@ -1,8 +1,12 @@
 #!/usr/bin/env node
-const Sequelize = require('sequelize');
+import Sequelize from 'sequelize';
+import fs from 'fs/promises';
+const configText = await fs.readFile(new URL('../config/config.json', import.meta.url), 'utf8');
+const configData = JSON.parse(configText);
+
 const env = process.env.NODE_ENV || 'development';
-const config = require('../config/config.json')[env];
-const { execSync } = require('child_process');
+const config = configData[env];
+import { execSync } from 'child_process';
 
 let sequelize;
 if (config.use_env_variable) {

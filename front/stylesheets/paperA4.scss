@@ -1,0 +1,186 @@
+body {
+  font-family: "Noto Sans JP", sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f9f9f9;
+  line-height: 1.5;
+}
+
+.page {
+  width: 210mm;
+  height: 297mm;
+  max-width: 100%;
+  margin: 0mm auto;
+  padding-left: 17.8mm;
+  padding-top: 2mm;
+  background: white;
+  //box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  transform-origin: top;
+  position: relative;
+  break-after: page;
+  overflow: hidden;
+  .title-page {
+    position: relative;
+    top: 20px;
+    text-align: center;
+  	.title {
+      position: absolute;
+      top: 300px;
+      font-size: 32pt;
+      font-weight: bold;
+      width: 100%;
+  	}
+  	.company-name {
+      position: absolute;
+      top: 840px;
+      font-size: 16pt;
+      font-weight: bold;
+      width: 100%;
+  	}
+    .term {
+      position: absolute;
+      top: 880px;
+      font-size: 14pt;
+      font-weight: bold;
+      width: 100%;
+    }
+    .month {
+      position: absolute;
+      top: 910px;
+      font-size: 14pt;
+      font-weight: bold;
+      width: 100%;
+    }
+  }
+  .detail-page {
+    position: relative;
+    .page-header {
+      position: relative;
+      top: 0px;
+      height: 80px;
+      overflow-y: hidden;
+      .ledger-title {
+        text-align:center;
+        font-size: 16pt;
+        border-bottom: 2px solid black;
+        position:absolute;
+        left:200px;
+        top: 20px;
+        width: 340px;
+        height: 30px;
+      }
+      .company-name {
+        font-size: 12pt;
+        position:absolute;
+        top: 20px;
+      }
+      .term {
+        position: absolute;
+        top:52px;
+        left:280px;
+        width: 200px;
+        font-size: 12pt;
+        text-align: center;
+      }
+      .date {
+        position: absolute;
+        top: 52px;
+        right: 35px;
+        font-size: 12pt;
+      }
+      .left-item {
+        position:absolute;
+        top: 50px;
+        font-size: 14pt;
+      }
+      .right-item {
+        position:absolute;
+        top: 10px;
+        right: 35px;
+        font-size: 12pt;
+      }
+    }
+    .page-body {
+      position: absolute;
+      top: 80px;
+      height: 1000px;
+    	table.table {
+      	font-size: 8pt;
+	      border-collapse: collapse;
+  	    border: 2px solid rgb(140 140 140);
+    	  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+      	letter-spacing: 1px;
+	      width: 760px;
+  	  }
+    	table.table-report {
+      	font-size: 12pt;
+	      border-collapse: collapse;
+  	    border: 2px solid rgb(140 140 140);
+    	  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+      	letter-spacing: 1px;
+	      width: 760px;
+  	  }
+    	table.table-narrow {
+      	font-size: 12pt;
+	      border-collapse: collapse;
+  	    border: 2px solid rgb(140 140 140);
+    	  font-family: "MS P明朝", "ヒラギノ明朝", sans;
+      	letter-spacing: 0.1em;
+	      width: 500px;
+        margin-left: 150px;
+  	  }
+    	tr.title {
+      	background-color: #E0E0E0;
+	    }
+  	  tr.total,
+      td.total {
+    	  background-color: #E0E0E0;
+	    }
+  	  th,
+    	td {
+      	border: 1px solid #000;
+	      padding: 2px 5px;
+  	  }
+      th.no-border,
+      td.no-border {
+      	border: none;
+	      padding: 2px 5px;
+      }
+      th.left-border,
+      td.left-border {
+      	border-top: none;
+        border-left: 1px solid #333;
+        border-right: none;
+      	border-bottom: none;
+	      padding: 2px 5px;
+      }
+    	th {
+      	text-align: center;
+	    }
+  	  td.number {
+    	  text-align: right;
+	    }
+      td.pl-line {
+        border-top: none;
+        border-left: 1px solid #333;
+        border-right: none;
+        border-bottom: 1px solid #333;
+      }
+    }
+    .page-footer {
+      position: absolute;
+			top: 1080px;
+      width:100%;
+      text-align: center;
+    }
+  }
+}
+@page {
+  margin: 0;
+  size: 210mm 297mm;
+}
+@media print {
+  .page {
+    transform: scaleY(1.076);
+  }
+}

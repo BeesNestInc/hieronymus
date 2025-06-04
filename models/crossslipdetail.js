@@ -1,8 +1,6 @@
-'use strict';
-const {
-	Model
-} = require('sequelize');
-module.exports = (sequelize, DataTypes) => {
+import {Model} from 'sequelize';
+
+export default (sequelize, DataTypes) => {
 	class CrossSlipDetail extends Model {
 		/**
 		 * Helper method for defining associations.
@@ -13,20 +11,32 @@ module.exports = (sequelize, DataTypes) => {
 			this.hasOne(models.CrossSlip, {
 				sourceKey: 'crossSlipId',
 				foreignKey: 'id',
-				as: 'CrossSlip',
-				onDelete: 'CASCADE'
+				as: 'crossSlip',
+				onDelete: 'cascade',
+				onUpdate: 'cascade'
 			});
 			this.hasOne(models.Voucher, {
 				sourceKey: 'debitVoucherId',
 				foreignKey: 'id',
-				as: 'debitVoucher'
+				as: 'debitVoucher',
+				onDelete: 'SET NULL',
+				onUpdate: 'cascade'
 			});
 			this.hasOne(models.Voucher, {
 				sourceKey: 'creditVoucherId',
 				foreignKey: 'id',
-				as: 'creditVoucher'
+				as: 'creditVoucher',
+				onDelete: 'SET NULL',
+				onUpdate: 'cascade'
 			});
-
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'debitTaxRuleId',
+				as: 'debitTaxRule'
+			});
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'creditTaxRuleId',
+				as: 'creditTaxRule'
+			});
 		}
 	};
 	CrossSlipDetail.init({
@@ -37,11 +47,13 @@ module.exports = (sequelize, DataTypes) => {
 		debitAmount: DataTypes.DECIMAL(12),
 		debitTax: DataTypes.DECIMAL(12),
 		debitVoucherId: DataTypes.INTEGER,
+		debitTaxRuleId: DataTypes.INTEGER,
 		creditAccount: DataTypes.STRING,
 		creditSubAccount: DataTypes.INTEGER,
 		creditAmount: DataTypes.DECIMAL(12),
 		creditTax: DataTypes.DECIMAL(12),
 		creditVoucherId: DataTypes.INTEGER,
+		creditTaxRuleId: DataTypes.INTEGER,
 		application1: DataTypes.STRING,
 		application2: DataTypes.STRING
 	}, {

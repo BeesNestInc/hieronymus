@@ -1,9 +1,7 @@
-const ExcelJS = require('exceljs');
-const models = require('../models');
+import ExcelJS from 'exceljs';
+import models from '../models/index.js';
 const Op = models.Sequelize.Op;
-const Account = require('../libs/accounts');
-
-const TERM=14;
+import Account from '../libs/accounts.js';
 
 class ExplanatoryJournal {
     constructor(term) {
@@ -389,7 +387,7 @@ sheet.run().then (() => {
 });
 */
 
-module.exports = async (term) => {
+export default async (term) => {
     let sheet = new ExplanatoryJournal(term);
     await sheet.run();
     return  sheet.book.xlsx.writeBuffer();

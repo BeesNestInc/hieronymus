@@ -1,249 +1,220 @@
-<div class="d-flex justify-content-between mb-3 mt-3">
-  <h1 class="fs-3">証票一覧</h1>
-  <button type="button" class="btn btn-primary"
-    on:click={openModal}
-    id="voucher-info">証票入力&nbsp;<i class="bi bi-pencil-square"></i></button>
-</div>
-<ul class="nav me-auto mb-2">
-  {#each dates as date}
-    <li class="nav-item">
-      {#if (date.ym == current_month)}
-      <button type="button" class="btn btn-primary disabled me-2"
-        on:click={openMonth}
-        data-month="{date.year}-{date.month}">
-        {date.month}&nbsp;月
-      </button>
-      {:else}
-      <button type="button" class="btn btn-outline-primary me-2"
-        on:click={openMonth}
-        data-month="{date.year}-{date.month}">
-        {date.month}&nbsp;月
-      </button>
-      {/if}
-    </li>
-  {/each}
-  <li class="nav-item">
-    {#if ( !current_month  )}
-    <button type="button" class="btn btn-primary disabled me-2"
-      data-month=""
-      on:click={openMonth}>
-      ALL
-    </button>
-    {:else}
-    <button type="button" class="btn btn-outline-primary me-2"
-      data-month=""
-      on:click={openMonth}>
-      ALL
-    </button>
-    {/if}
-  </li>
-</ul>
+{#if ( status.state === 'list' )}
 <VoucherList
-  term={term}
+  bind:status={status}
   vouchers={vouchers}
-  on:open={openModal}
+  on:open={openEntry}
   on:openSlip={openSlip}
   on:selectVoucherType={selectVoucherType}
-  on:selectCustomerId={selectCustomer}
+  on:selectCompanyId={selectCompany}
   on:selectAmount={selectAmount}
+  on:gotoMonth={gotoMonth}
   ></VoucherList>
-<VoucherModal
-	modal={modal}
-	term={term}
-	bind:init={init}
-	bind:voucher={voucher}
-	on:close={closeModal}>
-</VoucherModal>
-
+{:else if ( status.state === 'entry' || status.state === 'new' )}
+<VoucherEntry
+  bind:status={status}
+  bind:voucher={voucher}
+  on:close={closeEntry}>
+</VoucherEntry>
+{/if}
+{#if popUp}
+{#key modalCount}
 <CrossSlipModal
-	slip={slip}
-	bind:modal={slipModal}
-	term={term}
-	bind:init={init}
-	accounts={accounts}
-	on:close={updateVouchers}></CrossSlipModal>
-
+  accounts={accounts}
+  slip={slip}
+  status={status}
+  bind:popUp={popUp}
+  on:close={updateVouchers}></CrossSlipModal>
+{/key}
+{/if}
 <style>
 </style>
 
 <script>
 import axios from 'axios';
-import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-import VoucherModal from './voucher-modal.svelte';
+import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
-import {numeric} from '../../javascripts/cross-slip';
+import {setAccounts} from '../../javascripts/cross-slip';
+import {numeric, formatDate} from '../../../libs/utils.js';
+import {currentVoucher, getStore} from '../../javascripts/current-record.js'
+import {parseParams, buildParam} from '../../javascripts/params.js';
+
+export let status;
 
 let	voucher;
-let	term;
-let	modal;
-let slipModal;
-let init;
-let vouchers;
-let accounts;
-let slip;
-let dates;
-let current_month;
-let current_params = new Map();
-
+let vouchers = [];
+let accounts = [];
+let slip = {
+  year: 0,
+  month: 0,
+  lines: []
+};
+let modalCount = 0;
+let popUp;
 
 const selectVoucherType = (event) => {
-	let	voucherType = event.detail;
-	console.log({voucherType});
-	updateVouchers({
-		type: voucherType
-	});
+  updateVouchers({});
 }
-const selectCustomer = (event) => {
-	let	customerId = event.detail;
-	console.log({customerId});
-	updateVouchers({
-		customer: customerId
-	});
+const selectCompany = (event) => {
+  let	companyId = event.detail;
+  //console.log({companyId});
+  updateVouchers({
+    company: companyId
+  });
 }
 const selectAmount = (event) => {
-	let amounts = event.detail;
-	console.log({amounts});
-	updateVouchers({
-		upper: numeric(amounts.upperAmount),
-		lower: numeric(amounts.lowerAmount)
-	});
+  let amounts = event.detail;
+  //console.log({amounts});
+  updateVouchers({
+    upper: numeric(amounts.upperAmount),
+    lower: numeric(amounts.lowerAmount)
+  });
+}
+
+const gotoMonth = (event) => {
+  let month = event.detail;
+  //console.log('month', month);
+  updateVouchers({
+    month: month
+  });
 }
 
 const updateVouchers = (_params) => {
-	if	( _params )	{
-		Object.keys(_params).map((key) => {
-			if	( !_params[key] )	{
-				current_params.delete(key);
-			} else {
-				current_params.set(key,_params[key]);
-			}
-		});
-	}
-	console.log('current_params', current_params);
-	let _array = [];
-	current_params.forEach((value, key) => {
-		console.log('key, value', key, value);
-		_array.push(encodeURI(`${key}=${value}`));
-	});
-	let param = _array.join('&');
-	console.log('param', param);
-	axios.get(`/api/voucher?${param}`).then((result) => {
-		vouchers = result.data;
-		console.log('vouchers', vouchers);
-	});
-	if	( _params )	{
-		window.history.pushState(
-				current_params, "", `${location.pathname}?${param}`);
-	}
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/voucher?${param}`).then((result) => {
+    vouchers = result.data.vouchers;
+    //console.log('vouchers', vouchers);
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
 };
-
-const openMonth = (event) => {
-    event.preventDefault();
-	let month = event.currentTarget.dataset.month;
-	gotoMonth(month);
-}
-const gotoMonth = (month) => {
-	console.log('month', month);
-	updateVouchers({
-		month: month
-	});
-	current_month = month;
-}
 
 const	openSlip = (event)	=> {
-	console.log('openSlip', event.detail);
-	slip = event.detail;
-	init = true;
-	console.log('slip', slip)
-	slipModal.show();
+  let issue = event.detail;
+  if	( issue.no )	{
+    axios.get(`/api/cross_slip/${issue.year}/${issue.month}/${issue.no}`).then((result) => {
+      slip = result.data;
+      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
+      console.log('slip', slip);
+      popUp = true;
+    })
+  } else {
+    slip = {
+      year: parseInt(issue.year),
+      month: parseInt(issue.month),
+      day: parseInt(issue.day),
+      lines: [{
+        debitAccount: "",
+        debitSubAccount: 0,
+        debitAmount: "",
+        debitTax: "",
+        creditAccount: "",
+        creditSubAccount: 0,
+        creditAmount: "",
+        creditTax: "",
+      }]
+    };
+    popUp = true;
+  }
 };
 
-const	openModal = (event)	=> {
-	console.log('open', event.detail);
-	voucher = event.detail;
-	if ( !voucher.id )	{
-		voucher = null;
-	}
-	init = true;
-	console.log('voucher', voucher)
-	modal.show();
+const	openEntry = (event)	=> {
+  //console.log('open', event.detail);
+  voucher = event.detail;
+  status.change = true;
+  if ( !voucher || !voucher.id )	{
+    voucher = null;
+    status.state = 'new';
+    currentVoucher.set(null);
+    window.history.pushState(
+      status, "", `/voucher/new`);
+  } else {
+    status.state = 'entry';
+    window.history.pushState(
+      status, "", `/voucher/entry/${voucher.id}`);
+  }
 };
 
-const closeModal = (event) => {
-	console.log('close', event.detail);
-	updateVouchers();
+const closeEntry = (event) => {
+  status.state = 'list';
+  updateVouchers();
 }
 
-onMount(() => {
-	console.log('voucher onMount')
+const checkPage = () => {
+  let args = location.pathname.split('/');
+  console.log({args});
+  if  ( ( args[2] === 'entry' ) ||
+			  ( args[2] === 'new'   )) {
+    status.state = args[2];
+    if  ( !voucher ) {
+      voucher = {
+      	issueDate: formatDate(new Date()),
+      	paymentDate: null,
+      	amount: 0,
+      	taxClass: -1,
+      	tax: 0,
+      	type: -1
+    	};
+      let value = getStore(currentVoucher);
+      if	( value )	{
+        voucher = value;
+      } else {
+        if	( status.state === 'entry' )	{
+          axios.get(`/api/voucher/${args[3]}`).then((result) => {
+        		voucher = result.data.voucher;
+        		//console.log({voucher});
+            currentVoucher.set(voucher);
+      		});
+        } else {
+          currentVoucher.set(voucher);
+        }
+      }
+    }
+  } else {
+    status.state = 'list';
+    updateVouchers();
+  }
+}
+
+onMount(async () => {
+  console.log('voucher onMount', voucher);
+  checkPage()
+  status.params = parseParams();
+  axios.get(`/api/voucher/classes`).then((result) => {
+    status.voucherClasses = result.data.values;
+  });
+  updateVouchers();
+  axios.get(`/api/accounts`).then((res) => {
+    accounts = res.data;
+    setAccounts(accounts);
+  });
+  window.onpopstate = (event) => {
+    if	( window.history.state )	{
+      status = window.history.state;
+      //console.log({current_params});
+      updateVouchers();
+    }
+  }
 })
 
+let _status;
 beforeUpdate(()	=> {
-	console.log('voucher beforeUpdate');
-	let args = location.pathname.split('/');
-	let _params = location.search.substr(1);
-	console.log('_params', _params);
-	let params = [];
-	if  ( _params )	{
-		_params.split('&').map((item) => {
-			let kv = item.split('=');
-			params[decodeURI(kv[0])] = decodeURI(kv[1]);
-		});
-		console.log({params});
-	}
-	term = parseInt(args[2]);
-	console.log('term', term);
-	if	( !dates )	{
-		window.onpopstate = (event) => {
-			if	( window.history.state )	{
-				current_params = window.history.state;
-				console.log({current_params});
-				current_month = current_params.get('month');
-				updateVouchers();
-			}
-		}
-		dates = [];
-		axios.get(`/api/term/${term}`).then((result) => {
-			let fy = result.data;
-			term = fy.term;
-			for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
-				dates.push({
-					year: mon.getFullYear(),
-					month: mon.getMonth()+1,
-					ym: `${mon.getFullYear()}-${mon.getMonth()+1}`
-				});
-				mon.setMonth(mon.getMonth() + 1);
-			}
-			dates = dates;
-		});
-		console.log('dates', dates);
-	}
-	if	( !vouchers )	{
-		vouchers = [];
-		gotoMonth(params['month']);
-	}
-	if	( !accounts )	{
-		axios.get(`/api/accounts`).then((res) => {
-			accounts = res.data;
-		});
-	}
-	if	( !slip )	{
-		slip = {
-			year: 0,
-			month: 0,
-			lines: []
-		}
-	}
+  //console.log('voucher beforeUpdate');
+  if  (( status.change ) ||
+       ( _status !== status ))  {
+    status.change = false;
+    _status = status;
+    checkPage();
+  }
 });
 afterUpdate(() => {
-	console.log('voucher afterUpdate');
-	if	( !modal )	{
-		modal = new Modal(document.getElementById('voucher-modal'));
-	}
-	if	( !slipModal )	{
-		slipModal = new Modal(document.getElementById('cross-slip-modal'));
-	}
+  //console.log('voucher afterUpdate');
+  if  (!popUp)  {
+    modalCount += 1;
+  }
 })
 </script>

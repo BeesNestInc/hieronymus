@@ -1,7 +1,7 @@
-const Account = require('../libs/accounts');
-const {Book, Page} = require('./book');
+import Account from '../libs/accounts.js';
+import {Book, Page} from './book.js';
 
-module.exports = class {
+export default class {
     constructor(book, lines, accounts)    {
         this.accounts = accounts;
         this.book = book;
@@ -177,7 +177,7 @@ module.exports = class {
             credit: 0,
             balance: 0
         }
-        for ( line of this.lines )  {
+        for ( let line of this.lines )  {
             if      ( ( ( line.debit != 0 ) ||
                         ( line.credit != 0 ) ||
                         ( line.balance != 0 ) ) &&
@@ -196,7 +196,7 @@ module.exports = class {
             credit: 0,
             balance: 0
         }
-        for ( line of this.lines )  {
+        for ( let line of this.lines )  {
             if      ( ( ( line.debit != 0 ) ||
                         ( line.credit != 0 ) ||
                         ( line.balance != 0 ) ) &&

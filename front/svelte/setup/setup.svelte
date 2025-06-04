@@ -1,6 +1,6 @@
 <div class="bg-white p-5 rounded col-11 col-lg-4">
   <h1 class="text-center">初期セットアップ</h1>
-  <p class="text-center">最初に使用する会計年度を登録します</p>
+  <p class="text-center">最初に使用する会計年度と端数処理を登録します</p>
   {#if serverError !== ""}
   <p class="text-danger">エラーが発生しました。{serverError}</p>
   {/if}
@@ -48,6 +48,20 @@
           </div>
         {/if}
       </div>
+      <div class="mb-3">
+        <label for="roundingMethod" class="form-label">端数処理&nbsp;<span class="badge bg-danger">必須</span></label>
+        <select id="roundingMethod" class="form-control"
+          bind:value={form.roundingMethod}>
+          {#each ROUNDING_METHOD as method}
+          <option value={method[0]}>{method[1]}</option>
+          {/each}
+        </select>
+        {#if invalid.roundingMethod }
+          <div class="text-danger">
+            {message.roundingMethod}
+          </div>
+        {/if}
+      </div>
       <div class="d-flex justify-content-center">
         {#if loding }
           <button type="button" class="btn btn-primary col-lg-8 col-12" disabled>
@@ -67,6 +81,7 @@
 <script>
   import axios from 'axios';
   import {onMount} from 'svelte';
+  import {ROUNDING_METHOD} from '../../../libs/utils.js';
 
   let form = {};
   let invalid = {};
@@ -76,18 +91,25 @@
   let version = "";
 
   onMount(async () => {
-      form.term = 1;
-      form.year = new Date().getFullYear() - 1;
-      form.startDate = `${form.year}-04-01`;
-      form.endDate = `${form.year + 1}-03-31`;
-      invalid.term = false;
-      invalid.year = false;
-      invalid.startDate = false;
-      invalid.endDate = false;
-      const result = await axios.get('/api/version');
-      if ( result.data ){
-        version = result.data.version;
-      }
+    const year = new Date().getFullYear();
+    form = {
+      term: 1,
+      year: year,
+      startDate: `${year}-04-01`,
+      endDate: `${year + 1}-03-31`,
+      roundingMethod: 2
+    };
+    invalid ={
+      term: false,
+      year: false,
+      startDate: false,
+      endDate: false,
+      roundingMethod: false
+    };
+    const result = await axios.get('/api/version');
+    if ( result.data ){
+      version = result.data.version;
+    }
   })
   const isYearValid = () => {
     invalid.year = false;

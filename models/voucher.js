@@ -1,8 +1,6 @@
-'use strict';
-const {
-  Model
-} = require('sequelize');
-module.exports = (sequelize, DataTypes) => {
+import {Model} from 'sequelize';
+
+export default (sequelize, DataTypes) => {
   class Voucher extends Model {
     /**
      * Helper method for defining associations.
@@ -10,25 +8,47 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-			this.hasOne(models.Customer, {
+			this.hasOne(models.Company, {
 				foreignKey: 'id',
-				sourceKey: 'customerId'
+				sourceKey: 'companyId',
+        as: 'company'
+			});
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'createdBy',
+        as: 'createUser'
+			});
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'updatedBy',
+        as: 'updateUser'
 			});
       this.hasMany(models.VoucherFile, {
         foreignKey: 'voucherId',
         as: 'files'
       })
+			this.belongsTo(models.VoucherClass, {
+				sourceKey: 'voucherClassId',
+        as: 'voucherClass'
+			});
+			this.belongsTo(models.TaxRule, {
+				sourceKey: 'taxRuleId',
+        as: 'taxRule'
+			});
     }
   }
   Voucher.init({
-    type: DataTypes.INTEGER,
+    voucherClassId: DataTypes.INTEGER,
     issueDate: DataTypes.DATEONLY,
     paymentDate: DataTypes.DATEONLY,
-    customerId: DataTypes.INTEGER,
+    companyId: DataTypes.INTEGER,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
-    taxClass: DataTypes.INTEGER,
+    taxRuleId: DataTypes.INTEGER,
     description: DataTypes.TEXT,
+    invoiceNo: DataTypes.TEXT,
+    createdBy: DataTypes.INTEGER,
+    updatedBy: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Voucher',

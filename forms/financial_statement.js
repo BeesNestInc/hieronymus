@@ -1,8 +1,8 @@
-const IncomeStatementPage = require('./income_statement_page');
-const TrialBalancePage = require('./trial_balance_page');
-const {Book} = require('./book');
-const TrialBalance = require('../libs/trial_balance');
-const SGA = require('./selling_general_and_administrative_expenses_page');
+import IncomeStatementPage from './income_statement_page.js';
+import TrialBalancePage from './trial_balance_page.js';
+import {Book} from './book.js';
+import TrialBalance from '../libs/trial_balance.js';
+import SGA from './selling_general_and_administrative_expenses_page.js';
 
 const	aggregate = (lines, code) => {
 	let sums = {
@@ -11,7 +11,7 @@ const	aggregate = (lines, code) => {
 		credit: 0,
 		balance: 0
 	}
-	for ( line of lines )  {
+	for ( let line of lines )  {
 		if      ( ( ( line.debit != 0 ) ||
 					( line.credit != 0 ) ||
 					( line.balance != 0 ) ) &&
@@ -54,7 +54,7 @@ const	net_income = (lines) => {
 	line.balance = line.pickup - line.debit + line.credit;
 }
 
-module.exports = async (term) => {
+export default async (term) => {
 	let book = new Book(term);
 	let {lines, accounts} = await TrialBalance(term);
 	net_income(lines);

@@ -1,11 +1,9 @@
-const models = require('../models');
-const Op = models.Sequelize.Op;
-const { exit } = require('process');
-const CrossSlipDetails = require('../libs/crossslipdetails');
-const Accounts = require('../libs/accounts');
-const {field, dc, numeric} = require('../libs/parse_account_code');
-const {ledger_lines} = require('../libs/ledger');
-const TrialBalance = require('../libs/trial_balance');
+import models from '../models/index.js';
+import CrossSlipDetails from '../libs/crossslipdetails.js';
+import Accounts from '../libs/accounts.js';
+import {field, dc, numeric} from '../libs/parse_account_code.js';
+import {ledgerLines} from '../libs/ledger.js';
+import TrialBalance from '../libs/trial_balance.js';
 
 const   fiscalYear = async (term) => {
     let fy = await models.FiscalYear.findOne({
@@ -70,8 +68,8 @@ const   Closing = async (arg, carry) => {
                         credit: numeric(sub.credit),
                         balance: numeric(sub.balance)
                     };
-                    details = await CrossSlipDetails.all(fy, acc.code, sub.code);
-                    let lines = ledger_lines(acc.code, sub.code, pickup, details);
+                    let details = await CrossSlipDetails.all(fy, acc.code, sub.code);
+                    let lines = ledgerLines(acc.code, sub.code, pickup, details);
                     rem.debit = lines.sums.debitAmount;
                     rem.credit = lines.sums.creditAmount;
                     rem.balance = lines.sums.balance;
@@ -114,8 +112,8 @@ const   Closing = async (arg, carry) => {
                     credit: numeric(acc.credit),
                     balance: numeric(acc.balance)
                 };
-                details = await CrossSlipDetails.all(fy, acc.code);
-                let lines = ledger_lines(acc.code, null, pickup, details);
+                let details = await CrossSlipDetails.all(fy, acc.code);
+                let lines = ledgerLines(acc.code, null, pickup, details);
                 rem.debit = lines.sums.debitAmount;
                 rem.credit = lines.sums.creditAmount ;
                 rem.balance = lines.sums.balance;
@@ -133,7 +131,7 @@ const	aggregate = (lines, code) => {
 		credit: 0,
 		balance: 0
 	}
-	for ( line of lines )  {
+	for ( let line of lines )  {
 		if      ( ( ( line.debit != 0 ) ||
 					( line.credit != 0 ) ||
 					( line.balance != 0 ) ) &&
@@ -184,7 +182,7 @@ fiscalYear(14).then((ret) => {
 });
 */
 
-module.exports = async (term) => {
+export default async (term) => {
     let fy = await fiscalYear(term);
     let {lines} = await TrialBalance(term);
     let carry = net_income(lines);

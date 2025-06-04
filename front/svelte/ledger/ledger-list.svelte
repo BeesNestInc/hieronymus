@@ -45,15 +45,24 @@
     {#each lines as line}
     <tr style="height:36px;">
       <td style="width:50px;text-align:center;">
-        <a href="/journal/{line.year}/{line.month}">
+        <button type="button" class="btn btn-link"
+        	on:click={() => {
+            dispatch('link', `/journal/${line.year}/${line.month}`);
+          }}>
           {line.month}/{line.day}
-        </a>
+        </button>
       </td>
       <td class="number" style="width:50px;">
-        <a href="#" data-no={line.no} data-year={line.year} data-month={line.month}
-            on:click={openSlip}>
+        <button type="button" class="btn btn-link"
+          on:click={() => {
+            dispatch('open', {
+							year: line.year,
+							month: line.month,
+							no: line.no
+						});
+          }}>
           {line.no}
-        </a>
+        </button>
       </td>
       <td>
         {line.otherAccount}<br/>
@@ -62,9 +71,10 @@
       <td>
         <div class="appication">
           {line.application1 ? line.application1 : ''}
-        </div>
-        <div class="appication">
-          {line.application2 ? line.application2 : ''}
+          {#if line.application2 }
+          /
+          {line.application2}
+          {/if}
         </div>
         <div class="application">
           {#if (line.debitVoucher )}
@@ -84,14 +94,20 @@
         </div>
         {#if (line.subAccount)}
         <div class="application">
-          <a href="/ledger/{term}/{account.accountCode}/{line.subAccountCode}">
+          <button type="button" class="btn btn-link"
+          	on:click={() => {
+              dispatch('select', {
+    						code: account.accountCode,
+    						sub: line.subAccountCode
+              });
+      			}}>
             {line.subAccount}
-          </a>
+          </button>
         </div>
         {/if}
       </td>
       <td class="number">
-        {line.thisTaxClass}<br/>
+        {line.debitTaxRule}<br/>
         {#if (line.showDebit)}
         <span>
           {line.pureDebitAmount ? line.pureDebitAmount.toLocaleString(): ''}<br/>
@@ -100,7 +116,7 @@
         {/if}
       </td>
       <td class="number">
-        {line.otherTaxClass}<br/>
+        {line.creditTaxRule}<br/>
         {#if (line.showCredit)}
         <span>
           {line.pureCreditAmount ? line.pureCreditAmount.toLocaleString(): ''}<br/>
@@ -140,36 +156,17 @@
     {/if}
   </tbody>
 </table>
-<style>
-.fontsize-12pt {
-	font-size: 12pt;
-}
-.application {
-	padding: 0;
-}
-th {
-	text-align: center;
-}
-</style>
 
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
-export	let term;
+export	let status;
 export	let	account;
 export	let pickup;
 export	let sums;
 export	let lines = [];
-		
-const	openSlip = (event) => {
-	event.preventDefault();
-	let dataset = event.target.dataset;
-	console.log('openSlip', dataset);
-	dispatch('open', {
-		year: dataset.year,
-		month: dataset.month,
-		no: dataset.no
-	});
+
+const link=(href) => {
 }
 </script>

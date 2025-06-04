@@ -1,12 +1,21 @@
-const models = require('../models');
+import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
-module.exports = {
+export default {
 	get: async (req, res, next) => {
-		let term = req.params.term;
+		let term = parseInt(req.params.term);
 		let account = req.params.account;
 		let sub_account = req.params.sub_account;
 		let remaining;
+
+		if	( term === 0 )	{
+			let d = await models.FiscalYear.findOne({
+				order: [
+					['term', 'ASC']
+				]
+			});
+			term = d.term;
+		}
 
 		let account_rec = await models.Account.findOne({
 			where: {
@@ -20,15 +29,16 @@ module.exports = {
 					subAccountCode: sub_account,
 				}
 			});
-			remaining = await models.SubAccountRemaining.findOne({
-				where: {
-					[Op.and]: {
-						term: term,
-						subAccountId: sub_account_rec.id
+			if	( sub_account_rec )	{
+				remaining = await models.SubAccountRemaining.findOne({
+					where: {
+						[Op.and]: {
+							term: term,
+							subAccountId: sub_account_rec.id
+						}
 					}
-				}
-			});
-			
+				});
+			}
 		} else {
 			remaining = await models.AccountRemaining.findOne({
 				where: {

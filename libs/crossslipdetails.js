@@ -1,7 +1,7 @@
-const models = require('../models');
+import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
-module.exports = class {
+export default class {
     static  async   all(fy, accountCode, subAccountCode) {
         //console.log(fy);
         let details = []
@@ -21,24 +21,24 @@ module.exports = class {
                                     creditSubAccount: subAccountCode
                                 }
                             ],
-                            '$CrossSlip.year$': mon.getFullYear(),
-                            '$CrossSlip.month$': mon.getMonth() + 1
+                            '$crossSlip.year$': mon.getFullYear(),
+                            '$crossSlip.month$': mon.getMonth() + 1
                         },
                     },
                     include: [{
                         model: models.CrossSlip,
-                        as: 'CrossSlip'
+                        as: 'crossSlip'
                     }],
                     order: [
-                        models.sequelize.literal('"CrossSlip"."year", "CrossSlip"."month", "CrossSlip"."day", "CrossSlip"."no", "CrossSlipDetail"."lineNo" ASC')
+                        models.sequelize.literal('"crossSlip"."year", "crossSlip"."month", "crossSlip"."day", "crossSlip"."no", "CrossSlipDetail"."lineNo" ASC')
                     ]
                 }));
             } else {
                 details = details.concat( await models.CrossSlipDetail.findAll({
                     where: {
                         [Op.and]: {
-                            '$CrossSlip.year$': mon.getFullYear(),
-                            '$CrossSlip.month$': mon.getMonth() + 1,
+                            '$crossSlip.year$': mon.getFullYear(),
+                            '$crossSlip.month$': mon.getMonth() + 1,
                             [Op.or]: {
                                 debitAccount: accountCode,
                                 creditAccount: accountCode
@@ -47,10 +47,10 @@ module.exports = class {
                     },
                     include: [{
                         model: models.CrossSlip,
-                        as: 'CrossSlip'
+                        as: 'crossSlip'
                     }],
                     order: [
-                        models.sequelize.literal('"CrossSlip"."year", "CrossSlip"."month", "CrossSlip"."day", "CrossSlip"."no", "CrossSlipDetail"."lineNo" ASC')
+                        models.sequelize.literal('"crossSlip"."year", "crossSlip"."month", "crossSlip"."day", "crossSlip"."no", "CrossSlipDetail"."lineNo" ASC')
                     ]
                 }));
             }

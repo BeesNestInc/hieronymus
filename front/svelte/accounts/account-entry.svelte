@@ -19,7 +19,7 @@
     <div class="row">
         <div class="col-3">勘定科目</div>
         <div class="col-9">
-            {#if (sub_account)}
+            {#if (subAccount)}
                 {account.name}
             {:else}
                 <input type="text" id="account_name"
@@ -38,7 +38,7 @@
         <div class="col-3">補助科目</div>
         <div class="col-9">
             <input type="text" id="sub_account_name"
-                    bind:value={sub_account.name} size="36">
+                    bind:value={subAccount.name} size="36">
         </div>
     </div>
     {/if}
@@ -46,7 +46,7 @@
         <div class="col-3">検索キー</div>
         <div class="col-9">
             {#if ( ( mode == 'new-sub-account' ) || ( mode == 'edit-sub-account' ) )}
-            <input type="text" id="key" bind:value={sub_account.key} size="24">
+            <input type="text" id="key" bind:value={subAccount.key} size="24">
             {:else}
             <input type="text" id="key" bind:value={account.key} size="24">
             {/if}
@@ -56,7 +56,7 @@
         <div class="col-3">消費税課税区分</div>
         <div class="col-9">
             {#if ( ( mode == 'new-sub-account' ) || ( mode == 'edit-sub-account' ) )}
-            <select class="form-control" id="tax_class" bind:value={sub_account.taxClass}>
+            <select class="form-control" id="tax_class" bind:value={subAccount.taxClass}>
                 {#each TAX_CLASS as tax_class}
                 <option value={tax_class[1]}>{tax_class[0]}</option>
                 {/each}
@@ -75,7 +75,7 @@
         <div class="col-9">
             {#if ( ( mode == 'new-sub-account' ) || ( mode == 'edit-sub-account' ) )}
             <InputNumber
-                    bind:value={sub_account.debit}></InputNumber>
+                    bind:value={subAccount.debit}></InputNumber>
             {:else}
             <InputNumber
                     bind:value={account.debit}></InputNumber>
@@ -87,7 +87,7 @@
         <div class="col-9">
             {#if ( ( mode == 'new-sub-account' ) || ( mode == 'edit-sub-account' ) )}
             <InputNumber
-                    bind:value={sub_account.credit}></InputNumber>
+                    bind:value={subAccount.credit}></InputNumber>
             {:else}
             <InputNumber
                     bind:value={account.credit}></InputNumber>
@@ -99,7 +99,7 @@
         <div class="col-9">
             {#if ( ( mode == 'new-sub-account' ) || ( mode == 'edit-sub-account' ) )}
             <InputNumber
-                    bind:value={sub_account.balance}></InputNumber>
+                    bind:value={subAccount.balance}></InputNumber>
             {:else}
             <InputNumber
                     bind:value={account.balance}></InputNumber>
@@ -111,14 +111,14 @@
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import  InputNumber from '../components/input-number.svelte';
-import {TAX_CLASS} from 'cross-slip';
+import {TAX_CLASS} from '../../../libs/utils';
 
 export  let account;
-export  let sub_account;
+export  let subAccount;
 export  let mode;
 
 beforeUpdate(() => {
     console.log({account});
-    console.log({sub_account});
+    console.log({subAccount});
 })
 </script>
