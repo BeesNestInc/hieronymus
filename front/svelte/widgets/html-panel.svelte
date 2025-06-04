@@ -15,10 +15,7 @@
     />
   </div>
   {:else}
-  <div class="body"
-    on:click={() => {
-      isEditMode = !isEditMode;
-    }}>
+  <div class="body">
     {#if (options.description)}
     <p class="description">
       {@html options.description}
