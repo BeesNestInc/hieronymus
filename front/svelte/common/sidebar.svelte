@@ -14,7 +14,7 @@
         <div class="d-flex align-items-center justify-content-between" style="width:240px;">
           <!-- svelte-ignore a11y-missing-attribute -->
           <a class="nav-link">
-					  <i class="bi bi-menu-button-wide"></i>
+					  <i class="bi bi-menu-button-wide me-1"></i>
             メニュー
           </a>
           {#if ( isMenuEditMode)}
@@ -92,7 +92,7 @@
           href="#">
           {#if ( entry.icon )}
           {#if ( entry.icon.name)}
-          <Icon class="nav-icon" icon={entry.icon.name}></Icon>
+          <Icon class="nav-icon me-1" icon={entry.icon.name}></Icon>
           {:else}
           <img src={entry.icon.src} class="icon-img">
           {/if}
