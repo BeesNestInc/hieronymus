@@ -1,4 +1,4 @@
-<div class="row full-height">
+<div class="full-height">
   <table class="table table-bordered journal">
     <thead class="table-light">
       <tr>
