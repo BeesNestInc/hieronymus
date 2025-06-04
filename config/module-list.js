@@ -26,7 +26,7 @@ export default [
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
     },
-    icon: { name: 'bi:jornal' },
+    icon: { name: 'bi-journal-text' },
     description: `
 総勘定元帳と補助元帳が複合した画面です。<br/>
 科目及び補助科目毎の明細が表示されます。<br/>
@@ -55,7 +55,7 @@ export default [
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
     },
-    icon: { name: 'bi:bar-chart-fill' },
+    icon: { name: 'bi-table' },
     description: `残高試算表が確認できます。`
   }, {
     name: 'changes',
@@ -67,7 +67,7 @@ export default [
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
     },
-    icon: { name: 'bi:jornal' },
+    icon: { name: 'bi-bar-chart-fill' },
     description: `
 科目毎の月次集計の推移をグラフ表示します。<br/>
 年度内だけではなく、前年同月比較や通年表示もできます。`
@@ -108,6 +108,7 @@ export default [
     authority: (user) => {
       return  (user.companyManagement || user.accounting);
     },
+    icon: { name: 'bi-building'},
     href: (status) => {
       return	(`/company/`);
     },
@@ -139,6 +140,7 @@ export default [
       //console.log(user);
       return  (user.companyManagement);
     },
+    icon: { name: 'bi-folder2-open'},
     match: /^\/task/,
     description: `
 顧客取引の「案件」を管理します。<br/>
@@ -153,6 +155,7 @@ export default [
     authority: (user) => {
       return  (user.companyManagement);
     },
+    icon: { name: 'bi-file-earmark-text-fill'},
     description: `
 顧客との「取引」を管理します。<br/>
 見積請求だけではなく、各種文書の管理や経費記録等を行います。`
