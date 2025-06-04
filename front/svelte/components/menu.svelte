@@ -1,9 +1,3 @@
-<div class="row">
-  <div class="col-12 d-flex justify-content-between">
-    {#if (isEditMode)}
-    {/if}
-  </div>
-</div>
 <div class="row" style="padding-bottom:20px;min-height:400px;">
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="grid-stack"
@@ -102,6 +96,7 @@
         {#if !widget.minimize }
         <svelte:component class="mt-0"
           this={widget._component}
+          isEditMode={isEditMode}
           bind:status={status}
           bind:toast={toast}
           bind:options={widget.options}
@@ -301,6 +296,7 @@ onMount(() => {
 let previousReload = -1;
 beforeUpdate(() => {
   console.log('menu beforeUpdate', widgets);
+  console.log('components/menu', isEditMode);
   if (reload !== previousReload) {
     console.log('Reloading widgets...');
     previousReload = reload;

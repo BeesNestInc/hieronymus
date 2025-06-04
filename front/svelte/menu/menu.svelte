@@ -157,6 +157,7 @@ $: {
 }
 
 beforeUpdate(() => {
+  console.log('menu/menu', isEditMode);
   let args = location.pathname.split('/');
   if	( numeric(args[2]) )	{
     if  ( arg2 !== args[2] ) {

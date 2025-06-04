@@ -15,7 +15,10 @@
     />
   </div>
   {:else}
-  <div class="body">
+  <div
+    on:click={() => {
+      isEditMode = !isEditMode;
+    }}>
     {#if (options.description)}
     <p class="description">
       {@html options.description}
@@ -32,10 +35,10 @@ import entries from '../../../config/module-list.js';
 import Editor from '@tinymce/tinymce-svelte';
 export let status;
 export let options;
-
-let isEditMode = false;
+export let isEditMode;
 
 beforeUpdate(() => {
+  console.log({isEditMode});
 })
 
 </script>

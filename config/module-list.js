@@ -1,11 +1,11 @@
 export default [
   {
     name: 'menu',
-    match: /^\/menu\//,
+    match: /^\/menu/,
   }, {
     name: 'journal',
     title: '仕訳日記帳',
-    match: /^\/journal\//,
+    match: /^\/journal/,
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
     },
@@ -19,7 +19,7 @@ export default [
   }, {
     name: 'ledger',
     title: '元帳',
-    match: /^\/ledger\//,
+    match: /^\/ledger/,
     href: (status) => {
       return	(`/ledger/1000000`);
     },
@@ -34,7 +34,7 @@ export default [
   }, {
     name: 'bank-ledger',
     title: '銀行元帳',
-    match: /^\/bank-ledger\//,
+    match: /^\/bank-ledger/,
     href: (status) => {
       return	(`/bank-ledger`);
     },
@@ -48,7 +48,7 @@ export default [
   }, {
     name: 'trial-balance',
     title: '残高試算表',
-    match: /^\/trial-balance\//,
+    match: /^\/trial-balance/,
     href: (status) => {
       return	(`/trial-balance`);
     },
@@ -60,7 +60,7 @@ export default [
   }, {
     name: 'changes',
     title: '推移表',
-    match: /^\/changes\//,
+    match: /^\/changes/,
     href: (status) => {
       return	(`/changes/6000000`);
     },
