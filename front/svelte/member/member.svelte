@@ -106,7 +106,15 @@ const checkPage = async () => {
         }
       }
     } else {
-      users.push(member.user);
+      let find = false;
+      users.forEach((user) => {
+        if  ( user.id === member.user ) {
+          find = true;
+        }
+      })
+      if  ( !find ) {
+        users.push(member.user);
+      }
     }
   } else {
     status.state = 'list';
