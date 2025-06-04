@@ -101,6 +101,11 @@ input, optgroup, select, textarea {
   padding-top: 0.5rem;
   background-color: var(--sidebar-bg);
   color: white;
+  ul{
+    li {
+      list-style: none;
+    }
+  }
   a {
     &:hover {
       text-decoration: none;

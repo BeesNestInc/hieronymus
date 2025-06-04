@@ -109,6 +109,9 @@ tbody {
   background-color: var(--sidebar-bg);
   color: white;
 }
+.sidebar ul li {
+  list-style: none;
+}
 .sidebar a:hover {
   text-decoration: none;
 }
@@ -266,6 +269,10 @@ tr.over td {
   width: 45px;
 }
 
+.entry,
+.list {
+  padding-top: 20px;
+}
 .entry .application,
 .list .application {
   padding: 0;
@@ -277,9 +284,6 @@ tr.over td {
   padding-top: 20px;
 }
 
-.entry .content {
-  padding-top: 20px;
-}
 .entry .content .body {
   background-color: #fff;
   padding: 2em 1em;
