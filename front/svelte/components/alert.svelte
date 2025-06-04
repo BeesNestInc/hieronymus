@@ -1,7 +1,7 @@
-<div class="row">
+<div class="">
     {#if alert}
-    <div class="col-12 alert fade show {alert_level}" role="alert">
-        <button type="button" class="btn-close" aria-label="Close"
+    <div class="p-3 mt-3 alert fade show alert-{alert_level}" role="alert">
+        <button type="button" class="btn-close pr-2" aria-label="Close"
             on:click="{() => {alert = undefined}}"></button>
         <strong>{alert}</strong>
     </div>
