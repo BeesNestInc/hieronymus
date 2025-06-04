@@ -2,7 +2,7 @@
   <div class="page-title d-flex justify-content-between">
     <h1>証憑情報</h1>
   </div> 
-  <div class="row full-height fontsize-12pt">
+  <div class="full-height fontsize-12pt">
     <div class="content">
       <div class="body">
         {#if !ok }
