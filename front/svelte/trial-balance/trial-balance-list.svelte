@@ -1,6 +1,6 @@
 <div class="row full-height">
   <table class="table table-bordered">
-    <thead>
+    <thead class="table-light">
       <tr>
         <th scope="col" style="width: 100px;">
           勘定科目

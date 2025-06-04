@@ -14,7 +14,7 @@
     </div>
 	  <div class="row full-height" style="overflow-y: scroll;">
 		  <table class="table table-bordered">
-        <thead>
+        <thead class="table-light">
           <th colspan="2">
             日付 / 伝番
           </th>

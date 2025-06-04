@@ -226,7 +226,7 @@
     <div class="col-11">
       {#if (viewTransaction && transactions )}
       <table class="table table-bordered">
-        <thead>
+        <thead class="table-light">
           <tr>
             <th scope="col" style="width: 100px;">
               種別

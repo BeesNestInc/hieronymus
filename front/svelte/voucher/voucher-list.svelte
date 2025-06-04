@@ -48,7 +48,7 @@
   </ul>
   <div class="full-height fontsize-12pt">
     <table class="table table-bordered">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th scope="col" style="width: 150px;">
             種別

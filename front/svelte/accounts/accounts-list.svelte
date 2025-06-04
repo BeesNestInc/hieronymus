@@ -1,5 +1,5 @@
 <table class="table table-bordered">
-  <thead>
+  <thead class="table-light">
     <tr>
       <th scope="col" style="width: 120px;">
         大分類

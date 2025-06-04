@@ -7,7 +7,7 @@
 </div>
 <div class="fontsize-12pt">
   <table class="table table-bordered">
-    <thead>
+    <thead class="table-light">
       <tr>
         <th scope="col" style="width: 200px;">
           名前

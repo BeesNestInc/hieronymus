@@ -25,7 +25,7 @@
           ></CrossSlip>
         {#if (vouchers)}
         <table class="table table-striped table-bordered">
-          <thead>
+          <thead class="table-light">
             <th style="width:20px;">
 
             </th>

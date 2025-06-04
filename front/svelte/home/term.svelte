@@ -5,7 +5,7 @@
   <div class="card-body">
     <div class="row full-height" style="overflow-y: scroll;">
       <table class="table table-bordered">
-        <thead>
+        <thead class="table-light">
           <th scol="col">
             年度
           </th>

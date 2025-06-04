@@ -31,7 +31,7 @@
 	</div>
   <div class="row">
     <table class="table table-striped table-bordered">
-      <thead>
+      <thead class="table-light">
         <th>
           借方科目
         </th>

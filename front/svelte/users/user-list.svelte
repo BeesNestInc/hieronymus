@@ -1,7 +1,7 @@
 <div class="full-height fontsize-12pt">
   <div class="col-9">
     <table class="table table-bordered">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th scope="col">
             名前

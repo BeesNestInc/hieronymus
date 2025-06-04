@@ -8,7 +8,7 @@
     </button>
     <div class="row full-height" style="margin-top: 20px;">
       <table class="table table-bordered">
-        <thead>
+        <thead class="table-light">
           <th>
             取得日時
           </th>

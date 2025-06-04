@@ -3,7 +3,7 @@
 	<div class="body">
   	<div class="text">件数: {count}</div>
 		<table class="table table-bordered">
-    	<thead>
+    	<thead class="table-light">
       	<th scope="col" colspan="2">
       	  日付 / 伝番
     	  </th>

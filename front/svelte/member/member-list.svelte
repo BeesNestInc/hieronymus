@@ -9,7 +9,7 @@
   </div> 
   <div class="full-height fontsize-12pt" style="overflow-y: auto;">
     <table class="table table-bordered">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th scope="col" style="width: 150px;">
             クラス

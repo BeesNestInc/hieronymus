@@ -6,7 +6,7 @@
   </div>
   <div class="body">
     <table class="table table-bordered">
-      <thead>
+      <thead class="table-light">
         <th>
           取得日時
         </th>

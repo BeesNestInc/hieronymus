@@ -49,7 +49,7 @@
   </ul>
   <div class="full-height" style="overflow-y: auto;">
     <table class="table table-bordered">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th scope="col" colspan="2">
             日付 / 伝番

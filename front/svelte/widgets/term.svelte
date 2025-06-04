@@ -1,7 +1,7 @@
 <div class="menu">
 	<div class="body">
   	<table class="table table-bordered">
-    	<thead>
+    	<thead class="table-light">
       	<th scol="col">
         	年度
 	      </th>

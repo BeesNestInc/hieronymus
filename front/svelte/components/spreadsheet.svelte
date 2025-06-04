@@ -1,5 +1,5 @@
 <table class="table table-striped table-bordered">
-  <thead>
+  <thead class="table-light">
     <tr>
       {#if (reorder)}
       <th scope="col" style="width:30px;"></th> <!-- DnD用のカラム -->
