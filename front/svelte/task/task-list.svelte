@@ -33,7 +33,7 @@
               on:input={(event) => {
                 let value = parseInt(event.detail);
                 status.params.set('company', value);
-                dispatch('selectCompanyId');
+                updateTasks();
               }}
               companyId={status.params ? parseInt(status.params.get('company')) : -1}>
             </CompanySelect>
@@ -81,12 +81,13 @@
 </div>
 
 <script>
+import axios from 'axios';
 import CompanySelect from '../components/company-select.svelte';
-
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import eventBus from '../../javascripts/event-bus.js';
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 export let tasks;
@@ -98,9 +99,27 @@ const link = (href) => {
   status.pathname = href;
 }
 
+const updateTasks = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/task?${param}`).then((result) => {
+    tasks = result.data.tasks;
+    console.log('tasks', tasks);
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
+};
+
 beforeUpdate(() => {
   console.log('task-list beforeUpdate');
 });
+
+onMount(() => {
+  status.params = parseParams();
+  updateTasks();
+})
 
 const openTask = (id) => {
   let	task;

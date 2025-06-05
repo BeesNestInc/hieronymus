@@ -1,10 +1,8 @@
 {#if ( status.state === 'list' )}
   <TaskList
   	bind:status={status}
-    tasks={tasks}
+    bind:tasks={tasks}
     on:open={openEntry}
-    on:selectKind={selectKind}
-    on:selectCompanyId={selectCompany}
     ></TaskList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
   <TaskEntry
@@ -24,7 +22,6 @@ import TaskEntry from './task-entry.svelte';
 import TaskList from './task-list.svelte';
 import {currentTask, currentTransaction, getStore} from '../../javascripts/current-record.js'
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 export let toast;
@@ -32,26 +29,6 @@ export let toast;
 let task;
 let tasks = [];
 let users = [];
-
-const selectKind = (event) => {
-  updateTasks({});
-}
-const selectCompany = (event) => {
-  updateTasks({
-  });
-}
-const updateTasks = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
-  axios.get(`/api/task?${param}`).then((result) => {
-    tasks = result.data.tasks;
-    console.log('tasks', tasks);
-  });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
-};
 
 const	openEntry = (event)	=> {
   status.change = true;
@@ -86,7 +63,6 @@ const openTransaction = (event) => {
 }
 const closeEntry = (event) => {
   status.state = 'list';
-  updateTasks();
 }
 
 const checkPage = () => {
@@ -150,29 +126,20 @@ const checkPage = () => {
     }
   } else {
     status.state = 'list';
-    updateTasks();
   }
   console.log({status});
 }
 
 onMount(() => {
   console.log('task onMount');
-  status.params = parseParams();
-  updateTasks();
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
   })
 })
 
-let _status;
 beforeUpdate(()	=> {
   console.log('task beforeUpdate');
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    checkPage();
-  }
+  checkPage();
 });
 afterUpdate(() => {
   //console.log('tasks afterUpdate');

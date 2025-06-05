@@ -38,7 +38,7 @@
               on:input={(event) => {
                 let value = parseInt(event.currentTarget.value);
                 status.params.set('kind', value);
-                dispatch('selectKind')
+                updateTransactions();
               }}
               value={status.params ? parseInt(status.params.get('kind')) : -1}>
               <option value={-1}>全て</option>
@@ -113,6 +113,7 @@ import CompanySelect from '../components/company-select.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 export let transactions;
@@ -136,6 +137,19 @@ const link = (href) => {
   console.log({status});
 }
 
+const updateTransactions = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/transaction?${param}`).then((result) => {
+    transactions = result.data.transactions;
+    console.log('transactions', transactions);
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
+};
+
 beforeUpdate(() => {
   //sconsole.log('transaction-list beforeUpdate');
 });
@@ -143,13 +157,16 @@ beforeUpdate(() => {
 const changeCompany = (event) => {
   let companyId = event.detail;
   console.log({companyId});
-  dispatch('selectCompanyId', companyId);
+  updateTransactions({
+    company: companyId
+  });
 }
+
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{
-    dispatch('selectAmount', {
-      lowerAmount: lowerAmount,
-      upperAmount: upperAmount
+    updateTransactions({
+      upper: numeric(upperAmount),
+      lower: numeric(lowerAmount)
     });
   }
 }
@@ -170,6 +187,8 @@ const openTransaction = (id) => {
   dispatch('open', transaction);
 }
 onMount(() => {
+  status.params = parseParams();
+  updateTransactions();
   axios.get(`/api/transaction/kinds`).then((result) => {
     transactionKinds = result.data.values;
     console.log({transactionKinds});
