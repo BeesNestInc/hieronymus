@@ -151,6 +151,7 @@ import eventBus from '../../javascripts/event-bus.js';
 import {currentMenu, getStore} from '../../javascripts/current-record.js'
 
 export	let status;
+export let mainCount;
 
 let menuItems;
 let isMenuEditMode = false;
@@ -248,7 +249,15 @@ const startDrag = (event) => {
 
 const link = (href) => {
   let pathes = href.split('/');
-  status.current = pathes[1];
+  const _status= status;
+  status = {
+    current: pathes[1],
+    change: true,
+    fy: _status.fy,
+    pathname: _status.pathname,
+    user: _status.user
+  };
+  mainCount += 1;
   window.history.pushState(status, "", href);
   status.pathname = href;
   status.change = true;

@@ -12,10 +12,12 @@
 <aside 
   class="main-sidebar">
   <SideBar
+    bind:mainCount={mainCount}
     bind:status={status}></SideBar>
 </aside>
 <main class="content-wrapper">
   <div class="container-fluid">
+    {#key mainCount}
     <div class="content">
       <Alert bind:alert={alert} {alert_level}></Alert>
       {#if false}
@@ -89,6 +91,7 @@
         bind:status={statusMember}></Member>
       {/if}
     </div>
+    {/key}
   </div>
 </main>
 <footer
@@ -173,6 +176,8 @@ let statusTransaction = status;
 let statusItem = status;
 let statusUsers = status;
 let statusMember = status;
+
+let mainCount = 0;
 
 let reply;
 const doReply = (event) => {
@@ -264,6 +269,9 @@ beforeUpdate(() => {
       statusMember = status;
       break;
   }
+})
+afterUpdate(() => {
+  console.log('index afterUpdate');
 })
 
 </script>
