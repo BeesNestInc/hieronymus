@@ -1,9 +1,8 @@
 {#if ( status.state === 'list' )}
 <MemberList
-  members={members}
+  bind:members={members}
   classes={classes}
   bind:status={status}
-  on:selectClass={selectClass}
   on:open={openEntry}
   ></MemberList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
@@ -21,7 +20,6 @@ import {onMount, beforeUpdate, afterUpdate, tick, createEventDispatcher} from 's
 import MemberEntry from './member-entry.svelte';
 import MemberList from './member-list.svelte';
 import {currentMember, getStore} from '../../javascripts/current-record.js'
-import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 
@@ -29,25 +27,6 @@ let	member;
 let members = [];
 let users = [];
 let classes = [];
-
-const selectClass = (event) => {
-  updateMember({
-    memberClassId: event.detail
-  });
-}
-
-const updateMember = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
-  axios.get(`/api/member?${param}`).then((result) => {
-    members = result.data.members;
-    console.log('members', members);
-  });
-  if	( _params )	{
-    window.history.pushState(
-      status, "", `${location.pathname}?${param}`);
-  }
-}
 
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
@@ -68,7 +47,6 @@ const	openEntry = (event)	=> {
 
 const closeEntry = (event) => {
   status.state = 'list';
-  updateMember();
 }
 
 const checkPage = async () => {
@@ -112,13 +90,13 @@ const checkPage = async () => {
           find = true;
         }
       })
-      if  ( !find ) {
+      if  (( !find ) &&
+           ( member.users ))  {
         users.push(member.user);
       }
     }
   } else {
     status.state = 'list';
-    updateMember();
   }
   console.log({status});
 }
@@ -127,8 +105,6 @@ onMount(async () => {
   console.log('member onMount')
   const result = await axios.get('/api/users?nomember=true');
   users = result.data.users;
-  status.params = parseParams();
-  updateMember();
   axios.get('/api/member/classes').then((result) => {
     console.log(result);
     classes = result.data.classes;
@@ -138,11 +114,11 @@ onMount(async () => {
 let _status;
 beforeUpdate(async ()	=> {
   //console.log('member beforeUpdate', status.change);
+  checkPage();
   if  (( status.change ) ||
        ( _status !== status ))  {
     status.change = false;
     _status = status;
-    checkPage();
   }
 });
 afterUpdate(() => {

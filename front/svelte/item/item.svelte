@@ -1,9 +1,7 @@
 {#if ( status.state === 'list' )}
 <ItemList
-  items={items}
+  bind:items={items}
   bind:status={status}
-  on:selectItemClass={selectItemClass}
-  on:keyInput={keyInput}
   on:open={openEntry}
   ></ItemList>
 {:else if ( status.state === 'home')}
@@ -23,38 +21,11 @@ import ItemEntry from './item-entry.svelte';
 import ItemList from './item-list.svelte';
 import ItemHome from './item-home.svelte';
 import {currentItem, getStore} from '../../javascripts/current-record.js'
-import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 
 let item;
 let items = [];
-
-const selectItemClass = (event) => {
-  updateItems({
-    itemClassId: event.detail
-  });
-}
-
-const keyInput = (event) => {
-  let key = event.detail;
-  updateItems({
-    key: key
-  });
-}
-
-const updateItems = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
-  axios.get(`/api/item?${param}`).then((result) => {
-    items = result.data.items;
-    console.log('items', items);
-  });
-  if	( _params )	{
-    window.history.pushState(
-      status, "", `${location.pathname}?${param}`);
-  }
-};
 
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
@@ -77,7 +48,6 @@ const	openEntry = (event)	=> {
 
 const closeEntry = (event) => {
   status.state = 'list';
-  updateItems();
 }
 
 const checkPage = () => {
@@ -113,12 +83,10 @@ const checkPage = () => {
 }
 
 onMount(() => {
-  status.params = parseParams();
   console.log('item onMount')
   axios.get('/api/users/member').then((result) => {
     status.users = result.data;
   })
-  updateItems();
 })
 
 beforeUpdate(()	=> {

@@ -1,8 +1,7 @@
 {#if ( status.state === 'list' )}
 <CompanyList
 	bind:status={status}
-  companies={companies}
-  on:selectKind={selectKind}
+  bind:companies={companies}
   on:open={openEntry}></CompanyList>
 {:else if ( status.state === 'home')}
 <CompanyHome
@@ -24,30 +23,12 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 import CompanyEntry from './company-entry.svelte';
 import CompanyList from './company-list.svelte';
 import {currentCompany, getStore} from '../../javascripts/current-record.js'
-import { buildParam, parseParams } from '../../javascripts/params';
 import CompanyHome from './company-home.svelte';
 
 export let status;
 
 let	company;
 let companies = [];
-
-const selectKind = (event) => {
-  updateCompanys({});
-}
-
-const updateCompanys = (_params) => {
-  let param = buildParam(status, _params);
-  //console.log('param', param);
-  axios.get(`/api/company?${param}`).then((result) => {
-    companies = result.data.companies;
-    console.log({companies});
-  });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
-};
 
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
@@ -70,7 +51,6 @@ const	openEntry = (event)	=> {
 const closeEntry = (event) => {
   //console.log('close');
   status.state = 'list';
-  updateCompanys();
 }
 
 const checkPage = () => {
@@ -112,11 +92,6 @@ const checkPage = () => {
 
 onMount(() => {
   console.log('company onMount');
-  status.params = parseParams();
-  axios.get(`/api/company/kinds`).then((result) => {
-    status.companyClasses = result.data.values;
-  });
-  updateCompanys();
 })
 
 beforeUpdate(()	=> {

@@ -157,8 +157,6 @@ let status = {
   },
   user: {},
   pathname: '',
-  companyClasses: [],
-  voucherClasses: [],
   current: 'login'
 }
 let statusHome = status;
