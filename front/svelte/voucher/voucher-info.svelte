@@ -8,7 +8,7 @@
     <div class="col-sm-3">
       <select class="form-select" id="type" bind:value={voucher.voucherClassId}>
         <option value={-1}> -- 未設定 --</option>
-        {#each status.voucherClasses as voucherClass}
+        {#each voucherClasses as voucherClass}
         <option value={voucherClass.id}>{voucherClass.name}</option>
         {/each}
       </select>
@@ -157,6 +157,7 @@ export	let	files;
 let	original_companys;
 let companyKey;
 let taxRules = [];
+let voucherClasses = [];
 
 $: computeTax();
 
@@ -240,6 +241,9 @@ const updateTax = async () => {
 }
 onMount(async () => {
   console.log('voucher-info onMount');
+  axios.get(`/api/voucher/classes`).then((result) => {
+    voucherClasses = result.data.values;
+  });
   if	( voucher.id )	{
     const result = await axios.get(`/api/voucher/files/${voucher.id}`);
     files = result.data;

@@ -36,7 +36,12 @@
         <tr>
           <th style="padding:5px;">
             <select class="form-select" id="itemClass"
-              on:input={(event) => { dispatch('selectItemClass', event.currentTarget.value) }}
+              on:input={(event) => {
+                  updateItems({
+                    itemClassId: event.currentTarget.value
+                  });
+                }
+              }
               bind:value={itemClassId}>
               <option value="-1">全て</option>
               {#each itemClasses as line}
@@ -47,7 +52,13 @@
           <th style="padding:5px;">
             <input type="text" class="form-control"
               bind:value={key}
-              on:input={() => { dispatch('keyInput', key)}}
+              on:input={
+                () => {
+                  updateItems({
+                    key: key
+                  });
+                }
+              }
             />
           </th>
           <th></th>
@@ -108,6 +119,7 @@ import axios from 'axios';
 import {numeric} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export	let	items;
 export  let status;
@@ -116,7 +128,22 @@ let itemClassId;
 let itemClasses = [];
 let key = '';
 
+const updateItems = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/item?${param}`).then((result) => {
+    items = result.data.items;
+    console.log('items', items);
+  });
+  if	( _params )	{
+    window.history.pushState(
+      status, "", `${location.pathname}?${param}`);
+  }
+};
+
 onMount(() => {
+  status.params = parseParams();
+  updateItems();
   axios.get('/api/item/classes').then((result) => {
     console.log(result);
     itemClasses = result.data.values;

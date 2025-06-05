@@ -15,10 +15,12 @@ body {
   padding-left: 17.8mm;
   padding-top: 2mm;
   background: white;
-  transform-origin: top;
+  -webkit-transform-origin: top;
+          transform-origin: top;
   position: relative;
-  -moz-column-break-after: page;
-       break-after: page;
+  -webkit-column-break-after: page;
+     -moz-column-break-after: page;
+          break-after: page;
   overflow: hidden;
 }
 .page .title-page {
@@ -183,6 +185,7 @@ body {
 }
 @media print {
   .page {
-    transform: scaleY(1.076);
+    -webkit-transform: scaleY(1.076);
+            transform: scaleY(1.076);
   }
-}/*# sourceMappingURL=paperA4.css.map */
+}

@@ -14,14 +14,18 @@
         {#if ( status.params && (date.ym == status.params.get('month')) )}
         <button type="button" class="btn btn-primary disabled me-2"
           on:click={() => {
-            dispatch('gotoMonth',`${date.year}-${date.month}`);
+            updateVouchers({
+              month: `${date.year}-${date.month}`
+            });
           }}>
           {date.month}&nbsp;月
         </button>
         {:else}
         <button type="button" class="btn btn-outline-primary me-2"
           on:click={() => {
-            dispatch('gotoMonth', `${date.year}-${date.month}`);
+            updateVouchers({
+              month: `${date.year}-${date.month}`
+            });
           }}>
           {date.month}&nbsp;月
         </button>
@@ -32,14 +36,18 @@
       {#if ( !status.params || !status.params.get('month') )}
       <button type="button" class="btn btn-primary disabled me-2"
         on:click={() => {
-          dispatch('gotoMonth');
+          updateVouchers({
+            month: undefined
+          });
         }}>
       ALL
       </button>
       {:else}
       <button type="button" class="btn btn-outline-primary me-2"
         on:click={() => {
-          dispatch('gotoMonth');
+          updateVouchers({
+            month: undefined
+          });
         }}>
         ALL
       </button>
@@ -83,7 +91,7 @@
                 on:input={changeVoucherType}
                 value={status.params ? parseInt(status.params.get('type')): -1}>
               <option value={-1}>全て</option>
-              {#each status.voucherClasses as voucherClass}
+              {#each voucherClasses as voucherClass}
               <option value={voucherClass.id}>{voucherClass.name}</option>
               {/each}
             </select>
@@ -170,7 +178,7 @@
                 {formatDate(line.paymentDate)}
             </button>
             {:else}
-            {formatDate(line.paymentDate)}
+            {line.paymentDate ? formatDate(line.paymentDate) : ''}
             {/if}
           </td>
           <td class="number">
@@ -202,6 +210,16 @@
     </table>
   </div>
 </div>
+{#if popUp}
+{#key modalCount}
+<CrossSlipModal
+  accounts={accounts}
+  slip={slip}
+  status={status}
+  bind:popUp={popUp}
+  on:close={updateVouchers}></CrossSlipModal>
+{/key}
+{/if}
 
 <style>
 .file-item {
@@ -223,14 +241,26 @@ import CompanySelect from '../components/company-select.svelte';
 import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import {parseParams, buildParam} from '../../javascripts/params.js';
+import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
+import {setAccounts} from '../../javascripts/cross-slip';
 
 export let status;
 export let vouchers;
 
+let accounts = [];
 let companyId;
 let upperAmount;
 let lowerAmount;
 let dates = [];
+let modalCount = 0;
+let popUp;
+let slip = {
+  year: 0,
+  month: 0,
+  lines: []
+};
+let voucherClasses = [];
 
 const compDate = (date, year, month, day) => {
   let ymd = date.split('-');
@@ -238,6 +268,47 @@ const compDate = (date, year, month, day) => {
     &&	( parseInt(ymd[1]) == month )
     &&	( parseInt(ymd[2]) == day ));
 }
+
+const updateVouchers = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/voucher?${param}`).then((result) => {
+    vouchers = result.data.vouchers;
+    //console.log('vouchers', vouchers);
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
+};
+
+const openSlip = (year, month, day, no) => {
+  if	( no )	{
+    axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
+      slip = result.data;
+      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
+      console.log('slip', slip);
+      popUp = true;
+    })
+  } else {
+    slip = {
+      year: parseInt(year),
+      month: parseInt(month),
+      day: parseInt(day),
+      lines: [{
+        debitAccount: "",
+        debitSubAccount: 0,
+        debitAmount: "",
+        debitTax: "",
+        creditAccount: "",
+        creditSubAccount: 0,
+        creditAmount: "",
+        creditTax: "",
+      }]
+    };
+    popUp = true;
+  }
+};
 
 beforeUpdate(() => {
   //console.log('voucher-list beforeUpdate', vouchers);
@@ -248,31 +319,24 @@ const changeVoucherType = (event) => {
   let value = parseInt(event.currentTarget.value);
   console.log({value});
   status.params.set('type', value);
-  dispatch('selectVoucherType');
+  updateVouchers();
 }
 const changeCompany = (event) => {
   let companyId = event.detail;
   //console.log({companyId});
-  dispatch('selectCompanyId', companyId);
+  updateVouchers({
+    company: companyId
+  });
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{
-    dispatch('selectAmount', {
-      lowerAmount: lowerAmount,
-      upperAmount: upperAmount
+    updateVouchers({
+      upper: numeric(upperAmount),
+      lower: numeric(lowerAmount)
     });
   }
 }
 
-const openSlip = (year, month, day, no) => {
-  console.log(year, month, day, no);
-  dispatch('openSlip', {
-    year: year,
-    month: month,
-    day: day,
-    no: no
-  });
-}
 const openVoucher = (id) => {
   let	voucher;
 
@@ -289,6 +353,15 @@ const openVoucher = (id) => {
   dispatch('open', voucher);
 }
 onMount(() => {
+  status.params = parseParams();
+  axios.get(`/api/voucher/classes`).then((result) => {
+    voucherClasses = result.data.values;
+  });
+  updateVouchers();
+  axios.get(`/api/accounts`).then((res) => {
+    accounts = res.data;
+    setAccounts(accounts);
+  });
   axios.get(`/api/term/${status.fy.term}`).then((result) => {
     let fy = result.data;
     for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
@@ -301,5 +374,11 @@ onMount(() => {
     }
     dates = dates;
   });
+})
+afterUpdate(() => {
+  //console.log('voucher afterUpdate');
+  if  (!popUp)  {
+    modalCount += 1;
+  }
 })
 </script>
