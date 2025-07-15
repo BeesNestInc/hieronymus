@@ -2,11 +2,11 @@
 
 # Check environment
 if [ -z "$NODE_ENV" ] ||
-   [ -z "$POSTGRES_USER" ] ||
-   [ -z "$POSTGRES_PASSWORD" ] ||
-   [ -z "$POSTGRES_HOST" ] ||
-   [ -z "$POSTGRES_DATABASE" ]; then
-  echo "必要な環境変数NODE_ENV、POSTGRES_HOST、POSTGRES_USER、POSTGRES_PASSWORD、POSTGRES_DATABASEのいずれかが設定されていません。\n 環境変数を設定してから起動しなおしてください。"
+   [ -z "$HIERONYMUS_DB_USER" ] ||
+   [ -z "$HIERONYMUS_DB_PASSWORD" ] ||
+   [ -z "$DB_HOST" ] ||
+   [ -z "$HIERONYMUS_DB" ]; then
+  echo "必要な環境変数NODE_ENV、DB_HOST、HIERONYMUS_DB_USER、HIERONYMUS_DB_PASSWORD、HIERONYMUS_DBのいずれかが設定されていません。\n 環境変数を設定してから起動しなおしてください。"
   exit 1
 fi
 
@@ -14,7 +14,7 @@ fi
 if [ "$CASSETTE_SERVER" = "true" ]; then
   echo "PostgreSQLユーザーのセットアップを行います。環境変数で指定されたユーザーがすでに存在する場合は何も行いません。"
   echo "PostgreSQLユーザーのチェックと作成を実行しています..."
-  psql -h $POSTGRES_HOST -U db_admin_user -d postgres -c "SELECT create_docker_app_user('$POSTGRES_USER', '$POSTGRES_PASSWORD');"
+  psql -h $DB_HOST -U db_admin_user -d postgres -c "SELECT create_docker_app_user('$HIERONYMUS_DB_USER', '$HIERONYMUS_DB_PASSWORD');"
   echo "PostgreSQLユーザーのチェックと作成が完了しました。"
 fi
 echo "PostgreSQL接続設定ファイルのチェックと作成を行います。"
