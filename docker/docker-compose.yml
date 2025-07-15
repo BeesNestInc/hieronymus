@@ -28,10 +28,10 @@ services:
     environment:
       - HOME=/app/hieronymus
       - NODE_ENV=production
-      - POSTGRES_HOST=db
-      - POSTGRES_USER=hieronymus
-      - POSTGRES_PASSWORD=hieronymus
-      - POSTGRES_DATABASE=hieronymus
+      - DB_HOST=db
+      - HIERONYMUS_DB_USER=hieronymus
+      - HIERONYMUS_DB_PASSWORD=hieronymus
+      - HIERONYMUS_DB=hieronymus
       - CASSETTE_SERVER=false
       - BACKUP_DIR=/app/backups
     volumes:
