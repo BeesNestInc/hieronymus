@@ -132,6 +132,7 @@ onMount(() => {
 
 beforeUpdate(() => {
   checkPage();
+  console.log('account.svelte', {status})
 });
 
 let openModal = false;

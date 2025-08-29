@@ -55,7 +55,7 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
 
     //  本体と税の正規化
     pureDebitTax = numeric(detail.debitTax);
-    debitAmount = numeric(detail.debitamount);
+    debitAmount = numeric(detail.debitAmount);
     if  ( detail.debitAccount ) {
       pureDebitAmount = debitAmount;              //  元帳を税込で作る
     } else {
@@ -72,11 +72,12 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
     }
 
     if  (((sub_account_code) &&
-          (sub_account_code == detail.debitSubAccount) &&
-          (account_code == detail.debitAccount)) ||
+          (sub_account_code === detail.debitSubAccount) &&
+          (account_code === detail.debitAccount)) ||
          ((!sub_account_code) &&
-          (account_code == detail.debitAccount))) {
+          (account_code === detail.debitAccount))) {
       //  借方が帳簿の科目と一致している
+      //console.log('match debit', i);
       thisAccount = detail.debitAccount;
       thisSubAccount = detail.debitSubAccount;
       thisTaxRule = detail.debitTaxRule;
@@ -87,12 +88,12 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       sums.debitAmount += pureDebitAmount;
       sums.debitTax += pureDebitTax;
       showDebit = true;
+      //  同じ勘定科目で補助科目が異なる場合の振替は、双方表示する。
       if  (((sub_account_code) &&
-            (sub_account_code == detail.creditSubAccount) &&
-            (account_code == detail.creditAccount)) ||
+            (sub_account_code === detail.creditSubAccount) &&
+            (account_code === detail.creditAccount)) ||
            ((!sub_account_code) &&
-            (account_code == detail.creditAccount)))  {
-        //  同じ勘定科目で補助科目が異なる場合の振替は、双方表示する。
+            (account_code === detail.creditAccount)))  {
         showCredit = true;
         sums.creditAmount += pureCreditAmount;
         sums.creditTax += pureCreditTax;
@@ -102,6 +103,7 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
           sums.balance -= pureDebitAmount - pureCreditAmount;
         }
       } else {
+        //console.log('not');
         showCredit = false;
         creditAmount = '';
         creditTax = '';
@@ -112,6 +114,7 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
         }
       }
     } else {
+      //console.log('match credit', i);
       //  貸方が帳簿の科目と一致している
       thisAccount = detail.creditAccount;
       thisSubAccount = detail.creditSubAccount;
@@ -125,10 +128,10 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       sums.creditTax += pureCreditTax;
       showCredit = true;
       if  (((sub_account_code) &&
-            (sub_account_code == detail.debitSubAccount) &&
-            (account_code == detail.debitAccount)) ||
+            (sub_account_code === detail.debitSubAccount) &&
+            (account_code === detail.debitAccount)) ||
            ((!sub_account_code) &&
-            (account_code == detail.debitAccount)))   {
+            (account_code === detail.debitAccount)))   {
         showDebit = true;
         sums.debitAmount += pureDebitAmount;
         sums.debitTax += pureDebitTax;

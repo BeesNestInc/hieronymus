@@ -29,7 +29,7 @@
     </li>
     {#each bank_list.subAccounts as bank}
       <li class="nav-item">
-        {#if ( status.subAccount === bank.id )}
+        {#if ( status.subAccount === bank.subAccountCode )}
         <button type="button" class="btn btn-info"
           on:click|preventDefault={() => {
             openBank(bank.subAccountCode);
@@ -245,6 +245,7 @@ const updateAccount = () => {
 }
 
 const updateList = () => {
+  console.log('updateList');
   if	( status.subAccount )	{
     axios.get(`/api/remaining/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
       let remaining = result.data;

@@ -1,7 +1,7 @@
 <div class="brand-container">
   <a href="#" class="brand-link"
     on:click|preventDefault={() => {
-      link('');
+      link('/home');
     }}>
       <img src="/public/logo.png" alt="Logo" class="brand-image">
       <span class="brand-text">Hieronymus</span>
