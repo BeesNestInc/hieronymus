@@ -53,7 +53,9 @@
           <div class="application">
             {line.application1}
             {#if line.application2}
+            {#if line.application1}
             /
+            {/if}
             {line.application2}
             {/if}
           </div>

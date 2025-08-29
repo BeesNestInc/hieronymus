@@ -154,7 +154,7 @@
               on:focusout={makeTaxLine}>
             {/if}
           </td>
-          <td style="width:125px;">
+          <td style="width:130px;">
             {#if (slip.approvedAt) }
             {#if ( ( line.debitVoucherId !== null ) || ( line.creditVoucherId !== null ))}
             <Icon icon="fa:file"></Icon>

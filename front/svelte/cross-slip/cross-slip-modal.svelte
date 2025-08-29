@@ -29,7 +29,7 @@
             <th style="width:20px;">
 
             </th>
-            <th style="width:90px;">
+            <th style="width:100px;">
               種別
             </th>
             <th style="width:200px;">
