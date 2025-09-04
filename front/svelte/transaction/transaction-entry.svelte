@@ -137,13 +137,13 @@ const deleteTransaction = (event) => {
 <table style="font-size:12px;">
   <tbody>
     <tr>
-			<td>相手先</td><td>${transaction.companyName}</td>
+			<td>相手先</td><td>${transaction.companyName || ''}</td>
 		</tr>
     <tr>
-			<td>件名</td><td>${transaction.subject}</td>
+			<td>件名</td><td>${transaction.subject || ''}</td>
 		</tr>
     <tr>
-			<td>担当</td><td>${transaction.handleUser.member.tradingName}</td>
+			<td>担当</td><td>${transaction.handleUser.member.tradingName || ''}</td>
     </tr>
   </tbody>
 </table>

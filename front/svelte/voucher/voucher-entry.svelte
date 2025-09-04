@@ -145,7 +145,7 @@ const save = (event) => {
       }
       if	( create )	{
         window.history.replaceState(
-          status, "", `/voucher/${status.term}/entry/${voucher.id}`);
+          status, "", `/voucher/entry/${voucher.id}`);
         axios.get(`/api/voucher/${voucher.id}`).then((result) => {
           voucher = result.data.voucher;
           currentVoucher.set(voucher);

@@ -185,6 +185,7 @@ const link = (href) => {
 }
 
 beforeUpdate(() => {
+  console.log(status);
   if  (( !status.fy ) ||
        ( !status.fy.term )) {
     alert = '期を選択してください。';

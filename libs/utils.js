@@ -160,7 +160,7 @@ export const formatMoney = (_val) => {
     }
     return	`￥${val.toLocaleString()}`;
   } else {
-    return	'';
+    return	'0';
   }
 }
 

@@ -1,10 +1,10 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>顧客台帳</h1>
+    <h1>取引先台帳</h1>
     <button type="button" class="btn btn-primary"
       on:click={() => {
         openCompany(null);
-      }}>顧客入力&nbsp;<i class="bi bi-pencil-square"></i></button>
+      }}>取引先入力&nbsp;<i class="bi bi-pencil-square"></i></button>
   </div>
   <div class="fontsize-12pt">
     <table class="table table-bordered">
@@ -41,7 +41,7 @@
               on:input={(event) => {
                 let value = parseInt(event.currentTarget.value);
                 status.params.set('kind', value);
-                dispatch('selectKind')
+                updateCompanys({});
               }}
               value={status.params ? parseInt(status.params.get('kind')) : -1}>
               <option value={-1}>全て</option>
@@ -99,11 +99,25 @@ th {
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
+import { buildParam, parseParams } from '../../javascripts/params';
 
 export let status;
 export let companies;
 
 let companyClasses = [];
+
+const updateCompanys = (_params) => {
+  let param = buildParam(status, _params);
+  //console.log('param', param);
+  axios.get(`/api/company?${param}`).then((result) => {
+    companies = result.data.companies;
+    console.log({companies});
+  });
+  if	( _params )	{
+    window.history.pushState(
+        status, "", `${location.pathname}?${param}`);
+  }
+};
 
 const openCompany = (event) => {
   let	company;
@@ -127,6 +141,8 @@ const openCompany = (event) => {
 
 onMount(() => {
   console.log('company-list onMount');
+  status.params = parseParams();
+  updateCompanys();
   axios.get(`/api/company/kinds`).then((result) => {
     companyClasses = result.data.values;
   });

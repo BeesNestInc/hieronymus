@@ -3,9 +3,6 @@
   	bind:status={status}
     transactions={transactions}
     on:open={openEntry}
-    on:selectKind={selectKind}
-    on:selectCompanyId={selectCompany}
-    on:selectAmount={selectAmount}
     ></TransactionList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
   <TransactionEntry
@@ -23,7 +20,6 @@ import TransactionEntry from './transaction-entry.svelte';
 import TransactionList from './transaction-list.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js'
-import {parseParams, buildParam} from '../../javascripts/params.js';
 
 export let status;
 export let toast;
@@ -32,38 +28,6 @@ let transaction;
 let transactions = [];
 let users = [];
 
-const selectKind = (event) => {
-  console.log('selectKind');
-  updateTransactions({});
-}
-const selectCompany = (event) => {
-  let	companyId = event.detail;
-  console.log({companyId});
-  updateTransactions({
-    company: companyId
-  });
-}
-const selectAmount = (event) => {
-  let amounts = event.detail;
-  console.log({amounts});
-  updateTransactions({
-    upper: numeric(amounts.upperAmount),
-    lower: numeric(amounts.lowerAmount)
-  });
-}
-
-const updateTransactions = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
-  axios.get(`/api/transaction?${param}`).then((result) => {
-    transactions = result.data.transactions;
-    console.log('transactions', transactions);
-  });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
-};
 
 const	openEntry = (event)	=> {
   status.change = true;
@@ -93,7 +57,6 @@ const	openEntry = (event)	=> {
 const closeEntry = (event) => {
   status.state = 'list';
   console.log('closeEntry');
-  updateTransactions();
 }
 const checkPage = () => {
   let args = location.pathname.split('/');
@@ -153,18 +116,13 @@ const checkPage = () => {
     }
     console.log({transaction});
   } else {
-    updateTransactions();
-    if  ( status.state !== 'list' ) {
-      status.state = 'list';
-    }
+    status.state = 'list';
   }
   console.log(status.state);
 }
 
 onMount(() => {
   console.log('transaction onMount');
-  status.params = parseParams();
-  updateTransactions();
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
   })
