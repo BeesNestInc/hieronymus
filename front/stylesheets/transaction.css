@@ -13,14 +13,21 @@ body {
   margin: 0mm auto;
   padding: 2mm;
   background: white;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  -webkit-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   position: relative;
 }
 
 .transaction-header {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
+  -webkit-box-align: start;
+      -ms-flex-align: start;
+          align-items: flex-start;
   position: absolute;
   top: 20px;
   left: 40px;
@@ -28,9 +35,15 @@ body {
 }
 
 .estimate-header {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
+  -webkit-box-align: start;
+      -ms-flex-align: start;
+          align-items: flex-start;
   position: absolute;
   top: 80px;
   left: 40px;
@@ -60,6 +73,8 @@ body {
   margin: 0;
 }
 .estimate-header .info .condition {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
   height: 20px;
   font-size: 14px;
@@ -100,6 +115,8 @@ body {
   font-size: 14px;
 }
 .title-info .title-line {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
 }
 .title-info .title-line h1 {
@@ -126,6 +143,8 @@ body {
   margin-top: 10px;
 }
 .company-info .company-name-with-logo {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
 }
 .company-info .company-name-with-logo p.name {
@@ -171,6 +190,8 @@ main {
 
 .total-amount {
   margin-top: 20px;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
   border: 2px solid #000;
   width: 350px;
@@ -222,4 +243,4 @@ main {
 }
 .table td.number {
   text-align: right;
-}/*# sourceMappingURL=transaction.css.map */
+}

@@ -28,7 +28,13 @@
         <tr>
           <th style="padding:5px;">
             <select class="form-select" id="memberClass"
-              on:input={(event) => { dispatch('selectClass', event.currentTarget.value) }}
+              on:input={
+                (event) => {
+                  updateMember({
+                    memberClassId: event.currentTarget.value
+                  });
+                }
+              }
               bind:value={memberClassId}>
               <option value={-1}>未設定</option>
               {#each classes as line}
@@ -79,15 +85,36 @@
 </style>
 
 <script>
+import axios from 'axios';
+
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import {age} from '../../../libs/utils';
+import {parseParams, buildParam} from '../../javascripts/params.js';
 
+export let status;
 export	let	members;
 export  let classes;
 
 let memberClassId;
 
+const updateMember = (_params) => {
+  let param = buildParam(status, _params);
+  console.log('param', param);
+  axios.get(`/api/member?${param}`).then((result) => {
+    members = result.data.members;
+    console.log('members', members);
+  });
+  if	( _params )	{
+    window.history.pushState(
+      status, "", `${location.pathname}?${param}`);
+  }
+}
+
+onMount(() => {
+  status.params = parseParams();
+  updateMember();
+})
 beforeUpdate(() => {
   //console.log('item-list beforeUpdate');
 });

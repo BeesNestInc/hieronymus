@@ -5,101 +5,21 @@ Hieronymusは零細企業用のERPシステムです。
 
 現在のところ
 
-* 基本的な会計機能(財務会計)
-* 取引先の基本的な管理機能
-* 新電帳法対応の証票管理機能
+* 会計
+  * 基本的な会計機能(財務会計)
+  * 新電帳法対応の証票管理機能
+* 顧客管理
+  * 取引先情報の基本的な管理
+  * 案件管理
+  * 見積/請求/営業活動
 
 が実装されています。
 
-## インストール方法
-
-Hieronymusは2つのインストール方法を提供しています。
-
-* ソースコードからインストール
-* Dockerを使用したインストール
-
-### ソースコードからインストール
-
-HieronymusはDBにPostgresを使用します。あらかじめインストールしてからHieronymusのインストールを行ってください。
-
-1. ソースコードの取得
-Releaseよりダウンロードしてください。
-
-2. 設定ファイルの作成
-```
-$ cd hieronymus
-$ cp config/config.json.sample config/config.json
-```
-config/config.jsonはDBの接続情報です。usernameやpassword等自身の環境に合わせて編集してください。
-
-3. セットアップ
-
-```
-$ npm install
-$ sudo npx playwright install --with-deps
-$ npx playwright install
-$ npm run build
-$ npm run build-ssr
-$ export NODE_ENV=production
-$ npx sequelize-cli db:create
-$ npx sequelize-cli db:migrate
-$ mkdir backups
-```
-4. 起動
-```
-$ npm run start
-```
-デフォルトでは3010番ポートで動きます。
-
-### Dockerを使用したインストール
-#### 最新版
-```
-$ git clone https://github.com/beesnestinc/hieronymus.git
-$ cd hieronymus
-$ docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d
-```
-しばらくすると、3010番ポートから利用を開始できます。
-
-#### バージョン指定
-```
-$ git clone https://github.com/beesnestinc/hieronymus.git
-$ cd hieronymus
-$ cp .env.example .env # DOCKER_IMAGE_VERSION=[バージョン]に変更
-$ docker compose -f docker/docker-compose.yml  up -d
-```
-しばらくすると、3010番ポートから利用を開始できます。
-
-### v1 バージョンからの移行
-
-v1 バージョンまではCommonJSで書かれていましたが、今バージョンからはEcmaScript Moduleで書かれています。そのため、migrationのファイル名が変わってしまい、うまくmigrationがかかりません。そこで、**migrationをかける前に**データベースの整合を取るために以下のSQL文を走らせてください。
-
-```
-$ psql <データベースの指定>
-
-# update "SequelizeMeta" set name = REPLACE(name, '.js', '.cjs');
-# \q
-```
-
-これは、マイグレーションの管理テーブル(`SequelizeMeta`)を直接操作して、現状のデータベースとmigrationファイルの名前を一致させています。よく意味のわからない人は、**おまじない**くらいに思ってください。
-
-この後に
-
-```
-$ npx sequelize-cli db:migrate
-```
-
-と入力し、データベースをアプリに合わせるようにしてください。
-
-この処理は破壊的なので、作業の前には必ずバックアップを取ってからしてください。
+弊社の業務で必要となった機能を中心に開発している、**現在実戦投入中**のシステムです。
 
 ## 使い方
 
-初期アカウント等は設定されていません。
-初期ログインの時に自分でユーザ登録を行ってから使って下さい。
-
-ログイン後、**ホーム画面上の自社情報より自社情報を作成**してください。
-
-![ホーム](documents/images/自社情報の登録.png)
+[マニュアル](./documents/index.md)を参照してください。
 
 ## 機能
 
@@ -123,7 +43,7 @@ $ npx sequelize-cli db:migrate
 ### 元帳
 総勘定元帳と補助元帳が複合した画面です。  
 科目及び補助科目毎の明細が表示されます。  
-ここから直接伝票を修正することも可能です(新規入力はできません)。
+ここから直接伝票を修正することも可能です。
 
 ![元帳](documents/images/元帳.png)
 
@@ -156,11 +76,22 @@ $ npx sequelize-cli db:migrate
 ![証憑登録](documents/images/証憑登録.png)
 ![証憑一覧](documents/images/証憑一覧.png)
 
-### 勘定科目管理
+## ロードマップ
 
-勘定科目を追加変更ができます。「削除」はできません。
+### 次期メジャーバージョンアップ
 
-![勘定科目管理](documents/images/勘定科目管理.png)
+次期メジャーバージョンアップの時には、「台帳管理システム」が追加されます。
+これは「なんとか台帳」を定義して、顧客とのやりとりの記録に使うためのノーコード(ローコード)システムです。
+
+### その後
+
+* 勤怠給与システム
+
+  おそらくその頃には弊社もそのようなものが必要となると思いますｗ
+
+* 経費精算
+
+  プロジェクトや業務毎の経費精算、あるいは旅費精算等も含みます
 
 ## その他
 

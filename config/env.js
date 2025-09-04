@@ -27,5 +27,6 @@ export default {
 	session_ttl: 3600 * 24 * 7,
 	session_path: process.env.SESSION_PATH || './sessions',
 	backup_dir:  process.env.BACKUP_DIR || './backups',
-	expressSecret: process.env.EXPRESS || 'hieronymus'
+	expressSecret: process.env.EXPRESS || 'hieronymus',
+	appName: process.env.APP_NAME || 'hieronymus2'
 };

@@ -43,7 +43,7 @@ app.use(session({
   secret: env.expressSecret,
   resave: true,
   saveUninitialized: false,
-  name: 'hieronymus2',					//	ここの名前は起動するnode.js毎にユニークにする
+  name: env.appName,					    //	ここの名前は起動するnode.js毎にユニークにする
   store: new FileStore({
     ttl: global.env.session_ttl,	//	default 3600(s)
     reapInterval: global.env.session_ttl,
