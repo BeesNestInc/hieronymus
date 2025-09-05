@@ -30,6 +30,16 @@
           <button type="button" class="btn btn-danger" disabled={disabled}
               on:click={delete_}
                   id="delete-button">削除</button>
+          <button type="button" class="btn btn-success" disabled={disabled}
+            on:click|preventDefault={() => {
+              let issueDate = new Date(voucher.issueDate);
+              dispatch('open', {
+                year: issueDate.getFullYear(),
+                month: issueDate.getMonth()+1,
+                day: issueDate.getDate()
+              });
+            }}
+            id="slip-button">伝票</button>
         {/if}
         <button type="button" class="btn btn-primary" disabled={disabled}
             on:click={save}

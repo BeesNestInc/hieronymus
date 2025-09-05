@@ -14,7 +14,7 @@
         {#if ( status.params && (date.ym == status.params.get('month')) )}
         <button type="button" class="btn btn-primary disabled me-2"
           on:click={() => {
-            updateVouchers({
+            dispatch('update', {
               month: `${date.year}-${date.month}`
             });
           }}>
@@ -23,7 +23,7 @@
         {:else}
         <button type="button" class="btn btn-outline-primary me-2"
           on:click={() => {
-            updateVouchers({
+            dispatch('update', {
               month: `${date.year}-${date.month}`
             });
           }}>
@@ -36,7 +36,7 @@
       {#if ( !status.params || !status.params.get('month') )}
       <button type="button" class="btn btn-primary disabled me-2"
         on:click={() => {
-          updateVouchers({
+          dispatch('update' ,{
             month: undefined
           });
         }}>
@@ -45,7 +45,7 @@
       {:else}
       <button type="button" class="btn btn-outline-primary me-2"
         on:click={() => {
-          updateVouchers({
+          dispatch('update', {
             month: undefined
           });
         }}>
@@ -139,22 +139,25 @@
             {#if ( line.details.length > 0 ) }
             <button type="button" class="btn btn-link text-primary"
               on:click|preventDefault={() => {
-                openSlip(
-                  line.details[0].crossSlip.year,
-                  line.details[0].crossSlip.month,
-                  line.details[0].crossSlip.day,
-                  line.details[0].crossSlip.no);
+                dispatch('slip', {
+                  year: line.details[0].crossSlip.year,
+                  month: line.details[0].crossSlip.month,
+                  day: line.details[0].crossSlip.day,
+                  no: line.details[0].crossSlip.no
+                });
               }}>
-              {formatDate(line.issueDate)}
+              {formatDate(line.issueDate)}<br/>
+              ({line.details[0].crossSlip.month}/{line.details[0].crossSlip.day}-{line.details[0].crossSlip.no})
             </button>
             {:else}
             <button type="button" class="btn btn-link text-danger"
               on:click|preventDefault={() => {
                 let issueDate = new Date(line.issueDate);
-                openSlip(
-                  issueDate.getFullYear(),
-                  issueDate.getMonth()+1,
-                  issueDate.getDate());
+                dispatch('slip', {
+                  year: issueDate.getFullYear(),
+                  month: issueDate.getMonth()+1,
+                  day: issueDate.getDate()
+                });
               }}>
               {formatDate(line.issueDate)}
             </button>
@@ -169,11 +172,12 @@
                 line.details[0].crossSlip.day) ) }
             <button type="button" class="btn btn-link"
               on:click|preventDefault={() => {
-                openSlip(
-                  line.details[0].crossSlip.year,
-                  line.details[0].crossSlip.month,
-                  line.details[0].crossSlip.day,
-                  line.details[0].crossSlip.no);
+                dispatch('slip', {
+                  year: line.details[0].crossSlip.year,
+                  month: line.details[0].crossSlip.month,
+                  day: line.details[0].crossSlip.day,
+                  no: line.details[0].crossSlip.no
+                });
               }}>
                 {formatDate(line.paymentDate)}
             </button>
@@ -210,16 +214,6 @@
     </table>
   </div>
 </div>
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-  accounts={accounts}
-  slip={slip}
-  status={status}
-  bind:popUp={popUp}
-  on:close={updateVouchers}></CrossSlipModal>
-{/key}
-{/if}
 
 <style>
 .file-item {
@@ -241,25 +235,14 @@ import CompanySelect from '../components/company-select.svelte';
 import {numeric, formatDate} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
-import {parseParams, buildParam} from '../../javascripts/params.js';
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
-import {setAccounts} from '../../javascripts/cross-slip';
 
 export let status;
 export let vouchers;
 
-let accounts = [];
 let companyId;
 let upperAmount;
 let lowerAmount;
 let dates = [];
-let modalCount = 0;
-let popUp;
-let slip = {
-  year: 0,
-  month: 0,
-  lines: []
-};
 let voucherClasses = [];
 
 const compDate = (date, year, month, day) => {
@@ -269,49 +252,8 @@ const compDate = (date, year, month, day) => {
     &&	( parseInt(ymd[2]) == day ));
 }
 
-const updateVouchers = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
-  axios.get(`/api/voucher?${param}`).then((result) => {
-    vouchers = result.data.vouchers;
-    //console.log('vouchers', vouchers);
-  });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
-};
-
-const openSlip = (year, month, day, no) => {
-  if	( no )	{
-    axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
-      slip = result.data;
-      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
-      console.log('slip', slip);
-      popUp = true;
-    })
-  } else {
-    slip = {
-      year: parseInt(year),
-      month: parseInt(month),
-      day: parseInt(day),
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-    popUp = true;
-  }
-};
-
 beforeUpdate(() => {
-  //console.log('voucher-list beforeUpdate', vouchers);
+  console.log('voucher-list beforeUpdate', vouchers);
   console.log({status});
 });
 
@@ -319,18 +261,18 @@ const changeVoucherType = (event) => {
   let value = parseInt(event.currentTarget.value);
   console.log({value});
   status.params.set('type', value);
-  updateVouchers();
+  dispatch('update');
 }
 const changeCompany = (event) => {
   let companyId = event.detail;
   //console.log({companyId});
-  updateVouchers({
+  dispatch('update', {
     company: companyId
   });
 }
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{
-    updateVouchers({
+    dispatch('update', {
       upper: numeric(upperAmount),
       lower: numeric(lowerAmount)
     });
@@ -353,14 +295,8 @@ const openVoucher = (id) => {
   dispatch('open', voucher);
 }
 onMount(() => {
-  status.params = parseParams();
   axios.get(`/api/voucher/classes`).then((result) => {
     voucherClasses = result.data.values;
-  });
-  updateVouchers();
-  axios.get(`/api/accounts`).then((res) => {
-    accounts = res.data;
-    setAccounts(accounts);
   });
   axios.get(`/api/term/${status.fy.term}`).then((result) => {
     let fy = result.data;
@@ -374,11 +310,5 @@ onMount(() => {
     }
     dates = dates;
   });
-})
-afterUpdate(() => {
-  //console.log('voucher afterUpdate');
-  if  (!popUp)  {
-    modalCount += 1;
-  }
 })
 </script>
