@@ -20,8 +20,30 @@
   --bs-body-bg-rgb: var(--bs-body-bg) ;
 }
 
-.card, .form-control, table {
+.form-control {
+  background-color: #fff;
   border-radius: 0.3rem;
+}
+.form-control:focus {
+  background-color: #fff;
+}
+
+.table {
+  background-color: #fff;
+  border-radius: 0.3rem;
+}
+.table > :not(caption) > * > * {
+  background-color: #fff;
+}
+.table th {
+  background-color: #264653;
+  color: #fff;
+}
+
+.card {
+  background-color: #fff;
+  border-radius: 0.3rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .nav-pills .nav-link.active {
@@ -116,11 +138,8 @@ tbody {
 }
 
 ul.nav {
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -ms-flex-wrap: wrap;
-      flex-wrap: wrap;
+  flex-wrap: wrap;
   padding-left: 0;
   list-style: none;
 }
@@ -193,11 +212,8 @@ tr.over td {
 .brand-container {
   display: grid;
   grid-template-areas: "brand-link pushmenu";
-  -webkit-box-pack: justify;
-      -ms-flex-pack: justify;
-          justify-content: space-between;
+  justify-content: space-between;
   font-size: 1.25rem;
-  -webkit-transition: width 0.3s ease-in-out;
   transition: width 0.3s ease-in-out;
   padding: 0.8125rem 0.5rem;
   white-space: nowrap;
@@ -244,21 +260,12 @@ tr.over td {
 .login-page,
 .register-page,
 .setup-page {
-  -webkit-box-align: center;
-      -ms-flex-align: center;
-          align-items: center;
+  align-items: center;
   background-color: #e9ecef;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-orient: vertical;
-  -webkit-box-direction: normal;
-      -ms-flex-direction: column;
-          flex-direction: column;
+  flex-direction: column;
   height: 100vh;
-  -webkit-box-pack: center;
-      -ms-flex-pack: center;
-          justify-content: center;
+  justify-content: center;
 }
 
 .login-box,
@@ -376,17 +383,11 @@ a.link {
   min-height: 40px;
   padding: 0px;
   height: 100%;
-  -webkit-box-sizing: border-box;
-          box-sizing: border-box;
+  box-sizing: border-box;
   border-radius: 5px;
   overflow-y: hidden !important;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-orient: vertical;
-  -webkit-box-direction: normal;
-      -ms-flex-direction: column;
-          flex-direction: column;
+  flex-direction: column;
 }
 
 .menu-header {
@@ -402,21 +403,14 @@ a.link {
 .menu {
   width: 100%;
   height: 100%;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-orient: vertical;
-  -webkit-box-direction: normal;
-      -ms-flex-direction: column;
-          flex-direction: column;
+  flex-direction: column;
   background-color: var(--bs-card-bg);
   border-top: 1px solid var(--bs-border-color);
 }
 .menu .header {
   height: 40px;
-  -webkit-box-flex: 0;
-      -ms-flex: 0 0 auto;
-          flex: 0 0 auto;
+  flex: 0 0 auto;
   margin: 10px 10px;
 }
 .menu .text {
@@ -425,14 +419,11 @@ a.link {
   padding: 5px 15px;
 }
 .menu .body {
-  -webkit-box-flex: 1;
-      -ms-flex: 1 1 auto;
-          flex: 1 1 auto;
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 0 20px 0;
-  -webkit-box-sizing: border-box;
-          box-sizing: border-box;
+  box-sizing: border-box;
 }
 .menu .body .description,
 .menu .body form {
@@ -447,9 +438,7 @@ a.link {
 }
 .menu .footer {
   height: 40px;
-  -webkit-box-flex: 0;
-      -ms-flex: 0 0 auto;
-          flex: 0 0 auto;
+  flex: 0 0 auto;
   margin: -10px 10px 10px 10px;
 }
 .menu .list-group-item:first-child {
@@ -638,4 +627,4 @@ table.details .input {
   background-color: #e0ac3f;
   border-color: #d99a2b;
   color: #333;
-}
+}/*# sourceMappingURL=style.css.map */
