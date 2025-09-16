@@ -4,7 +4,7 @@
   bind:vouchers={vouchers}
   on:open={openEntry}
   on:slip={openSlip}
-  on:update={updateVouchers}
+  on:update={changeMonth}
   ></VoucherList>
 {:else if ( status.state === 'entry' || status.state === 'new' )}
 <VoucherEntry
@@ -21,7 +21,7 @@
   slip={slip}
   status={status}
   bind:popUp={popUp}
-  on:close={updateVouchers}></CrossSlipModal>
+  on:close={updateSlip}></CrossSlipModal>
 {/key}
 {/if}
 
@@ -99,8 +99,20 @@ const	openEntry = (event)	=> {
   }
 };
 
+const updateSlip = (event) => {
+  updateVouchers();
+  checkPage();
+}
+
 const closeEntry = (event) => {
   status.state = 'list';
+}
+
+const changeMonth = (event) => {
+  const param = buildParam(status, event.detail);
+  window.history.pushState(
+    status, "", `${location.pathname}?${param}`);
+  updateVouchers();
 }
 
 const updateVouchers = (event) => {
@@ -108,17 +120,13 @@ const updateVouchers = (event) => {
   if  ( event ) {
     param = buildParam(status, event.detail);
   } else {
-    param = status.params;
+    param = buildParam(status);
   }
   console.log('param', param);
   axios.get(`/api/voucher?${param}`).then((result) => {
     vouchers = result.data.vouchers;
     //console.log('vouchers', vouchers);
   });
-  if	( event )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
 };
 
 
@@ -144,7 +152,7 @@ const checkPage = () => {
         if	( status.state === 'entry' )	{
           axios.get(`/api/voucher/${args[3]}`).then((result) => {
         		voucher = result.data.voucher;
-        		//console.log({voucher});
+        		console.log({voucher});
             currentVoucher.set(voucher);
       		});
         } else {
@@ -153,6 +161,10 @@ const checkPage = () => {
       }
     }
   } else {
+    if  ( status.state  !== 'list' )  {
+      status.params = parseParams();
+      updateVouchers();
+    }
     status.state = 'list';
   }
 }
@@ -168,9 +180,10 @@ onMount(async () => {
   window.onpopstate = (event) => {
     if	( window.history.state )	{
       status = window.history.state;
-      //console.log({current_params});
-      updateVouchers();
     }
+    status.params = parseParams();
+    //console.log({current_params});
+    updateVouchers();
   }
 })
 

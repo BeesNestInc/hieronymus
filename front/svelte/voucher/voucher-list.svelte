@@ -54,7 +54,7 @@
       {/if}
     </li>
   </ul>
-  <div class="full-height fontsize-12pt">
+  <div class="full-height fontsize-12pt" style="overflow-y: auto;">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>
@@ -147,7 +147,7 @@
                 });
               }}>
               {formatDate(line.issueDate)}<br/>
-              ({line.details[0].crossSlip.month}/{line.details[0].crossSlip.day}-{line.details[0].crossSlip.no})
+              ({line.details[0].crossSlip.month}-{line.details[0].crossSlip.no})
             </button>
             {:else}
             <button type="button" class="btn btn-link text-danger"
@@ -253,8 +253,8 @@ const compDate = (date, year, month, day) => {
 }
 
 beforeUpdate(() => {
-  console.log('voucher-list beforeUpdate', vouchers);
-  console.log({status});
+  //console.log('voucher-list beforeUpdate', vouchers);
+  //console.log({status});
 });
 
 const changeVoucherType = (event) => {
