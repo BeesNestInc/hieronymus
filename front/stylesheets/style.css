@@ -45,7 +45,8 @@ body {
 }
 
 .full-height {
-  height: 100%;
+  height: calc(100vh - 265px);
+  overflow-y: auto;
 }
 
 .btn-link {

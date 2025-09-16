@@ -6,7 +6,7 @@
     <button class="btn btn-primary" on:click|preventDefault={backup}>
       バックアップ作成
     </button>
-    <div class="row full-height" style="margin-top: 20px;">
+    <div class="row h-100" style="margin-top: 20px;">
       <table class="table table-bordered">
         <thead class="table-light">
           <th>

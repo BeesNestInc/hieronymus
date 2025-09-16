@@ -214,7 +214,7 @@ beforeUpdate(() => {
   if	( !initialized )	{
     console.log('init');
     list = [];
-    setAccounts(accounts);
+    //setAccounts(accounts);    これは不要かも知れないので、確実になったら消すこと
     setAccount();
     setSubAccount();
     isInitialInput = true;
