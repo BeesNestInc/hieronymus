@@ -43,7 +43,8 @@
 .card {
   background-color: #fff;
   border-radius: 0.3rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .nav-pills .nav-link.active {
@@ -66,8 +67,28 @@ body {
   margin: 0;
 }
 
-.full-height {
+.full-height-1 {
+  height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+
+.full-height-2 {
+  height: calc(100vh - 270px);
+  overflow-y: auto;
+}
+
+.full-height-3 {
   height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.full-height-4 {
+  height: calc(100vh - 380px);
+  overflow-y: auto;
+}
+
+.change-list {
+  height: calc(100vh - 990px);
   overflow-y: auto;
 }
 
@@ -138,8 +159,11 @@ tbody {
 }
 
 ul.nav {
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-wrap: wrap;
+  -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
   padding-left: 0;
   list-style: none;
 }
@@ -212,8 +236,11 @@ tr.over td {
 .brand-container {
   display: grid;
   grid-template-areas: "brand-link pushmenu";
-  justify-content: space-between;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
   font-size: 1.25rem;
+  -webkit-transition: width 0.3s ease-in-out;
   transition: width 0.3s ease-in-out;
   padding: 0.8125rem 0.5rem;
   white-space: nowrap;
@@ -260,12 +287,21 @@ tr.over td {
 .login-page,
 .register-page,
 .setup-page {
-  align-items: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
   background-color: #e9ecef;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-direction: column;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
   height: 100vh;
-  justify-content: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
 }
 
 .login-box,
@@ -383,11 +419,17 @@ a.link {
   min-height: 40px;
   padding: 0px;
   height: 100%;
-  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
   border-radius: 5px;
   overflow-y: hidden !important;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-direction: column;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
 }
 
 .menu-header {
@@ -403,14 +445,21 @@ a.link {
 .menu {
   width: 100%;
   height: 100%;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-direction: column;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
   background-color: var(--bs-card-bg);
   border-top: 1px solid var(--bs-border-color);
 }
 .menu .header {
   height: 40px;
-  flex: 0 0 auto;
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
   margin: 10px 10px;
 }
 .menu .text {
@@ -419,11 +468,14 @@ a.link {
   padding: 5px 15px;
 }
 .menu .body {
-  flex: 1 1 auto;
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 0 20px 0;
-  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
 }
 .menu .body .description,
 .menu .body form {
@@ -438,7 +490,9 @@ a.link {
 }
 .menu .footer {
   height: 40px;
-  flex: 0 0 auto;
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
   margin: -10px 10px 10px 10px;
 }
 .menu .list-group-item:first-child {
@@ -627,4 +681,4 @@ table.details .input {
   background-color: #e0ac3f;
   border-color: #d99a2b;
   color: #333;
-}/*# sourceMappingURL=style.css.map */
+}

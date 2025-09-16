@@ -54,17 +54,19 @@
     </div>
   </div>
 	{/if}
-	<LedgerList
-  	account={account}
-  	pickup={pickup}
-  	sums={sums}
-  	lines={lines}
-  	bind:status={status}
-  	on:link={_link}
-  	on:select={(event) => {
-    	accountSelect(event.detail);
-  	}}
-  	on:open={openSlip}></LedgerList>
+  <div class="full-height-4" style="overflow-y: auto;">
+	  <LedgerList
+  	  account={account}
+  	  pickup={pickup}
+  	  sums={sums}
+  	  lines={lines}
+  	  bind:status={status}
+  	  on:link={_link}
+  	  on:select={(event) => {
+    	  accountSelect(event.detail);
+  	  }}
+  	  on:open={openSlip}></LedgerList>
+  </div>
 </div>
 {#if popUp}
 {#key modalCount}
