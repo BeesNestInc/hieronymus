@@ -2,7 +2,7 @@
   <div class="page-title d-flex justify-content-between">
     <h1>証憑情報</h1>
   </div> 
-  <div class="full-height fontsize-12pt">
+  <div class="h-100 fontsize-12pt" style="overflow-y: auto;">
     <div class="content">
       <div class="body">
         {#if !ok }
@@ -30,6 +30,26 @@
           <button type="button" class="btn btn-danger" disabled={disabled}
               on:click={delete_}
                   id="delete-button">削除</button>
+          <button type="button" class="btn btn-success" disabled={disabled}
+            on:click|preventDefault={() => {
+              console.log('voucher', voucher);
+              if  ( voucher.details[0] )  {
+                dispatch('open', {
+                  year: voucher.details[0].crossSlip.year,
+                  month: voucher.details[0].crossSlip.month,
+                  day: voucher.details[0].crossSlip.day,
+                  no: voucher.details[0].crossSlip.no
+                });
+              } else {
+                let issueDate = new Date(voucher.issueDate);
+                dispatch('open', {
+                  year: issueDate.getFullYear(),
+                  month: issueDate.getMonth()+1,
+                  day: issueDate.getDate()
+                });
+              }
+            }}
+            id="slip-button">伝票</button>
         {/if}
         <button type="button" class="btn btn-primary" disabled={disabled}
             on:click={save}
@@ -132,7 +152,7 @@ const save = (event) => {
     }
     pr.then((result) => {
       console.log('result', result);
-      let voucher = result.data.voucher;
+      voucher = result.data.voucher;
       if	( files )	{
       	console.log('files', files.length);
       	for	( let i = 0; i < files.length ; i += 1 )	{

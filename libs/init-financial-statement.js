@@ -27,7 +27,7 @@ const accountLine = (name) => {
 
 
 /*  損益計算書 */
-const printPage = () => {
+const printPL = () => {
   const sumByCode = (regex) => trialBalanceLines.reduce((acc, line) => {
     if ((line.debit || line.credit || line.balance) && regex.test(line.code)) {
         acc.debit += line.debit;
@@ -105,12 +105,12 @@ const printPage = () => {
   const netIncome = currentIncome - tax;
   plOut.push({ right_title: '当期純利益', right_value: netIncome, right_line: true });
   
-  console.log(plOut);
+  //console.log(plOut);
   return netIncome;
 };
 
 /* 貸借対照表 */
-const printPL = (lineOut, outClasses) => {
+const printBS = (lineOut, outClasses) => {
   let pickup = new SumTable(3);
   let debit = new SumTable(3);
   let credit = new SumTable(3);
@@ -121,9 +121,11 @@ const printPL = (lineOut, outClasses) => {
   for ( let line of trialBalanceLines ) {
     //console.log(line)
     if  ( !line.code )  continue;
-    if  (( outClasses[0] === '資産' ) &&
+    if  (( outClasses.length === 1 ) &&
+         ( outClasses[0] === '資産' ) &&
          ( line.code === '1140000' ))    continue;
-    if  (( outClasses[0] === '負債' ) &&
+    if  (( outClasses.length === 1 ) &&
+         ( outClasses[0] === '負債' ) &&
          ( line.code === '3080000' ))    continue;
     if  ((( line.pickup !== 0 ) ||
           ( line.debit !== 0 ) ||
@@ -136,14 +138,14 @@ const printPL = (lineOut, outClasses) => {
           ( line.middle_name === outClasses[1] )) &&
          (( !outClasses[2] ) ||
           ( line.minor_name === outClasses[2] )))   {
-      //console.log(outClasses);
+      //console.log(classes);
       if  (( classes[2] ) &&
            ( classes[2] !== line.minor_name )) {
-        if  ( pickup.sum(2) !== 0 ) {
+        if  ( balance.sum(2) !== 0 ) {
           lineOut.push({
             level: 3,
             name: classes[2],
-            amount: pickup.sum(2)
+            amount: balance.sum(2)
           });
         }
         pickup.clear(2);
@@ -156,7 +158,7 @@ const printPL = (lineOut, outClasses) => {
           if  ( mark )  {
             lineOut[mark] = {
               level: 1,
-              name: `${classes[1]}`,
+              name: classes[1],
               amount: balance.sum(1)
             };
           }
@@ -173,17 +175,15 @@ const printPL = (lineOut, outClasses) => {
       credit.add(line.credit);
       balance.add(line.balance)
       classes = [ line.major_name, line.middle_name, line.minor_name];
-    } else {
-      if  ( classes[2] )  {
-        if  ( balance.sum(2) !== 0 )  {
-          lineOut.push({
-            level: 3,
-            name: classes[2],
-            amount: balance.sum(2)
-          })
-        }
-      }
-      classes = [];
+    }
+  }
+  if  ( classes[2] )  {
+    if  ( balance.sum(2) !== 0 )  {
+      lineOut.push({
+        level: 3,
+        name: classes[2],
+        amount: balance.sum(2)
+      })
     }
   }
   if  ( mark )  {
@@ -207,7 +207,7 @@ const printAssetPage = () => {
   assetPage = [];
   assetPage.push({});
   mark = assetPage.length - 1;
-  sum[0] = printPL(assetPage, ['資産', '流動資産']);
+  sum[0] = printBS(assetPage, ['資産', '流動資産']);
   assetPage[mark] = {
     level: 1,
     name: '流動資産',
@@ -217,7 +217,7 @@ const printAssetPage = () => {
   let fix = assetPage.length - 1;
   assetPage.push({});
   mark = assetPage.length - 1;
-  sum[1] = printPL(assetPage, ['資産', '有形固定資産']);
+  sum[1] = printBS(assetPage, ['資産', '有形固定資産']);
   if  ( sum[1].balance ) {
     assetPage[mark] = {
       level: 2,
@@ -229,7 +229,7 @@ const printAssetPage = () => {
   }
   assetPage.push({});
   mark = assetPage.length - 1;
-  sum[2] = printPL(assetPage, ['資産', '無形固定資産']);
+  sum[2] = printBS(assetPage, ['資産', '無形固定資産']);
   if  ( sum[2].balance )  {
     assetPage[mark] = {
       level: 2,
@@ -241,19 +241,27 @@ const printAssetPage = () => {
   }
   assetPage.push({});
   mark = assetPage.length - 1;
-  sum[3] = printPL(assetPage, ['資産', '投資等']);
+  sum[3] = printBS(assetPage, ['資産', '投資等']);
   assetPage[mark] = {
     level: 2,
     name: '投資その他資産',
     amount: sum[3].balance
   }
+  assetPage.push({});
+  mark = assetPage.length - 1;
+  sum[4] = printBS(assetPage, ['資産', '繰延資産']);
+  assetPage[mark] = {
+    level: 2,
+    name: '繰延資産',
+    amount: sum[4].balance
+  }
   assetPage[fix] = {
     level: 1,
     name: '固定資産',
-    amount: sum[1].balance + sum[2].balance + sum[3].balance
+    amount: sum[1].balance + sum[2].balance + sum[3].balance + sum[4].balance
   }
-  console.log(assetPage);
-  return  (sum[0].balance + sum[1].balance + sum[2].balance + sum[3].balance);
+  //console.log(assetPage);
+  return  (sum[0].balance + sum[1].balance + sum[2].balance + sum[3].balance + sum[4].balance);
 }
 
 const printLiabilitiesPage = () => {
@@ -263,7 +271,8 @@ const printLiabilitiesPage = () => {
   liabilitiesPage = [];
   liabilitiesPage.push({})
   mark = liabilitiesPage.length - 1;
-  sum[0] = printPL(liabilitiesPage, ['負債', '流動負債']);
+  sum[0] = printBS(liabilitiesPage, ['負債', '流動負債']);
+  //console.log('負債 流動負債', liabilitiesPage);
   if  ( sum[0].balance )  {
     liabilitiesPage[mark] = {
       level: 1,
@@ -275,7 +284,7 @@ const printLiabilitiesPage = () => {
   }
   liabilitiesPage.push({})
   mark = liabilitiesPage.length - 1;
-  sum[1] = printPL(liabilitiesPage, ['負債', '固定負債']);
+  sum[1] = printBS(liabilitiesPage, ['負債', '固定負債']);
   if  ( sum[1].balance )  {
     liabilitiesPage[mark] = {
       level: 1,
@@ -285,7 +294,7 @@ const printLiabilitiesPage = () => {
   } else {
     liabilitiesPage.pop();
   }
-  console.log(liabilitiesPage);
+  //console.log('負債の部', liabilitiesPage);
   return  (sum[0].balance + sum[1].balance)
 }
 
@@ -299,14 +308,14 @@ const printNetWorthPage = () => {
   netWorthPage = [];
   netWorthPage.push({});
   mark = netWorthPage.length - 1;
-  sum[0] = printPL(netWorthPage, ['純資産', '株主資本', '資本金']);
-  sum[1] = printPL(netWorthPage, ['純資産', '株主資本', '利益剰余金']);
+  sum[0] = printBS(netWorthPage, ['純資産', '株主資本', '資本金']);
+  sum[1] = printBS(netWorthPage, ['純資産', '株主資本', '利益剰余金']);
   netWorthPage[mark] = {
     level: 1,
-    name: '株主資本',
+    name: '資本',
     amount: ( sum[0].balance + sum[1].balance)
   };
-  console.log(netWorthPage);
+  //console.log(netWorthPage);
   return  (sum[0].balance + sum[1].balance)
 }
 
@@ -326,6 +335,10 @@ const BS = () => {
   liabilities = printLiabilitiesPage();
   networth = printNetWorthPage();
 
+  const leftLines = assetPage.length;
+  const rightLines = liabilitiesPage.length + netWorthPage.length + 4;
+  const realGap = leftLines > rightLines ? GAP + ( leftLines - rightLines ) : GAP;
+  //console.log('lines', leftLines, rightLines, realGap);
   bsLines = [];
   let i = 0;
   let rightPage = [...liabilitiesPage];
@@ -347,11 +360,11 @@ const BS = () => {
       bsLines.push(line.concat(`<td class="total">負債合計</td><td class="number total">${formatMoney(liabilities)}</td>`));
       rightPage = [...netWorthPage];
     } else {
-      if  ( sum < GAP )  {
+      if  ( sum < realGap )  {
         bsLines.push(line.concat(`<td class="left-border" colspan="2">&nbsp;</td>`));
         sum += 1;
       } else
-      if  ( sum ===  GAP )  {
+      if  ( sum ===  realGap )  {
         bsLines.push(line.concat(`<th class="" colspan="2">純資産の部</th>`));
         sum += 1;
       } else {
@@ -361,10 +374,15 @@ const BS = () => {
             line.concat(`<td class="left-border">${formatLevel(right.level, right.name)}</td><td class="number no-border">${formatMoney(right.amount)}</td>`)
           );
         } else {
-          bsLines.push(
-            line.concat(`<td class="total">純資産合計</td><td class="number total">${formatMoney(networth)}</td>`)
-          );
-          break;
+          if  ( left )  {
+            bsLines.push(line.concat(`<td class="left-border" colspan="2">&nbsp;</td>`));
+            sum += 1;
+          } else {
+            bsLines.push(
+              line.concat(`<td class="total">純資産合計</td><td class="number total">${formatMoney(networth)}</td>`)
+            );
+            break;
+          }
         }
       }
     }
@@ -448,9 +466,13 @@ export default async(term) => {
   let fy = result.data;
   let res = await axios.get(`/api/trial-balance/${term}`);
   trialBalanceLines = res.data;
-
-  console.log(trialBalanceLines);
-  netIncome = printPage();
+  trialBalanceLines.forEach((line) => {
+    if  ( parseInt(line.acl_code) < 400 ) {
+      //console.log(line);
+    }
+  })
+  //console.log(trialBalanceLines);
+  netIncome = printPL();
 
   BS();
   SGA();

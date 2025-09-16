@@ -245,7 +245,26 @@ export default {
           id: id
         },
         include: include
-      }).then((voucher) => {
+      }).then(async(_voucher) => {
+        let voucher = _voucher.dataValues;
+        let details = await models.CrossSlipDetail.findAll({
+          where: {
+            [Op.or]: [
+              {
+                debitVoucherId: voucher.id
+              }, {
+                creditVoucherId: voucher.id
+              }
+            ]
+          },
+          include: [
+            {
+              model: models.CrossSlip,
+              as: 'crossSlip'
+            }
+          ]
+        });
+        voucher.details = details;
         res.json({
           code: 0,
           voucher: voucher

@@ -121,8 +121,14 @@ export default {
       let body = req.body;
       //console.log('body:', body);
       let slip = await createCrossSlip(body, req.session.user);
-   
-      res.json(slip);
+      if  ( slip )  {
+        res.json(slip);
+      } else {
+        res.json({
+          code: -2,
+          message: 'date error'
+        });
+      }
     } else {
       res.json({
         code: -10,
