@@ -54,7 +54,7 @@
       {/if}
     </li>
   </ul>
-  <div class="full-height fontsize-12pt" style="overflow-y: auto;">
+  <div class="full-height-2 fontsize-12pt">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>

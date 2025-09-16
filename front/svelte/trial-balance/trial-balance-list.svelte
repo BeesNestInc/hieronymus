@@ -1,4 +1,4 @@
-<div class="full-height">
+<div class="full-height-2">
   <table class="table table-bordered">
     <thead class="table-light">
       <tr>

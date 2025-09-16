@@ -55,7 +55,7 @@
       </button>
     </div>
   </ul>
-  <div class="full-height" style="overflow-y: auto;">
+  <div class="full-height-2">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>

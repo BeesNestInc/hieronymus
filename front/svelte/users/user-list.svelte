@@ -1,4 +1,4 @@
-<div class="full-height fontsize-12pt">
+<div class="full-height-1 fontsize-12pt">
   <div class="col-9">
     <table class="table table-bordered">
       <thead class="table-light">
