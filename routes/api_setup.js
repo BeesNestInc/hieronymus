@@ -2,10 +2,10 @@ import models from '../models/index.js';
 import parseAccounts from '../libs/parse_accounts.js';
 import {getCompanyInfo, putCompanyInfo} from '../libs/utils.js';
 
-const createInitialAccount = async (term, t) => {
+const createInitialAccount = async (term, companyClass, t) => {
   const now = new Date();
   let accountClasses = [];
-  const values = parseAccounts(term);
+  const values = parseAccounts(term, companyClass);
   values.accountClasses.forEach((account_class) => {
     accountClasses.push({
       major: account_class.major,
@@ -46,8 +46,8 @@ const createInitialAccount = async (term, t) => {
       accountId: account.rec_id,
       term: account.term,
       debit: 0,
-      credit: account.balance,
-      balance: account.balance
+      credit: 0,
+      balance: 0
     },{ transaction: t });
   }
   if	( values.subAccounts )	{
@@ -69,8 +69,8 @@ const createInitialAccount = async (term, t) => {
         subAccountId: sub_account_rec.id,
         term: sub_account.term,
         debit: 0,
-        credit: sub_account.balance,
-        balance: sub_account.balance
+        credit: 0,
+        balance: 0
       },{ transaction: t });
     }
   }
@@ -87,7 +87,7 @@ export const setup = async (req, res, next) => {
         term: req.body.term,
         year: req.body.year
       },{ transaction: t });
-      await createInitialAccount(req.body.term, t);
+      await createInitialAccount(req.body.term, req.body.companyClass, t);
       getCompanyInfo().then(async (company) => {
         company.roundingMethod = req.body.roundingMethod;
         await putCompanyInfo(company);
