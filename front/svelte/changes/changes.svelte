@@ -77,8 +77,10 @@
 </div>
 <Line data={chartData} options={{}}/>
 {/if}
-<ChangesList
-  lines={lines}/>
+<div class="change-list">
+  <ChangesList
+    lines={lines}/>
+</div>
 <style>
 </style>
 

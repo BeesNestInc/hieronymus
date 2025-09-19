@@ -13,6 +13,7 @@ export const create = async (body, user) => {
     }
   });
   //console.log('fy', fy);
+  if  ( !fy ) return;
   let ml = await models.MonthlyLog.findOne({
     where: {
       term: fy.term,

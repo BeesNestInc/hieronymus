@@ -53,7 +53,8 @@ export default async (term) => {
     //console.log({ledger});
     if  (( ledger.sums.debit ) ||
          ( ledger.sums.credit ) ||
-         ( ledger.sums.balance )) {
+         ( ledger.sums.balance ) ||
+         ( ledger.pages[0].lines.length > 0 )) {
       accountLines.push({
         code: account.code,
         name: account.name,

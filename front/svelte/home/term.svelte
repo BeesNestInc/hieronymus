@@ -3,7 +3,7 @@
     <h5 class="card-title">年度選択</h5>
   </div>
   <div class="card-body">
-    <div class="row full-height" style="overflow-y: scroll;">
+    <div class="row h-100" style="overflow-y: scroll;">
       <table class="table table-bordered">
         <thead class="table-light">
           <th scol="col">

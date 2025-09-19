@@ -2,7 +2,7 @@ const INPUT_FILE = './accounts.csv'
 
 import child_process from 'child_process';
 
-export const exec = (term) => {
+export const exec = (term, companyClass) => {
   //let file = fs.readFileSync(INPUT_FILE, "utf-8");		// csv uft-8 encoded
   let file = child_process.execSync(`/usr/bin/iconv -f shift_jis -t utf-8 < ${INPUT_FILE}`, {	//	csv by Excel
     encoding: "utf-8"
@@ -39,6 +39,16 @@ export const exec = (term) => {
       ent.subject_code_seq = parseInt(ent.subject_code_seq);
       ent.sub_subject_code = parseInt(ent.sub_subject_code);
       ent.tax_class = parseInt(ent.tax_class);
+      ent.houjin = parseInt(ent.houjin);
+      ent.kojin = parseInt(ent.kojin);
+      switch  (companyClass)  {
+        case  1:  //  法人
+          if  ( ent.houjin !== 1 )  return;
+          break;
+        case  2:  //  個人事業主
+          if  ( ent.kojin !== 1 ) return;
+          break;
+      }
 
       if (( ent.subject_code_field != ent_1.subject_code_field ) ||
         ( ent.subject_code_sum != ent_1.subject_code_sum )) {
@@ -65,7 +75,7 @@ export const exec = (term) => {
           account_code: account_code,
           sub_account_count: 0,
           tax_class: ent.tax_class,
-          balance: parseInt(ent.beginning_balance),
+          balance: 0,
           term: term
         });
         seq += 10;
@@ -78,7 +88,7 @@ export const exec = (term) => {
           sub_account_code: sub_account,
           term: term,
           tax_class: ent.tax_class,
-          balance: parseInt(ent.beginning_balance)
+          balance: 0
         });
       }
       ent_1 = ent;
