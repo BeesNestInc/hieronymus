@@ -309,14 +309,19 @@ const printNetWorthPage = () => {
   netWorthPage.push({});
   mark = netWorthPage.length - 1;
   sum[0] = printBS(netWorthPage, ['純資産', '株主資本', '資本金']);
-  sum[1] = printBS(netWorthPage, ['純資産', '株主資本', '利益剰余金']);
+  netWorthPage.push({
+    level: 3,
+    name: '繰越利益剰余金',
+    amount: retainedEarnings.balance
+  });
+  const netWorth = sum[0].balance + retainedEarnings.balance;
   netWorthPage[mark] = {
     level: 1,
     name: '資本',
-    amount: ( sum[0].balance + sum[1].balance)
+    amount: netWorth
   };
   //console.log(netWorthPage);
-  return  (sum[0].balance + sum[1].balance)
+  return  (netWorth)
 }
 
 const formatLevel = (level, name) => {

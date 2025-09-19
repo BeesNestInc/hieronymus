@@ -166,13 +166,11 @@ const save = (event) => {
       if	( create )	{
         window.history.replaceState(
           status, "", `/voucher/entry/${voucher.id}`);
-        axios.get(`/api/voucher/${voucher.id}`).then((result) => {
-          voucher = result.data.voucher;
-          currentVoucher.set(voucher);
-        })
-      } else {
-        currentVoucher.set(voucher);
       }
+      axios.get(`/api/voucher/${voucher.id}`).then((result) => {
+        voucher = result.data.voucher;
+        currentVoucher.set(voucher);
+      })
     });
   }
   catch(e) {

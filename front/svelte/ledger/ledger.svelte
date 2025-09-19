@@ -1,28 +1,33 @@
-<div class="list">
-  <div class="page-title d-flex justify-content-between">
-  	<h1>元帳</h1>
-  	<a href="/forms/general_ledger/{status.fy.term}?format=pdf" download="総勘定元帳-{today}.pdf" class="btn btn-primary">
-    	総勘定元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
-  	</a>
-	</div>
-	<AccountSelect
-  	on:select={(event) => {
-    	accountSelect(event.detail);
-  	}}
-  	fields={fields}/>
-	<nav class="page-subtitle navbar">
-  	{#if (account)}
-  	<button class="btn btn-link fs-4"
-    	on:click={() => {
-      	accountSelect({
-        	code: account.accountCode
-      	})
-    	}}>
-    	{ account ? account.name : ''}
-  	</button>
-  	{/if}
-	</nav>
-	{#if (account && (account.subAccounts.length > 0))}
+<div class="page-title d-flex justify-content-between">
+  <h1>元帳</h1>
+  <a href="/forms/general_ledger/{status.fy.term}?format=pdf" download="総勘定元帳-{today}.pdf" class="btn btn-primary">
+    総勘定元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
+  </a>
+</div>
+<AccountSelect
+  on:select={(event) => {
+    accountSelect(event.detail);
+  }}
+  fields={fields}/>
+<nav class="page-subtitle navbar d-flex justify-content-between">
+  {#if (account)}
+  <button class="btn btn-link fs-4"
+    on:click={() => {
+      accountSelect({
+      	code: account.accountCode
+    	})
+    }}>
+    { account ? account.name : ''}
+  </button>
+  {/if}
+  <div>
+    <button type="button" class="btn btn-primary" id="open-cross-slip"
+    	on:click={openSlip}>
+      伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
+    </button>
+  </div>
+</nav>
+{#if (account && (account.subAccounts.length > 0))}
   <div class="row page-subtitle">
     <div class="col-8">
   		<SubAccountSelect
@@ -53,20 +58,19 @@
       </a>
     </div>
   </div>
-	{/if}
-  <div class="full-height-4" style="overflow-y: auto;">
-	  <LedgerList
-  	  account={account}
-  	  pickup={pickup}
-  	  sums={sums}
-  	  lines={lines}
-  	  bind:status={status}
-  	  on:link={_link}
-  	  on:select={(event) => {
-    	  accountSelect(event.detail);
-  	  }}
-  	  on:open={openSlip}></LedgerList>
-  </div>
+{/if}
+<div class="full-height-4" style="overflow-y: auto;">
+	<LedgerList
+  	account={account}
+  	pickup={pickup}
+  	sums={sums}
+  	lines={lines}
+  	bind:status={status}
+  	on:link={_link}
+  	on:select={(event) => {
+    	accountSelect(event.detail);
+  	}}
+    on:open={openSlip}></LedgerList>
 </div>
 {#if popUp}
 {#key modalCount}
@@ -265,20 +269,38 @@ const updateList = () => {
 }
 const openSlip = (event) => {
   let dataset = event.detail;
-  axios.get(`/api/cross_slip/${dataset.year}/${dataset.month}/${dataset.no}`).then((result) => {
-    let data = result.data;
+  if  ( dataset.no ) {
+    axios.get(`/api/cross_slip/${dataset.year}/${dataset.month}/${dataset.no}`).then((result) => {
+      let data = result.data;
+      slip = {
+          year: data.year,
+          month: data.month,
+          day: data.day,
+          no: data.no,
+          createdBy: data.createdBy,
+          approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
+          createrName: data.creater ? data.creater.name: '',
+          approverName: data.approver ? data.approver.name : '',
+          lines: data.lines
+      };
+      popUp = true;
+    });
+  } else {
     slip = {
-        year: data.year,
-        month: data.month,
-        day: data.day,
-        no: data.no,
-        createdBy: data.createdBy,
-        approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
-        createrName: data.creater ? data.creater.name: '',
-        approverName: data.approver ? data.approver.name : '',
-        lines: data.lines
+      year: status.fy.startDate.getFullYear(),
+      month: status.fy.startDate.getMonth()+1,
+      lines: [{
+        debitAccount: "",
+        debitSubAccount: 0,
+        debitAmount: "",
+        debitTax: "",
+        creditAccount: "",
+        creditSubAccount: 0,
+        creditAmount: "",
+        creditTax: "",
+      }]
     };
     popUp = true;
-  });
+  }
 }
 </script>
