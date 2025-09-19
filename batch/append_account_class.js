@@ -10,11 +10,11 @@ export const append_account_class = async (args) => {
 	});
 }
 
-export append_account_class({
+append_account_class({
 	major: '経常損益',
 	middle: '営業外費用',
-	minor: '法人税住民税等',
+	minor: '開業費償却',
 	field: 9,
-	adding: 3
+	adding: 4
 });
 

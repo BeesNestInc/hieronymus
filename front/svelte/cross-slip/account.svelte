@@ -25,6 +25,7 @@
     {#if ( sub_list.length > 0 ) }
     <select bind:value={sub_code}
       on:focusout={subAccountSelect}>
+      <option value={0}></option>
       {#each sub_list as item}
       <option value={item.code}>{item.name}</option>
       {/each}

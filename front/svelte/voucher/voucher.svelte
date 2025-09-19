@@ -101,7 +101,14 @@ const	openEntry = (event)	=> {
 
 const updateSlip = (event) => {
   updateVouchers();
-  checkPage();
+  if	( status.state === 'entry' )	{
+    const args = location.pathname.split('/');
+    axios.get(`/api/voucher/${args[3]}`).then((result) => {
+      voucher = result.data.voucher;
+      console.log('updateSlip', {voucher});
+      currentVoucher.set(voucher);
+    });
+  }
 }
 
 const closeEntry = (event) => {
@@ -152,7 +159,7 @@ const checkPage = () => {
         if	( status.state === 'entry' )	{
           axios.get(`/api/voucher/${args[3]}`).then((result) => {
         		voucher = result.data.voucher;
-        		console.log({voucher});
+        		console.log('checkPage', {voucher});
             currentVoucher.set(voucher);
       		});
         } else {
