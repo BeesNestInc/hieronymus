@@ -1,6 +1,6 @@
 {
 	"name": "kaikei",
-	"version": "2.0.0",
+	"version": "2.0.3",
 	"description": "",
 	"main": "index.js",
 	"type": "module",
@@ -10,10 +10,10 @@
 		"watch": "vite build -w",
 		"watch-ssr": "vite build -w --config vite.config.ssr.js",
 		"prepublishOnly": "npm test",
-		"start-dev": "node ./bin/www",
+		"start-dev": "APP_NAME='hieronymus-dev' node ./bin/www",
 		"start": "NODE_ENV='production' node ./bin/www"
 	},
-	"author": "ogochan@wasp.co.jp",
+	"author": "ogochan@beesnest-inc.com",
 	"license": "AGPL",
 	"dependencies": {
 		"@codemirror/lang-javascript": "^6.2.4",

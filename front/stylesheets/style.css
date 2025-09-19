@@ -20,8 +20,31 @@
   --bs-body-bg-rgb: var(--bs-body-bg) ;
 }
 
-.card, .form-control, table {
+.form-control {
+  background-color: #fff;
   border-radius: 0.3rem;
+}
+.form-control:focus {
+  background-color: #fff;
+}
+
+.table {
+  background-color: #fff;
+  border-radius: 0.3rem;
+}
+.table > :not(caption) > * > * {
+  background-color: #fff;
+}
+.table th {
+  background-color: #264653;
+  color: #fff;
+}
+
+.card {
+  background-color: #fff;
+  border-radius: 0.3rem;
+  -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .nav-pills .nav-link.active {
@@ -44,8 +67,29 @@ body {
   margin: 0;
 }
 
-.full-height {
-  height: 100%;
+.full-height-1 {
+  height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+
+.full-height-2 {
+  height: calc(100vh - 270px);
+  overflow-y: auto;
+}
+
+.full-height-3 {
+  height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.full-height-4 {
+  height: calc(100vh - 380px);
+  overflow-y: auto;
+}
+
+.change-list {
+  height: calc(100vh - 990px);
+  overflow-y: auto;
 }
 
 .btn-link {

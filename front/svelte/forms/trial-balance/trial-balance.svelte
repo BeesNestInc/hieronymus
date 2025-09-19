@@ -11,13 +11,13 @@
   sub_title= "貸借対照表 資産の部"
   pages={assetPages}></Print>
 {/if}
-{#if liabilitiesAndCapicalPages}
+{#if liabilitiesAndCapitalPages}
 <Print
   {company}
   {fy}
   title="残高試算表"
   sub_title="貸借対照表 負債・資本の部"
-  pages={liabilitiesAndCapicalPages}></Print>
+  pages={liabilitiesAndCapitalPages}></Print>
 {/if}
 {#if incomeStatementPages}
 <Print
@@ -34,6 +34,6 @@ import FrontCover from '../components/front-cover.svelte';
 export let company;
 export let fy;
 export let assetPages;
-export let liabilitiesAndCapicalPages;
+export let liabilitiesAndCapitalPages;
 export let incomeStatementPages;
 </script>

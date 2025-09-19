@@ -2,7 +2,14 @@
   <div class="row mb-3">
     <div class="col-5">
       <div class="input-group">
-        <span class="input-group-text">{slip.year}年{slip.month}月</span>
+        <input type="text" autocomplete="off" class="number" name="year"
+          id="slip-year" size="2" maxlength="5" disabled="disabled"
+          bind:value={slip.year}>
+        <span class="input-group-text">年</span>
+        <input type="text" autocomplete="off" class="number" name="month"
+          id="slip-month" size="2" maxlength="3"
+          bind:value={slip.month}>
+        <span class="input-group-text">月</span>
         <input type="text" autocomplete="off" class="number" name="day" id="slip-day" size="2" maxlength="3"
             bind:value={slip.day}>
         <span class="input-group-text">日</span>
@@ -154,7 +161,7 @@
               on:focusout={makeTaxLine}>
             {/if}
           </td>
-          <td style="width:125px;">
+          <td style="width:130px;">
             {#if (slip.approvedAt) }
             {#if ( ( line.debitVoucherId !== null ) || ( line.creditVoucherId !== null ))}
             <Icon icon="fa:file"></Icon>
@@ -230,6 +237,8 @@ export let slip;
 export let fy;
 export let taxRules;
 let	sums;
+
+$: slip.year = slip.month < ( fy.startDate.getMonth() + 1 ) ? fy.endDate.getFullYear() : fy.startDate.getFullYear();
 
 const computeSum = () => {
   //console.log('computeSum');

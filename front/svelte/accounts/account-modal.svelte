@@ -88,7 +88,7 @@ const	save = async(event) => {
 
   console.log('save', name, sub_name, key, tax_class, debit, credit, balance);
 console.log({mode});
-  update_account(status.term, mode, {
+  update_account(status.fy.term, mode, {
     code: account.code,
     sub_code: subAccount ? subAccount.code : 0,
     name: name,

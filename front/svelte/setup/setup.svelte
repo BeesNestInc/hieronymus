@@ -62,6 +62,20 @@
           </div>
         {/if}
       </div>
+      <div class="mb-3">
+        <label for="companyClass" class="form-label">組織種別&nbsp;<span class="badge bg-danger">必須</span></label>
+        <select id="companyClass" class="form-control"
+          bind:value={form.companyClass}>
+          <option value={0}></option>
+          <option value={1}>法人</option>
+          <option value={2}>個人事業主</option>
+        </select>
+        {#if invalid.companyClass }
+          <div class="text-danger">
+            {message.companyClass}
+          </div>
+        {/if}
+      </div>
       <div class="d-flex justify-content-center">
         {#if loding }
           <button type="button" class="btn btn-primary col-lg-8 col-12" disabled>
@@ -97,14 +111,16 @@
       year: year,
       startDate: `${year}-04-01`,
       endDate: `${year + 1}-03-31`,
-      roundingMethod: 2
+      roundingMethod: 2,
+      companyClass: 0
     };
     invalid ={
       term: false,
       year: false,
       startDate: false,
       endDate: false,
-      roundingMethod: false
+      roundingMethod: false,
+      companyClass: false
     };
     const result = await axios.get('/api/version');
     if ( result.data ){
@@ -178,6 +194,16 @@
     }
     return true;
   }
+  const isCompanyValid = () => {
+    invalid.companyClass = false;
+    message.companyClass = "";
+    if  ( form.companyClass == 0 ) {
+      invalid.companyClass = true;
+      message.companyClass = "組織種別を指定してください。"
+      return false;
+    }
+    return  true;
+  }
   const isFormDataValid = () =>{ 
     console.log(form);
     let count = 0;
@@ -191,6 +217,9 @@
       count++;
     }
     if ( !isEndDateValid() ){
+      count++;
+    }
+    if ( !isCompanyValid() )  {
       count++;
     }
     return count > 0 ? false : true;

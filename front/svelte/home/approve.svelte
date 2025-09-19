@@ -49,7 +49,17 @@
               {slip.updater ? slip.updater.name: ''}
             </td>
             <td>
-              {slip.lines[0]?.application1}/{slip.lines[0]?.application2 || ''}
+              {#if slip.lines[0]?.application1 }
+              {#if slip.lines[0]?.application2 }
+              {slip.lines[0]?.application1}/{slip.lines[0]?.application2}
+              {:else}
+              {slip.lines[0]?.application1}
+              {/if}
+              {:else}
+              {#if slip.lines[0]?.application2 }
+              {slip.lines[0]?.application2}
+              {/if}
+              {/if}
             </td>
           </tr>
           {/each}

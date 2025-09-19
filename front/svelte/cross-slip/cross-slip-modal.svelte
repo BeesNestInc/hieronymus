@@ -29,7 +29,7 @@
             <th style="width:20px;">
 
             </th>
-            <th style="width:90px;">
+            <th style="width:100px;">
               種別
             </th>
             <th style="width:200px;">
@@ -112,6 +112,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CrossSlip from './cross-slip.svelte';
+import {setAccounts} from '../../javascripts/cross-slip';
 
 
 export let accounts;
@@ -144,6 +145,7 @@ const onDragEnd = (event) => {
 }
 onMount(async () => {
   console.log('onMount cross-slip-modal', slip);
+  //setAccounts(accounts);
   let date;
   if  ( slip.year ) {
     date = dateStr(slip.year, slip.month);

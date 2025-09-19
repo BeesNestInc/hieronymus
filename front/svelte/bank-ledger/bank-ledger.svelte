@@ -2,7 +2,8 @@
   <div class="page-title d-flex justify-content-between">
     <h1>銀行元帳</h1>
   </div>
-  <ul class="page-subtitle nav">
+  <ul class="page-subtitle d-flex justify-content-between">
+    <div class="nav">
     <li class="nav-item dropdown">
       <button type="button"
         class="btn nav-link dropdown-toggle"
@@ -29,7 +30,7 @@
     </li>
     {#each bank_list.subAccounts as bank}
       <li class="nav-item">
-        {#if ( status.subAccount === bank.id )}
+        {#if ( status.subAccount === bank.subAccountCode )}
         <button type="button" class="btn btn-info"
           on:click|preventDefault={() => {
             openBank(bank.subAccountCode);
@@ -46,8 +47,15 @@
         {/if}
       </li>
     {/each}
+    </div>
+    <div>
+    	<button type="button" class="btn btn-primary" id="open-cross-slip"
+    		on:click={openSlip}>
+        伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
+      </button>
+    </div>
   </ul>
-  <div class="full-height" style="overflow-y: auto;">
+  <div class="full-height-2">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>
@@ -245,6 +253,7 @@ const updateAccount = () => {
 }
 
 const updateList = () => {
+  console.log('updateList');
   if	( status.subAccount )	{
     axios.get(`/api/remaining/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
       let remaining = result.data;
@@ -263,20 +272,38 @@ const updateList = () => {
 }
 
 const	openSlip = (year, month, no) => {
-  axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
-    let data = result.data;
+  if  ( !no ) {
     slip = {
-      year: data.year,
-      month: data.month,
-      day: data.day,
-      no: data.no,
-      createdBy: data.createdBy,
-      approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
-      createrName: data.creater ? data.creater.name: '',
-      approverName: data.approver ? data.approver.name : '',
-      lines: data.lines
+      year: status.fy.startDate.getFullYear(),
+      month: status.fy.startDate.getMonth()+1,
+      lines: [{
+        debitAccount: "",
+        debitSubAccount: 0,
+        debitAmount: "",
+        debitTax: "",
+        creditAccount: "",
+        creditSubAccount: 0,
+        creditAmount: "",
+        creditTax: "",
+      }]
     };
     popUp = true;
-  });
+  } else {
+    axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
+      let data = result.data;
+      slip = {
+        year: data.year,
+        month: data.month,
+        day: data.day,
+        no: data.no,
+        createdBy: data.createdBy,
+        approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
+        createrName: data.creater ? data.creater.name: '',
+        approverName: data.approver ? data.approver.name : '',
+        lines: data.lines
+      };
+      popUp = true;
+    });
+  }
 }
 </script>

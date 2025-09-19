@@ -7,7 +7,7 @@
       }}
       id="member-info">役職員入力&nbsp;<i class="bi bi-pencil-square"></i></button>
   </div> 
-  <div class="full-height fontsize-12pt" style="overflow-y: auto;">
+  <div class="full-height-1 fontsize-12pt">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>
