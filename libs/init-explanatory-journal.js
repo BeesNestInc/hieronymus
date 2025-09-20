@@ -44,7 +44,8 @@ const ready = (slips) => {
   }
   for ( let i = 0; i < slips.length; i ++ ) {
     let slip = slips[i];
-    slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
+    if  ( !slip.approvedAt )  break;
+    slip.approvedAt = new Date(slip.approvedAt);
     for ( let j = 0; j < slip.lines.length; j ++ ) {
       let line = slip.lines[j];
       let debitTax = line.debitTax ? numeric(line.debitTax) : 0
