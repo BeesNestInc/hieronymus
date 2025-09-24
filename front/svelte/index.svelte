@@ -1,9 +1,8 @@
-{#if ( status.current === 'login') }
+{#if ( getStore(currentPage) === 'login') }
 <Login
   bind:current={status.current}></Login>
-{:else if ( status.current === 'signup' ) }
-<SignUp
-  bind:current={status.current}></SignUp>
+{:else if ( getStore(currentPage) === 'signup' ) }
+<SignUp></SignUp>
 {:else}
 <nav class="main-header navbar navbar-expand-lg">
   <NavBar
@@ -72,7 +71,7 @@ import Task from './task/task.svelte';
 import OkModal from './common/ok-modal.svelte';
 
 import Router from './components/router.svelte';
-import {currentPage} from '../javascripts/router.js';
+import {currentPage, getStore} from '../javascripts/router.js';
 
 export let term;
 
@@ -184,13 +183,14 @@ onMount(() => {
       status.fy = {};
     }
   });
-	window.onpopstate = (event) => {
+  window.onpopstate = (event) => {
     console.log('maybe back', event);
     status = event.state;
-    status.change = true;
     console.log({status});
-    currentPage.set(event.target.location.pathname);
-	}
+    const page = location.pathname;
+    console.log("popstate:", page);
+    currentPage.set(page);
+  };
   eventBus.on('okModal', (args) => {
     console.log(args);
     title = args.title;
@@ -204,7 +204,6 @@ onMount(() => {
 beforeUpdate(() => {
   let args = location.pathname.split('/');
   console.log('index beforeUpdate', args);
-  status.current = args[1];
   status = status;
   //console.log('index beforeUpdate', {status});
 })
