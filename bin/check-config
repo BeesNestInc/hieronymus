@@ -6,9 +6,9 @@ const configFilePath = './config/config.json';
 //const sampleFilePath = '/app/hieronymus/config/config.json.sample';
 const sampleFilePath = './config/config.json.sample';
 const envVariables = {
-    username: process.env.HIERONYMUS_DB_USER,
-    password: process.env.HIERONYMUS_DB_PASSWORD,
-    database: process.env.HIERONYMUS_DB,
+    username: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     host: process.env.DB_HOST
 };
 async function fileExists(path) {

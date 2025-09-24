@@ -31,10 +31,9 @@ services:
       - HOME=/app/hieronymus
       - NODE_ENV=production
       - DB_HOST=db
-      - HIERONYMUS_DB_USER=hieronymus
-      - HIERONYMUS_DB_PASSWORD=hieronymus
-      - HIERONYMUS_DB=hieronymus
-      - CASSETTE_SERVER=false
+      - DB_USER=hieronymus
+      - DB_PASSWORD=hieronymus
+      - DB_NAME=hieronymus
       - BACKUP_DIR=/app/backups
     volumes:
       - backups_data:/app/backups
