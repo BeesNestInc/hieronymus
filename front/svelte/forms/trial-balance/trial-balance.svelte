@@ -36,4 +36,5 @@ export let fy;
 export let assetPages;
 export let liabilitiesAndCapitalPages;
 export let incomeStatementPages;
+
 </script>

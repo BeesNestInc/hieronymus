@@ -27,6 +27,6 @@ let incomeStatementPages;
 onMount(async () => {
   company = await myCompany();
   ({fy, assetPages, liabilitiesAndCapitalPages, incomeStatementPages} = await initializeTrialBalance(term));
-});
+})
 
 </script>
