@@ -103,12 +103,12 @@ router.get('/trial_balance/:term', is_authenticated, async (req, res, next) => {
       ( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
       const company = await myCompany();
-      const {fy, assetPages, liabilitiesAndCapicalPages, incomeStatementPages} = await initializeTrialBalance(req.params.term);
+      const {fy, assetPages, liabilitiesAndCapitalPages, incomeStatementPages} = await initializeTrialBalance(req.params.term);
       print('trial-balance', {
         fy: fy,
         company: company,
         assetPages: assetPages,
-        liabilitiesAndCapicalPages: liabilitiesAndCapicalPages,
+        liabilitiesAndCapitalPages: liabilitiesAndCapitalPages,
         incomeStatementPages: incomeStatementPages
       }).then((pdf) => {
         res.setHeader('Content-Type', 'application/pdf');

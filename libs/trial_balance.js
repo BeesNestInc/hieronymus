@@ -67,7 +67,7 @@ export default async (term, endDate) => {
           }
           if ( detail.creditAccount ) {
             let ix = index[detail.creditAccount];
-            console.log('ix', ix, detail);
+            //console.log('ix', ix, detail);
             lines[ix].credit += numeric(detail.creditAmount);
             //lines[ix].credit += ( numeric(detail.creditAmount) - numeric(detail.creditTax) );
           }
