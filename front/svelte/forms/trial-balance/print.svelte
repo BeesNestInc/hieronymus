@@ -35,16 +35,16 @@
               {@html line.name}
             </td>
             <td class="number">
-              {formatMoney(line.pickup)}
+              {line.pickup ? formatMoney(line.pickup) : ''}
             </td>
             <td class="number">
-              {formatMoney(line.debit)}
+              {line.debit ? formatMoney(line.debit) : ''}
             </td>
             <td class="number">
-              {formatMoney(line.credit)}
+              {line.credit ? formatMoney(line.credit) : ''}
             </td>
             <td class="number">
-              {formatMoney(line.balance)}
+              {line.balance ? formatMoney(line.balance): ''}
             </td>
           </tr>
           {/each}
