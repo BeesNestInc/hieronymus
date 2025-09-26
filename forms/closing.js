@@ -125,30 +125,7 @@ const   Closing = async (arg, carry) => {
         }
     }
 }
-const	aggregate = (lines, code, debug) => {
-	let sums = {
-		pickup: 0,
-		debit: 0,
-		credit: 0,
-		balance: 0
-	}
-	for ( let line of lines )  {
-		if      ( ( ( line.debit !== 0 ) ||
-					( line.credit !== 0 ) ||
-					( line.balance !== 0 ) ) &&
-				  ( line.code.match(code) ) )    {
-            if  ( debug )   {
-                console.log(line);
-            }
-			sums.pickup += line.pickup;
-			sums.debit += line.debit;
-			sums.credit += line.credit;
-			sums.balance += line.balance;
-		}
-	}
-	return  (sums);
 
-}
 const	account_line = (lines, code) => {
 	let line;
 	for ( let i = 0; i < lines.length; i ++ )  {
