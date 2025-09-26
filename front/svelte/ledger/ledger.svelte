@@ -41,14 +41,14 @@
     	{#if subAccountCode}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${accountCode}/${subAccountCode}`)
+          link(`/changes/${status.fy.term}/${accountCode}/${subAccountCode}`)
         }}>
       	推移表を見る
     	</button>
     	{:else}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${accountCode}`);
+          link(`/changes/${status.fy.term}/${accountCode}`);
         }}>
       	推移表を見る
     	</button>
@@ -142,7 +142,7 @@ const _link = (event) => {
 }
 const link = (href) => {
   window.history.pushState(status, "", href);
-  status.change = true;
+  currentPage.set(href);
 }
 
 const accountSelect = (code) => {
@@ -152,19 +152,15 @@ const accountSelect = (code) => {
   } else {
     href = `/ledger/${code.code}`;
   }
-  status.pathname = href;
   accountCode = code.code;
   subAccountCode = code.sub;
-  update(true);
-  window.history.pushState(status, "", href);
+  link(href);
 }
 
 const update = async (list) => {
-  let args = location.pathname.split('/');
-  accountCode = args[2];
-  subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   let result = await axios.get(`/api/account/${accountCode}`);
   account = result.data;
+  console.log('update', account);
   //console.log('account', account);
   //console.log(status.accountCode, status.subAccountCode);
   if  ( list )  {
@@ -184,6 +180,9 @@ const update = async (list) => {
   }
 }
 const checkPage = () => {
+  let args = location.pathname.split('/');
+  accountCode = args[2];
+  subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   update(true);
 }
 

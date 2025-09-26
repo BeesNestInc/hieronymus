@@ -5,7 +5,7 @@
   bind:status={status}/>
 {/key}
 <script>
-import {currentPage, setRoutes, getStore} from '../../javascripts/router.js';
+import {currentPage, setRoutes, getStore, findRoute} from '../../javascripts/router.js';
 
 export let routes;
 export let toast;
@@ -20,11 +20,9 @@ $: {
   const page = $currentPage;
   console.log({page});
   if  ( beforePage !== page ) {
-    for ( const route of routes ) {
-      if  ( page.match(route.match) ) {
-        component = route.component;
-        break;
-      }
+    const route = findRoute(routes, page);
+    if  ( route ) {
+      component = route.component;
     }
     count += 1;
     beforePage = page;

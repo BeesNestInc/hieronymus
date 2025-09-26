@@ -185,8 +185,6 @@ onMount(() => {
   });
   window.onpopstate = (event) => {
     console.log('maybe back', event);
-    status = event.state;
-    console.log({status});
     const page = location.pathname;
     console.log("popstate:", page);
     currentPage.set(page);
@@ -203,8 +201,8 @@ onMount(() => {
 
 beforeUpdate(() => {
   let args = location.pathname.split('/');
-  console.log('index beforeUpdate', args);
-  status = status;
+  //console.log('index beforeUpdate', args);
+  //status = status;
   //console.log('index beforeUpdate', {status});
 })
 afterUpdate(() => {

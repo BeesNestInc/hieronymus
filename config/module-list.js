@@ -62,7 +62,7 @@ export default [
     title: '推移表',
     match: /^\/changes/,
     href: (status) => {
-      return	(`/changes/6000000`);
+      return	(`/changes/${status.fy.term}/6000000`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
