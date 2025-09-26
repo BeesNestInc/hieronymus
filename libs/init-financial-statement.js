@@ -27,8 +27,8 @@ const accountLine = (name) => {
 
 
 /*  損益計算書 */
-const printPL = () => {
-  const sumByCode = (regex) => trialBalanceLines.reduce((acc, line) => {
+export const printPL = (lines) => {
+  const sumByCode = (regex) => lines.reduce((acc, line) => {
     if ((line.debit || line.credit || line.balance) && regex.test(line.code)) {
         acc.debit += line.debit;
         acc.credit += line.credit;
@@ -39,7 +39,7 @@ const printPL = () => {
   
   const collectItems = (regex) => {
     const result = { debit: 0, credit: 0, balance: 0 };
-    for (const line of trialBalanceLines) {
+    for (const line of lines) {
       if ((line.debit || line.credit || line.balance) && regex.test(line.acl_code)) {
         plOut.push({ left_title: line.name, left_value: line.balance });
         result.debit += line.debit;
@@ -477,7 +477,7 @@ export default async(term) => {
     }
   })
   //console.log(trialBalanceLines);
-  netIncome = printPL();
+  netIncome = printPL(trialBalanceLines);
 
   BS();
   SGA();

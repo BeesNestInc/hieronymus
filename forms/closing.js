@@ -4,6 +4,7 @@ import Accounts from '../libs/accounts.js';
 import {field, dc, numeric} from '../libs/parse_account_code.js';
 import {ledgerLines} from '../libs/ledger.js';
 import TrialBalance from '../libs/trial_balance.js';
+import {printPL} from '../libs/init-financial-statement.js';
 
 const   fiscalYear = async (term) => {
     let fy = await models.FiscalYear.findOne({
@@ -124,7 +125,7 @@ const   Closing = async (arg, carry) => {
         }
     }
 }
-const	aggregate = (lines, code) => {
+const	aggregate = (lines, code, debug) => {
 	let sums = {
 		pickup: 0,
 		debit: 0,
@@ -132,10 +133,13 @@ const	aggregate = (lines, code) => {
 		balance: 0
 	}
 	for ( let line of lines )  {
-		if      ( ( ( line.debit != 0 ) ||
-					( line.credit != 0 ) ||
-					( line.balance != 0 ) ) &&
+		if      ( ( ( line.debit !== 0 ) ||
+					( line.credit !== 0 ) ||
+					( line.balance !== 0 ) ) &&
 				  ( line.code.match(code) ) )    {
+            if  ( debug )   {
+                console.log(line);
+            }
 			sums.pickup += line.pickup;
 			sums.debit += line.debit;
 			sums.credit += line.credit;
@@ -156,31 +160,13 @@ const	account_line = (lines, code) => {
 	return  (line);
 }
 const	net_income = (lines) => {
-	let sum = [];
-	sum[0] = aggregate(lines, /^6/);		//	[ "経常損益", "売上高" ]
-	sum[1] = aggregate(lines, /^8/);		//	[ "経常損益", "営業外収益" ]
-	sum[2] = aggregate(lines, /^901/);		//	[ "経常損益",	"営業外費用", "特別利益" ]
-
-	sum[3] = aggregate(lines, /^7/);		//	[ "経常損益", "売上原価"]
-	sum[4] = aggregate(lines, /^900/);		//	[ "経常損益", "営業外費用", "支払利息"]
-	sum[5] = aggregate(lines, /^902/);		//	[ "経常損益", "営業外費用", "特別損失"]
-	sum[6] = account_line(lines, '9030000');        //  法人税住民税等
-
+    const netIncome = printPL(lines);
 	let line = account_line(lines, '5040000');      //  繰越利益剰余金
-	line.credit = ( sum[0].balance + sum[1].balance + sum[2].balance ) -
-				  ( sum[3].balance + sum[4].balance + sum[5].balance + sum[6].balance );
+	line.credit = netIncome;
 	line.balance = line.pickup - line.debit + line.credit;
-	//console.log(line);
+    //console.log(line);
     return  (line);
 }
-
-/*
-fiscalYear(14).then((ret) => {
-    Closing(ret).then(() => {
-        exit(0);
-    });
-});
-*/
 
 export default async (term) => {
     let fy = await fiscalYear(term);
