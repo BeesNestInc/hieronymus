@@ -21,16 +21,16 @@
         {#each plOut as line}
           <tr>
             <td class="no-border">
-              {line.left_title || ''}
+              {@html line.left_title ? line.left_title.replace(' ', '&nbsp;') : ''}
             </td>
             <td class="no-border">
-              {line.right_title || ''}
+              {@html line.right_title ? line.right_title.replace(' ', '&nbsp;') : ''}
             </td>
             <td class="number{line.left_line ? ' pl-line' : ' left-border'}">
-              {formatMoney(line.left_value)}
+              {line.left_value ? formatMoney(line.left_value) : ''}
             </td>
             <td class="number{line.right_line ? ' pl-line' : ' left-border'}">
-              {formatMoney(line.right_value)}
+              {line.right_value ? formatMoney(line.right_value) : ''}
             </td>
           </tr>
         {/each}
