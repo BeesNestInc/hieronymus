@@ -58,12 +58,9 @@ const checkPage = () => {
   // /company/26
   // /company/
   //console.log('checkPage', {args});
-  if	( args[2] === 'home' )	{
-		status.state = 'home';
-  } else
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
+  status.state = args[2];
+  if  ( ( status.state === 'entry' ) ||
+			  ( status.state === 'new'   )) {
 		if	( !company )	{
       company = {};
       let value = getStore(currentCompany);
@@ -87,17 +84,13 @@ const checkPage = () => {
   } else {
     status.state = 'list';
   }
-  //console.log('company', status);
+  console.log('company', status);
 }
 
 onMount(() => {
   console.log('company onMount');
 })
 
-beforeUpdate(()	=> {
-  //console.log('company.svelte', {company});
-  checkPage();
-});
 afterUpdate(() => {
 })
 
