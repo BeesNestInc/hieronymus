@@ -53,7 +53,7 @@
             </td>
             <td>
               {#if ( status.user && status.user.administrable )}
-              <a class="btn btn-danger closing" href="/forms/closing/{line.term}">
+              <a class="btn btn-danger closing" href="/closing/{line.term}">
                 繰越
               </a>
               {/if}

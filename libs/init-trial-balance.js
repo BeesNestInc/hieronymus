@@ -7,13 +7,15 @@ let fy;
 let assetPages;
 let liabilitiesAndCapitalPages;
 let incomeStatementPages;
+let retainedEarnings;
+
 const LINES = 46;
 
 const print = (lineOut, suppress, outClasses) => {
   let pickup = new SumTable(3);
   let debit = new SumTable(3);
   let credit = new SumTable(3);
-  let balance = new SumTable(3)
+  let balance = new SumTable(3);
   let classes = [];
 
   for ( let line of lines ) {
@@ -22,6 +24,9 @@ const print = (lineOut, suppress, outClasses) => {
     if  (( outClasses.length === 1 ) &&
          ( outClasses[0] === '資産' ) &&
          ( line.code === '1140000' ))    continue;
+    if  (( outClasses.length === 1 ) &&
+         ( outClasses[0] === '負債' ) &&
+         ( line.code === '3080000' ))    continue;
     if  ((( !suppress ) ||
           ( line.pickup !== 0 ) ||
           ( line.debit !== 0 ) ||
@@ -150,7 +155,15 @@ const printLiabilitiesAndCapicalPage = () => {
   liabilitiesAndCapitalPage.push({
     name: '【利益剰余金】'
   });
-  cap[3] = print(liabilitiesAndCapitalPage, false, [ "純資産",	"株主資本",	"利益剰余金" ]);
+  cap[3] = retainedEarnings;
+  //print(liabilitiesAndCapitalPage, false, [ "純資産",	"株主資本",	"利益剰余金" ]);
+  liabilitiesAndCapitalPage.push({
+    name: "&nbsp;&nbsp;利益剰余金",
+    pickup: retainedEarnings.pickup,
+    debit: retainedEarnings.debit,
+    credit: retainedEarnings.credit,
+    balance: retainedEarnings.balance
+  })
   liabilitiesAndCapitalPage.push({
     name: '【自己株式】'
   });
@@ -189,9 +202,12 @@ const printIncomeStatementPage = () => {
   sum[1] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "仕入高" ]);
   sum[2] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "外注費" ]);
   sum[3] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "棚卸高" ]);
+  sum[3].balance = sum[3].pickup + sum[3].debit - sum[3].credit;
+  //console.log('sum', sum);
+  console.log('売上総利益', sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance))
   incomeStatementPage.push({
     name: '  売上総利益',
-    balace: sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance)
+    balance: sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance)
   });
   incomeStatementPage.push({
     name: '販売費一般管理費'
@@ -247,6 +263,12 @@ const printIncomeStatementPage = () => {
     credit: current_net_income,
     balance: line.pickup + current_net_income
   });
+  retainedEarnings = {
+    pickup: line.pickup,
+    debit: 0,
+    credit: current_net_income,
+    balance: line.pickup + current_net_income
+  }
   incomeStatementPages = burstPage(incomeStatementPage, LINES);
 }
 
@@ -259,8 +281,8 @@ export default async (term) => {
   fy = result.data;
 
   printAssetPage();
-  printLiabilitiesAndCapicalPage();
   printIncomeStatementPage();
+  printLiabilitiesAndCapicalPage();
 
   return  ({
     fy: fy,

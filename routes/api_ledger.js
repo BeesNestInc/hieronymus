@@ -78,7 +78,9 @@ const	get_details = async (fy, account, sub_account) => {
       ]
     });
     for ( let i = 0; i < details.length; i ++ ) {
-      ledger.push(details[i]);
+      if  ( details[i].crossSlip.approvedAt ) {
+        ledger.push(details[i]);
+      }
     }
     mon.setMonth(mon.getMonth() + 1);
   }

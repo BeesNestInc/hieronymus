@@ -3,7 +3,18 @@ const router = express.Router();
 import {is_authenticated, passport} from '../libs/user.js';
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
+import closing from '../forms/closing.js';
 
+router.get('/closing/:term', is_authenticated,(req, res, next) => {
+  if (( req.session.user.accounting ) ||
+      ( req.session.user.fiscalBrowsing )) {
+    closing(parseInt(req.params.term)).then(() => {
+      res.redirect('/');
+    })
+  } else {
+    res.redirect('/home');
+  }
+});
 
 const home =  async (req, res, next) => {
   //console.log('term', req.params.term, req.session.term);
