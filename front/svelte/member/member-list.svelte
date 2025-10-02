@@ -91,6 +91,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import {age} from '../../../libs/utils';
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import { link, currentPage, getStore } from '../../javascripts/router.js';
 
 export let status;
 export	let	members;
@@ -100,19 +101,19 @@ let memberClassId;
 
 const updateMember = (_params) => {
   let param = buildParam(status, _params);
-  console.log('param', param);
   axios.get(`/api/member?${param}`).then((result) => {
     members = result.data.members;
-    console.log('members', members);
   });
   if	( _params )	{
-    window.history.pushState(
-      status, "", `${location.pathname}?${param}`);
+    const page = getStore(currentPage);
+    const basePath = page ? page.split('?')[0] : '/member/list';
+    link(`${basePath}?${param}`);
   }
 }
 
 onMount(() => {
   status.params = parseParams();
+  memberClassId = status.params.memberClassId || -1;
   updateMember();
 })
 beforeUpdate(() => {

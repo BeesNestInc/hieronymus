@@ -118,6 +118,7 @@ import {numeric} from '../../../libs/utils.js';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import {link, currentPage, getStore} from '../../javascripts/router.js';
 
 export	let	items;
 export  let status;
@@ -128,22 +129,22 @@ let key = '';
 
 const updateItems = (_params) => {
   let param = buildParam(status, _params);
-  console.log('param', param);
   axios.get(`/api/item?${param}`).then((result) => {
     items = result.data.items;
-    console.log('items', items);
   });
   if	( _params )	{
-    window.history.pushState(
-      status, "", `${location.pathname}?${param}`);
+    const page = getStore(currentPage);
+    const basePath = page ? page.split('?')[0] : '/item/list';
+    link(`${basePath}?${param}`);
   }
 };
 
 onMount(() => {
   status.params = parseParams();
+  itemClassId = status.params.itemClassId || -1;
+  key = status.params.key || '';
   updateItems();
   axios.get('/api/item/classes').then((result) => {
-    console.log(result);
     itemClasses = result.data.values;
   })
 })

@@ -3,7 +3,7 @@
     <h1>取引一覧</h1>
     <button type="button" class="btn btn-primary"
       on:click={() => {
-        openTransaction(null);
+        link('/transaction/new');
       }}
       id="transaction-info">新規入力&nbsp;<i class="bi bi-pencil-square"></i></button>
   </div> 
@@ -84,7 +84,7 @@
           <td>
             <button type="button" class="btn btn-link"
               on:click={() => {
-                openTransaction(line.id)
+                link(`/transaction/entry/${line.id}`)
               }}>
               {line.subject ? line.subject : '__'}
             </button>
@@ -111,9 +111,9 @@ import axios from 'axios';
 import CompanySelect from '../components/company-select.svelte';
 
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-const dispatch = createEventDispatcher();
+import {onMount, beforeUpdate, afterUpdate} from 'svelte';
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export let transactions;
@@ -128,13 +128,6 @@ const compDate = (date, year, month, day) => {
   return	(	( parseInt(ymd[0]) == year )
     &&	( parseInt(ymd[1]) == month )
     &&	( parseInt(ymd[2]) == day ));
-}
-const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState(status, "", href);
-  status.pathname = href;
-  console.log({status});
 }
 
 const updateTransactions = (_params) => {
@@ -171,21 +164,6 @@ const changeAmount = (event) => {
   }
 }
 
-const openTransaction = (id) => {
-  let	transaction;
-
-  if  ( id )  {
-    for ( let i = 0; i < transactions.length; i ++ ) {
-      if ( transactions[i].id == id ) {
-        transaction = transactions[i];
-        break;
-      }
-    }
-  } else {
-    transaction = null;
-  }
-  dispatch('open', transaction);
-}
 onMount(() => {
   status.params = parseParams();
   updateTransactions();

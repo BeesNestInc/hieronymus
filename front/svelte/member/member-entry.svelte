@@ -41,7 +41,8 @@ import {numeric, formatDate} from '../../../libs/utils.js';
 import MemberInfo from './member-info.svelte';
 import FormError from '../common/form-error.svelte';
 import OkModal from '../common/ok-modal.svelte';
-import {currentMember, getStore} from '../../javascripts/current-record.js'
+import {currentMember, getStore} from '../../javascripts/current-record.js';
+import { link } from '../../javascripts/router.js';
 
 export  let member;
 export  let classes;
@@ -138,8 +139,7 @@ const save = () => {
       member = result.data.member;
       if  ( member )  {
         if  ( create )  {
-          window.history.replaceState(
-            status, "", `/member/entry/${member.id}`);
+          link(`/member/entry/${member.id}`);
         }
       } else {
         errorMessages.push('保存できませんでした。');
@@ -157,7 +157,6 @@ const save = () => {
 const	back = (event) => {
   dispatch('close');
   currentMember.set(null);
-  window.history.back();
 }
 
 beforeUpdate(() => {

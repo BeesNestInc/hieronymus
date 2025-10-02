@@ -3,7 +3,7 @@
     <h1 class="fs-3">案件一覧</h1>
     <button type="button" class="btn btn-primary"
     on:click={() => {
-      openTask(null);
+      link('/task/new');
     }}
     id="task-info">新規入力&nbsp;<i class="bi bi-pencil-square"></i></button>
   </div>
@@ -62,7 +62,7 @@
           <td>
             <button type="button" class="btn btn-link"
               on:click={() => {
-              openTask(line.id)
+                link(`/task/entry/${line.id}`)
               }}>
               {line.subject ? line.subject : '__'}
             </button>
@@ -84,20 +84,13 @@
 import axios from 'axios';
 import CompanySelect from '../components/company-select.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-const dispatch = createEventDispatcher();
+import {onMount, beforeUpdate, afterUpdate } from 'svelte';
 import eventBus from '../../javascripts/event-bus.js';
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export let tasks;
-
-const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState(status, "", href);
-  status.pathname = href;
-}
 
 const updateTasks = (_params) => {
   let param = buildParam(status, _params);
@@ -121,17 +114,4 @@ onMount(() => {
   updateTasks();
 })
 
-const openTask = (id) => {
-  let	task;
-  if  ( id )  {
-    for ( let i = 0; i < tasks.length; i ++ ) {
-      if ( tasks[i].id == id ) {
-        task = tasks[i];
-        break;
-      }
-    }
-  }
-  dispatch('open', task);
-  eventBus.emit('taskSelected', task);
-}
 </script>
