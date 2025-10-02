@@ -1,7 +1,10 @@
 <ul class="page-subtitle nav">
   {#each fields as field, index}
   <li class="nav-item dropdown pe-2">
-    <button type="button" class="btn btn-outline-primary dropdown-toggle" id="field_{index}" rolw="button" data-bs-toggle="dropdown" aria-expanded="false">
+    <button type="button" class="btn btn-outline-primary dropdown-toggle"
+      id="field_{index}"
+      rolw="button"
+      data-bs-toggle="dropdown" aria-expanded="false">
       {field.title}
     </button>
     <ul class="dropdown-menu" aria-labelledby="field_{index}">

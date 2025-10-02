@@ -44,6 +44,7 @@ import {bindFile} from '../../javascripts/document';
 import {currentItem, getStore} from '../../javascripts/current-record.js'
 import eventBus from '../../javascripts/event-bus.js';
 import FormError from '../common/form-error.svelte';
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export let item;
@@ -60,19 +61,14 @@ let operation = () => {};
 
 const create_item = async (_item) => {
   let result = await axios.post('/api/item', _item);
-  console.log('create', result);
   return	(result);
 }
 const update_item = async (_item) => {
-  console.log('save_item', _item);
   let result = await axios.put('/api/item', _item);
-     
-  console.log(result);
   return	(result);
 }
 
 const deleteItem = (event) => {
-  console.log('deleteItem', item);
   title = '品目の削除';
   description = `
 <table style="font-size:12px;">
@@ -99,7 +95,6 @@ const doDelete = async (event) => {
   if	( event.detail )	{
   	try {
   		let result = await axios.delete(`/api/item/${item.id}`);
-  		console.log(result);
     	back();
   	} catch (e) {
 	    console.log(e);
@@ -108,7 +103,6 @@ const doDelete = async (event) => {
 }
 
 const save = () => {
-  console.log('item', item);
   ok = true;
   errorMessages = [];
   if	( item.itemClassId )	{
@@ -133,7 +127,6 @@ const save = () => {
     item.costPrice = numeric(item.costPrice);
   }
   item.taxClass = parseInt(item.taxClass);
-  console.log('input', item);
   try {
     let	it;
     let create = false;
@@ -145,21 +138,18 @@ const save = () => {
       create = true;
     }
     it.then((result) => {
-      //console.log('result', result);
       if  ( !result.data.code ) {
         item = result.data.item;
         bindFile(files, item.documentId);
       }
       if  ( create )  {
-        window.history.replaceState(
-          status, "", `/item/entry/${item.id}`);
+        // replaceState is better, but link is what we have
+        link(`/item/entry/${item.id}`);
       }
     });
   }
   catch(e) {
     console.log(e);
-    // can't save
-    //	TODO alert
   }
 };
 
@@ -168,15 +158,12 @@ const	back = (event) => {
   dispatch('close');
   currentItem.set(null);
   errorMessages = [];
-  window.history.back();
 }
 
 beforeUpdate(() => {
-  console.log('item-entry beforeUpdate', item);
 });
 
 onMount(() => {
-  console.log('item-entry onMount', status);
 })
 
 </script>

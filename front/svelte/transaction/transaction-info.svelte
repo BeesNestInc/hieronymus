@@ -317,6 +317,7 @@ import DocumentFiles from '../components/document-files.svelte';
 const dispatch = createEventDispatcher();
 import eventBus from '../../javascripts/event-bus.js';
 import {currentTransaction, getStore} from '../../javascripts/current-record.js'
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export let transaction;
@@ -393,36 +394,11 @@ const setKind = () => {
 }
 
 const	openTask = (id)	=> {
-  console.log('openTask', id);
-  if  ( !id )  {
-    status.task = {
-      issueDate: transaction.issueDate,
-      deliveryLimit: transaction.deliveryLimit,
-      subject: transaction.subject,
-      companyId: transaction.companyId,
-      companyName: transaction.companyName,
-      chargeName: transaction.chargeName,
-      zip: transaction.zip,
-      address1: transaction.address1,
-      address2: transaction.address2,
-      lines: [...transaction.lines],
-      tax: transaction.tax,
-      amount: transaction.amount
-    };
+  if ( !id ) {
     currentTransaction.set(transaction);
-    window.history.pushState(
-      status, "", `/task/new`);
+    link('/task/new');
   } else {
-    console.log('open', id);
-    if ( !id )	{
-      status.state = 'new';
-      window.history.pushState(
-        status, "", `/task/new`);
-    } else {
-      status.state = 'entry';
-      window.history.pushState(
-        status, "", `/task/entry/${id}`);
-    }
+    link(`/task/entry/${id}`);
   }
 }
 

@@ -8,10 +8,12 @@
   bind:status={status}
 ></CompanyHome>
 {:else}
-<CompanyEntry
-	bind:status={status}
-	bind:company={company}
-  on:close={closeEntry}></CompanyEntry>
+  {#if (status.state === 'entry' && company && company.id) || (status.state === 'new' && company)}
+  <CompanyEntry
+	  bind:status={status}
+	  bind:company={company}
+    on:close={closeEntry}></CompanyEntry>
+  {/if}
 {/if}
 
 <style>
@@ -24,6 +26,7 @@ import CompanyEntry from './company-entry.svelte';
 import CompanyList from './company-list.svelte';
 import {currentCompany, getStore} from '../../javascripts/current-record.js'
 import CompanyHome from './company-home.svelte';
+import { link, currentPage } from '../../javascripts/router.js';
 
 export let status;
 
@@ -32,43 +35,32 @@ let companies = [];
 
 const	openEntry = (event)	=> {
   console.log('open', event.detail);
-  company = event.detail;
-  if ( !company || !company.id )	{
-    status.state = 'new';
-    window.history.pushState(
-      status, "", `/company/new`);
+  const company_data = event.detail;
+  if ( !company_data || !company_data.id )	{
+    link('/company/new');
   } else {
-    status.state = 'entry';
-    axios(`/api/company/${company.id}`).then((result) => {
-      company = result.data.company;
-      window.history.pushState(
-        status, "", `/company/entry/${company.id}`);
-    });
+    link(`/company/entry/${company_data.id}`);
   }
-  //console.log('invoice', invoice)
 };
 
 const closeEntry = (event) => {
-  //console.log('close');
-  status.state = 'list';
+  // This event is handled by the child component's history.back()
+  // or by the parent component in inline mode.
+  // No navigation logic is needed here.
 }
 
 const checkPage = () => {
-  let args = location.pathname.split('/');
-  // /company/26
-  // /company/
-  //console.log('checkPage', {args});
-  if	( args[2] === 'home' )	{
-		status.state = 'home';
-  } else
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-		if	( !company )	{
+  const args = location.pathname.split('/');
+  const page_state = args[2];
+
+  if (page_state === 'home') {
+    status.state = 'home';
+  } else if (page_state === 'entry' || page_state === 'new') {
+    status.state = page_state;
+    if	( !company )	{
       company = {};
       let value = getStore(currentCompany);
-      //console.log({value});
-		  if	( value )	{
+      if	( value )	{
         company = value;
       } else {
         if	( status.state === 'entry' )	{
@@ -78,7 +70,6 @@ const checkPage = () => {
           });
         } else {
           let params = new URLSearchParams(location.search);
-          console.log(params);
           company.companyClassId = params.get('kind') ? parseInt(params.get('kind')) : undefined;
           currentCompany.set(company);
         }
@@ -87,17 +78,16 @@ const checkPage = () => {
   } else {
     status.state = 'list';
   }
-  //console.log('company', status);
+  console.log('company', status);
 }
 
 onMount(() => {
   console.log('company onMount');
+  checkPage();
 })
 
-beforeUpdate(()	=> {
-  //console.log('company.svelte', {company});
-  checkPage();
-});
+$: $currentPage, checkPage();
+
 afterUpdate(() => {
 })
 

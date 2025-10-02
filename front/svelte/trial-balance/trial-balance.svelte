@@ -54,10 +54,11 @@
 
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount} from 'svelte';
 import TrialBalanceList from './trial-balance-list.svelte';
 import {numeric} from '../../../libs/utils.js';
 import {dc} from '../../../libs/parse_account_code';
+import {currentPage, link} from '../../javascripts/router.js';
 
 export let status;
 export let alert;
@@ -68,15 +69,12 @@ let dates = [];
 
 const openMonth = (month) => {
   let href;
-  status.month = month;
-  if	( status.month )	{
-    href = `/trial-balance/${status.fy.term}/${status.month}`;
+  if (month) {
+    href = `/trial-balance/${status.fy.term}/${month}`;
   } else {
     href = `/trial-balance/${status.fy.term}`;
   }
-  status.pathname = href;
-  updateLines();
-  window.history.pushState(status, "", href);
+  link(href);
 }
 
 const updateLines = async () => {
@@ -148,30 +146,27 @@ const updateDates = () => {
   dates = _dates;
 }
 
-const checkPage = async () => {
-  let args = status.pathname.split('/');
-  status.current = args[1];
-  status.month = args[2];
+const checkPage = async (page) => {
+  const path = page || location.pathname;
+  let args = path.split('/');
+  status.month = args[3];
   updateDates();
   await updateLines();
 }
 
-let _status;
-beforeUpdate(async ()	=> {
-  console.log('trial-balance beforeUpdate', status);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    await checkPage();
-  }
-});
-
 onMount(async () => {
   dates = [];
-  console.log('onMount', {status});
   await checkPage();
+
+  const unsubscribe = currentPage.subscribe(async (page) => {
+    if (page && page.split('/')[1] === 'trial-balance') {
+      await checkPage(page);
+    }
+  });
+
+  return () => {
+    unsubscribe();
+  };
 })
 
 </script>
