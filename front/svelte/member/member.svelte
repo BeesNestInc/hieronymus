@@ -29,6 +29,8 @@ let members = [];
 let users = [];
 let classes = [];
 
+$: checkPage($currentPage);
+
 const	openEntry = (event)	=> {
   const detail = event.detail;
   if ( !detail || !detail.id )	{
@@ -45,12 +47,13 @@ const closeEntry = (event) => {
 const checkPage = (page) => {
   if (!page) return;
   const args = page.split('/');
-  const page_state = args[2];
+  const action = args[2];
 
-  if (page_state === 'entry') {
-    status.state = 'entry';
-    const entry_id = args[3];
-    axios.get(`/api/member/${entry_id}`).then((result) => {
+  status.state = action;
+  switch  (action)  {
+  case  'entry':
+    const entryId = args[3];
+    axios.get(`/api/member/${entryId}`).then((result) => {
       member = result.data.member;
       if (member && member.user) {
         let found = users.find(u => u.id === member.user.id);
@@ -60,13 +63,15 @@ const checkPage = (page) => {
       }
       currentMember.set(member);
     });
-  } else if (page_state === 'new') {
-    status.state = 'new';
+    break;
+  case  'new':
     member = getStore(currentMember) || {};
     currentMember.set(member);
-  } else {
+    break;
+  default:
     status.state = 'list';
     member = null;
+    break;
   }
 }
 
@@ -79,8 +84,6 @@ onMount(() => {
   });
   checkPage($currentPage);
 })
-
-$: checkPage($currentPage);
 
 afterUpdate(() => {
   //console.log('member afterUpdate');

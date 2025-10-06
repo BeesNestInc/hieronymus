@@ -185,6 +185,7 @@ let	accounts;
 let modalCount = 0;
 let popUp;
 
+$: checkPage($currentPage);
 
 const BANK_ACCOUNTS = [
   [ '1010000',	'当座預金' ],
@@ -211,8 +212,9 @@ const openBank = (id) => {
   link(`/bank-ledger/${accountCode}/${subAccountCode}`);
 }
 
-const checkPage = () => {
-  let args = location.pathname.split('/');
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   console.log('checkPage', args, accountCode, subAccountCode);
@@ -233,15 +235,6 @@ onMount(async () => {
 
   checkPage();
 
-  const unsubscribe = currentPage.subscribe((page) => {
-    if (page && page.split('/')[1] === 'bank-ledger') {
-      checkPage();
-    }
-  });
-
-  return () => {
-    unsubscribe();
-  }
 });
 afterUpdate(() => {
   if  (!popUp)  {

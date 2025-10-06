@@ -80,6 +80,8 @@ let modalCount = 0;
 let popUp;
 let today;
 
+$: checkPage($currentPage);
+
 const openMonth = (_year, _month) => {
   year = _year;
   month = _month;
@@ -145,7 +147,7 @@ const ready = (slips) => {
   }
   lines = _lines;
   sums = _sums;
-  console.log('lines', lines);
+  //console.log('lines', lines);
 }
 
 const updateList = () => {
@@ -191,8 +193,10 @@ const setupAccount = () => {
 const update = () => {
 	updateList();
 }
-const checkPage = () => {
-  let args = location.pathname.split('/');
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+
   year = args[2];
   month = args[3];
   update();
@@ -217,16 +221,7 @@ onMount(async () => {
       month: month,
       lines: []
   };
-  const unsubscribe = currentPage.subscribe((page) => {
-    console.log('page', page);
-    let current = page.split('/')[1];
-    if  ( current === 'journal' ) {
-      checkPage();
-    }
-  });
-  return  () => {
-    unsubscribe();
-  }
+  checkPage($currentPage);
 })
 
 const openSlip = (event) => {

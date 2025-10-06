@@ -27,65 +27,66 @@ let transaction;
 let transactions = [];
 let users = [];
 
-const checkPage = () => {
-  const page = $currentPage || location.pathname;
+$: checkPage($currentPage);
+
+const checkPage = (page) => {
+  page = page || location.pathname;
   let args = page.split('/');
-  // /transaction/14
   // /transaction/entry/23
-  console.log('checkPage', {args});
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-    if (status.state === 'entry') {
-      const entry_id = args[3];
-      if (!transaction || transaction.id != entry_id) {
-        axios.get(`/api/transaction/${entry_id}`).then((result) => {
-          console.log('new load', result.data);
-          transaction = result.data.transaction;
-          currentTransaction.set(transaction);
-        });
-      }
-    } else { // new
-      if (!transaction || transaction.id) {
-        transaction = {
-          issueDate: formatDate(new Date()),
-          tax: 0,
-          amount: 0,
-          lines: [{
-            itemId: null,
-            itemName: '',
-            itemSpec: '',
-            unitPrice: 0,
-            itemNumber: 0,
-            unit: '',
-            amount: 0,
-            tax: 0,
-            description: ''
-          }]};
-        let task = getStore(currentTask);
-        if	( task )	{
-          transaction.taskId = task.id;
-					transaction.companyId = task.companyId;
-          transaction.companyName = task.companyName;
-          transaction.chargeName = task.chargeName;
-          transaction.zip = task.zip;
-          transaction.address1 = task.address1;
-          transaction.address2 = task.address2;
-          transaction.subject = task.subject;
-          transaction.lines = [...task.lines];
-          transaction.taxClass = task.taxClass;
-          transaction.tax = task.tax;
-          transaction.amount = task.amount;
-          transaction.handledBy = task.handledBy;
-        }
+  status.state = args[2] || 'list';
+  //console.log('checkPage', {args});
+
+  switch  (status.state)  {
+  case  'entry':
+    const entryId = args[3];
+    if (!transaction || transaction.id != entryId) {
+      axios.get(`/api/transaction/${entryId}`).then((result) => {
+        console.log('new load', result.data);
+        transaction = result.data.transaction;
         currentTransaction.set(transaction);
+      });
+    }
+    break;
+	case  'new':
+    if  (!transaction || transaction.id) {
+      transaction = {
+        issueDate: formatDate(new Date()),
+        tax: 0,
+        amount: 0,
+        lines: [{
+          itemId: null,
+          itemName: '',
+          itemSpec: '',
+          unitPrice: 0,
+          itemNumber: 0,
+          unit: '',
+          amount: 0,
+          tax: 0,
+          description: ''
+        }]};
+      let task = getStore(currentTask);
+      if	( task )	{
+        transaction.taskId = task.id;
+				transaction.companyId = task.companyId;
+        transaction.companyName = task.companyName;
+        transaction.chargeName = task.chargeName;
+        transaction.zip = task.zip;
+        transaction.address1 = task.address1;
+        transaction.address2 = task.address2;
+        transaction.subject = task.subject;
+        transaction.lines = [...task.lines];
+        transaction.taxClass = task.taxClass;
+        transaction.tax = task.tax;
+        transaction.amount = task.amount;
+        transaction.handledBy = task.handledBy;
       }
+      currentTransaction.set(transaction);
     }
     console.log({transaction});
-  } else {
-    status.state = 'list';
+    break;
+  default:
+    break;
   }
-  console.log(status.state);
 }
 
 onMount(() => {
@@ -93,10 +94,8 @@ onMount(() => {
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
   });
-  checkPage();
+  checkPage($currentPage);
 })
-
-$: $currentPage, checkPage();
 
 afterUpdate(() => {
   //console.log('transactions afterUpdate');

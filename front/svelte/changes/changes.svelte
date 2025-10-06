@@ -21,12 +21,14 @@
 {#if (account && (account.subAccounts.length > 0))}
 <div class="row page-subtitle">
   <div class="col-9">
+    {#key subAccountCode}
     <SubAccountSelect
     	on:select={(event) => {
       	accountSelect(event.detail);
     	}}
       account={account}
       sub_account_code={subAccountCode}/>
+    {/key}
   </div>
   <div class="col-3" style="text-align:right;">
     {#if subAccountCode}
@@ -302,22 +304,26 @@ const makeLines = (remaining, details) => {
   }
   for (let i = 0; i < details.length; i++) {
     let detail = details[i];
-    //console.log(detail)
-    if (dc(accountCode) == 'C') {
-      pureTax = detail.creditTax;
-      if	( tax_class === 1 )	{
-        pureAmount = detail.creditAmount - pureTax;
-      } else {
-        pureAmount = detail.creditAmount;
-      }
+
+    let monthlyDebit, monthlyCredit;
+    if (tax_class === 1) {
+      monthlyDebit = detail.debitAmount - detail.debitTax;
+      monthlyCredit = detail.creditAmount - detail.creditTax;
     } else {
-      pureTax = detail.debitTax;
-      if	( tax_class === 1 )	{
-        pureAmount = detail.debitAmount - pureTax;
-      } else {
-        pureAmount = detail.debitAmount;
-      }
+      monthlyDebit = detail.debitAmount;
+      monthlyCredit = detail.creditAmount;
     }
+
+    if (dc(accountCode) == 'C') { // 貸方科目
+      pureAmount = monthlyCredit - monthlyDebit;
+      // 表示用の税額は、主要な取引である貸方取引の税額とする（元のロジックを踏襲）
+      pureTax = detail.creditTax;
+    } else { // 借方科目
+      pureAmount = monthlyDebit - monthlyCredit;
+      // 表示用の税額は、主要な取引である借方取引の税額とする（元のロジックを踏襲）
+      pureTax = detail.debitTax;
+    }
+
     pureBalance += pureAmount;
     changes.push({
       year: detail.year,
@@ -325,7 +331,7 @@ const makeLines = (remaining, details) => {
       pureAmount: pureAmount,
       pureTax: pureTax,
       pureBalance: pureBalance,
-      texClass: tax_class
+      taxClass: tax_class
     });
   }
   return	(changes);

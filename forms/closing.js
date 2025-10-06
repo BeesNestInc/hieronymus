@@ -139,7 +139,7 @@ const	account_line = (lines, code) => {
 const	net_income = (lines) => {
     const netIncome = printPL(lines);
 	let line = account_line(lines, '5040000');      //  繰越利益剰余金
-	line.credit = netIncome;
+	line.credit += netIncome;
 	line.balance = line.pickup - line.debit + line.credit;
     //console.log(line);
     return  (line);

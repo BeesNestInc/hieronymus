@@ -33,30 +33,18 @@ export let status;
 let	company;
 let companies = [];
 
-const	openEntry = (event)	=> {
-  console.log('open', event.detail);
-  const company_data = event.detail;
-  if ( !company_data || !company_data.id )	{
-    link('/company/new');
-  } else {
-    link(`/company/entry/${company_data.id}`);
-  }
-};
+$: checkPage($currentPage);
 
-const closeEntry = (event) => {
-  // This event is handled by the child component's history.back()
-  // or by the parent component in inline mode.
-  // No navigation logic is needed here.
-}
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+  status.state = args[2] || 'list';
 
-const checkPage = () => {
-  const args = location.pathname.split('/');
-  const page_state = args[2];
-
-  if (page_state === 'home') {
-    status.state = 'home';
-  } else if (page_state === 'entry' || page_state === 'new') {
-    status.state = page_state;
+  switch  (status.state) {
+  case  'home':
+    break;
+  case  'entry':
+  case  'new':
     if	( !company )	{
       company = {};
       let value = getStore(currentCompany);
@@ -75,18 +63,33 @@ const checkPage = () => {
         }
       }
     }
-  } else {
-    status.state = 'list';
+    break;
+  default:
+    break;
   }
   console.log('company', status);
 }
 
+const	openEntry = (event)	=> {
+  console.log('open', event.detail);
+  const company_data = event.detail;
+  if ( !company_data || !company_data.id )	{
+    link('/company/new');
+  } else {
+    link(`/company/entry/${company_data.id}`);
+  }
+};
+
+const closeEntry = (event) => {
+  // This event is handled by the child component's history.back()
+  // or by the parent component in inline mode.
+  // No navigation logic is needed here.
+}
+
 onMount(() => {
   console.log('company onMount');
-  checkPage();
+  checkPage($currentPage);
 })
-
-$: $currentPage, checkPage();
 
 afterUpdate(() => {
 })

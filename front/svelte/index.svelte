@@ -185,7 +185,7 @@ onMount(() => {
   });
   window.onpopstate = (event) => {
     console.log('maybe back', event);
-    const page = location.pathname;
+    const page = location.pathname + location.search;
     console.log("popstate:", page);
     currentPage.set(page);
   };

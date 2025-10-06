@@ -1,4 +1,4 @@
-{#if ( state === 'list' )}
+{#if ( status.state === 'list' )}
 <VoucherList
   bind:status={status}
   bind:vouchers={vouchers}
@@ -6,7 +6,7 @@
   on:slip={openSlip}
   on:update={changeMonth}
   ></VoucherList>
-{:else if ( state === 'entry' || state === 'new' )}
+{:else if ( status.state === 'entry' || status.state === 'new' )}
 <VoucherEntry
   bind:status={status}
   bind:voucher={voucher}
@@ -53,7 +53,8 @@ export let status;
 let	voucher;
 let vouchers = [];
 let accounts = [];
-let state;
+
+$: checkPage($currentPage);
 
 const openSlip = (event) => {
   const slipNo = event.detail;
@@ -119,27 +120,28 @@ const checkPage = (pageUrl) => {
   status.params = new URLSearchParams(location.search);
   console.log('voucher checkPage', args, status.params, status.params.get('month'));
 
-  state = args[2];
-  if ( state === 'entry' || state === 'new') {
-    if ( state === 'entry') {
-      axios.get(`/api/voucher/${args[3]}`).then((result) => {
-        voucher = result.data.voucher;
-        currentVoucher.set(voucher);
-      });
-    } else { // 'new'
-      voucher = {
-        issueDate: formatDate(new Date()),
-        paymentDate: null,
-        amount: 0,
-        taxClass: -1,
-        tax: 0,
-        type: -1
-      };
+  status.state = args[2] || 'list';
+  switch  (status.state)  {
+  case  'entry':
+    axios.get(`/api/voucher/${args[3]}`).then((result) => {
+      voucher = result.data.voucher;
       currentVoucher.set(voucher);
-    }
-  } else { // list view
-    state = 'list';
+    });
+    break;
+  case  'new':
+    voucher = {
+      issueDate: formatDate(new Date()),
+      paymentDate: null,
+      amount: 0,
+      taxClass: -1,
+      tax: 0,
+      type: -1
+    };
+    currentVoucher.set(voucher);
+    break;
+  default:
     updateVouchers();
+    break;
   }
 }
 
@@ -151,16 +153,6 @@ onMount(async () => {
 
   checkPage(location.href);
 
-  const unsubscribe = currentPage.subscribe((page) => {
-    if (page) {
-      const path = location.pathname;
-      if (path.split('/')[1] === 'voucher') {
-        checkPage(page);
-      }
-    }
-  });
-
-  return () => unsubscribe();
 })
 
 afterUpdate(() => {

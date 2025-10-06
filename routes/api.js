@@ -108,8 +108,8 @@ router.delete('/cross_slip', cross_slip.delete);
 router.get('/cross-slip-detail/:id', cross_slip_detail.get);
 router.put('/cross-slip-detail', cross_slip_detail.update);
 
-router.get('/trial-balance/:term', trial_balance.get);
-router.get('/trial-balance/:term/:lastdate', trial_balance.get);
+router.get('/trial-balance', trial_balance.get);
+router.get('/trial-balance/:param', trial_balance.get);
 
 router.get('/company', company.get);
 router.get('/company/kinds', company.kindsGet);

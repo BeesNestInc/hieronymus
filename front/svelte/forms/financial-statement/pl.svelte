@@ -26,11 +26,15 @@
             <td class="no-border">
               {@html line.right_title ? line.right_title.replace(' ', '&nbsp;') : ''}
             </td>
-            <td class="number{line.left_line ? ' pl-line' : ' left-border'}">
-              {line.left_value ? formatMoney(line.left_value) : ''}
+            <td class="number {line.left_line ? 'pl-line' : 'left-border'}">
+              <span class="{line.left_line ? 'pl-underline' : ''}">
+                {line.left_value ? formatMoney(line.left_value) : ''}
+              </span>
             </td>
-            <td class="number{line.right_line ? ' pl-line' : ' left-border'}">
-              {line.right_value ? formatMoney(line.right_value) : ''}
+            <td class="number {line.double_line || line.right_line ? 'pl-line' : 'left-border'}">
+              <span class="{line.double_line ? 'pl-double-line' : (line.right_line ? 'pl-underline' : '')}">
+                {line.right_value ? formatMoney(line.right_value) : ''}
+              </span>
             </td>
           </tr>
         {/each}

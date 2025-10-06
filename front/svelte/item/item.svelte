@@ -28,6 +28,8 @@ export let status;
 let item;
 let items = [];
 
+$: checkPage($currentPage);
+
 const	openEntry = (event)	=> {
   const detail = event.detail;
   if ( !detail || !detail.id )	{
@@ -42,30 +44,29 @@ const closeEntry = (event) => {
 }
 
 const checkPage = (page) => {
-  if ( !page ) {
-    return;
-  }
+  page = page || location.pathname;
   const args = page.split('/');
-  const page_state = args[2];
-
-  if (page_state === 'home') {
-		status.state = 'home';
+  const action = args[2] || 'list';
+	status.state = action;
+  switch  (action)  {
+  case  'home':
     item = null;
-  } else if (page_state === 'entry') {
-    status.state = 'entry';
-    const entry_id = args[3];
+    break;
+  case  'entry':
+    const entryId = args[3];
     item = null;
-    axios.get(`/api/item/${entry_id}`).then((result) => {
+    axios.get(`/api/item/${entryId}`).then((result) => {
       item = result.data.item;
       currentItem.set(item);
     });
-  } else if (page_state === 'new') {
-    status.state = 'new';
+    break;
+  case  'new':
     item = getStore(currentItem) || {};
     currentItem.set(item);
-  } else {
-    status.state = 'list';
+    break;
+  case  'list':
     item = null;
+    break;
   }
 }
 
@@ -75,8 +76,6 @@ onMount(() => {
   });
   checkPage($currentPage);
 })
-
-$: checkPage($currentPage);
 
 afterUpdate(() => {
   //console.log('item afterUpdate');

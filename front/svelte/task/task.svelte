@@ -29,24 +29,27 @@ let task;
 let tasks = [];
 let users = [];
 
+$: checkPage($currentPage);
+
 const openTransaction = (event) => {
   let id = event.detail;
   link(`/transaction/entry/${id}`);
 }
 
-const checkPage = () => {
-  const args = location.pathname.split('/');
-  const page_state = args[2];
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+  status.state = args[2] || 'list';
 
-  if (page_state === 'entry') {
-    status.state = 'entry';
-    const entry_id = args[3];
-    axios.get(`/api/task/${entry_id}`).then((result) => {
+  switch  (status.state)  {
+  case  'entry':
+    const entryId = args[3];
+    axios.get(`/api/task/${entryId}`).then((result) => {
       task = result.data.task;
       currentTask.set(task);
     });
-  } else if (page_state === 'new') {
-    status.state = 'new';
+    break;
+  case  'new':
     task = {
       issueDate: formatDate(new Date()),
       tax: 0,
@@ -80,9 +83,10 @@ const checkPage = () => {
       task.amount = transaction.amount;
     }
     currentTask.set(task);
-  } else {
-    status.state = 'list';
+    break;
+  case  'list':
     task = null;
+    break;
   }
   console.log({status});
 }
@@ -92,10 +96,8 @@ onMount(() => {
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
   });
-  checkPage();
+  checkPage($currentPage);
 })
-
-$: $currentPage, checkPage();
 
 afterUpdate(() => {
   //console.log('tasks afterUpdate');

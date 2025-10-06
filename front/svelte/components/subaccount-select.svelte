@@ -20,9 +20,6 @@ export let sub_account_code;
 const dispatch = createEventDispatcher();
 
 const select = (code, sub) => {
-  console.log('select');
-  account = account;
-  sub_account_code = sub;
   dispatch('select', {
     code: code,
     sub: sub

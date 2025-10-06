@@ -1,7 +1,8 @@
+{#key $currentPage}
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>残高試算表</h1>
-  	<a href="/forms/trial_balance/{status.fy.term}?format=pdf"
+  	<a href="/forms/trial_balance?format=pdf"
       download="残高試算表.pdf" class="btn btn-primary">
     	残高試算表をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
@@ -51,6 +52,7 @@
   	</TrialBalanceList>
 	</div>
 </div>
+{/key}
 
 <script>
 import axios from 'axios';
@@ -67,12 +69,19 @@ export let alert_level;
 let lines = [];
 let dates = [];
 
+$: if (status && status.fy && status.fy.term) {
+  checkPage($currentPage);
+} else {
+  lines = [];
+  dates = [];
+}
+
 const openMonth = (month) => {
   let href;
   if (month) {
-    href = `/trial-balance/${status.fy.term}/${month}`;
+    href = `/trial-balance/${month}`;
   } else {
-    href = `/trial-balance/${status.fy.term}`;
+    href = `/trial-balance`;
   }
   link(href);
 }
@@ -81,9 +90,9 @@ const updateLines = async () => {
   let _lines = [];
   let url;
   if  ( status.month ) {
-    url = `/api/trial-balance/${status.fy.term}/${status.month}`;
+    url = `/api/trial-balance/${status.month}`;
   } else {
-    url = `/api/trial-balance/${status.fy.term}`;
+    url = `/api/trial-balance`;
   }
   const result = await axios.get(url);
   let data = result.data;
@@ -147,26 +156,14 @@ const updateDates = () => {
 }
 
 const checkPage = async (page) => {
-  const path = page || location.pathname;
+  if (!page || page.split('/')[1] !== 'trial-balance') {
+    return;
+  }
+  const path = page;
   let args = path.split('/');
-  status.month = args[3];
+  status.month = args[2];
   updateDates();
   await updateLines();
 }
-
-onMount(async () => {
-  dates = [];
-  await checkPage();
-
-  const unsubscribe = currentPage.subscribe(async (page) => {
-    if (page && page.split('/')[1] === 'trial-balance') {
-      await checkPage(page);
-    }
-  });
-
-  return () => {
-    unsubscribe();
-  };
-})
 
 </script>

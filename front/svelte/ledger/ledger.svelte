@@ -30,12 +30,14 @@
 {#if (account && (account.subAccounts.length > 0))}
   <div class="row page-subtitle">
     <div class="col-8">
+      {#key subAccountCode}
   		<SubAccountSelect
     		on:select={(event) => {
       		accountSelect(event.detail);
     		}}
     		account={account}
     		sub_account_code={subAccountCode} />
+      {/key}
     </div>
     <div class="col-4" style="text-align:right;">
     	{#if subAccountCode}
@@ -94,7 +96,7 @@ import AccountSelect from '../components/account-select.svelte';
 import SubAccountSelect from '../components/subaccount-select.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import parse_account_code from '../../../libs/parse_account_code';
-import {currentPage} from '../../javascripts/router.js';
+import {currentPage, link} from '../../javascripts/router.js';
 
 export let status;
 
@@ -139,10 +141,6 @@ let subAccountCode;
 
 const _link = (event) => {
   link(event.detail);
-}
-const link = (href) => {
-  window.history.pushState(status, "", href);
-  currentPage.set(href);
 }
 
 const accountSelect = (code) => {

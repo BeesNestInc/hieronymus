@@ -172,6 +172,9 @@ body {
   border-right: none;
   border-bottom: 1px solid #333;
 }
+.page .detail-page .page-body .pl-double-line {
+  border-bottom: 3px double black;
+}
 .page .detail-page .page-footer {
   position: absolute;
   top: 1080px;
