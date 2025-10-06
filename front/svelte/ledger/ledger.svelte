@@ -30,25 +30,27 @@
 {#if (account && (account.subAccounts.length > 0))}
   <div class="row page-subtitle">
     <div class="col-8">
+      {#key subAccountCode}
   		<SubAccountSelect
     		on:select={(event) => {
       		accountSelect(event.detail);
     		}}
     		account={account}
-    		sub_account_code={status.subAccountCode} />
+    		sub_account_code={subAccountCode} />
+      {/key}
     </div>
     <div class="col-4" style="text-align:right;">
-    	{#if status.subAccountCode}
+    	{#if subAccountCode}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.accountCode}/${status.subAccountCode}`)
+          link(`/changes/${status.fy.term}/${accountCode}/${subAccountCode}`)
         }}>
       	推移表を見る
     	</button>
     	{:else}
       <button type="button" class="btn btn-info"
         on:click={() => {
-          link(`/changes/${status.accountCode}`);
+          link(`/changes/${status.fy.term}/${accountCode}`);
         }}>
       	推移表を見る
     	</button>
@@ -94,6 +96,7 @@ import AccountSelect from '../components/account-select.svelte';
 import SubAccountSelect from '../components/subaccount-select.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import parse_account_code from '../../../libs/parse_account_code';
+import {currentPage, link} from '../../javascripts/router.js';
 
 export let status;
 
@@ -133,13 +136,11 @@ let fields = [
   }
 ];
 let today;
+let accountCode;
+let subAccountCode;
 
 const _link = (event) => {
   link(event.detail);
-}
-const link = (href) => {
-  window.history.pushState(status, "", href);
-  status.change = true;
 }
 
 const accountSelect = (code) => {
@@ -149,29 +150,24 @@ const accountSelect = (code) => {
   } else {
     href = `/ledger/${code.code}`;
   }
-  status.pathname = href;
-  status.accountCode = code.code;
-  status.subAccountCode = code.sub;
-  update(true);
-  window.history.pushState(status, "", href);
+  accountCode = code.code;
+  subAccountCode = code.sub;
+  link(href);
 }
 
 const update = async (list) => {
-  let args = status.pathname.split('/');
-  status.current = args[1];
-  status.accountCode = args[2];
-  status.subAccountCode = args[3] ? parseInt(args[3]) : undefined;
-  let result = await axios.get(`/api/account/${status.accountCode}`);
+  let result = await axios.get(`/api/account/${accountCode}`);
   account = result.data;
+  console.log('update', account);
   //console.log('account', account);
   //console.log(status.accountCode, status.subAccountCode);
   if  ( list )  {
     let pr;
-  	if ( status.subAccountCode ) {
+  	if ( subAccountCode ) {
     	//console.log('sub');
-    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${accountCode}/${subAccountCode}`);
   	} else {
-    	pr = axios.get(`/api/remaining/${status.fy.term}/${status.accountCode}`);
+    	pr = axios.get(`/api/remaining/${status.fy.term}/${accountCode}`);
   	}
   	remaining = [];
   	pr.then((result) => {
@@ -182,23 +178,12 @@ const update = async (list) => {
   }
 }
 const checkPage = () => {
+  let args = location.pathname.split('/');
+  accountCode = args[2];
+  subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   update(true);
 }
 
-let _status;
-beforeUpdate(()	=> {
-  console.log('ledger beforeUpdate', status);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    checkPage();
-  }
-});
-afterUpdate(() => {
-  console.log('ledger afterUpdate');
-})
 onMount(() => {
   axios.get(`/api/accounts`).then((res) => {
     accounts = res.data;
@@ -230,14 +215,21 @@ onMount(() => {
     }
     fields = fields;
   });
-  if  ( !status.pathname ) {
-    status.pathname = location.pathname;
-  }
   let now = new Date();
   today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
 
   console.log('ledger onMount');
   update(false);
+  const unsubscribe = currentPage.subscribe((page) => {
+    console.log('page', page);
+    let current = page.split('/')[1];
+    if  ( current === 'ledger' ) {
+      checkPage();
+    }
+  });
+  return  () => {
+    unsubscribe();
+  }
 })
 
 afterUpdate(() => {
@@ -247,19 +239,22 @@ afterUpdate(() => {
 });
 
 const updateList = () => {
+  let args = location.pathname.split('/');
+  accountCode = args[2];
+  subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   console.log('updateList', status);
   let pr;
-  if ( status.subAccountCode ) {
+  if ( subAccountCode ) {
     console.log('sub');
-    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}/${status.subAccountCode}`);
+    pr = axios.get(`/api/ledger/${status.fy.term}/${accountCode}/${subAccountCode}`);
   } else {
-    pr = axios.get(`/api/ledger/${status.fy.term}/${status.accountCode}`);
+    pr = axios.get(`/api/ledger/${status.fy.term}/${accountCode}`);
   }
   details = [];
   pr.then((result) => {
     details = result.data;
     console.log('details', details);
-    let ret = ledgerLines(status.accountCode, status.subAccountCode,
+    let ret = ledgerLines(accountCode, subAccountCode,
         remaining, details);
     console.log('ret', ret);
     lines = ret.lines;

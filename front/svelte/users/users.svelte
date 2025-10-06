@@ -7,14 +7,6 @@
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import UserList from './user-list.svelte';
 
-let	user;
-let	list_update;
-
-const	update = (event) => {
-  console.log('update');
-  list_update = true;
-}
-
 beforeUpdate(()	=> {
 });
 afterUpdate(() => {

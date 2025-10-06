@@ -61,6 +61,7 @@ import FormError from '../common/form-error.svelte';
 import OkModal from '../common/ok-modal.svelte';
 import eventBus from '../../javascripts/event-bus.js';
 import {currentTask, currentTransaction, getStore} from '../../javascripts/current-record.js'
+import { link, currentPage } from '../../javascripts/router.js';
 
 export  let users;
 export	let	status;
@@ -147,8 +148,8 @@ const save = () => {
           eventBus.emit('taskSelected', task);
           console.log('save', {status})
           if  ( create )  {
-            window.history.replaceState(
-              status, "", `/task/entry/${task.id}`);
+            const url = `/task/entry/${task.id}`;
+            link(url);
           }
         } else {
           errorMessages.push('保存できませんでした。');
@@ -168,17 +169,13 @@ const save = () => {
 
 const create = () => {
 	currentTask.set(task);
-  window.history.pushState(
-    status, "", `/transaction/new`);
-  status.current = 'transaction';
-  status.state = 'new';
+  link('/transaction/new');
 }
 
 const	back = (event) => {
-  dispatch('close');
   currentTask.set(null);
   errorMessages = [];
-  window.history.back();
+  link('/task');
 }
 
 beforeUpdate(() => {

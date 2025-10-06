@@ -10,7 +10,7 @@ const realPath = (name) => {
 export default defineConfig({
   cacheDir: 'node_modules/.vite-cache',
   root: path.resolve(__dirname, 'front/javascripts'),
-  base: '/forms/',
+  base: '/dist/',
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     cssUrl: 'relative',
@@ -66,6 +66,10 @@ export default defineConfig({
           src: '../../node_modules/tinymce/**/*', // コピー元
           dest: 'tinymce', // コピー先 (dist/tinymce)
         },
+        {
+          src: '../../node_modules/@fortawesome/fontawesome-free/webfonts/*',
+          dest: 'assets'
+        }
       ],
     })
   ],

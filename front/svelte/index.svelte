@@ -1,9 +1,8 @@
-{#if ( status.current === 'login') }
+{#if ( getStore(currentPage) === 'login') }
 <Login
   bind:current={status.current}></Login>
-{:else if ( status.current === 'signup' ) }
-<SignUp
-  bind:current={status.current}></SignUp>
+{:else if ( getStore(currentPage) === 'signup' ) }
+<SignUp></SignUp>
 {:else}
 <nav class="main-header navbar navbar-expand-lg">
   <NavBar
@@ -20,76 +19,8 @@
     {#key mainCount}
     <div class="content">
       <Alert bind:alert={alert} {alert_level}></Alert>
-      {#if false}
-      <p></p>
-      {:else if ( status.current === '' || status.current === 'home' )}
-      <Home
-        bind:status={statusHome}
-        bind:toast={toast}
-        bind:alert={alert}
-        bind:alert_level={alert_level}
-        ></Home>
-      {:else if ( status.current === 'menu' )}
-      <Menu
-        bind:status={statusMenu}
-        bind:toast={toast}></Menu>
-      {:else if ( status.current === 'journal' )}
-      <Journal
-      	bind:status={statusJournal}
-      	bind:alert={alert}
-      	bind:alert_level={alert_level}></Journal>
-			{:else if ( status.current === 'ledger' )}
-      <Ledger
-        bind:status={statusLedger}
-        bind:alert={alert}
-        bind:alert_level={alert_level}
-      ></Ledger>
-      {:else if ( status.current === 'bank-ledger' )}
-      <BankLedger
-      	bind:status={statusBankLedger}
-      	bind:alert={alert}
-      	bind:alert_level={alert_level}></BankLedger>
-      {:else if ( status.current === 'trial-balance' )}
-      <TrialBalance
-        bind:status={statusTrialBalance}
-        bind:alert={alert}
-        bind:alert_level={alert_level}></TrialBalance>
-      {:else if ( status.current === 'changes' )}
-      <Changes
-      	bind:status={statusChanges}
-      	bind:alert={alert}
-      	bind:alert_level={alert_level}/>
-      {:else if ( status.current === 'voucher' )}
-      <Voucher
-        bind:status={statusVoucher}
-        bind:alert={alert}
-        bind:alert_level={alert_level}></Voucher>
-      {:else if ( status.current === 'accounts' )}
-      <Accounts
-      	bind:status={statusAccounts}
-      	bind:alert={alert}
-      	bind:alert_level={alert_level}></Accounts>
-			{:else if ( status.current === 'company' )}
-      <Company
-        bind:status={statusCompany}
-        bind:alert={alert}
-        bind:alert_level={alert_level}></Company>
-      {:else if ( status.current === 'task' )}
-      <Task
-        bind:status={statusTask}></Task>
-      {:else if ( status.current === 'transaction' )}
-      <Transaction
-        bind:status={statusTransaction}></Transaction>
-      {:else if ( status.current === 'item')}
-      <Item
-        bind:status={statusItem}></Item>
-      {:else if ( status.current == 'users' )}
-      <Users
-        bind:status={statusUsers}></Users>
-      {:else if ( status.current === 'member' )}
-      <Member
-        bind:status={statusMember}></Member>
-      {/if}
+      <Router {routes} {toast}
+        bind:status={status}/>
     </div>
     {/key}
   </div>
@@ -139,7 +70,73 @@ import Member from './member/member.svelte';
 import Task from './task/task.svelte';
 import OkModal from './common/ok-modal.svelte';
 
+import Router from './components/router.svelte';
+import {currentPage, getStore} from '../javascripts/router.js';
+
 export let term;
+
+const routes = [
+  {
+    match: /^\/menu/,
+    component: Menu
+  },
+  {
+    match: /^\/home/,
+    component: Home
+  },
+  {
+    match: /^\/journal/,
+    component: Journal
+  },
+  {
+    match: /^\/ledger/,
+    component: Ledger
+  },
+  {
+    match: /^\/bank-ledger/,
+    component: BankLedger
+  },
+  {
+    match: /^\/trial-balance/,
+    component: TrialBalance
+  },
+  {
+    match: /^\/changes/,
+    component: Changes
+  },
+  {
+    match: /^\/voucher/,
+    component: Voucher
+  },
+  {
+    match: /^\/accounts/,
+    component: Accounts
+  },
+  {
+    match: /^\/company/,
+    component: Company
+  },
+  {
+    match: /^\/task/,
+    component: Task
+  },
+  {
+    match: /^\/transaction/,
+    component: Transaction
+  },
+  {
+    match: /^\/item/,
+    component: Item
+  },
+  {
+    match: /^\/users/,
+    component: Users
+  },
+  {
+    match: /^\/member/,
+    component: Member
+  }
+];
 
 let toast;
 let description;
@@ -159,21 +156,6 @@ let status = {
   pathname: '',
   current: 'login'
 }
-let statusHome = status;
-let statusMenu = status;
-let statusJournal = status;
-let statusLedger = status;
-let statusBankLedger = status;
-let statusTrialBalance = status;
-let statusChanges = status;
-let statusVoucher = status;
-let statusAccounts = status;
-let statusCompany = status;
-let statusTask = status;
-let statusTransaction = status;
-let statusItem = status;
-let statusUsers = status;
-let statusMember = status;
 
 let mainCount = 0;
 
@@ -181,9 +163,12 @@ let reply;
 const doReply = (event) => {
   eventBus.emit(reply, event.detail);
 }
+currentPage.set('/home');
+
 onMount(() => {
   console.log('index onMount');
   status.pathname = location.pathname;
+  currentPage.set(location.pathname);
   axios.get('/api/user').then((res) => {
     status.user = res.data.user;
   });
@@ -198,12 +183,12 @@ onMount(() => {
       status.fy = {};
     }
   });
-	window.onpopstate = (event) => {
+  window.onpopstate = (event) => {
     console.log('maybe back', event);
-    status = event.state;
-    status.change = true;
-    console.log({status});
-	}
+    const page = location.pathname + location.search;
+    console.log("popstate:", page);
+    currentPage.set(page);
+  };
   eventBus.on('okModal', (args) => {
     console.log(args);
     title = args.title;
@@ -216,57 +201,9 @@ onMount(() => {
 
 beforeUpdate(() => {
   let args = location.pathname.split('/');
-  console.log('index beforeUpdate', args);
-  status.current = args[1];
-  status = status;
+  //console.log('index beforeUpdate', args);
+  //status = status;
   //console.log('index beforeUpdate', {status});
-  switch  (status.current) {
-    case  'home':
-      statusHome = status;
-      break;
-    case	'menu':
-      statusMenu = status;
-      break;
-    case  'journal':
-      statusJournal = status;
-      break;
-    case  'ledger':
-      statusLedger = status;
-      break;
-    case  'bank-ledger':
-      statusBankLedger = status;
-      break;
-    case  'trial-balance':
-      statusTrialBalance = status;
-      break;
-    case  'changes':
-      statusChanges = status;
-      break;
-    case  'voucher':
-      statusVoucher = status;
-      break;
-    case  'accounts':
-      statusAccounts = status;
-      break;
-    case  'company':
-      statusCompany = status;
-      break;
-    case  'task':
-      statusTask = status;
-      break;
-    case  'transaction':
-      statusTransaction = status;
-      break;
-    case  'item':
-      statusItem = status;
-      break;
-    case  'users':
-      statusUsers = status;
-      break;
-    case  'member':
-      statusMember = status;
-      break;
-  }
 })
 afterUpdate(() => {
   console.log('index afterUpdate');

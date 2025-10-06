@@ -40,8 +40,6 @@
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 
-export let current;
-
 let user_name;
 let password;
 let confirmPassword;
@@ -55,7 +53,6 @@ onMount(() => {
 })
 
 const change = (event) => {
-  current = 'login';
   window.history.pushState(null, "", `/login`);
 }
 
@@ -72,7 +69,6 @@ const SignUp = () => {
         }).then((ret) => {
           //console.log(ret.data);
           if  ( ret.data.result == 'OK' ) {
-            current = 'login';
             window.history.pushState(null, "", `/login`);
           } else {
             message = ret.data.message;

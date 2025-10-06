@@ -62,7 +62,7 @@ export default [
     title: '推移表',
     match: /^\/changes/,
     href: (status) => {
-      return	(`/changes/6000000`);
+      return	(`/changes/${status.fy.term}/6000000`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
@@ -103,7 +103,7 @@ export default [
 なお「削除」はできません。`
   }, {
     name: 'company',
-    title: '法人管理',
+    title: '取引先管理',
     match: /^\/company/,
     authority: (user) => {
       return  (user.companyManagement || user.accounting);
@@ -113,11 +113,11 @@ export default [
       return	(`/company/`);
     },
     description: `
-このシステムで扱う法人を登録管理します。<br/>
-「法人」は会計上の取引だけではなく、顧客管理での「顧客」等も含まれます。`,
+このシステムで扱う取引先を登録管理します。<br/>
+「取引先」は会計上の取引だけではなく、顧客管理での「顧客」等も含まれます。`,
     submenu: [
       {
-        title: '法人管理',
+        title: '取引先管理',
         match: /^\/company\/($|entry|new)/,
         href: (status) => {
           return	(`/company/`);

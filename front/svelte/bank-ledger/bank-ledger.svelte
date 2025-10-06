@@ -9,8 +9,8 @@
         class="btn nav-link dropdown-toggle"
         style="background-color:var(--bs-primary);color:white;"
         rolw="button" data-bs-toggle="dropdown" aria-expanded="false">
-        {#if status.account}
-        {BANK_ACCOUNTS.find((el) => el[0] == status.account)[1]}
+        {#if accountCode}
+        {BANK_ACCOUNTS.find((el) => el[0] == accountCode)[1]}
         {:else}
         科目
         {/if}
@@ -30,7 +30,7 @@
     </li>
     {#each bank_list.subAccounts as bank}
       <li class="nav-item">
-        {#if ( status.subAccount === bank.subAccountCode )}
+        {#if ( subAccountCode === bank.subAccountCode )}
         <button type="button" class="btn btn-info"
           on:click|preventDefault={() => {
             openBank(bank.subAccountCode);
@@ -165,11 +165,12 @@
 
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, afterUpdate} from 'svelte';
 import {ledgerLines} from '../../../libs/ledger';
 import {setAccounts} from '../../javascripts/cross-slip';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {DateString} from '../../../libs/utils.js';
+import {currentPage} from '../../javascripts/router.js';
 
 export let status;
 
@@ -184,6 +185,7 @@ let	accounts;
 let modalCount = 0;
 let popUp;
 
+$: checkPage($currentPage);
 
 const BANK_ACCOUNTS = [
   [ '1010000',	'当座預金' ],
@@ -191,36 +193,48 @@ const BANK_ACCOUNTS = [
   [ '1010020',	'定期預金' ],
   [ '1010030',	'定期積立' ]
 ];
-const openAccount = (account) => {
-  //console.log('openBank');
-  status.account = account;
-  updateAccount();
-  window.history.pushState(status, "",
-    `/bank-ledger/${status.account}`);
-}
-const openBank = (id) => {
-  status.subAccount = id;
-  updateList();
-  window.history.pushState(status, "",
-    `/bank-ledger/${status.account}/${status.subAccount}`);
+
+const link = (href) => {
+  window.history.pushState(status, "", href);
+  currentPage.set(href);
 }
 
-const update = () => {
-  updateAccount();
-  updateList();
+let accountCode;
+let subAccountCode;
+
+const openAccount = (_account) => {
+  accountCode = _account;
+  subAccountCode = undefined;
+  link(`/bank-ledger/${accountCode}`);
 }
-const checkPage = () => {
-  update();
+const openBank = (id) => {
+  subAccountCode = id;
+  link(`/bank-ledger/${accountCode}/${subAccountCode}`);
+}
+
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+  accountCode = args[2];
+  subAccountCode = args[3] ? parseInt(args[3]) : undefined;
+  console.log('checkPage', args, accountCode, subAccountCode);
+  updateAccount();
+  if ( subAccountCode ) {
+    updateList();
+  } else {
+    lines = [];
+  }
 }
 
 onMount(async () => {
-  console.log({status});
   lines = [];
   bank_list = { subAccounts: []};
   let result = await axios.get('/api/accounts');
   accounts = result.data;
   setAccounts(accounts);
-  update();
+
+  checkPage();
+
 });
 afterUpdate(() => {
   if  (!popUp)  {
@@ -228,44 +242,25 @@ afterUpdate(() => {
   }
 })
 
-let _status;
-beforeUpdate(() => {
-  let args = location.pathname.split('/');
-  status.account = args[2];
-  status.subAccount = args[3] ? parseInt(args[3]) : undefined;
-  console.log('bank-ledger beforeUpdate', status);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    checkPage();
-  }
-})
-
 const updateAccount = () => {
-  if	( status.account )	{
-    axios.get(`/api/account/${status.account}`).then((result) => {
+  if	( accountCode )	{
+    axios.get(`/api/account/${accountCode}`).then((result) => {
       bank_list = result.data;
-      console.log({bank_list});
     });
+  } else {
+    bank_list = { subAccounts: [] };
   }
 }
 
 const updateList = () => {
-  console.log('updateList');
-  if	( status.subAccount )	{
-    axios.get(`/api/remaining/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
+  if	( subAccountCode )	{
+    axios.get(`/api/remaining/${status.fy.term}/${accountCode}/${subAccountCode}`).then((result) => {
       let remaining = result.data;
-      //console.log('remaining', remaining);
 
-      axios.get(`/api/ledger/${status.fy.term}/${status.account}/${status.subAccount}`).then((result) => {
+      axios.get(`/api/ledger/${status.fy.term}/${accountCode}/${subAccountCode}`).then((result) => {
         let details = result.data;
-        console.log('details', details);
-        let ret = ledgerLines(status.account, status.subAccount,
-                        remaining, details);
+        let ret = ledgerLines(accountCode, subAccountCode, remaining, details);
         lines = ret.lines;
-        console.log('lines', lines);
       });
     });
   }

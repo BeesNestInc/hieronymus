@@ -81,13 +81,13 @@
 import axios from 'axios';
 import Icon from '@iconify/svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
-const dispatch = createEventDispatcher();
+import {onMount, beforeUpdate, afterUpdate} from 'svelte';
 import TransactionInfo from './transaction-info.svelte';
 import FormError from '../common/form-error.svelte';
 import OkModal from '../common/ok-modal.svelte';
-import {currentTransaction} from '../../javascripts/current-record.js'
+import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js';
 import {bindFile} from '../../javascripts/document.js';
+import { link } from '../../javascripts/router.js';
 
 export	let	status;
 export let toast;
@@ -102,14 +102,6 @@ let modal;
 let title;
 let description;
 let operation = () => {};
-
-const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState(status, "", href);
-  status.pathname = href;
-  console.log({status});
-}
 
 const book = (event) => {
   axios.post(`/api/transaction/book/${transaction.id}`).then((result) => {
@@ -211,8 +203,7 @@ const save = () => {
         		transaction = result.data.transaction;
         		currentTransaction.set(transaction);
 				    if	( create )	{
-        	    window.history.replaceState(
-          	    status, "", `/transaction/entry/${transaction.id}`);
+        	    link(`/transaction/entry/${transaction.id}`);
       	    } else {
               currentTransaction.set(transaction);
             }
@@ -232,10 +223,14 @@ const save = () => {
 };
 
 const	back = (event) => {
-  dispatch('close');
   currentTransaction.set(null);
   errorMessages = [];
-  window.history.back();
+  const task = getStore(currentTask);
+  if (task && task.id) {
+    link(`/task/entry/${task.id}`);
+  } else {
+    link('/transaction');
+  }
 }
 
 const makeVoucher = (event) => {

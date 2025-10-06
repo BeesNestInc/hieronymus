@@ -82,7 +82,7 @@ export const printPL = (lines) => {
   plOut.push({ left_title: '    営業外収益計', right_value: nonOpIncome, left_line: true, right_line: true });
   
   plOut.push({ left_title: '【営業外費用】' });
-  const nonOpExpenses = collectItems(/^900|^902/).balance;
+  const nonOpExpenses = collectItems(/^900/).balance;
   plOut.push({ left_title: '    営業外費用計', right_value: nonOpExpenses, left_line: true, right_line: true });
   
   const extraGain = sumByCode(/^901/).balance;
@@ -94,7 +94,7 @@ export const printPL = (lines) => {
   plOut.push({ left_title: '【当期損益】' });
   
   const recurringProfit = operatingProfit + nonOpIncome - nonOpExpenses;
-  const currentIncome = recurringProfit + extraGain;
+  const currentIncome = recurringProfit + extraGain - extraLoss;
   
   plOut.push({ right_title: '経常利益', right_value: recurringProfit, left_line: true, right_line: true });
   plOut.push({ right_title: '税引前当期利益', right_value: currentIncome, right_line: true });
@@ -103,7 +103,7 @@ export const printPL = (lines) => {
   plOut.push({ right_title: '法人税住民税等', right_value: tax });
   
   const netIncome = currentIncome - tax;
-  plOut.push({ right_title: '当期純利益', right_value: netIncome, right_line: true });
+  plOut.push({ right_title: '当期純利益', right_value: netIncome, right_line: true, double_line: true });
   
   //console.log(plOut);
   return netIncome;
@@ -302,9 +302,9 @@ const printNetWorthPage = () => {
   let sum = [];
   let mark;
 
-  let retainedEarnings = accountLine('繰越利益剰余金');
-  retainedEarnings.credit = netIncome;
-  retainedEarnings.balance += netIncome;
+  const retainedEarningsFromTB = accountLine('繰越利益剰余金');
+  const finalRetainedEarningsBalance = (retainedEarningsFromTB ? retainedEarningsFromTB.balance : 0) + netIncome;
+
   netWorthPage = [];
   netWorthPage.push({});
   mark = netWorthPage.length - 1;
@@ -312,9 +312,9 @@ const printNetWorthPage = () => {
   netWorthPage.push({
     level: 3,
     name: '繰越利益剰余金',
-    amount: retainedEarnings.balance
+    amount: finalRetainedEarningsBalance
   });
-  const netWorth = sum[0].balance + retainedEarnings.balance;
+  const netWorth = sum[0].balance + finalRetainedEarningsBalance;
   netWorthPage[mark] = {
     level: 1,
     name: '資本',
@@ -429,7 +429,7 @@ const printSGA = (outClasses)	=> {
           sgaPage.push({
             level: 3,
             name: classes[2],
-            amount: pickup.sum(2)
+            amount: balance.sum(2)
           });
         }
         pickup.clear(2);

@@ -43,7 +43,8 @@ const	getDetails = async (fy, account, sub_account) => {
             }
           ],
           '$crossSlip.year$': mon.getFullYear(),
-          '$crossSlip.month$': mon.getMonth() + 1
+          '$crossSlip.month$': mon.getMonth() + 1,
+          '$crossSlip.approvedAt$': { [Op.ne]: null }
         }
       };
     } else {
@@ -51,6 +52,7 @@ const	getDetails = async (fy, account, sub_account) => {
         [Op.and]: {
           '$crossSlip.year$': mon.getFullYear(),
           '$crossSlip.month$': mon.getMonth() + 1,
+          '$crossSlip.approvedAt$': { [Op.ne]: null },
           [Op.or]: {
             debitAccount: account,
             creditAccount: account

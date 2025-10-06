@@ -30,14 +30,15 @@
 
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, afterUpdate} from 'svelte';
 import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
-import {currentVoucher, getStore} from '../../javascripts/current-record.js'
+import {currentVoucher, getStore} from '../../javascripts/current-record.js';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import {currentPage, link} from '../../javascripts/router.js';
 
 let slip = {
   year: 0,
@@ -52,6 +53,8 @@ export let status;
 let	voucher;
 let vouchers = [];
 let accounts = [];
+
+$: checkPage($currentPage);
 
 const openSlip = (event) => {
   const slipNo = event.detail;
@@ -83,123 +86,76 @@ const openSlip = (event) => {
 };
 
 const	openEntry = (event)	=> {
-  //console.log('open', event.detail);
   voucher = event.detail;
-  status.change = true;
   if ( !voucher || !voucher.id )	{
-    voucher = null;
-    status.state = 'new';
-    currentVoucher.set(null);
-    window.history.pushState(
-      status, "", `/voucher/new`);
+    link('/voucher/new');
   } else {
-    status.state = 'entry';
-    window.history.pushState(
-      status, "", `/voucher/entry/${voucher.id}`);
+    link(`/voucher/entry/${voucher.id}`);
   }
 };
 
 const updateSlip = (event) => {
-  updateVouchers();
-  if	( status.state === 'entry' )	{
-    const args = location.pathname.split('/');
-    axios.get(`/api/voucher/${args[3]}`).then((result) => {
-      voucher = result.data.voucher;
-      console.log('updateSlip', {voucher});
-      currentVoucher.set(voucher);
-    });
-  }
+  checkPage(location.href);
 }
 
 const closeEntry = (event) => {
-  status.state = 'list';
+  const query = status.params ? `?${status.params.toString()}` : '';
+  link(`/voucher${query}`);
 }
 
 const changeMonth = (event) => {
   const param = buildParam(status, event.detail);
-  window.history.pushState(
-    status, "", `${location.pathname}?${param}`);
-  updateVouchers();
+  link(`/voucher?${param}`);
 }
 
 const updateVouchers = (event) => {
-  let param;
-  if  ( event ) {
-    param = buildParam(status, event.detail);
-  } else {
-    param = buildParam(status);
-  }
-  console.log('param', param);
+  const param = status.params ? status.params.toString() : '';
   axios.get(`/api/voucher?${param}`).then((result) => {
     vouchers = result.data.vouchers;
-    //console.log('vouchers', vouchers);
   });
 };
 
+const checkPage = (pageUrl) => {
+  const args = location.pathname.split('/');
+  status.params = new URLSearchParams(location.search);
+  console.log('voucher checkPage', args, status.params, status.params.get('month'));
 
-const checkPage = () => {
-  let args = location.pathname.split('/');
-  console.log({args});
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-    if  ( !voucher ) {
-      voucher = {
-      	issueDate: formatDate(new Date()),
-      	paymentDate: null,
-      	amount: 0,
-      	taxClass: -1,
-      	tax: 0,
-      	type: -1
-    	};
-      let value = getStore(currentVoucher);
-      if	( value )	{
-        voucher = value;
-      } else {
-        if	( status.state === 'entry' )	{
-          axios.get(`/api/voucher/${args[3]}`).then((result) => {
-        		voucher = result.data.voucher;
-        		console.log('checkPage', {voucher});
-            currentVoucher.set(voucher);
-      		});
-        } else {
-          currentVoucher.set(voucher);
-        }
-      }
-    }
-  } else {
-    if  ( status.state  !== 'list' )  {
-      status.params = parseParams();
-      updateVouchers();
-    }
-    status.state = 'list';
+  status.state = args[2] || 'list';
+  switch  (status.state)  {
+  case  'entry':
+    axios.get(`/api/voucher/${args[3]}`).then((result) => {
+      voucher = result.data.voucher;
+      currentVoucher.set(voucher);
+    });
+    break;
+  case  'new':
+    voucher = {
+      issueDate: formatDate(new Date()),
+      paymentDate: null,
+      amount: 0,
+      taxClass: -1,
+      tax: 0,
+      type: -1
+    };
+    currentVoucher.set(voucher);
+    break;
+  default:
+    updateVouchers();
+    break;
   }
 }
 
 onMount(async () => {
-  status.params = parseParams();
-  console.log('voucher onMount', voucher);
   axios.get(`/api/accounts`).then((res) => {
     accounts = res.data;
     setAccounts(accounts);
-    updateVouchers();
   });
-  window.onpopstate = (event) => {
-    if	( window.history.state )	{
-      status = window.history.state;
-    }
-    status.params = parseParams();
-    //console.log({current_params});
-    updateVouchers();
-  }
+
+  checkPage(location.href);
+
 })
 
-beforeUpdate(()	=> {
-  //console.log('voucher beforeUpdate');
-  checkPage();
-});
 afterUpdate(() => {
-  //console.log('voucher afterUpdate');
   if  (!popUp)  {
     modalCount += 1;
   }

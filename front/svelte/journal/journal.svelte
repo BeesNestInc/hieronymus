@@ -64,7 +64,7 @@ import JournalList from './journal-list.svelte';
 import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {setAccounts, findAccount, findSubAccountByCode} from '../../javascripts/cross-slip';
 import {numeric, dateStr} from '../../../libs/utils.js';
-
+import {currentPage} from '../../javascripts/router.js';
 export let status;
 
 let year;
@@ -79,6 +79,8 @@ let slips;
 let modalCount = 0;
 let popUp;
 let today;
+
+$: checkPage($currentPage);
 
 const openMonth = (_year, _month) => {
   year = _year;
@@ -145,7 +147,7 @@ const ready = (slips) => {
   }
   lines = _lines;
   sums = _sums;
-  console.log('lines', lines);
+  //console.log('lines', lines);
 }
 
 const updateList = () => {
@@ -191,26 +193,15 @@ const setupAccount = () => {
 const update = () => {
 	updateList();
 }
-const checkPage = () => {
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+
+  year = args[2];
+  month = args[3];
   update();
 }
 
-let _status;
-beforeUpdate(()	=> {
-  let args = status.pathname.split('/');
-  status.current = args[1];
-  year = args[2];
-  month = args[3];
-  console.log('journal beforeUpdate', status.change, year, month);
-  if  (( year < 10000 ) &&
-       (( status.change ) ||
-        ( _status !== status )))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    checkPage();
-  }
-});
 afterUpdate(() => {
   if  (!popUp)  {
     modalCount += 1;
@@ -218,10 +209,7 @@ afterUpdate(() => {
 })
 onMount(async () => {
   console.log('journal onMount');
-  if  ( !status.pathname ) {
-    status.pathname = location.pathname;
-  }
-  let args = status.pathname.split('/');
+  let args = location.pathname.split('/');
   year = args[2];
   month = args[3];
   setupDates();
@@ -233,6 +221,7 @@ onMount(async () => {
       month: month,
       lines: []
   };
+  checkPage($currentPage);
 })
 
 const openSlip = (event) => {

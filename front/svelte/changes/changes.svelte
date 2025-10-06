@@ -21,25 +21,27 @@
 {#if (account && (account.subAccounts.length > 0))}
 <div class="row page-subtitle">
   <div class="col-9">
+    {#key subAccountCode}
     <SubAccountSelect
     	on:select={(event) => {
       	accountSelect(event.detail);
     	}}
       account={account}
-      sub_account_code={status.subAccountCode}/>
+      sub_account_code={subAccountCode}/>
+    {/key}
   </div>
   <div class="col-3" style="text-align:right;">
-    {#if status.subAccountCode}
+    {#if subAccountCode}
       <button type="button"
         on:click={() => {
-          link(`/ledger/${status.accountCode}/${status.subAccountCode}`)
+          link(`/ledger/${accountCode}/${subAccountCode}`)
         }} class="btn btn-info">
       補助元帳を見る
     </button>
     {:else}
     <button type="button"
       on:click={() => {
-        link(`/ledger/${status.accountCode}`);
+        link(`/ledger/${accountCode}`);
       }} class="btn btn-info">
       元帳を見る
     </button>
@@ -87,7 +89,7 @@
 <script>
 
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate} from 'svelte';
+import {onMount, afterUpdate} from 'svelte';
 
 import {Line} from "svelte-chartjs";
 import AccountSelect from '../components/account-select.svelte';
@@ -96,6 +98,7 @@ import ChangesList from './changes-list.svelte';
 import {dc, numeric} from '../../../libs/parse_account_code.js';
 import {setAccounts, findAccount, findSubAccountByCode} from '../../javascripts/cross-slip';
 import parse_account_code from '../../../libs/parse_account_code';
+import {currentPage, link} from '../../javascripts/router.js';
 
 import {
     Chart as ChartJS,
@@ -129,6 +132,9 @@ let allYears = false;
 let sameMonth = true;
 let Amount = true;
 let Balance = false;
+let accountCode;
+let subAccountCode;
+
 let fields = [
   {
     title: '資産',
@@ -175,25 +181,14 @@ const colors = [
 
 let chartData;
 
-const link = (href) => {
-  let args = href.split('/');
-  window.history.pushState(status, "", href);
-  status.change = true;
-}
-
 const accountSelect = (code) => {
-  console.log('accountSelect', code);
   let href;
-  if  ( code.sub )  {
-    href = `/changes/${status.term}/${code.code}/${code.sub}`;
+  if (code.sub) {
+    href = `/changes/${status.fy.term}/${code.code}/${code.sub}`;
   } else {
-    href = `/changes/${status.term}/${code.code}`;
+    href = `/changes/${status.fy.term}/${code.code}`;
   }
-  status.pathname = href;
-  status.accountCode = code.code;
-  status.subAccountCode = code.sub;
-  changeAccount(true);
-  window.history.pushState(status, "", href);
+  link(href);
 }
 
 const termChange = () => {
@@ -205,7 +200,8 @@ const termChange = () => {
 }
 
 const changeAccount = (update) => {
-  axios.get(`/api/account/${status.accountCode}`).then((result) => {
+  if (!accountCode) return;
+  axios.get(`/api/account/${accountCode}`).then((result) => {
     account = result.data;
     console.log('account', account);
     remaining = {};
@@ -214,12 +210,12 @@ const changeAccount = (update) => {
     if	( allYears )	{
       thisTerm = 0;
     } else {
-      thisTerm = status.term;
+      thisTerm = status.fy.term;
     }
-    if ( status.subAccountCode ) {
-      pr = axios.get(`/api/remaining/${thisTerm}/${status.accountCode}/${status.subAccountCode}`);
+    if ( subAccountCode ) {
+      pr = axios.get(`/api/remaining/${thisTerm}/${accountCode}/${subAccountCode}`);
     } else {
-      pr = axios.get(`/api/remaining/${thisTerm}/${status.accountCode}`);
+      pr = axios.get(`/api/remaining/${thisTerm}/${accountCode}`);
     }
     pr.then((result) => {
       remaining = result.data;
@@ -232,13 +228,18 @@ const changeAccount = (update) => {
   });
 }
 
+const checkPage = (page) => {
+  const path = page || location.pathname;
+  let args = path.split('/');
+  status.fy.term = args[2];
+  accountCode = args[3];
+  subAccountCode = args[4] ? parseInt(args[4]) : undefined;
+  
+  changeAccount(true);
+}
+
 onMount(() => {
   console.log('changes onMount');
-  let args = location.pathname.split('/');
-  status.pathname = location.pathname;
-  status.term = args[2];
-  status.accountCode = args[3];
-  status.subAccountCode = args[4] ? parseInt(args[4]) : undefined;
   axios.get(`/api/accounts`).then((res) => {
     accounts = res.data;
     setAccounts(accounts);
@@ -269,12 +270,21 @@ onMount(() => {
     }
     fields = fields;
   });
-  update();
 
-  changeAccount(false);
+  checkPage();
+
+  const unsubscribe = currentPage.subscribe((page) => {
+    if (page && page.split('/')[1] === 'changes') {
+      checkPage(page);
+    }
+  });
+
+  return () => {
+    unsubscribe();
+  };
 });
 
-const makeLines = (accountCode, subAccountCode, remaining, details) => {
+const makeLines = (remaining, details) => {
   let pureBalance;
   let pureAmount;
   let pureTax;
@@ -287,29 +297,33 @@ const makeLines = (accountCode, subAccountCode, remaining, details) => {
     pureBalance: pureBalance
   }];
   let tax_class;
-  if  ( status.subAccountCode > 0 )      {
-    tax_class = findSubAccountByCode(accountCode, status.subAccountCode).taxClass;
+  if  ( subAccountCode > 0 )      {
+    tax_class = findSubAccountByCode(accountCode, subAccountCode).taxClass;
   } else {
     tax_class = findAccount(accountCode).taxClass;
   }
   for (let i = 0; i < details.length; i++) {
     let detail = details[i];
-    //console.log(detail)
-    if (dc(accountCode) == 'C') {
-      pureTax = detail.creditTax;
-      if	( tax_class === 1 )	{
-        pureAmount = detail.creditAmount - pureTax;
-      } else {
-        pureAmount = detail.creditAmount;
-      }
+
+    let monthlyDebit, monthlyCredit;
+    if (tax_class === 1) {
+      monthlyDebit = detail.debitAmount - detail.debitTax;
+      monthlyCredit = detail.creditAmount - detail.creditTax;
     } else {
-      pureTax = detail.debitTax;
-      if	( tax_class === 1 )	{
-        pureAmount = detail.debitAmount - pureTax;
-      } else {
-        pureAmount = detail.debitAmount;
-      }
+      monthlyDebit = detail.debitAmount;
+      monthlyCredit = detail.creditAmount;
     }
+
+    if (dc(accountCode) == 'C') { // 貸方科目
+      pureAmount = monthlyCredit - monthlyDebit;
+      // 表示用の税額は、主要な取引である貸方取引の税額とする（元のロジックを踏襲）
+      pureTax = detail.creditTax;
+    } else { // 借方科目
+      pureAmount = monthlyDebit - monthlyCredit;
+      // 表示用の税額は、主要な取引である借方取引の税額とする（元のロジックを踏襲）
+      pureTax = detail.debitTax;
+    }
+
     pureBalance += pureAmount;
     changes.push({
       year: detail.year,
@@ -317,40 +331,17 @@ const makeLines = (accountCode, subAccountCode, remaining, details) => {
       pureAmount: pureAmount,
       pureTax: pureTax,
       pureBalance: pureBalance,
-      texClass: tax_class
+      taxClass: tax_class
     });
   }
   return	(changes);
 }
 
-const update = () => {
-  let args = status.pathname.split('/');
-  status.current = args[1];
-  status.accountCode = args[2];
-  status.subAccountCode = args[3] ? parseInt(args[3]) : undefined;
-  changeAccount(true);
-}
-const checkPage = () => {
-  status.pathname = location.pathname;
-  update();
-}
-
-let _status;
-beforeUpdate(()	=> {
-  console.log('changes beforeUpdate', status.change);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    checkPage();
-  }
-});
 afterUpdate(() => {
   console.log('changes afterUpdate');
 })
 const updateList = () => {
-  console.log('updateList', status.term, status.accountCode, status.subAccountCode);
+  console.log('updateList', status.term, accountCode, subAccountCode);
   let pr;
   let thisTerm;
   if	( allYears )	{
@@ -358,18 +349,17 @@ const updateList = () => {
   } else {
     thisTerm = status.term;
   }
-  if ( status.subAccountCode ) {
+  if ( subAccountCode ) {
     console.log('with sub_account');
-    pr = axios.get(`/api/changes/${thisTerm}/${status.accountCode}/${status.subAccountCode}`);
+    pr = axios.get(`/api/changes/${thisTerm}/${accountCode}/${subAccountCode}`);
   } else {
-    pr = axios.get(`/api/changes/${thisTerm}/${status.accountCode}`);
+    pr = axios.get(`/api/changes/${thisTerm}/${accountCode}`);
   }
   pr.then((result) => {
     details = result.data;
     //console.log('**details', details);
-    //console.log(dc(status.accountCode));
-    lines = makeLines(status.accountCode, status.subAccountCode,
-        remaining, details);
+    //console.log(dc(accountCode));
+    lines = makeLines(remaining, details);
     console.log({lines});
     updateChart();
   });

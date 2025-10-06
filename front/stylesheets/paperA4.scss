@@ -164,7 +164,15 @@ body {
         border-top: none;
         border-left: 1px solid #333;
         border-right: none;
+        border-bottom: none;
+      }
+      .pl-underline {
         border-bottom: 1px solid #333;
+        padding-bottom: 1px;
+      }
+      .pl-double-line {
+        border-bottom: 3px double black;
+        padding-bottom: 1px;
       }
     }
     .page-footer {

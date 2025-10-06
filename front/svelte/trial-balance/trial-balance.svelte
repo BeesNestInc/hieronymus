@@ -1,7 +1,8 @@
+{#key $currentPage}
 <div class="list">
   <div class="page-title d-flex justify-content-between">
   	<h1>残高試算表</h1>
-  	<a href="/forms/trial_balance/{status.fy.term}?format=pdf"
+  	<a href="/forms/trial_balance?format=pdf"
       download="残高試算表.pdf" class="btn btn-primary">
     	残高試算表をダウンロード&nbsp;<i class="bi bi-download"></i>
   	</a>
@@ -51,13 +52,15 @@
   	</TrialBalanceList>
 	</div>
 </div>
+{/key}
 
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount} from 'svelte';
 import TrialBalanceList from './trial-balance-list.svelte';
 import {numeric} from '../../../libs/utils.js';
 import {dc} from '../../../libs/parse_account_code';
+import {currentPage, link} from '../../javascripts/router.js';
 
 export let status;
 export let alert;
@@ -66,26 +69,30 @@ export let alert_level;
 let lines = [];
 let dates = [];
 
+$: if (status && status.fy && status.fy.term) {
+  checkPage($currentPage);
+} else {
+  lines = [];
+  dates = [];
+}
+
 const openMonth = (month) => {
   let href;
-  status.month = month;
-  if	( status.month )	{
-    href = `/trial-balance/${status.fy.term}/${status.month}`;
+  if (month) {
+    href = `/trial-balance/${month}`;
   } else {
-    href = `/trial-balance/${status.fy.term}`;
+    href = `/trial-balance`;
   }
-  status.pathname = href;
-  updateLines();
-  window.history.pushState(status, "", href);
+  link(href);
 }
 
 const updateLines = async () => {
   let _lines = [];
   let url;
   if  ( status.month ) {
-    url = `/api/trial-balance/${status.fy.term}/${status.month}`;
+    url = `/api/trial-balance/${status.month}`;
   } else {
-    url = `/api/trial-balance/${status.fy.term}`;
+    url = `/api/trial-balance`;
   }
   const result = await axios.get(url);
   let data = result.data;
@@ -148,30 +155,15 @@ const updateDates = () => {
   dates = _dates;
 }
 
-const checkPage = async () => {
-  let args = status.pathname.split('/');
-  status.current = args[1];
+const checkPage = async (page) => {
+  if (!page || page.split('/')[1] !== 'trial-balance') {
+    return;
+  }
+  const path = page;
+  let args = path.split('/');
   status.month = args[2];
   updateDates();
   await updateLines();
 }
-
-let _status;
-beforeUpdate(async ()	=> {
-  console.log('trial-balance beforeUpdate', status);
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    console.log('run checkPage');
-    await checkPage();
-  }
-});
-
-onMount(async () => {
-  dates = [];
-  console.log('onMount', {status});
-  await checkPage();
-})
 
 </script>

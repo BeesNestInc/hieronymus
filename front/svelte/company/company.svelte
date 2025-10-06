@@ -8,10 +8,12 @@
   bind:status={status}
 ></CompanyHome>
 {:else}
-<CompanyEntry
-	bind:status={status}
-	bind:company={company}
-  on:close={closeEntry}></CompanyEntry>
+  {#if (status.state === 'entry' && company && company.id) || (status.state === 'new' && company)}
+  <CompanyEntry
+	  bind:status={status}
+	  bind:company={company}
+    on:close={closeEntry}></CompanyEntry>
+  {/if}
 {/if}
 
 <style>
@@ -24,51 +26,29 @@ import CompanyEntry from './company-entry.svelte';
 import CompanyList from './company-list.svelte';
 import {currentCompany, getStore} from '../../javascripts/current-record.js'
 import CompanyHome from './company-home.svelte';
+import { link, currentPage } from '../../javascripts/router.js';
 
 export let status;
 
 let	company;
 let companies = [];
 
-const	openEntry = (event)	=> {
-  console.log('open', event.detail);
-  company = event.detail;
-  if ( !company || !company.id )	{
-    status.state = 'new';
-    window.history.pushState(
-      status, "", `/company/new`);
-  } else {
-    status.state = 'entry';
-    axios(`/api/company/${company.id}`).then((result) => {
-      company = result.data.company;
-      window.history.pushState(
-        status, "", `/company/entry/${company.id}`);
-    });
-  }
-  //console.log('invoice', invoice)
-};
+$: checkPage($currentPage);
 
-const closeEntry = (event) => {
-  //console.log('close');
-  status.state = 'list';
-}
+const checkPage = (page) => {
+  page = page || location.pathname;
+  const args = page.split('/');
+  status.state = args[2] || 'list';
 
-const checkPage = () => {
-  let args = location.pathname.split('/');
-  // /company/26
-  // /company/
-  //console.log('checkPage', {args});
-  if	( args[2] === 'home' )	{
-		status.state = 'home';
-  } else
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-		if	( !company )	{
+  switch  (status.state) {
+  case  'home':
+    break;
+  case  'entry':
+  case  'new':
+    if	( !company )	{
       company = {};
       let value = getStore(currentCompany);
-      //console.log({value});
-		  if	( value )	{
+      if	( value )	{
         company = value;
       } else {
         if	( status.state === 'entry' )	{
@@ -78,26 +58,39 @@ const checkPage = () => {
           });
         } else {
           let params = new URLSearchParams(location.search);
-          console.log(params);
           company.companyClassId = params.get('kind') ? parseInt(params.get('kind')) : undefined;
           currentCompany.set(company);
         }
       }
     }
-  } else {
-    status.state = 'list';
+    break;
+  default:
+    break;
   }
-  //console.log('company', status);
+  console.log('company', status);
+}
+
+const	openEntry = (event)	=> {
+  console.log('open', event.detail);
+  const company_data = event.detail;
+  if ( !company_data || !company_data.id )	{
+    link('/company/new');
+  } else {
+    link(`/company/entry/${company_data.id}`);
+  }
+};
+
+const closeEntry = (event) => {
+  // This event is handled by the child component's history.back()
+  // or by the parent component in inline mode.
+  // No navigation logic is needed here.
 }
 
 onMount(() => {
   console.log('company onMount');
+  checkPage($currentPage);
 })
 
-beforeUpdate(()	=> {
-  //console.log('company.svelte', {company});
-  checkPage();
-});
 afterUpdate(() => {
 })
 

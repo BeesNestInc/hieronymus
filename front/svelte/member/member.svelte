@@ -16,111 +16,75 @@
 {/if}
 <script>
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, tick, createEventDispatcher} from 'svelte';
+import {onMount, afterUpdate} from 'svelte';
 import MemberEntry from './member-entry.svelte';
 import MemberList from './member-list.svelte';
-import {currentMember, getStore} from '../../javascripts/current-record.js'
+import {currentMember, getStore} from '../../javascripts/current-record.js';
+import { currentPage, link } from '../../javascripts/router.js';
 
 export let status;
 
-let	member;
+let member;
 let members = [];
 let users = [];
 let classes = [];
 
+$: checkPage($currentPage);
+
 const	openEntry = (event)	=> {
-  console.log('open', event.detail);
-  member = event.detail;
-  status.change = true;
-  if ( !member || !member.id )	{
-    status.state = 'new';
-    member = null;
-    window.history.pushState(
-      status, "", `/member/new`);
+  const detail = event.detail;
+  if ( !detail || !detail.id )	{
+    link(`/member/new`);
   } else {
-    status.state = 'entry';
-    window.history.pushState(
-      status, "", `/member/entry/${member.id}`);
+    link(`/member/entry/${detail.id}`);
   }
-  console.log('member', member)
 };
 
 const closeEntry = (event) => {
-  status.state = 'list';
+  link('/member/list');
 }
 
-const checkPage = async () => {
-  let args = location.pathname.split('/');
-  console.log({args});
-  if  ( args[2] === 'home' )  {
-    status.state = 'home';
-  } else
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-    if  ( !member ) {
-      member = {
-        legalName: ''
-      };
-      let value = getStore(currentMember);
-      if  ( value ) {
-        member = value;
-      } else {
-        if  ( status.state === 'entry' ) {
-          const result = await axios.get('/api/users?nomember=true');
-          users = result.data.users;
-          axios(`/api/member/${args[3]}`).then((result) => {
-            member = result.data.member;
-            console.log({member});
-            if  ( member.user ) {
-              users.push(member.user);
-              users = users;
-            }
-            console.log('checkPage', {users});
-            currentMember.set(member);
-          });
-        } else {
-          currentMember.set(member);
+const checkPage = (page) => {
+  if (!page) return;
+  const args = page.split('/');
+  const action = args[2];
+
+  status.state = action;
+  switch  (action)  {
+  case  'entry':
+    const entryId = args[3];
+    axios.get(`/api/member/${entryId}`).then((result) => {
+      member = result.data.member;
+      if (member && member.user) {
+        let found = users.find(u => u.id === member.user.id);
+        if (!found) {
+          users = [...users, member.user];
         }
       }
-    } else {
-      let find = false;
-      users.forEach((user) => {
-        if  ( user.id === member.user ) {
-          find = true;
-        }
-      })
-      if  (( !find ) &&
-           ( member.users ))  {
-        users.push(member.user);
-      }
-    }
-  } else {
+      currentMember.set(member);
+    });
+    break;
+  case  'new':
+    member = getStore(currentMember) || {};
+    currentMember.set(member);
+    break;
+  default:
     status.state = 'list';
+    member = null;
+    break;
   }
-  console.log({status});
 }
 
-onMount(async () => {
-  console.log('member onMount')
-  const result = await axios.get('/api/users?nomember=true');
-  users = result.data.users;
+onMount(() => {
+  axios.get('/api/users?nomember=true').then(result => {
+    users = result.data.users;
+  });
   axios.get('/api/member/classes').then((result) => {
-    console.log(result);
     classes = result.data.classes;
-  })
+  });
+  checkPage($currentPage);
 })
 
-let _status;
-beforeUpdate(async ()	=> {
-  //console.log('member beforeUpdate', status.change);
-  checkPage();
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-  }
-});
 afterUpdate(() => {
   //console.log('member afterUpdate');
 })

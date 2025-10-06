@@ -31,6 +31,7 @@ import AccountModal from './account-modal.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {parseParams, buildParam} from '../../javascripts/params.js';
+import { currentPage } from '../../javascripts/router.js';
 
 export let status;
 
@@ -40,6 +41,8 @@ let modal;
 let	mode;
 let	account = {};
 let	subAccount = {};
+
+$: checkPage($currentPage);
 
 const ready = () => {
   lines = [];
@@ -113,25 +116,25 @@ const ready = () => {
 const	updateAccounts = () => {
   axios.get(`/api/accounts4/${status.fy.term}`).then((result) => {
     accounts = result.data;
-    console.log('accounts', accounts);
+    //console.log('accounts', accounts);
     setAccounts(accounts);
     ready();
   });
 }
 
-const checkPage = () => {
-  let args = location.pathname.split('/');
+const checkPage = (page) => {
+  page = page || location.pathname;
+  let args = page.split('/');
+  // /transaction/entry/23
+  status.state = args[2] || 'list';
 }
+
 onMount(() => {
   status.params = parseParams();
   modal = new Modal(document.getElementById('account-modal'));
   updateAccounts();
+  checkPage($currentPage);
 })
-
-beforeUpdate(() => {
-  checkPage();
-  console.log('account.svelte', {status})
-});
 
 let openModal = false;
 afterUpdate(() => {

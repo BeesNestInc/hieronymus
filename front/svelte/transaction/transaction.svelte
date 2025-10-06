@@ -2,15 +2,13 @@
   <TransactionList
   	bind:status={status}
     transactions={transactions}
-    on:open={openEntry}
     ></TransactionList>
-{:else if ( status.state === 'entry' || status.state === 'new' )}
+{:else if ( (status.state === 'entry' || status.state === 'new') && transaction )}
   <TransactionEntry
     bind:status={status}
     bind:toast={toast}
     bind:transaction={transaction}
-    bind:users={users}
-    on:close={closeEntry}>
+    bind:users={users}>
   </TransactionEntry>
 {/if}
 <script>
@@ -20,6 +18,7 @@ import TransactionEntry from './transaction-entry.svelte';
 import TransactionList from './transaction-list.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js'
+import { currentPage } from '../../javascripts/router.js';
 
 export let status;
 export let toast;
@@ -28,45 +27,28 @@ let transaction;
 let transactions = [];
 let users = [];
 
+$: checkPage($currentPage);
 
-const	openEntry = (event)	=> {
-  status.change = true;
-  currentTransaction.set(null);
-  currentTask.set(null);
-  if  ( !event )  {
-    transaction = null;
-    status.state = 'new';
-    window.history.pushState(
-      status, "", `/transaction/new`);
-  } else {
-    console.log('open', event.detail);
-    transaction = event.detail;
-    if ( !transaction || !transaction.id )	{
-      status.state = 'new';
-      transaction = null;
-      window.history.pushState(
-        status, "", `/transaction/new`);
-    } else {
-      status.state = 'entry';
-      window.history.pushState(
-        status, "", `/transaction/entry/${transaction.id}`);
-    }
-  }
-  //console.log('transaction', transaction)
-};
-const closeEntry = (event) => {
-  status.state = 'list';
-  console.log('closeEntry');
-}
-const checkPage = () => {
-  let args = location.pathname.split('/');
-  // /transaction/14
+const checkPage = (page) => {
+  page = page || location.pathname;
+  let args = page.split('/');
   // /transaction/entry/23
-  console.log('checkPage', {args});
-  if  ( ( args[2] === 'entry' ) ||
-			  ( args[2] === 'new'   )) {
-    status.state = args[2];
-    if	 ( !transaction )	{
+  status.state = args[2] || 'list';
+  //console.log('checkPage', {args});
+
+  switch  (status.state)  {
+  case  'entry':
+    const entryId = args[3];
+    if (!transaction || transaction.id != entryId) {
+      axios.get(`/api/transaction/${entryId}`).then((result) => {
+        console.log('new load', result.data);
+        transaction = result.data.transaction;
+        currentTransaction.set(transaction);
+      });
+    }
+    break;
+	case  'new':
+    if  (!transaction || transaction.id) {
       transaction = {
         issueDate: formatDate(new Date()),
         tax: 0,
@@ -98,45 +80,23 @@ const checkPage = () => {
         transaction.amount = task.amount;
         transaction.handledBy = task.handledBy;
       }
-    	let value = getStore(currentTransaction);
-    	console.log({value});
-    	if	( value )	{
-	      transaction = value;
-	    } else {
-      	if	( status.state === 'entry' )	{
-      		axios.get(`/api/transaction/${args[3]}`).then((result) => {
-        		console.log('new load', result.data);
-        		transaction = result.data.transaction;
-        		currentTransaction.set(transaction);
-          });
-      	} else {
-          currentTransaction.set(transaction);
-      	}
-      }
+      currentTransaction.set(transaction);
     }
     console.log({transaction});
-  } else {
-    status.state = 'list';
+    break;
+  default:
+    break;
   }
-  console.log(status.state);
 }
 
 onMount(() => {
   console.log('transaction onMount');
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
-  })
+  });
+  checkPage($currentPage);
 })
 
-let _status;
-beforeUpdate(()	=> {
-  if  (( status.change ) ||
-       ( _status !== status ))  {
-    status.change = false;
-    _status = status;
-    checkPage();
-  }
-});
 afterUpdate(() => {
   //console.log('transactions afterUpdate');
 })

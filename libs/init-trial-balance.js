@@ -8,6 +8,7 @@ let assetPages;
 let liabilitiesAndCapitalPages;
 let incomeStatementPages;
 let retainedEarnings;
+let lines;
 
 const LINES = 46;
 
@@ -70,7 +71,7 @@ const print = (lineOut, suppress, outClasses) => {
           credit.clear(1);
           balance.clear(1);
         }
-        if  ( outClasses.length <= 2 )   {
+        if  ( outClasses.length <= 2 )   { 
           lineOut.push({
             name: `&nbsp;【${line.middle_name}】`
           });
@@ -168,111 +169,114 @@ const printLiabilitiesAndCapicalPage = () => {
     name: '【自己株式】'
   });
   cap[4] = print(liabilitiesAndCapitalPage, false, [ "純資産", "自己株式", "自己株式" ]);
+  const shareholderEquity = {
+    pickup: cap[1].pickup + cap[2].pickup + cap[3].pickup - cap[4].pickup,
+    debit: cap[1].debit + cap[2].debit + cap[3].debit + cap[4].debit,
+    credit: cap[1].credit + cap[2].credit + cap[3].credit + cap[4].credit,
+    balance: cap[1].balance + cap[2].balance + cap[3].balance - cap[4].balance
+  };
+
   liabilitiesAndCapitalPage.push({
     name: '  株主資本合計',
-    pickup: cap[1].pickup + cap[2].pickup + cap[3].pickup,
-    debit: cap[1].debit + cap[2].debit + cap[3].debit,
-    credit: cap[1].credit + cap[2].credit + cap[3].credit,
-    balance: cap[1].balance + cap[2].balance + cap[3].balance
+    ...shareholderEquity
   });
   liabilitiesAndCapitalPage.push({
     name: '  純資産合計',
-    pickup: cap[1].pickup + cap[2].pickup + cap[3].pickup + cap[4].pickup,
-    debit: cap[1].debit + cap[2].debit + cap[3].debit + cap[4].debit,
-    credit: cap[1].credit + cap[2].credit + cap[3].credit + cap[4].credit,
-    balance: cap[1].balance + cap[2].balance + cap[3].balance + cap[4].balance
+    ...shareholderEquity
   });
   liabilitiesAndCapitalPage.push({
     name: '  負債・純資産合計',
-    pickup: cap[0].pickup + cap[1].pickup + cap[2].pickup + cap[3].pickup + cap[4].pickup,
-    debit: cap[0].debit + cap[1].debit + cap[2].debit + cap[3].debit + cap[4].debit,
-    credit: cap[0].credit + cap[1].credit + cap[2].credit + cap[3].credit + cap[4].credit,
-    balance: cap[0].balance + cap[1].balance + cap[2].balance + cap[3].balance + cap[4].balance
+    pickup: cap[0].pickup + shareholderEquity.pickup,
+    debit: cap[0].debit + shareholderEquity.debit,
+    credit: cap[0].credit + shareholderEquity.credit,
+    balance: cap[0].balance + shareholderEquity.balance
   });
   liabilitiesAndCapitalPages = burstPage(liabilitiesAndCapitalPage, LINES);
 }
 
 const printIncomeStatementPage = () => {
-  let sum = [];
-  let incomeStatementPage = [];
-  sum[0] = print(incomeStatementPage, true, [ "経常損益", "売上高" ]);
-  incomeStatementPage.push({
-    name: '売上原価'
-  });
-  sum[1] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "仕入高" ]);
-  sum[2] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "外注費" ]);
-  sum[3] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "棚卸高" ]);
-  sum[3].balance = sum[3].pickup + sum[3].debit - sum[3].credit;
-  //console.log('sum', sum);
-  console.log('売上総利益', sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance))
-  incomeStatementPage.push({
-    name: '  売上総利益',
-    balance: sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance)
-  });
-  incomeStatementPage.push({
-    name: '販売費一般管理費'
-  });
-  sum[4] = print(incomeStatementPage, true,[ "経常損益", "売上原価", "販売費一般管理費" ]);
-  incomeStatementPage.push({
-    name: '  営業利益',
-    balance: sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance + sum[4].balance)
-  });
-  sum[5] = print(incomeStatementPage, true, [ "経常損益",	"営業外収益" ]);
-  incomeStatementPage.push({
-    name: '【営業外費用】'
-  });
-  sum[6] = print(incomeStatementPage, true, [ "経常損益",	"営業外費用", "支払利息" ]);
-  sum[7] = print(incomeStatementPage, true, [ "経常損益",	"営業外費用", "特別利益" ]);
-  sum[8] = print(incomeStatementPage, true, [ "経常損益",	"営業外費用", "特別損失" ]);
-  incomeStatementPage.push({
-    name: '  経常利益',
-    balance: sum[0].balance - ( sum[1].balance + sum[2].balance + sum[3].balance + sum[4].balance )
-    + sum[5].balance - sum[6].balance - sum[7].balance - sum[8].balance
-  });
-  incomeStatementPage.push({
-    name: '【当期損益】'
-  });
-  incomeStatementPage.push({
-    name: '  税引前当期利益',
-    balance: ( sum[0].balance + sum[5].balance + sum[7].balance )
-    - ( sum[1].balance + sum[2].balance + sum[3].balance + sum[4].balance + sum[6].balance + sum[8].balance )
-  });
-  sum[9] = accountLine("法人税住民税等");
-  incomeStatementPage.push(sum[9]);
+  const incomeStatementPage = [];
 
-  let current_net_income = ( sum[0].balance + sum[5].balance + sum[7].balance )
-                         - ( sum[1].balance + sum[2].balance + sum[3].balance 
-                            + sum[4].balance + sum[6].balance + sum[8].balance
-                            + sum[9].balance);
-  incomeStatementPage.push({
-    name: '  当期純利益',
-    credit: current_net_income,
-    balance: current_net_income
-  });
+  const sumByCode = (regex) => lines.reduce((acc, line) => {
+    if ((line.debit || line.credit || line.balance) && new RegExp(regex).test(line.code)) {
+        acc += line.balance;
+      }
+      return acc;
+    }, 0);
+
+  const collectItems = (regex, title) => {
+    incomeStatementPage.push({ name: `【${title}】` });
+    let total = 0;
+    for (const line of lines) {
+      if ((line.debit || line.credit || line.balance) && new RegExp(regex).test(line.acl_code)) {
+        incomeStatementPage.push({ name: `&nbsp;&nbsp;${line.name}`, balance: line.balance });
+        total += line.balance;
+      }
+    }
+    incomeStatementPage.push({ name: `&nbsp;&nbsp;${title}計`, balance: total, total: true });
+    return total;
+  };
+
+  // --- 損益計算開始 (init-financial-statement.js のロジックを移植) ---
+  const grossMargin = sumByCode(/^600/); // 売上高
+  incomeStatementPage.push({ name: '売上高', balance: grossMargin, total: true });
+
+  incomeStatementPage.push({ name: '【売上原価】' });
+  const purchase = sumByCode(/^700/); // 仕入高
+  const subcontract = sumByCode(/^701/); // 外注費
+  const openingInv = sumByCode(/7020000/); // 期首商品棚卸高
+  const closingInvRaw = lines.find(l => l.code === '7020010');
+  const closingInv = closingInvRaw ? closingInvRaw.credit : 0;
+  const cogs = openingInv + purchase + subcontract;
+  const salesCost = cogs - closingInv; // 売上原価
+  incomeStatementPage.push({ name: '&nbsp;&nbsp;期首商品棚卸高', balance: openingInv });
+  incomeStatementPage.push({ name: '&nbsp;&nbsp;仕入高', balance: purchase });
+  incomeStatementPage.push({ name: '&nbsp;&nbsp;外注費', balance: subcontract });
+  incomeStatementPage.push({ name: '&nbsp;&nbsp;売上原価計', balance: cogs, total: true });
+  incomeStatementPage.push({ name: '&nbsp;&nbsp;期末商品棚卸高', balance: -closingInv, total: true });
+  incomeStatementPage.push({ name: '売上原価', balance: salesCost, total: true });
+
+  const grossProfit = grossMargin - salesCost; // 売上総利益
+  incomeStatementPage.push({ name: '売上総利益', balance: grossProfit, total: true });
+
+  const sga = sumByCode(/^703/); // 販管費
+  incomeStatementPage.push({ name: '販売費及び一般管理費', balance: sga, total: true });
+
+  const operatingIncome = grossProfit - sga; // 営業利益
+  incomeStatementPage.push({ name: '営業利益', balance: operatingIncome, total: true });
+
+  const nonOpIncome = collectItems(/^8/, '営業外収益'); // 営業外収益
+  const nonOpExpenses = collectItems(/^900/, '営業外費用'); // 営業外費用
+
+  const recurringProfit = operatingIncome + nonOpIncome - nonOpExpenses; // 経常利益
+  incomeStatementPage.push({ name: '経常利益', balance: recurringProfit, total: true });
+
+  const extraGain = collectItems(/^901/, '特別利益'); // 特別利益
+  const extraLoss = collectItems(/^902/, '特別損失'); // 特別損失
+
+  const preTaxIncome = recurringProfit + extraGain - extraLoss; // 税引前当期利益
+  incomeStatementPage.push({ name: '税引前当期利益', balance: preTaxIncome, total: true });
+
+  const tax = sumByCode(/^903/); // 法人税等
+  incomeStatementPage.push({ name: '法人税等', balance: tax });
+
+  const current_net_income = preTaxIncome - tax; // 当期純利益
+  incomeStatementPage.push({ name: '当期純利益', balance: current_net_income, total: true });
+
+  // --- 利益剰余金の計算 ---
   let line = accountLine('繰越利益剰余金');
-  incomeStatementPage.push({
-    name: '  前期繰越利益',
-    pickup: line.pickup,
-    debit: line.debit,
-    credit: line.credit,
-    balance: line.balance
-  });
-  incomeStatementPage.push({
-    name: '繰越利益剰余金',
-    pickup: line.pickup,
-    credit: current_net_income,
-    balance: line.pickup + current_net_income
-  });
   retainedEarnings = {
     pickup: line.pickup,
     debit: 0,
     credit: current_net_income,
     balance: line.pickup + current_net_income
   }
+  incomeStatementPage.push({ name: '前期繰越利益', balance: line.balance });
+  incomeStatementPage.push({ name: '繰越利益剰余金', ...retainedEarnings, total: true });
+
   incomeStatementPages = burstPage(incomeStatementPage, LINES);
 }
 
-let lines;
 
 export default async (term) => {
   let res = await axios.get(`/api/trial-balance/${term}`);

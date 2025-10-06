@@ -127,10 +127,6 @@ export	let	status;
 export	let	lines;
 export	let	accounts;
 
-beforeUpdate(() => {
-	console.log('lines', lines);
-})
-
 const editAccount = (code) => {
 	let account;
 	for ( let i = 0; i < accounts.length ; i ++ ) {
