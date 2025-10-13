@@ -189,6 +189,43 @@ export default [
       }
     ]
   }, {
+    name: 'project',
+    title: 'プロジェクト管理',
+    href: (status) => {
+      return	(`/project/`);
+    },
+    match: /^\/project/,
+    authority: (user, company) => {
+      if (!company) return false;
+      return  (company.useProjectAccounting && (user.companyManagement || user.accounting));
+    },
+    icon: { name: 'bi:diagram-3' },
+    description: `
+会計の部門計算や、案件の原価計算に用いる「プロジェクト」を管理します。`,
+    submenu: [
+      {
+        title: 'プロジェクト管理',
+        href: (status) => {
+          return	(`/project/`);
+        },
+        match: /^\/project\/($|entry|new|settings)/,
+      },
+      {
+        title: '集計用ラベル管理',
+        match: /^\/project\/labels/,
+        href: (status) => {
+          return	(`/project/labels`);
+        }
+      },
+      {
+        title: 'プロジェクト集計',
+        match: /^\/project\/summary/,
+        href: (status) => {
+          return	(`/project/summary`);
+        }
+      }
+    ]
+  }, {
     name: 'users',
     title: 'ユーザ管理',
     authority: (user) => {

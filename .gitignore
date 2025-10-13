@@ -73,3 +73,10 @@ docker-histoy/
 config/config.json
 accounts.json
 *.map
+
+# User-added
+@test/
+@testDB/
+@chrome/
+@Docs/
+GEMINI.md

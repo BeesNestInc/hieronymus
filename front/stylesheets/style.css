@@ -39,6 +39,10 @@
   background-color: #264653;
   color: #fff;
 }
+.table tr.table-primary td {
+  background-color: #cfe2ff !important;
+  color: var(--bs-table-color) !important;
+}
 
 .card {
   background-color: #fff;
@@ -690,4 +694,9 @@ table.details .input {
   background-color: #e0ac3f;
   border-color: #d99a2b;
   color: #333;
+}
+
+.summary-list-container {
+  height: calc(100vh - 850px);
+  overflow-y: auto;
 }

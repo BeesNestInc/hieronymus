@@ -20,6 +20,7 @@ import homeRouter from './routes/home.js';
 import formsRouter from './routes/forms.js';
 import {is_authenticated} from './libs/user.js';
 import models from './models/index.js';
+import { getCompanyInfo } from './libs/utils.js';
 
 import modules from './config/module-list.js';
 import env from './config/env.js';
@@ -70,14 +71,15 @@ app.use('/dist', express.static(path.join(__dirname, './dist')));
 app.use('/style', express.static(path.join(__dirname, './front/stylesheets')));
 app.use('/public', express.static(path.join(__dirname, './public')));
 
-const screen = (req, res, next) => {
+const screen = async (req, res, next) => {
   console.log('current', req.params.current);
   console.log('command', req.params.command);
   let per = modules.find((ent) => {
     return	( req.params.current === ent.name );
   })
   if	( per )	{
-  	if ( !per.authority || per.authority(req.session.user) )	{
+    const company = await getCompanyInfo();
+  	if ( !per.authority || per.authority(req.session.user, company) )	{
     	res.render('index.spy', {
       	title: per.title,
       	term: req.session.term,
@@ -86,7 +88,7 @@ const screen = (req, res, next) => {
     	res.redirect('/home');
     }
   } else {
-    res.sendStatus(404);
+    next();
   }
 }
 
@@ -118,6 +120,19 @@ app.use('/:current/:command/:arg1/:arg2', is_authenticated, screen);
 app.use('/:current/:command/:arg1', is_authenticated, screen);
 app.use('/:current/:id', is_authenticated, screen);
 app.use('/:current', is_authenticated, screen);
+
+const spaFallback = (req, res, next) => {
+  // API, フォーム、ファイルへのリクエストは除外
+  if (req.path.startsWith('/api/') || req.path.startsWith('/forms/') || req.path.includes('.')) {
+    return next();
+  }
+  // それ以外のパスはSPAのエントリポイントを返す
+  res.render('index.spy', {
+    title: 'Hieronymus',
+    term: req.session.term,
+  });
+}
+app.use(is_authenticated, spaFallback);
 
 app.use((err, req, res, next) => {
     console.error(`[${new Date().toISOString()}] 500エラー:`, {

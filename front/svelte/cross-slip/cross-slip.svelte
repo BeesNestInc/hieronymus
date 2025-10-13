@@ -94,6 +94,16 @@
             </div>
             {#if (!fy.taxIncluded)}
             <div class="application d-flex">
+              {#if showProject}
+              <div class="project me-auto">
+                <select class="form-control" style="line-height:1;padding:0.375rem" bind:value={line.projectId}>
+                  <option value={null}>-- プロジェクト --</option>
+                  {#each projects as project}
+                  <option value={project.id}>{project.name}</option>
+                  {/each}
+                </select>
+              </div>
+              {/if}
               <div class="tax">
                 {#if (( line.creditAccount !== '3080000' ) &&
                       ( findTaxClass(line.debitAccount, line.debitSubAccount) > 0 ))}
@@ -113,7 +123,7 @@
                 </select>
                 {/if}
               </div>
-              <input type="text" size="30" maxlength="51"
+              <input type="text" size="20" maxlength="51"
                 bind:value={line.application2}>
               <div class="tax ms-auto">
                 {#if (( !fy.taxIncluded ) &&
@@ -136,8 +146,18 @@
               </div>
             </div>
             {:else}
-            <div class="application">
-              <input type="text" size="50" maxlength="51"
+            <div class="application d-flex">
+              {#if showProject}
+              <div class="project me-auto">
+                <select class="form-control" style="line-height:1;padding:0.375rem" bind:value={line.projectId}>
+                  <option value={null}>-- プロジェクト --</option>
+                  {#each projects as project}
+                  <option value={project.id}>{project.name}</option>
+                  {/each}
+                </select>
+              </div>
+              {/if}
+              <input type="text" size="40" maxlength="51"
                 bind:value={line.application2}>
             </div>
             {/if}
@@ -226,7 +246,7 @@ import axios from 'axios';
 import Icon from '@iconify/svelte';
 
 import {findTaxClass} from '../../javascripts/cross-slip';
-import {numeric} from '../../../libs/utils';
+import {numeric, getCompanyInfo} from '../../../libs/utils';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import Account from './account.svelte';
 import {field} from '../../../libs/parse_account_code';
@@ -236,9 +256,27 @@ export let accounts;
 export let slip;
 export let fy;
 export let taxRules;
-let	sums;
+let sums;
+let projects = [];
+let showProject = false;
 
 $: slip.year = slip.month < ( fy.startDate.getMonth() + 1 ) ? fy.endDate.getFullYear() : fy.startDate.getFullYear();
+
+onMount(async () => {
+  try {
+    const companyInfo = await getCompanyInfo();
+    if (companyInfo && companyInfo.useProjectAccounting) {
+      showProject = true;
+      const result = await axios.get('/api/projects');
+      projects = result.data;
+    } else {
+      showProject = false;
+    }
+  } catch (err) {
+    console.error("部門会計情報の取得または部門リストの取得に失敗しました:", err);
+    showProject = false;
+  }
+});
 
 const computeSum = () => {
   //console.log('computeSum');
@@ -472,6 +510,4 @@ beforeUpdate(() => {
 afterUpdate(() => {
 })
 
-onMount(async () => {
-})
 </script>

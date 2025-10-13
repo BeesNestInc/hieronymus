@@ -65,6 +65,12 @@
               {line.debitTaxRule}
             </div>
             {/if}
+            {#if line.projectName}
+            <div class="project me-2 text-truncate" style="max-width: 150px;" title={line.projectName}>
+              <i class="fas fa-briefcase me-1"></i><a href={`/project/entry/${line.projectId}`}>{line.projectName}</a>
+            </div>
+            <div class="me-2 border-end"></div>
+            {/if}
             <div class="">
               {#if (line.debitVoucher )}
               {#each line.debitVoucher.files as file}

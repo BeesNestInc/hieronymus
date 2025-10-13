@@ -20,6 +20,13 @@ export default (sequelize, DataTypes) => {
         onDelete: 'cascade',
         onUpdate: 'cascade'
       });
+      this.belongsToMany(models.Label, {
+        through: 'LabelAccounts',
+        foreignKey: 'accountCode',
+        otherKey: 'labelId',
+        sourceKey: 'accountCode',
+        as: 'labels'
+      });
     }
   };
   Account.init({

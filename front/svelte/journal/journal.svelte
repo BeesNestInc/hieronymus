@@ -141,7 +141,9 @@ const ready = (slips) => {
         creditVoucherId: line.creditVoucherId,
 
         application1: line.application1 || '',
-        application2: line.application2 || ''
+        application2: line.application2 || '',
+        projectName: line.projectData ? line.projectData.name : '',
+        projectId: line.projectId
       });
     }
   }

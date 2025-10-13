@@ -62,6 +62,9 @@ export default {
           }, {
             model: models.TaxRule,
             as: 'creditTaxRule'
+          }, {
+            model: models.Project,
+            as: 'projectData'
           }
         ],
           order: [
@@ -93,6 +96,9 @@ export default {
           creditTaxRuleId: detail.creditTaxRuleId,
           creditVoucherId: detail.creditVoucherId,
           creditVoucher: detail.creditVoucher,
+
+          projectId: detail.projectId,
+          projectData: detail.projectData,
 
           creditAccount: detail.creditAccount,
           creditSubAccount: detail.creditSubAccount

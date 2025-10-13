@@ -71,6 +71,9 @@ const	get_details = async (fy, account, sub_account) => {
         }, {
           model: models.TaxRule,
           as: 'creditTaxRule'
+        }, {
+          model: models.Project,
+          as: 'projectData'
         }
       ],
       order: [
