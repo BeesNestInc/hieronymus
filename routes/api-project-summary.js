@@ -10,23 +10,21 @@ const getSummary = async (project, startDate, endDate) => {
   });
   const labelIds = projectLabels.map(pl => pl.labelId);
 
-  if (labelIds.length === 0) {
-    return { header: [], body: [] }; // ラベルがなければ空の結果を返す
-  }
+  // ラベルがなくても「その他」の集計は行うので、早期リターンはしない
 
   // 2. ラベルと勘定科目の基本情報を取得
-  const labelsWithAccounts = await models.Label.findAll({
+  const labelsWithAccounts = labelIds.length > 0 ? await models.Label.findAll({
     where: { id: { [Op.in]: labelIds } },
     include: [{
       model: models.Account,
       as: 'accounts'
     }]
-  });
+  }) : [];
 
   // 3. LabelAccountsからsummaryTypeの情報を別途取得
-  const labelAccountLinks = await models.LabelAccount.findAll({
+  const labelAccountLinks = labelIds.length > 0 ? await models.LabelAccount.findAll({
     where: { labelId: { [Op.in]: labelIds } }
-  });
+  }) : [];
   const summaryTypeMap = new Map();
   for (const link of labelAccountLinks) {
     summaryTypeMap.set(`${link.labelId}-${link.accountCode}`, link.summaryType);
@@ -46,6 +44,10 @@ const getSummary = async (project, startDate, endDate) => {
       });
     }
   }
+  
+  // ★ 新規: 全勘定科目情報を取得し、Mapを作成
+  const allAccounts = await models.Account.findAll();
+  const accountMap = new Map(allAccounts.map(acc => [acc.accountCode, acc]));
 
   // 6. projectIdで明細を絞り込み、それに紐づく伝票を期間で絞り込む
   const fromYear = startDate.getFullYear();
@@ -86,6 +88,7 @@ const getSummary = async (project, startDate, endDate) => {
     const monthKey = `${year}-${String(month).padStart(2, '0')}`;
     const initialData = { year, month };
     labels.forEach(l => initialData[l.name] = 0);
+    initialData['その他'] = 0; // 「その他」を追加
     monthlySummary.set(monthKey, initialData);
   }
 
@@ -98,11 +101,24 @@ const getSummary = async (project, startDate, endDate) => {
 
     if (monthData) {
       // 借方側の処理
-      if (detail.debitAccount && codeToLabelMap.has(detail.debitAccount)) {
-        const labelInfo = codeToLabelMap.get(detail.debitAccount);
-        if (labelInfo.summaryType === 'debit') {
-          const amount = numeric(detail.debitAmount);
-          monthData[labelInfo.name] += amount;
+      if (detail.debitAccount) {
+        if (codeToLabelMap.has(detail.debitAccount)) {
+          const labelInfo = codeToLabelMap.get(detail.debitAccount);
+          if (labelInfo.summaryType === 'debit') {
+            const amount = numeric(detail.debitAmount);
+            monthData[labelInfo.name] += amount;
+          }
+        } else {
+          // ★ 「その他」の処理を追加
+          const account = accountMap.get(detail.debitAccount);
+          if (account) {
+            const accountCode = account.accountCode;
+            // 費用科目（売上原価 '7' or 営業外費用 '9'）のみを集計
+            if (accountCode.startsWith('7') || accountCode.startsWith('9')) {
+              const amount = numeric(detail.debitAmount);
+              monthData['その他'] += amount;
+            }
+          }
         }
       }
       // 貸方側の処理
@@ -118,6 +134,7 @@ const getSummary = async (project, startDate, endDate) => {
 
   // 9. ヘッダー情報とボディ情報を返す
   const header = labels.map(l => ({ name: l.name }));
+  header.push({ name: 'その他' }); // ヘッダーに「その他」を追加
   const body = Array.from(monthlySummary.values()).sort((a, b) => a.year - b.year || a.month - b.month);
   
   return { header, body };

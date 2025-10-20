@@ -104,14 +104,14 @@
 </div>
 
 <!-- 作成/編集モーダル -->
-{#if editingLabel}
 <div class="modal fade" id="labelModal" tabindex="-1" aria-labelledby="labelModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="labelModalLabel">{editingLabel.id ? '集計用ラベル編集' : '集計用ラベル作成'}</h5>
+        <h5 class="modal-title" id="labelModalLabel">{editingLabel ? (editingLabel.id ? '集計用ラベル編集' : '集計用ラベル作成') : ''}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
+      {#if editingLabel}
       <div class="modal-body">
         <div class="mb-3">
           <label for="labelName" class="form-label">名前</label>
@@ -126,10 +126,10 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
         <button type="button" class="btn btn-primary" on:click={saveLabel}>保存</button>
       </div>
+      {/if}
     </div>
   </div>
 </div>
-{/if}
 
 <!-- 削除確認モーダル -->
 <OkModal
@@ -290,13 +290,71 @@
     }
   };
 
-  const openNewModal = async () => { /* ... */ };
-  const openEditModal = async (label) => { /* ... */ };
-  const saveLabel = async () => { /* ... */ };
-  const deleteLabel = (label) => { /* ... */ };
-  const doDelete = async (event) => { /* ... */ };
+  const openNewModal = () => {
+    editingLabel = { id: null, name: '', description: '' };
+    if (labelModal) {
+      labelModal.show();
+    }
+  };
+
+  const openEditModal = (label) => {
+    editingLabel = { ...label }; // オブジェクトをコピー
+    if (labelModal) {
+      labelModal.show();
+    }
+  };
+
+  const saveLabel = async () => {
+    if (!editingLabel || !editingLabel.name) {
+      alert('名前は必須です。');
+      return;
+    }
+    try {
+      if (editingLabel.id) {
+        await axios.put(`/api/labels/${editingLabel.id}`, editingLabel);
+      } else {
+        await axios.post('/api/labels', editingLabel);
+      }
+      labelModal.hide();
+      editingLabel = null;
+      await fetchLabels();
+    } catch (err) {
+      console.error("ラベルの保存に失敗しました:", err);
+      alert('エラー: 保存に失敗しました。');
+    }
+  };
+
+  const deleteLabel = (label) => {
+    targetLabel = label;
+    deleteModalTitle = `「${label.name}」の削除`;
+    deleteModalDescription = `このラベルを削除してもよろしいですか？関連するプロジェクトの集計設定からも解除されます。`;
+    deleteModal.show();
+  };
+
+  const doDelete = async (event) => {
+    if (event.detail && targetLabel) {
+      try {
+        await axios.delete(`/api/labels/${targetLabel.id}`);
+        await fetchLabels();
+        targetLabel = null;
+        selectedLabel.set(null); // 削除されたラベルの選択を解除
+        selectedLabelAccounts = [];
+      } catch (err) {
+        console.error("ラベルの削除に失敗しました:", err);
+        alert('エラー: 削除に失敗しました。');
+      }
+    }
+  };
 
   onMount(async () => {
+    const modalElement = document.getElementById('labelModal');
+    if (modalElement) {
+      labelModal = new Modal(modalElement);
+      modalElement.addEventListener('hidden.bs.modal', () => {
+        editingLabel = null;
+      });
+    }
+
     await fetchLabels();
     try {
       const term = (status && status.fy) ? status.fy.term : 0;
