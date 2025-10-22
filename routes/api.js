@@ -165,8 +165,7 @@ router.delete('/document/file', document.deleteFile);
 router.delete('/document/:id', document.delete);
 router.get('/document/files/:id', document.files);
 
-router.get('/member/classes', member.classesGet);
-router.put('/member/classes', member.classesPut);
+router.get('/member/classes', member.classes);
 router.get('/member', member.get);
 router.get('/member/:id', member.get);
 router.post('/member', member.post);

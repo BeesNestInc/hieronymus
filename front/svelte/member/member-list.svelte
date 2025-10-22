@@ -28,13 +28,7 @@
         <tr>
           <th style="padding:5px;">
             <select class="form-select" id="memberClass"
-              on:input={
-                (event) => {
-                  updateMember({
-                    memberClassId: event.currentTarget.value
-                  });
-                }
-              }
+              on:input={handleFilterChange}
               bind:value={memberClassId}>
               <option value={-1}>未設定</option>
               {#each classes as line}
@@ -85,13 +79,11 @@
 </style>
 
 <script>
-import axios from 'axios';
-
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import {age} from '../../../libs/utils';
-import {parseParams, buildParam} from '../../javascripts/params.js';
-import { link, currentPage, getStore } from '../../javascripts/router.js';
+import {parseParams} from '../../javascripts/params.js';
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export	let	members;
@@ -99,25 +91,20 @@ export  let classes;
 
 let memberClassId;
 
-const updateMember = (_params) => {
-  let param = buildParam(status, _params);
-  axios.get(`/api/member?${param}`).then((result) => {
-    members = result.data.members;
-  });
-  if	( _params )	{
-    const page = getStore(currentPage);
-    const basePath = page ? page.split('?')[0] : '/member/list';
-    link(`${basePath}?${param}`);
+const handleFilterChange = (event) => {
+  const newParams = new URLSearchParams(window.location.search);
+  const value = event.currentTarget.value;
+  if (value === '-1') {
+    newParams.delete('memberClassId');
+  } else {
+    newParams.set('memberClassId', value);
   }
-}
+  link(`/member/list?${newParams.toString()}`);
+};
 
 onMount(() => {
   status.params = parseParams();
   memberClassId = status.params.memberClassId || -1;
-  updateMember();
-})
-beforeUpdate(() => {
-  //console.log('item-list beforeUpdate');
 });
 
 const openMember = (id) => {
