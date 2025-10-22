@@ -96,15 +96,49 @@ export default {
       });
     }
   },
-  classes: (req, res, next) => {
-    models.MemberClass.findAll().then((result) => {
+  classesGet: (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    models.MemberClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((result) => {
       res.json({
-        classes: result
-      });
+        values: result
+      })
     }).catch((e) => {
+      console.log(e);
       res.json({
         code: -1
       });
+    })
+  },
+  classesPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    let kinds = req.body.values;
+    for ( const kind of kinds ) {
+      if  ( kind.id ) {
+        let result = await models.MemberClass.findByPk(kind.id);
+        if  ( !kind.name )  {
+          await result.destroy();
+        } else {
+          result.set(kind);
+          await result.save();
+        }
+      } else {
+        if  ( kind.name ) {
+          await models.MemberClass.create(kind);
+        }
+      }
+    }
+    models.MemberClass.findAll({
+      order: [
+        [ 'displayOrder', 'asc']
+      ]
+    }).then((kinds) => {
+      res.json({
+        values: kinds
+      })
     })
   }
 };
