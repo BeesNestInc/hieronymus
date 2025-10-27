@@ -2,7 +2,7 @@
   {#each account.subAccounts as sub}
     <li class="nav-item pe-2">
       <button type="button"
-        class="btn {sub.subAccountCode === sub_account_code ? ' btn-primary disabled' : 'btn-outline-primary'}"
+        class="btn {sub.subAccountCode === sub_account_code ? ' btn-secondary disabled' : 'btn-outline-secondary'}"
         on:click={() => {
           select(account.accountCode, sub.subAccountCode);
         }}>

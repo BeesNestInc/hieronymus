@@ -1,26 +1,19 @@
-<div class="page-title d-flex justify-content-between mt-2">
-  <h1>推移表</h1>
+<div class="page-title d-flex justify-content-between align-items-center mt-2">
+  <div class="d-flex align-items-center">
+    <h1>推移表</h1>
+    {#if account}
+      <h2 class="ms-3 mb-0 fs-4">{account.name}</h2>
+    {/if}
+  </div>
 </div>
 <AccountSelect
   on:select={(event) => {
     accountSelect(event.detail);
   }}
   fields={fields}/>
-<nav class="page-subtitle navbar">
-  {#if (account)}
-  <button class="btn btn-link fs-4"
-    on:click={() => {
-      accountSelect({
-        code: account.accountCode
-      })
-    }}>
-    { account ? account.name : ''}
-  </button>
-  {/if}
-</nav>
 {#if (account && (account.subAccounts.length > 0))}
 <div class="row page-subtitle">
-  <div class="col-9">
+  <div class="col-9 ps-4 border rounded p-2 my-2">
     {#key subAccountCode}
     <SubAccountSelect
     	on:select={(event) => {
@@ -347,7 +340,7 @@ const updateList = () => {
   if	( allYears )	{
     thisTerm = 0;
   } else {
-    thisTerm = status.term;
+    thisTerm = status.fy.term;
   }
   if ( subAccountCode ) {
     console.log('with sub_account');
