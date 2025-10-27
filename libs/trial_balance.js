@@ -41,7 +41,8 @@ export default async (term, endDate) => {
   if  ( !endDate )    {
     endDate = fy.endDate;
   }
-  for ( let mon = new Date(fy.startDate); mon < new Date(endDate); ) {
+  for ( let mon = new Date(fy.startDate); mon < endDate; ) {
+    console.log('--- Current month for processing:', mon.getFullYear(), mon.getMonth() + 1, '---'); // デバッグログ
     let cross_slips = await models.CrossSlip.findAll({
       where: {
         [Op.and]: {
@@ -54,6 +55,7 @@ export default async (term, endDate) => {
         as: 'lines'
       }]
     });
+    console.log('Number of cross_slips found:', cross_slips.length); // デバッグログ
     for ( let i = 0; i < cross_slips.length; i ++ ) {
       let cross_slip = cross_slips[i];
       if  (  cross_slip.approvedAt )  {
@@ -75,6 +77,7 @@ export default async (term, endDate) => {
       }
     }
     mon.setMonth(mon.getMonth() + 1);
+    console.log('--- Next month after increment:', mon.getFullYear(), mon.getMonth() + 1, '---'); // デバッグログ
   }
   for ( let line of lines )   {
     //console.log({line});
