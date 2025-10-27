@@ -6,7 +6,8 @@ const	get_details = async (fy, account, sub_account) => {
   //console.log({account});
   //console.log({sub_account});
   let ledger = [];
-  for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
+  const endDate = new Date(fy.endDate);
+  for ( let mon = new Date(fy.startDate); mon <= endDate; mon.setMonth(mon.getMonth() + 1) ) {
     let where;
 
     if (( sub_account ) &&
@@ -85,7 +86,6 @@ const	get_details = async (fy, account, sub_account) => {
         ledger.push(details[i]);
       }
     }
-    mon.setMonth(mon.getMonth() + 1);
   }
   return	(ledger)
 }
