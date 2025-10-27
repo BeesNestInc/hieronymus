@@ -176,6 +176,9 @@ export const ledgerLines = (account_code, sub_account_code, remaining, details) 
       debitVoucher: detail.debitVoucher,
       creditVoucher: detail.creditVoucher,
 
+      projectName: detail.projectData ? detail.projectData.name : '',
+      projectId: detail.projectId,
+
       otherAccountCode: otherAccount,
       otherSubAccountCode: otherSubAccount,
       pureDebitAmount: pureDebitAmount,

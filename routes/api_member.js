@@ -99,7 +99,7 @@ export default {
   classes: (req, res, next) => {
     models.MemberClass.findAll().then((result) => {
       res.json({
-        classes: result
+        values: result
       });
     }).catch((e) => {
       res.json({

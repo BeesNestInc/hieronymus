@@ -16,6 +16,10 @@ import ItemFile from './itemfile.js';
 import Member from './member.js';
 import MemberClass from './memberclass.js';
 import Menu from './menu.js';
+import Project from './project.js';
+import Label from './label.js';
+import ProjectLabel from './projectlabel.js';
+import LabelAccount from './labelaccount.js';
 import Sticky from './sticky.js';
 import StickyStatus from './stickystatus.js';
 import SubAccount from './subaccount.js';
@@ -63,6 +67,10 @@ const models = {
   MemberClass: MemberClass(sequelize, DataTypes),
   Menu: Menu(sequelize, DataTypes),
   MonthlyLog: MonthlyLog(sequelize, DataTypes),
+  Project: Project(sequelize, DataTypes),
+  Label: Label(sequelize, DataTypes),
+  ProjectLabel: ProjectLabel(sequelize, DataTypes),
+  LabelAccount: LabelAccount(sequelize, DataTypes),
   Sticky: Sticky(sequelize, DataTypes),
   StickyStatus: StickyStatus(sequelize, DataTypes),
   SubAccount: SubAccount(sequelize, DataTypes),

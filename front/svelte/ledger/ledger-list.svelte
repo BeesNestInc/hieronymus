@@ -76,7 +76,13 @@
           {line.application2}
           {/if}
         </div>
-        <div class="application">
+        <div class="application d-flex">
+          {#if line.projectId}
+          <div class="project me-2 text-truncate" style="max-width: 150px;" title={line.projectName}>
+            <i class="fas fa-briefcase me-1"></i><a href={`/project/entry/${line.projectId}`}>{line.projectName}</a>
+          </div>
+          <div class="me-2 border-end"></div>
+          {/if}
           {#if (line.debitVoucher )}
           {#each line.debitVoucher.files as file}
           <a href="/voucher/file/{file.id}" target="_blank">

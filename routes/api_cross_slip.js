@@ -96,9 +96,11 @@ export default {
             }, {
               model: models.TaxRule,
               as: 'creditTaxRule'
-            }
-          ]
-        },
+            }, {
+              model: models.Project,
+              as: 'projectData'
+            }]
+          },
         {
           model: models.User,
           as: 'creater'

@@ -39,7 +39,8 @@ export default {
         if (!fy) {
           return res.status(404).json({ error: `Fiscal year for term ${term} not found.` });
         }
-        lastDate = new Date(fy.endDate);
+        const dateParts = fy.endDate.split('-');
+        lastDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
       }
 
       const ret = await trial_balance(term, lastDate);

@@ -5,7 +5,10 @@
   bind:status={status}
   on:open={openEntry}
   ></MemberList>
-{:else if ( status.state === 'entry' || status.state === 'new' )}
+{:else if ( status.state === 'home')}
+<MemberHome
+  bind:status={status}></MemberHome>
+{:else if ( (status.state === 'entry' && member && member.id) || (status.state === 'new' && member) )}
   <MemberEntry
     classes={classes}
     users={users}
@@ -19,6 +22,7 @@ import axios from 'axios';
 import {onMount, afterUpdate} from 'svelte';
 import MemberEntry from './member-entry.svelte';
 import MemberList from './member-list.svelte';
+import MemberHome from './member-home.svelte';
 import {currentMember, getStore} from '../../javascripts/current-record.js';
 import { currentPage, link } from '../../javascripts/router.js';
 
@@ -51,8 +55,12 @@ const checkPage = (page) => {
 
   status.state = action;
   switch  (action)  {
+  case  'home':
+    member = null;
+    break;
   case  'entry':
     const entryId = args[3];
+    member = null;
     axios.get(`/api/member/${entryId}`).then((result) => {
       member = result.data.member;
       if (member && member.user) {
@@ -71,6 +79,10 @@ const checkPage = (page) => {
   default:
     status.state = 'list';
     member = null;
+    const params = new URLSearchParams(page.split('?')[1] || '');
+    axios.get(`/api/member?${params.toString()}`).then(result => {
+      members = result.data.members;
+    });
     break;
   }
 }
@@ -80,7 +92,7 @@ onMount(() => {
     users = result.data.users;
   });
   axios.get('/api/member/classes').then((result) => {
-    classes = result.data.classes;
+    classes = result.data.values;
   });
   checkPage($currentPage);
 })

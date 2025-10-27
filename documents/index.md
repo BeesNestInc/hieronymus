@@ -14,11 +14,21 @@ Hieronymusのマニュアルです。
 * [ユーザの登録](./user.md)
 * [運用環境の設定](./initial.md)
   * 初期セットアップ
-  * 勘定科目の設定
+* [勘定科目管理](./account.md)
+* [取引先管理](./company.md)
+* [案件管理](./task.md)
+* [取引管理](./transaction.md)
+* [品目管理](./item.md)
+* [役職員管理](./member.md)
 * [伝票と証憑の入力](./crossslip.md)
   * ワークフロー別の作業パターン
     * 伝票入力を最初に行うパターン
     * 電子証票から入力するパターン
+* [証憑管理](./voucher.md)
+* [元帳の確認](./ledger.md)
+* [残高試算表](./trial-balance.md)
+* [推移表](./changes.md)
+* [プロジェクト管理](./project.md)
 
 ## 概要
 

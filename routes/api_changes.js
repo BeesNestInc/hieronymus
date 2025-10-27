@@ -25,7 +25,7 @@ const	getDetails = async (fy, account, sub_account) => {
     });
     endDate = new Date(d.endDate);
   }
-  for ( let mon = startDate; mon < endDate; ) {
+  for ( let mon = startDate; mon <= endDate; mon.setMonth(mon.getMonth() + 1) ) {
     let where;
 
     if (( sub_account ) &&
@@ -108,7 +108,6 @@ const	getDetails = async (fy, account, sub_account) => {
       }
     }
     changes.push(change);
-    mon.setMonth(mon.getMonth() + 1);
   }
   return	(changes)
 }

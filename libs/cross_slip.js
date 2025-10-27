@@ -1,6 +1,28 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
+const createDetail = (line, slipId, lineNo) => {
+  return models.CrossSlipDetail.create({
+    crossSlipId: slipId,
+    lineNo: lineNo,
+    debitAccount: line.debitAccount,
+    debitSubAccount: line.debitSubAccount,
+    debitAmount: line.debitAmount,
+    debitTax: line.debitTax,
+    debitVoucherId: line.debitVoucherId,
+    debitTaxRuleId: line.debitTaxRuleId,
+    creditAccount: line.creditAccount,
+    creditSubAccount: line.creditSubAccount,
+    creditAmount: line.creditAmount,
+    creditTax: line.creditTax,
+    creditVoucherId: line.creditVoucherId,
+    creditTaxRuleId: line.creditTaxRuleId,
+    projectId: line.projectId,
+    application1: line.application1,
+    application2: line.application2
+  });
+}
+
 export const create = async (body, user) => {
   let fy = await models.FiscalYear.findOne({
     where: {
@@ -53,10 +75,7 @@ export const create = async (body, user) => {
   let lines = [];
   for ( let i = 0; i < body.lines.length ; i ++ ) {
     let line = body.lines[i];
-    line.crossSlipId = slip.id;
-    line.lineNo = i;
-    //console.log(line);
-    await models.CrossSlipDetail.create(line);
+    await createDetail(line, slip.id, i);
     lines.push(line);
   }
   return  ({
@@ -84,9 +103,6 @@ export const update = async (slip, body, user) => {
   });
   for ( let i = 0; i < body.lines.length ; i ++ ) {
     let line = body.lines[i];
-    line.crossSlipId = slip.id;
-    line.lineNo = i;
-    //console.log(line);
-    await models.CrossSlipDetail.create(line);
+    await createDetail(line, slip.id, i);
   }
 }

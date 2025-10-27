@@ -24,6 +24,9 @@ import task from './api_task.js';
 import menu from './api_menu.js';
 import term from './api-term.js';
 import taxRule from './api-tax.js';
+import project from './api-project.js';
+import label from './api-label.js';
+import projectSummary from './api-project-summary.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
@@ -187,6 +190,23 @@ router.put('/term/:id', term.update);
 
 router.get('/tax-rule/', taxRule.get);
 router.put('/tax-rule/', taxRule.put);
+
+router.get('/projects', project.get);
+router.get('/project/:id', project.get);
+router.post('/project', project.create);
+router.put('/project/:id', project.update);
+router.delete('/project/:id', project.delete);
+router.get('/projects/:id/labels', project.getLabels);
+router.put('/projects/:id/labels', project.updateLabels);
+
+router.get('/labels', label.get);
+router.post('/labels', label.create);
+router.get('/labels/:id/accounts', label.getAccounts);
+router.put('/labels/:id/accounts', label.updateAccounts);
+router.delete('/labels/:id', label.delete);
+router.put('/labels/:id', label.update);
+
+router.get('/project-summary/:projectId', projectSummary.get);
 
 router.post('/setup', setup)
 

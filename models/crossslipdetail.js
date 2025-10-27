@@ -37,6 +37,10 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'creditTaxRuleId',
 				as: 'creditTaxRule'
 			});
+			this.belongsTo(models.Project, {
+				foreignKey: 'projectId',
+				as: 'projectData'
+			});
 		}
 	};
 	CrossSlipDetail.init({
@@ -54,6 +58,7 @@ export default (sequelize, DataTypes) => {
 		creditTax: DataTypes.DECIMAL(12),
 		creditVoucherId: DataTypes.INTEGER,
 		creditTaxRuleId: DataTypes.INTEGER,
+		projectId: DataTypes.INTEGER,
 		application1: DataTypes.STRING,
 		application2: DataTypes.STRING
 	}, {

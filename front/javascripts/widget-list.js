@@ -5,6 +5,7 @@ import CompanyKinds from '../svelte/widgets/company-kinds.svelte';
 import FormPrint from '../svelte/widgets/form-print.svelte';
 import HTMLPanel from '../svelte/widgets/html-panel.svelte';
 import ItemClasses from '../svelte/widgets/item-classes.svelte';
+import MemberClasses from '../svelte/widgets/member-classes.svelte';
 import MenuLink,{ create as createMenuLink, activate as activateMenuLink } from '../svelte/widgets/menu-link.svelte';
 import Password from '../svelte/widgets/password.svelte';
 import SelectTerm from '../svelte/widgets/term.svelte';
@@ -87,6 +88,15 @@ export const componentList = [
         return  (user.administrable);
       },
       component: ItemClasses,
+    }, {
+      name: 'MemberClasses',
+      title: '役職員種別',
+      defaultW: 6,
+      defaultH: 40,
+      authority: (user, options) => {
+        return  (user.administrable);
+      },
+      component: MemberClasses,
     }, {
       name: 'HTMLPanel',
       title: 'メモ',

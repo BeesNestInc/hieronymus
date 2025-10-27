@@ -21,6 +21,18 @@
   </button>
   {/if}
   <div>
+    {#if (account)}
+    <button type="button" class="btn btn-info"
+      on:click={() => {
+        if (subAccountCode) {
+          link(`/changes/${status.fy.term}/${accountCode}/${subAccountCode}`)
+        } else {
+          link(`/changes/${status.fy.term}/${accountCode}`)
+        }
+      }}>
+      推移表を見る
+    </button>
+    {/if}
     <button type="button" class="btn btn-primary" id="open-cross-slip"
     	on:click={openSlip}>
       伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
@@ -40,21 +52,13 @@
       {/key}
     </div>
     <div class="col-4" style="text-align:right;">
-    	{#if subAccountCode}
       <button type="button" class="btn btn-info"
         on:click={() => {
           link(`/changes/${status.fy.term}/${accountCode}/${subAccountCode}`)
-        }}>
+        }}
+        disabled={!subAccountCode}>
       	推移表を見る
     	</button>
-    	{:else}
-      <button type="button" class="btn btn-info"
-        on:click={() => {
-          link(`/changes/${status.fy.term}/${accountCode}`);
-        }}>
-      	推移表を見る
-    	</button>
-    	{/if}
       <a href="/forms/subsidiary_ledger/{status.fy.term}?format=pdf" download="補助元帳-{today}.pdf" class="btn btn-primary">
           補助元帳をダウンロード&nbsp;<i class="bi bi-download"></i>
       </a>
@@ -219,7 +223,7 @@ onMount(() => {
   today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
 
   console.log('ledger onMount');
-  update(false);
+  checkPage(); // onMount時にもcheckPageを呼び出す
   const unsubscribe = currentPage.subscribe((page) => {
     console.log('page', page);
     let current = page.split('/')[1];

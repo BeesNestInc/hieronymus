@@ -216,6 +216,7 @@ const save = (event) => {
     errorMessages.push("日付が正しくありません。");
   }
   if	( ok )	{
+    console.log("保存直前のslipオブジェクト:", JSON.stringify(slip, null, 2));
     try {
       let pr;
       if ( slip.no  ) {

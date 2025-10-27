@@ -116,8 +116,10 @@ const updateVouchers = (event) => {
 };
 
 const checkPage = (pageUrl) => {
-  const args = location.pathname.split('/');
-  status.params = new URLSearchParams(location.search);
+  if (!pageUrl) return; // 初回レンダリング時など、URLがまだない場合は何もしない
+  const url = new URL(pageUrl, window.location.origin); // 相対URLを絶対URLに変換してパース
+  const args = url.pathname.split('/');
+  status.params = url.searchParams;
   console.log('voucher checkPage', args, status.params, status.params.get('month'));
 
   status.state = args[2] || 'list';
