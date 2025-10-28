@@ -152,6 +152,13 @@
   { type: "date", name: 'endDate', title: "終了日", width: "110px"}
 ]}></TableMaintenance>
   </div>
+  <div class="col-6" style="padding:10px;">
+    <SystemSettings
+      title={'システム設定'}
+      bind:minimize={systemSettingsMinimize}
+      bind:toast={toast}
+    />
+  </div>
   {/if}
 </div>
 <script>
@@ -162,6 +169,7 @@ import  SelectTerm from './term.svelte';
 import Password from './password.svelte';
 import Backup from './backup.svelte';
 import Approve from './approve.svelte';
+import SystemSettings from './system-settings.svelte';
 import TableMaintenance from '../components/table-maintenance.svelte';
 import axios from 'axios';
 
@@ -175,6 +183,7 @@ let transactionMinimize = true;
 let voucherMinimize = true;
 let itemMinimize = true;
 let taxRuleMinimize = true;
+let systemSettingsMinimize = true;
 let company;
 
 const link = (href) => {

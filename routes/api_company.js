@@ -158,7 +158,7 @@ export default {
   },
   infoPut: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    putCompanyInfo(res.body);
+    putCompanyInfo(req.body);
     res.json({
       code: 0
     });
