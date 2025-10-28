@@ -39,6 +39,7 @@
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import { link } from '../../javascripts/router.js';
 
 let user_name;
 let password;
@@ -53,7 +54,7 @@ onMount(() => {
 })
 
 const change = (event) => {
-  window.history.pushState(null, "", `/login`);
+  link('/login');
 }
 
 const SignUp = () => {
@@ -69,7 +70,7 @@ const SignUp = () => {
         }).then((ret) => {
           //console.log(ret.data);
           if  ( ret.data.result == 'OK' ) {
-            window.history.pushState(null, "", `/login`);
+            link('/login');
           } else {
             message = ret.data.message;
             msg_type = 'danger';

@@ -186,15 +186,19 @@ export default {
             user.inventoryManagement = false;
             user.personnelManagement = false;
           }
-          //console.log('user--', user);
+          console.log('user--', user);
           user.save().then((ret) => {
+            console.log('ret', ret);
             res.json({
               result: 'OK'
             })
-          });
+          }).catch((err) => {
+            console.log('save error', err);
+          })
         });
       }
     }).catch((err) => {
+      console.log(err);
       res.json({
         result: 'NG',
         message: err
