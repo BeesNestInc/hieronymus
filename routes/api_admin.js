@@ -107,5 +107,21 @@ export default {
         code: -1
       })
     })
+  },
+  download: async(req, res, next) => {
+    const date = new Date(req.params.date);
+    const file = format(date, 'YYYYMMDDHHmmss');
+    const backupDir = global.env.backup_dir || path.join(__dirname, '..');
+    const backupFilePath = path.join(backupDir, `${config.database}-${file}.dump`);
+    res.download(backupFilePath);
+  },
+  upload: async(req, res, next) => {
+    const file = req.files.file;
+    const backupDir = global.env.backup_dir || path.join(__dirname, '..');
+    const now = format(new Date(), 'YYYYMMDDHHmmss');
+    const backupFilePath = path.join(backupDir, `${config.database}-${now}.dump`);
+    await fs.copyFile(file.path, backupFilePath);
+    await fs.unlink(file.path);
+    res.json({code: 0});
   }
 }

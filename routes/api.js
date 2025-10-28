@@ -37,6 +37,8 @@ const VERSION = pkg.version;
 router.post('/admin/backup', admin.backup);
 router.post('/admin/restore', admin.restore);
 router.get('/admin/backups', admin.backups);
+router.get('/admin/backup/:date', admin.download);
+router.post('/admin/upload', admin.upload);
 router.delete('/admin/backup/:date', admin.delete);
 
 router.get('/user', user.get);
