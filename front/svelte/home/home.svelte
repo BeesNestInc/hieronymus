@@ -46,8 +46,8 @@
       bind:toast={toast}></Password>
   </div>
   {#if ( status.user.administrable) }
-    <div class="col-4" style="padding:10px;">
-      <Backup bind:toast={toast}/>
+    <div class="col-6" style="padding:10px;">
+      <Backup bind:toast={toast} bind:status={status}/>
     </div>
   {/if}
 </div>

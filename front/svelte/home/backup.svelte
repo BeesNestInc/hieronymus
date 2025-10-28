@@ -6,6 +6,10 @@
     <button class="btn btn-primary" on:click|preventDefault={backup}>
       バックアップ作成
     </button>
+    <button class="btn btn-info" on:click|preventDefault={upload}>
+      アップロード
+    </button>
+    <input type="file" class="d-none" id="backup-file" on:change={doUpload} />
     <div class="row h-100" style="margin-top: 20px;">
       <table class="table table-bordered">
         <thead class="table-light">
@@ -35,6 +39,9 @@
               {/if}
               <btton class="btn btn-danger" on:click|preventDefault={() => remove(i)}>
                 削除
+              </btton>
+              <btton class="btn btn-info" on:click|preventDefault={() => download(i)}>
+                ダウンロード
               </btton>
             </td>
           </tr>
@@ -71,6 +78,39 @@ let removeFile;
 
 const fileName = (file) => {
   return  `${file.getFullYear()}年${file.getMonth()+1}月${file.getDate()}日${file.toLocaleTimeString()}`
+}
+
+const download = (i) => {
+  const file = files[i];
+  const url = `/api/admin/backup/${file.toJSON()}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.toJSON();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+const upload = () => {
+  const uploader = document.getElementById('backup-file');
+  uploader.click();
+}
+
+const doUpload = (ev) => {
+  const file = ev.target.files[0];
+  if  ( !file ) {
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', file);
+  axios.post('/api/admin/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }).then(() => {
+    toast.show('バックアップ', 'アップロード完了しました');
+    files = undefined;
+  });
 }
 
 const remove = (i) => {
