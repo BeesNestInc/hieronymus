@@ -1,7 +1,7 @@
-{#if ( getStore(currentPage) === 'login') }
+{#if ( getStore(currentPage) === '/login') }
 <Login
   bind:current={status.current}></Login>
-{:else if ( getStore(currentPage) === 'signup' ) }
+{:else if ( getStore(currentPage) === '/signup' ) }
 <SignUp></SignUp>
 {:else}
 <nav class="main-header navbar navbar-expand-lg">
