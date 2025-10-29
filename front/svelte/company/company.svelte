@@ -27,6 +27,7 @@ import CompanyList from './company-list.svelte';
 import {currentCompany, getStore} from '../../javascripts/current-record.js'
 import CompanyHome from './company-home.svelte';
 import { link, currentPage } from '../../javascripts/router.js';
+import { parseParams } from '../../javascripts/params.js';
 
 export let status;
 
@@ -36,9 +37,16 @@ let companies = [];
 $: checkPage($currentPage);
 
 const checkPage = (page) => {
-  page = page || location.pathname;
-  const args = page.split('/');
-  status.state = args[2] || 'list';
+  const pathOnly = (page || location.pathname).split('?')[0].split('#')[0];
+  let args = pathOnly.split('/');
+  
+  const newStatus = { ...status };
+  newStatus.state = args[2] || 'list';
+
+  if (newStatus.state === 'list') {
+    newStatus.params = parseParams();
+  }
+  status = newStatus;
 
   switch  (status.state) {
   case  'home':
@@ -67,7 +75,6 @@ const checkPage = (page) => {
   default:
     break;
   }
-  console.log('company', status);
 }
 
 const	openEntry = (event)	=> {

@@ -168,12 +168,12 @@ let reply;
 const doReply = (event) => {
   eventBus.emit(reply, event.detail);
 }
-currentPage.set('/home');
+// currentPage.set('/home');
 
 onMount(() => {
   console.log('index onMount');
   status.pathname = location.pathname;
-  currentPage.set(location.pathname);
+  // currentPage.set(location.pathname);
   axios.get('/api/user').then((res) => {
     status.user = res.data.user;
   });

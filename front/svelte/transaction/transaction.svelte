@@ -19,6 +19,7 @@ import TransactionList from './transaction-list.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js'
 import { currentPage } from '../../javascripts/router.js';
+import { parseParams } from '../../javascripts/params.js';
 
 export let status;
 export let toast;
@@ -30,11 +31,16 @@ let users = [];
 $: checkPage($currentPage);
 
 const checkPage = (page) => {
-  page = page || location.pathname;
-  let args = page.split('/');
-  // /transaction/entry/23
-  status.state = args[2] || 'list';
-  //console.log('checkPage', {args});
+  const pathOnly = (page || location.pathname).split('?')[0].split('#')[0];
+  let args = pathOnly.split('/');
+
+  const newStatus = { ...status };
+  newStatus.state = args[2] || 'list';
+
+  if (newStatus.state === 'list') {
+    newStatus.params = parseParams();
+  }
+  status = newStatus;
 
   switch  (status.state)  {
   case  'entry':
