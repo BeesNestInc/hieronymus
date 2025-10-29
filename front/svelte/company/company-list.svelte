@@ -24,10 +24,10 @@
         <th scope="col" style="width: 120px;">
           電話番号
         </th>
-        <th scope="col" style="width: 200px;">
+        <th scope="col" style="width: 100px;">
           E-mail
         </th>
-        <th scope="col" style="width: 200px;">
+        <th scope="col" style="width: 100px;">
           担当者名
         </th>
       </tr>
