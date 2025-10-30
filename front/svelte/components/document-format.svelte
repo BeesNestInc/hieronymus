@@ -10,6 +10,7 @@
 
 <script>
 const DOC_FORMAT = [
+  ["file",      ""],
   ["text",      "Text"],
   ["markdown",  "Markdown"],
   ["html",      "HTML"]
