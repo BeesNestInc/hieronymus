@@ -29,11 +29,17 @@
         <tr>
           <td style="padding:5px;">
             <CompanySelect
-              register=false
+              register={false}
               on:input={(event) => {
-                let value = parseInt(event.detail);
-                status.params.set('company', value);
-                updateTasks();
+                const companyId = parseInt(event.detail);
+                const newParams = new URLSearchParams(location.search);
+                if (companyId > 0) {
+                  newParams.set('company', companyId);
+                } else {
+                  newParams.delete('company');
+                }
+                const query = newParams.toString();
+                link(`/task/list${query ? '?' + query : ''}`);
               }}
               companyId={status.params ? parseInt(status.params.get('company')) : -1}>
             </CompanySelect>
@@ -92,26 +98,21 @@ import { link } from '../../javascripts/router.js';
 export let status;
 export let tasks;
 
-const updateTasks = (_params) => {
-  let param = buildParam(status, _params);
-  console.log('param', param);
+const updateTasks = () => {
+  let param = buildParam(status);
   axios.get(`/api/task?${param}`).then((result) => {
     tasks = result.data.tasks;
-    console.log('tasks', tasks);
   });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
 };
 
+$: if(status && status.params) {
+  updateTasks();
+}
+
 beforeUpdate(() => {
-  console.log('task-list beforeUpdate');
 });
 
 onMount(() => {
-  status.params = parseParams();
-  updateTasks();
 })
 
 </script>
