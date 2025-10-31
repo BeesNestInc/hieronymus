@@ -41,7 +41,7 @@
 <div class="mt-4">
   <button type="button" class="btn btn-danger" on:click={remove} disabled={!project.id}>削除</button>
   <button type="button" class="btn btn-secondary" on:click={() => history.back()}>もどる</button>
-  <button type="button" class="btn btn-info" on:click={openLabelSettings} disabled={!project.id}>ラベル設定</button>
+  <button type="button" class="btn btn-info" on:click={openLabelSettings} disabled={!project.id}>集計設定</button>
   <button type="button" class="btn btn-info" on:click={openSummary} disabled={!project.id}>集計表示</button>
   <button type="button" class="btn btn-primary" on:click={save}>保存</button>
 </div>
