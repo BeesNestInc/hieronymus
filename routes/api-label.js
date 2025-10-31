@@ -15,7 +15,7 @@ export default {
         }],
         order: [['name', 'ASC']]
       });
-      console.log('[DEBUG] API response for labels:', JSON.stringify(labels, null, 2));
+      //console.log('[DEBUG] API response for labels:', JSON.stringify(labels, null, 2));
       res.json(labels);
     } catch (err) {
       next(err);
