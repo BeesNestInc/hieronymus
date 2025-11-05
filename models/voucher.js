@@ -35,6 +35,10 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'taxRuleId',
         as: 'taxRule'
 			});
+			this.hasOne(models.TransactionDocument, {
+				foreignKey: 'voucherId',
+				onDelete: 'SET NULL'
+			});
     }
   }
   Voucher.init({

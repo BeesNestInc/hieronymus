@@ -15,16 +15,14 @@ export default (sequelize, DataTypes) => {
 				onDelete: 'cascade',
 				onUpdate: 'cascade'
 			});
-			this.hasOne(models.Voucher, {
-				sourceKey: 'debitVoucherId',
-				foreignKey: 'id',
+			this.belongsTo(models.Voucher, {
+				foreignKey: 'debitVoucherId',
 				as: 'debitVoucher',
 				onDelete: 'SET NULL',
 				onUpdate: 'cascade'
 			});
-			this.hasOne(models.Voucher, {
-				sourceKey: 'creditVoucherId',
-				foreignKey: 'id',
+			this.belongsTo(models.Voucher, {
+				foreignKey: 'creditVoucherId',
 				as: 'creditVoucher',
 				onDelete: 'SET NULL',
 				onUpdate: 'cascade'
