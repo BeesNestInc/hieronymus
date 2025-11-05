@@ -53,7 +53,7 @@
 </div>
 <div class="row">
   {#if ( status.user.administrable) }
-  <div class="col-6" style="padding:10px;">
+  <div class="col-4" style="padding:10px;">
     <TableMaintenance
       title={'取引先種別'}
       endpoint={'/api/company/kinds'}
@@ -65,7 +65,7 @@
   { type: "checkbox", name: 'isClient', title: "顧客", width: "50px"}
 ]}></TableMaintenance>
   </div>
-  <div class="col-6" style="padding:10px;">
+  <div class="col-8" style="padding:10px;">
     <TableMaintenance
       title={'取引文書種別'}
       endpoint={'/api/transaction/kinds'}
