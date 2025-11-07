@@ -36,7 +36,7 @@
           <tr style="height:12px;">
             <td colspan="3">
             </td>
-            <td>
+            <td class="text">
               繰越金額
             </td>
             <td class="number">
@@ -56,11 +56,11 @@
             <td class="number" style="width:25px;">
               {line.no}
             </td>
-            <td>
+            <td class="text">
               {line.otherAccount}<br/>
               {line.otherSubAccount}
             </td>
-            <td>
+            <td class="text">
               <div class="appication">
                 {line.application1 || ''}
               </div>
@@ -103,7 +103,7 @@
           <tr class="total" style="height:36px;">
             <td colspan="3">
             </td>
-            <td>
+            <td class="text">
               合計
             </td>
             <td class="number">

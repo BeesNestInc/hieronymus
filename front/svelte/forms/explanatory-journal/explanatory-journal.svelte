@@ -52,11 +52,11 @@
               {formatMoney(line.debitTax)}
               {/if}
             </td>
-            <td>
+            <td class="text">
               {line.debitAccount}<br/>
               {line.debitSubAccount}
             </td>
-            <td>
+            <td class="text">
               <div class="appication">
                 {line.application1}
               </div>
@@ -64,15 +64,15 @@
                 {line.application2}
               </div>
               <div class="application d-flex">
-                <div class="tax">
+                <div class="tax text">
                   {line.debitTaxRule ? line.debitTaxRule.label : ''}
                 </div>
-                <div class="tax ms-auto">
+                <div class="tax ms-auto text">
                   {line.creditTaxRule ? line.creditTaxRule.label : ''}
                 </div>
               </div>
             </td>
-            <td>
+            <td class="text">
               {line.creditAccount}<br/>
               {line.creditSubAccount}
             </td>
@@ -94,7 +94,7 @@
             </td>
             <td>
             </td>
-            <td>
+            <td class="text">
               合計
             </td>
             <td>

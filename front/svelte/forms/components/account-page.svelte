@@ -17,7 +17,7 @@
             <th>
               勘定科目
             </th>
-            <th style="width: 40px;">
+            <th style="width: 50px;">
               税区分
             </th>
             <th style="width: 120px;">
@@ -37,7 +37,7 @@
             <td class="number">
               {line.code}
             </td>
-            <td>
+            <td class="text">
               {line.name}
             </td>
             <td>
