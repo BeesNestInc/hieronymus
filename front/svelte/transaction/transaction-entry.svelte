@@ -57,7 +57,7 @@
           on:click={() => {
             link(`/voucher/entry/${transaction.voucherId}`)
           }
-        }>証票参照</button>
+        }>証憑参照</button>
         {:else}
         {#if ( transaction.kind.forBook )}
         <button type="button" class="btn btn-info" disabled={disabled}
