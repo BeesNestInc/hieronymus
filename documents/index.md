@@ -3,10 +3,9 @@
 
 Hieronymusのマニュアルです。
 
-もちろん完成版ではありませんが、追い追い追加して行きます。
-
 ## 目次
 
+### quick start
 * 概要
 * [インストール](./install.md)
   * ソースコードからインストール
@@ -14,21 +13,32 @@ Hieronymusのマニュアルです。
 * [ユーザの登録](./user.md)
 * [運用環境の設定](./initial.md)
   * 初期セットアップ
+
+### 基本操作
+
+* [伝票と証憑の入力](./crossslip.md)
+  * ワークフロー別の作業パターン
+    * 伝票入力を最初に行うパターン
+    * 電子証票から入力するパターン
+* 帳票の出力
+  * [財務諸表等](./report.md)
+  * [証憑](./evidence.md)
+* [年度設定と繰越処理](./fiscal-year.md)
+* [消費税の扱い](./consumption-tax.md)
+
+### リファレンス編
+* [元帳の確認](./ledger.md)
+* [残高試算表](./trial-balance.md)
+* [推移表](./changes.md)
+* [証憑管理](./voucher.md)
 * [勘定科目管理](./account.md)
 * [取引先管理](./company.md)
 * [案件管理](./task.md)
 * [取引管理](./transaction.md)
 * [品目管理](./item.md)
-* [役職員管理](./member.md)
-* [伝票と証憑の入力](./crossslip.md)
-  * ワークフロー別の作業パターン
-    * 伝票入力を最初に行うパターン
-    * 電子証票から入力するパターン
-* [証憑管理](./voucher.md)
-* [元帳の確認](./ledger.md)
-* [残高試算表](./trial-balance.md)
-* [推移表](./changes.md)
 * [プロジェクト管理](./project.md)
+* [ユーザ管理](./user.md)
+* [役職員管理](./member.md)
 
 ## 概要
 
