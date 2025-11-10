@@ -72,7 +72,7 @@ body {
 }
 
 .full-height-1 {
-  height: calc(100vh - 190px);
+  height: calc(100vh - 220px);
   overflow-y: auto;
 }
 
@@ -225,6 +225,10 @@ ul.nav {
 
 .number {
   text-align: right;
+}
+
+.text {
+  text-align: left;
 }
 
 .fontsize-12pt {

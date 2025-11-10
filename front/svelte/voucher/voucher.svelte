@@ -6,7 +6,7 @@
   on:slip={openSlip}
   on:update={changeMonth}
   ></VoucherList>
-{:else if ( status.state === 'entry' || status.state === 'new' )}
+{:else if ( (status.state === 'entry' || status.state === 'new') && voucher )}
 <VoucherEntry
   bind:status={status}
   bind:voucher={voucher}

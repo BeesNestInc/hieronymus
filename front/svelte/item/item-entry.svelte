@@ -127,6 +127,14 @@ const save = () => {
     item.costPrice = numeric(item.costPrice);
   }
   item.taxClass = parseInt(item.taxClass);
+
+  if ((!item.document || !item.document.description) && (files && files.length > 0)) {
+    if (!item.document) {
+      item.document = {};
+    }
+    item.document.descriptionType = 'file';
+  }
+
   try {
     let	it;
     let create = false;
@@ -137,10 +145,10 @@ const save = () => {
       it = create_item(item);
       create = true;
     }
-    it.then((result) => {
+    it.then(async (result) => {
       if  ( !result.data.code ) {
         item = result.data.item;
-        bindFile(files, item.documentId);
+        await bindFile(files, item.documentId);
       }
       if  ( create )  {
         // replaceState is better, but link is what we have

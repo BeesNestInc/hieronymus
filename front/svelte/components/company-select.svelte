@@ -124,8 +124,6 @@ const onUserInput = (event) =>{
     if	( companys.length > 0 )	{
       _companyId = companys[0].id;
     }
-    console.log({companys});
-    console.log({companyId});
   }
 }
 const keyCheck = (event) => {
@@ -160,7 +158,6 @@ const closeEntry = (event) => {
   dispatch('endregister');
 }
 const	openEntry = async (event)	=> {
-	console.log('open', companyId);
   company = {
     name: companyName,
     chargeName: chargeName,
@@ -170,7 +167,6 @@ const	openEntry = async (event)	=> {
   };
   if  ( companyId )  {
     let result = await axios.get(`/api/company/${companyId}`);
-    console.log({result});
     if  ( result.data ) {
       company = result.data.company;
     }
@@ -181,7 +177,6 @@ const	openEntry = async (event)	=> {
 }
 
 const companyDecide = (id) => {
-  console.log('companyDecide', id);
   if  ( companys )   {
     for	( let i = 0; i < companys.length; i ++ )	{
       if	( companys[i].id == id )	{
@@ -189,6 +184,7 @@ const companyDecide = (id) => {
         //console.log(company)
         companyId = company.id;
         companyName = company.name;
+        inputValue = company.name;
         chargeName = company.chargeName;
         zip = company.zip;
         address1 = company.address1;
@@ -228,7 +224,6 @@ onMount(() => {
   let param = clientOnly ? `?${encodeURI('clientOnly=true')}` : '';
   axios.get(`/api/company/${param}`).then((result) => {
     original_companies = result.data.companies;
-    console.log({original_companies});
     companys = original_companies;
     companyDecide(companyId);
     companys = [];

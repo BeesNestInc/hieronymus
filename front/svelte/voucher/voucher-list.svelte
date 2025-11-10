@@ -1,11 +1,11 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>証票一覧</h1>
+    <h1>証憑一覧</h1>
     <button type="button" class="btn btn-primary"
   	  on:click={() => {
     	  openVoucher(null);
   	  }}
-		  id="voucher-info">証票入力&nbsp;<i class="bi bi-pencil-square"></i>
+		  id="voucher-info">証憑入力&nbsp;<i class="bi bi-pencil-square"></i>
     </button>
   </div>
   <ul class="page-subtitle nav me-auto">

@@ -38,7 +38,8 @@
               on:input={(event) => {
                 let value = parseInt(event.currentTarget.value);
                 status.params.set('kind', value);
-                updateTransactions();
+                const param = buildParam(status, {});
+                link(`${location.pathname}?${param}`);
               }}
               value={status.params ? parseInt(status.params.get('kind')) : -1}>
               <option value={-1}>全て</option>
@@ -122,6 +123,16 @@ let companyId;
 let upperAmount;
 let lowerAmount;
 let transactionKinds = [];
+let prevParamsString = null;
+
+const paramsToString = (params) => {
+  if (!params) return '';
+  const array = [];
+  params.forEach((value, key) => {
+    array.push(`${key}=${value}`);
+  });
+  return array.sort().join('&');
+}
 
 const compDate = (date, year, month, day) => {
   let ymd = date.split('-');
@@ -130,42 +141,41 @@ const compDate = (date, year, month, day) => {
     &&	( parseInt(ymd[2]) == day ));
 }
 
-const updateTransactions = (_params) => {
-  let param = buildParam(status, _params);
+const updateTransactions = () => {
+  let param = buildParam(status, undefined);
   console.log('param', param);
   axios.get(`/api/transaction?${param}`).then((result) => {
     transactions = result.data.transactions;
     console.log('transactions', transactions);
   });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
 };
 
 beforeUpdate(() => {
-  //sconsole.log('transaction-list beforeUpdate');
+  const newParamsString = paramsToString(status.params);
+  if (newParamsString !== prevParamsString) {
+    prevParamsString = newParamsString;
+    updateTransactions();
+  }
 });
 
 const changeCompany = (event) => {
   let companyId = event.detail;
-  console.log({companyId});
-  updateTransactions({
-    company: companyId
-  });
+  status.params.set('company', companyId);
+  const param = buildParam(status, {});
+  link(`${location.pathname}?${param}`);
 }
 
 const changeAmount = (event) => {
   if	( event.keyCode == 13 )	{
-    updateTransactions({
-      upper: numeric(upperAmount),
-      lower: numeric(lowerAmount)
-    });
+    status.params.set('upper', numeric(upperAmount));
+    status.params.set('lower', numeric(lowerAmount));
+    const param = buildParam(status, {});
+    link(`${location.pathname}?${param}`);
   }
 }
 
 onMount(() => {
-  status.params = parseParams();
+  prevParamsString = paramsToString(status.params);
   updateTransactions();
   axios.get(`/api/transaction/kinds`).then((result) => {
     transactionKinds = result.data.values;

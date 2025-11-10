@@ -137,8 +137,6 @@
 }
 .rect-image {
   width:70px;
-  position:absolute;
-  clip:rect(0,70px,70px,0);
 }
 </style>
 

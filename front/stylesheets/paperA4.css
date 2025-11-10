@@ -166,6 +166,10 @@ body {
 .page .detail-page .page-body td.number {
   text-align: right;
 }
+.page .detail-page .page-body td.text,
+.page .detail-page .page-body td > .text {
+  text-align: left;
+}
 .page .detail-page .page-body td.pl-line {
   border-top: none;
   border-left: 1px solid #333;

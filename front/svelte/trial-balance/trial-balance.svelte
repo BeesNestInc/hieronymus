@@ -68,12 +68,17 @@ export let alert_level;
 
 let lines = [];
 let dates = [];
+let lastCheckedPage = null;
 
-$: if (status && status.fy && status.fy.term) {
+// $currentPage (URL) が変更された時だけ実行する
+$: if ($currentPage && $currentPage !== lastCheckedPage) {
   checkPage($currentPage);
-} else {
-  lines = [];
-  dates = [];
+  lastCheckedPage = $currentPage;
+}
+
+// status.fy が準備できたら、月のリストを更新する
+$: if (status && status.fy && status.fy.term) {
+  updateDates();
 }
 
 const openMonth = (month) => {
@@ -87,6 +92,11 @@ const openMonth = (month) => {
 }
 
 const updateLines = async () => {
+  // status.fy.term が未設定の場合はAPIを呼ばない
+  if (!status || !status.fy || !status.fy.term) {
+    return;
+  }
+
   let _lines = [];
   let url;
   if  ( status.month ) {
@@ -96,7 +106,6 @@ const updateLines = async () => {
   }
   const result = await axios.get(url);
   let data = result.data;
-  //console.log('trial-balance update', data);
   let trial_balance = data;
   let last_account = {};
   for ( let i = 0; i < trial_balance.length; i ++ ) {
@@ -110,7 +119,6 @@ const updateLines = async () => {
       credit: numeric(account.credit),
       code: account.code
     };
-    //console.log('new_line', new_line);
     if ( dc(account.code) == 'D' ) {
       new_line.balance = new_line.pickup + new_line.debit - new_line.credit;
     } else {
@@ -135,13 +143,11 @@ const updateLines = async () => {
     }
     last_account = account;	 
   }
-  //console.log('lines', _lines);
   lines = _lines;
 }
 
 const updateDates = () => {
   let _dates = [];
-  console.log('updateDates', status.fy);
   let mon = new Date(status.fy.startDate);
   for ( let i = 0 ; i < 12 ; i += 1)  {
     _dates.push({
@@ -151,19 +157,17 @@ const updateDates = () => {
     });
     mon.setMonth(mon.getMonth() + 1);
   }
-  console.log({_dates});
   dates = _dates;
 }
 
-const checkPage = async (page) => {
+const checkPage = (page) => {
   if (!page || page.split('/')[1] !== 'trial-balance') {
     return;
   }
   const path = page;
-  let args = path.split('/');
+  const args = path.split('/');
   status.month = args[2];
-  updateDates();
-  await updateLines();
+  updateLines();
 }
 
 </script>

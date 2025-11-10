@@ -55,9 +55,9 @@
         {#if (transaction.voucherId)}
         <button type="button" class="btn btn-info" disabled={disabled}
           on:click={() => {
-            link(`/voucher/${status.term}/entry/${transaction.voucherId}`)
+            link(`/voucher/entry/${transaction.voucherId}`)
           }
-        }>証票参照</button>
+        }>証憑参照</button>
         {:else}
         {#if ( transaction.kind.forBook )}
         <button type="button" class="btn btn-info" disabled={disabled}
@@ -106,7 +106,9 @@ let operation = () => {};
 const book = (event) => {
   axios.post(`/api/transaction/book/${transaction.id}`).then((result) => {
     toast.show(`${transaction.kind.label}書`, '計上しました');
-    transaction = transaction;
+    axios.get(`/api/transaction/${transaction.id}`).then((result) => {
+      transaction = result.data.transaction;
+    });
   })
 }
 const create_transaction = async (_transaction) => {

@@ -56,16 +56,9 @@
 
 </style>
 <script>
+import { link } from '../../javascripts/router.js';
 
 export	let status;
 export	let	lines;
-
-const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState(status, "", href);
-  status.pathname = href;
-  console.log({status});
-}
 
 </script>

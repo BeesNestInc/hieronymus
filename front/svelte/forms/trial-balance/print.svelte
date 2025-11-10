@@ -31,7 +31,7 @@
         <tbody>
           {#each page as line}
           <tr class={line.total ? "total": ""}>
-            <td>
+            <td class="text">
               {@html line.name}
             </td>
             <td class="number">

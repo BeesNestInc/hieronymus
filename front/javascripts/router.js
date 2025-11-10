@@ -1,6 +1,8 @@
 import { writable,get } from "svelte/store";
 
-export let currentPage = writable();
+const initialPage = typeof window !== 'undefined' ? (window.location.pathname + window.location.search) : undefined;
+export let currentPage = writable(initialPage);
+
 export const getStore = get;
 
 let routes;

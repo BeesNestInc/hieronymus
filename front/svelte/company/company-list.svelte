@@ -40,7 +40,8 @@
             on:input={(event) => {
               let value = parseInt(event.currentTarget.value);
               status.params.set('kind', value);
-              updateCompanys({});
+              const param = buildParam(status, {});
+              link(`${location.pathname}?${param}`);
             }}
             value={status.params ? parseInt(status.params.get('kind')) : -1}>
             <option value={-1}>全て</option>
@@ -98,23 +99,40 @@ import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import { buildParam, parseParams } from '../../javascripts/params';
+import { link } from '../../javascripts/router.js';
 
 export let status;
 export let companies;
 
 let companyClasses = [];
+let prevParamsString = null;
 
-const updateCompanys = (_params) => {
-  let param = buildParam(status, _params);
-  //console.log('param', param);
+const paramsToString = (params) => {
+  if (!params) return '';
+  const array = [];
+  params.forEach((value, key) => {
+    array.push(`${key}=${value}`);
+  });
+  return array.sort().join('&');
+}
+
+beforeUpdate(() => {
+  const newParamsString = paramsToString(status.params);
+  if (newParamsString !== prevParamsString) {
+    prevParamsString = newParamsString;
+    updateCompanys();
+  }
+});
+
+const updateCompanys = () => {
+  let param = buildParam(status, undefined);
+
   axios.get(`/api/company?${param}`).then((result) => {
     companies = result.data.companies;
-    console.log({companies});
+  }).catch(err => {
+    console.error('[LIST] axios.get failed:', err);
+    companies = [];
   });
-  if	( _params )	{
-    window.history.pushState(
-        status, "", `${location.pathname}?${param}`);
-  }
 };
 
 const openCompany = (event) => {
@@ -139,12 +157,10 @@ const openCompany = (event) => {
 
 onMount(() => {
   console.log('company-list onMount');
-  status.params = parseParams();
+  prevParamsString = paramsToString(status.params);
   updateCompanys();
   axios.get(`/api/company/kinds`).then((result) => {
     companyClasses = result.data.values;
   });
 })
-beforeUpdate(() => {
-});
 </script>

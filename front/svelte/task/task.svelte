@@ -36,12 +36,20 @@ const openTransaction = (event) => {
   link(`/transaction/entry/${id}`);
 }
 
-const checkPage = (page) => {
-  page = page || location.pathname;
-  const args = page.split('/');
-  status.state = args[2] || 'list';
+import {parseParams} from '../../javascripts/params.js';
 
-  switch  (status.state)  {
+const checkPage = (page) => {
+  page = page || location.pathname + location.search;
+  const path = page.split('?')[0];
+  const query = page.split('?')[1];
+  const args = path.split('/');
+  
+  const newState = args[2] || 'list';
+  const newParams = parseParams(query);
+
+  status = { ...status, state: newState, params: newParams };
+
+  switch  (newState)  {
   case  'entry':
     const entryId = args[3];
     axios.get(`/api/task/${entryId}`).then((result) => {
@@ -88,11 +96,9 @@ const checkPage = (page) => {
     task = null;
     break;
   }
-  console.log({status});
 }
 
 onMount(() => {
-  console.log('task onMount');
   axios.get('/api/users/member').then((result) => {
     users = result.data.users;
   });

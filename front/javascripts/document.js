@@ -9,16 +9,18 @@ const bind_file = async (file) => {
   return	(result);
 }
   
-export const bindFile = (files, documentId) => {
+export const bindFile = async (files, documentId) => {
   if  ( files && files.length > 0 ) {
     console.log('files', files.length);
+    let promises = [];
     for	( let i = 0; i < files.length ; i += 1 )	{
       //console.log('documentId', files[i].documentId);
       if	( !files[i].documentId )	{
         files[i].documentId = documentId;
-        bind_file(files[i]);
+        promises.push(bind_file(files[i]));
       }
     }
+    await Promise.all(promises);
   }
 }
   

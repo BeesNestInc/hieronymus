@@ -160,6 +160,10 @@ body {
   	  td.number {
     	  text-align: right;
 	    }
+  	  td.text,
+      td > .text {
+    	  text-align: left;
+	    }
       td.pl-line {
         border-top: none;
         border-left: 1px solid #333;

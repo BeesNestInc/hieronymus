@@ -2,9 +2,9 @@
   <div class="page-title d-flex justify-content-between">
     <h1>証憑情報</h1>
   </div> 
-  <div class="h-100 fontsize-12pt" style="overflow-y: auto;">
+  <div class="">
     <div class="content">
-      <div class="body">
+      <div class="body full-height-2">
         {#if !ok }
         <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
           <h5 class="fs-5 text-danger"><i class="bi bi-exclamation-triangle-fill"></i>&nbsp;エラー</h5>
