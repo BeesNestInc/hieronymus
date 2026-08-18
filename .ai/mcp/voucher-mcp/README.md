@@ -12,7 +12,7 @@ Hieronymus（会計システム）に伝票・証憑を入力するための MCP
 ## セットアップ
 
 ```bash
-cd mcp/voucher-mcp
+cd .ai/mcp/voucher-mcp
 npm install
 ```
 

@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const dir = '/home/ogochan/git/hieronymus.main/mcp/voucher-mcp';
+const dir = '/home/ogochan/git/hieronymus.main/.ai/mcp/voucher-mcp';
 const user = process.env.MCP_USER || 'creator';
 const env = {
   ...process.env,
