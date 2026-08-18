@@ -5,7 +5,7 @@
   ],
   "skills": {
     "paths": [
-      ".ai/skills"
+      "ai/skills"
     ]
   }
 }

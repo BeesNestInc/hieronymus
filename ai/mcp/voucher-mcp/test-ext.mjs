@@ -10,7 +10,7 @@ const env = {
 const transport = new StdioClientTransport({
   command: 'node',
   args: ['index.js'],
-  cwd: '/home/ogochan/git/hieronymus.main/.ai/mcp/voucher-mcp',
+  cwd: '/home/ogochan/git/hieronymus.main/ai/mcp/voucher-mcp',
   env,
   stderr: process.stderr,
 });
