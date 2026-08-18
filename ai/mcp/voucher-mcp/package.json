@@ -1,0 +1,13 @@
+{
+  "name": "voucher-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "description": "Hieronymus 伝票入力 MCP server",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "axios": "^1.7.7",
+    "axios-cookiejar-support": "^5.0.2",
+    "tough-cookie": "^5.0.0"
+  }
+}

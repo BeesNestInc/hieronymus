@@ -2,6 +2,9 @@ import express from 'express';
 const router = express.Router();
 import fs from 'fs';
 import {is_authenticated} from '../libs/user.js';
+import {guard} from '../libs/permission.js';
+
+router.use(guard);
 import closing from '../forms/closing.js';
 
 import journal from './api_journal.js';

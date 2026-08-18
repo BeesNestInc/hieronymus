@@ -1,6 +1,35 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
+import * as taxcalc from '../libs/tax-calc.js';
+
+const recalcReject = (req, res) => {
+  const body = req.body;
+  const year = parseInt(body.year);
+  const month = parseInt(body.month);
+  const day = parseInt(body.day);
+  return (async () => {
+    const dayErr = taxcalc.validateDay(year, month, day);
+    if ( dayErr ) {
+      res.status(422).json({ code: -2, message: dayErr });
+      return null;
+    }
+    const ctx = await taxcalc.loadTaxContext(year, month);
+    if ( !ctx.fy ) {
+      res.status(422).json({ code: -2, message: 'date error' });
+      return null;
+    }
+    const lines = taxcalc.recalcSlipLines(body.lines, ctx);
+    const err = taxcalc.validateLines(lines, ctx) || taxcalc.validateBalanced(lines);
+    if ( err ) {
+      res.status(422).json({ code: -2, message: err });
+      return null;
+    }
+    body.lines = lines;
+    body.term = ctx.fy.term;
+    return body;
+  })();
+};
 
 export default {
   list: async(req, res, next) => {
@@ -12,17 +41,18 @@ export default {
           where = {
             approvedAt: {
               [Op.eq]: null
-            },
-            term: req.session.term
-          }
+            }
+          };
         } else {
           where = {
             approvedAt: {
               [Op.eq]: null
             },
-            term: req.session.term,
             createdBy: req.session.user.id
-          }
+          };
+        }
+        if  ( req.session.term )  {
+          where.term = req.session.term;
         }
         let cross_slips = await models.CrossSlip.findAll({
           where: where,
@@ -119,27 +149,21 @@ export default {
   },
   post: async(req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if	( req.session.user.accounting )  {
-      let body = req.body;
-      //console.log('body:', body);
-      let slip = await createCrossSlip(body, req.session.user);
-      if  ( slip )  {
-        res.json(slip);
-      } else {
-        res.json({
-          code: -2,
-          message: 'date error'
-        });
-      }
+    let body = await recalcReject(req, res);
+    if ( !body ) return;
+    let slip = await createCrossSlip(body, req.session.user);
+    if  ( slip )  {
+      res.json(slip);
     } else {
-      res.json({
-        code: -10,
-        message: 'this account can not create'
+      res.status(422).json({
+        code: -2,
+        message: 'date error'
       });
     }
   },
   update: async(req, res, next) => {
-    let body = req.body;
+    let body = await recalcReject(req, res);
+    if ( !body ) return;
     let slip = await models.CrossSlip.findOne({
         where: {
           year: body.year,
