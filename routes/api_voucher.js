@@ -2,6 +2,29 @@ import models from '../models/index.js';
 import fs from 'fs';
 const Op = models.Sequelize.Op;
 import Mime from 'mime';
+import {numeric} from '../libs/utils.js';
+import * as taxcalc from '../libs/tax-calc.js';
+
+const prepareVoucher = async (body, res) => {
+  if ( !body.companyId ) {
+    res.status(422).json({code: -2, message: '相手先が未入力もしくは、取引先に存在しない相手先が入力されました。'});
+    return false;
+  }
+  const company = await models.Company.findByPk(body.companyId);
+  if ( !company ) {
+    res.status(422).json({code: -2, message: '相手先が未入力もしくは、取引先に存在しない相手先が入力されました。'});
+    return false;
+  }
+  const issueDate = body.issueDate ? new Date(body.issueDate) : new Date();
+  const ctx = await taxcalc.loadTaxContext(issueDate.getFullYear(), issueDate.getMonth() + 1);
+  if ( body.amount ) {
+    body.amount = numeric(body.amount);
+    body.tax = body.taxRuleId
+      ? taxcalc.computeVoucherTax(body.amount, body.taxRuleId, ctx)
+      : 0;
+  }
+  return true;
+}
 
 const getFiles = async (id) => {
   let files = await models.VoucherFile.findAll({
@@ -276,7 +299,8 @@ export default {
     let body = req.body;
     body.createdBy = req.session.user.id;
     body.updatedBy = req.session.user.id;
-    //console.log('body:', body);
+    const ok = await prepareVoucher(body, res);
+    if ( !ok ) return;
     models.Voucher.create(body).then((voucher) => {
       res.json({
         code: 0,
@@ -286,17 +310,22 @@ export default {
       res.json({
         code: -1
       });
-    })
-    //console.log(voucher);
-    
+    });
   },
   update: async(req, res, next) => {
     let body = req.body;
     body.updatedBy = req.session.user.id;
     let id = req.params.id ? req.params.id : body.id;
 
+    const ok = await prepareVoucher(body, res);
+    if ( !ok ) return;
+
     let voucher = await models.Voucher.findByPk(id)
     if	( voucher )	{
+      if  ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id )  {
+        res.json({code: -10, message: 'permission denied'});
+        return;
+      }
       voucher.set(body);
       voucher.save().then(() => {
         res.json({
@@ -314,14 +343,20 @@ export default {
     let id = req.params.id ? req.params.id : body.id;
 
     models.Voucher.findByPk(id).then((voucher) => {
-      voucher.destroy().then(() => {
-        res.json({
-          code: 0});
-      }).catch((err) => {
-        res.json({
-          code: -2
-        })
-      });
+      if  ( voucher )  {
+        if  ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id )  {
+          res.json({code: -10, message: 'permission denied'});
+          return;
+        }
+        voucher.destroy().then(() => {
+          res.json({
+            code: 0});
+        }).catch((err) => {
+          res.json({
+            code: -2
+          })
+        });
+      }
     }).catch((err) => {
       res.json({
         code: -1
