@@ -91,7 +91,10 @@ export const api = {
   approve: (body) => put('/api/cross_slip/approve', body),
   deleteCrossSlip: (body) => del('/api/cross_slip', body),
   createVoucher: (body) => post('/api/voucher', body),
+  getVoucher: (id) => get(`/api/voucher/${id}`),
   uploadVoucherFile: (id, filePath) => upload(`/api/voucher/upload/${id}`, filePath),
+  listVoucherFiles: (id) => get(`/api/voucher/files/${id}`),
+  deleteVoucherFile: (fileId) => del('/api/voucher/file', { id: fileId }),
   updateVoucher: (body) => put('/api/voucher', body),
   deleteVoucher: (body) => del('/api/voucher', body)
 };

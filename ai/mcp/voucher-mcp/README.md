@@ -55,7 +55,10 @@ npm install
 | `update_cross_slip` | 未承認伝票の更新 |
 | `approve_cross_slip` / `disapprove_cross_slip` | 承認 / 不承認 |
 | `delete_cross_slip` | 未承認伝票の削除 |
-| `create_voucher` / `update_voucher` / `delete_voucher` | 証憑の登録 / 更新 / 削除 |
+| `create_voucher` / `create_voucher_with_file` | 証憑の登録（画像/PDF添付可） |
+| `get_voucher` | 証憑の単体取得（添付ファイル情報付き） |
+| `attach_voucher_file` / `list_voucher_files` / `delete_voucher_file` | 既存証憑へのファイル添付 / 一覧 / 削除 |
+| `update_voucher` / `delete_voucher` | 証憑の更新 / 削除 |
 | `compute_slip_taxes` | 税額計算のプレビュー（保存しない。実保存時の税額はサーバが再計算） |
 
 ## ワークフロー（非会計ユーザー → 承認）

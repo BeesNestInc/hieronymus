@@ -187,6 +187,24 @@ export const handlers = {
     return text(result);
   },
 
+  get_voucher: async (args) => {
+    return text(await api.getVoucher(args.id));
+  },
+
+  attach_voucher_file: async (args) => {
+    requireWritable();
+    return text(await api.uploadVoucherFile(args.id, args.filePath));
+  },
+
+  list_voucher_files: async (args) => {
+    return text(await api.listVoucherFiles(args.id));
+  },
+
+  delete_voucher_file: async (args) => {
+    requireWritable();
+    return text(await api.deleteVoucherFile(args.id));
+  },
+
   update_voucher: async (args) => {
     requireWritable();
     const body = { id: args.id };

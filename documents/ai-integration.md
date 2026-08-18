@@ -41,6 +41,8 @@ ai/
 | `approve_cross_slip` / `disapprove_cross_slip` | 承認・不承認 |
 | `delete_cross_slip` | 伝票の削除 |
 | `create_voucher` / `create_voucher_with_file` | 証憑の登録（画像/PDF添付可） |
+| `get_voucher` | 証憑の単体取得（添付ファイル情報付き） |
+| `attach_voucher_file` / `list_voucher_files` / `delete_voucher_file` | 既存証憑へのファイル添付 / 一覧 / 削除 |
 | `update_voucher` / `delete_voucher` | 証憑の更新・削除 |
 | `compute_slip_taxes` | 税額計算のプレビュー |
 
@@ -71,6 +73,7 @@ npm install
 `ai/skills/` に、AIエージェントが経理業務を行うためのスキルを配置しています。
 
 - **voucher-entry**: 証憑（画像/PDF）のOCR読み取り → 証憑登録 → 自動仕訳（承認待ち）の手順
+- **voucher-management**: 証憑の登録・ファイル添付・確認・削除の手順
 - **journal-learning**: 過去の仕訳日記帳から仕分けパターンを学習し、Wiki の仕訳パターンを保守する手順
 
 仕訳パターンは人間が確認・編集できる Markdown で管理されます。AI は学習結果をこのパターンに反映し、人間の編集を常に優先します。

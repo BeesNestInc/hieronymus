@@ -232,6 +232,51 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'get_voucher',
+    description: '証憑をIDで取得します（添付ファイル情報付き）。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: '証憑ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'attach_voucher_file',
+    description: '既存の証憑に画像/PDFファイルを添付します。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: '証憑ID' },
+        filePath: { type: 'string', description: '添付する画像/PDFファイルのパス' }
+      },
+      required: ['id', 'filePath']
+    }
+  },
+  {
+    name: 'list_voucher_files',
+    description: '証憑の添付ファイル一覧を取得します。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: '証憑ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_voucher_file',
+    description: '証憑の添付ファイルを削除します（作成者または会計権限者に限る）。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'ファイルID' }
+      },
+      required: ['id']
+    }
+  },
+  {
     name: 'delete_voucher',
     description: '証憑を削除します（作成者または会計権限者に限る）。',
     inputSchema: {
