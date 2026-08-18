@@ -57,6 +57,18 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'get_journal',
+    description: '仕訳日記帳（指定年月の全仕訳伝票）を取得します。過去の仕訳から仕分けパターンを学習するための参照に使います。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        year: { type: 'integer' },
+        month: { type: 'integer' }
+      },
+      required: ['year', 'month']
+    }
+  },
+  {
     name: 'get_cross_slip',
     description: '仕訳伝票を年/月/号で取得します（会計閲覧権限が必要）。',
     inputSchema: {
@@ -174,6 +186,25 @@ export const toolDefinitions = [
         companyId: { type: 'integer', description: '取引先ID（get_companies で確認）' },
         amount: { type: 'number', description: '金額（税抜）' },
         taxRuleId: { type: 'integer', description: '消費税率ルールID（省略時は税額0）' },
+        paymentDate: { type: 'string', description: '支払日 YYYY-MM-DD（任意）' },
+        description: { type: 'string', description: '説明（任意）' },
+        invoiceNo: { type: 'string', description: '請求番号（任意）' }
+      },
+      required: ['voucherClassId', 'issueDate', 'companyId', 'amount']
+    }
+  },
+  {
+    name: 'create_voucher_with_file',
+    description: '証憑を登録し、画像/PDFファイルを添付します（filePath を指定した場合）。OCRした証憑の登録に使います。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        voucherClassId: { type: 'integer', description: '伝票種別ID' },
+        issueDate: { type: 'string', description: '発行日 YYYY-MM-DD' },
+        companyId: { type: 'integer', description: '取引先ID' },
+        amount: { type: 'number', description: '金額（税抜）' },
+        taxRuleId: { type: 'integer', description: '消費税率ルールID（任意）' },
+        filePath: { type: 'string', description: '証憑の画像/PDFファイルパス（任意）' },
         paymentDate: { type: 'string', description: '支払日 YYYY-MM-DD（任意）' },
         description: { type: 'string', description: '説明（任意）' },
         invoiceNo: { type: 'string', description: '請求番号（任意）' }

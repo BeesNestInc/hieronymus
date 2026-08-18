@@ -1,4 +1,6 @@
 import axios from 'axios';
+import fs from 'node:fs';
+import path from 'node:path';
 import { CookieJar } from 'tough-cookie';
 import { wrapper } from 'axios-cookiejar-support';
 
@@ -62,6 +64,17 @@ const del = async (path, body) => {
   return unwrap(res.data);
 };
 
+const upload = async (apiPath, filePath) => {
+  await ensureLogin();
+  const buffer = fs.readFileSync(filePath);
+  const form = new FormData();
+  form.append('file', new Blob([buffer]), path.basename(filePath));
+  const res = await http.post(apiPath, form, {
+    headers: { 'Content-Type': undefined }
+  });
+  return unwrap(res.data);
+};
+
 export const api = {
   getCompanyInfo: () => get('/api/company/info'),
   getAccounts: () => get('/api/accounts'),
@@ -69,6 +82,7 @@ export const api = {
   getVoucherClasses: () => get('/api/voucher/classes'),
   getTaxRules: (date) => get('/api/tax-rule', { type: 'active', date: date }),
   getFiscalYear: (year, month) => get(`/api/term/${year}/${month}`),
+  getJournal: (year, month) => get(`/api/journal/${year}/${month}`),
   getCrossSlip: (year, month, no) => get(`/api/cross_slip/${year}/${month}/${no}`),
   listCrossSlips: (type) => get(`/api/cross_slips/${type || 'not_approved'}`),
   listVouchers: (params) => get('/api/voucher', params),
@@ -77,6 +91,7 @@ export const api = {
   approve: (body) => put('/api/cross_slip/approve', body),
   deleteCrossSlip: (body) => del('/api/cross_slip', body),
   createVoucher: (body) => post('/api/voucher', body),
+  uploadVoucherFile: (id, filePath) => upload(`/api/voucher/upload/${id}`, filePath),
   updateVoucher: (body) => put('/api/voucher', body),
   deleteVoucher: (body) => del('/api/voucher', body)
 };

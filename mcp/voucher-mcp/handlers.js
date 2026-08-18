@@ -59,6 +59,11 @@ export const handlers = {
     return text(fy);
   },
 
+  get_journal: async (args) => {
+    const data = await api.getJournal(args.year, args.month);
+    return text(data.journal);
+  },
+
   get_cross_slip: async (args) => {
     return text(await api.getCrossSlip(args.year, args.month, args.no));
   },
@@ -161,6 +166,25 @@ export const handlers = {
       invoiceNo: args.invoiceNo
     };
     return text(await api.createVoucher(body));
+  },
+
+  create_voucher_with_file: async (args) => {
+    requireWritable();
+    const body = {
+      voucherClassId: args.voucherClassId,
+      issueDate: args.issueDate,
+      companyId: args.companyId,
+      amount: args.amount,
+      taxRuleId: args.taxRuleId,
+      paymentDate: args.paymentDate,
+      description: args.description,
+      invoiceNo: args.invoiceNo
+    };
+    const result = await api.createVoucher(body);
+    if ( args.filePath ) {
+      await api.uploadVoucherFile(result.voucher.id, args.filePath);
+    }
+    return text(result);
   },
 
   update_voucher: async (args) => {
