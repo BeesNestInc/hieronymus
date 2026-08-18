@@ -84,3 +84,6 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 * [メニューの作成](menu.md)
 * [消費税の扱い](consumption-tax.md)
 * [年度設定と繰越処理](fiscal-year.md)
+
+### AI連携
+* [AIによる伝票入力（MCP・スキル）](ai-integration.md)
