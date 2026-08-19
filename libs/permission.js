@@ -39,7 +39,7 @@ const RULES = [
   { match: /^\/cross_slips\/.+$/, methods: ['GET'], access: ANY },
   { match: /^\/cross_slip$/, methods: ['POST'], access: ANY },
   { match: /^\/cross_slip$/, methods: ['PUT'], access: ['accounting'] },
-  { match: /^\/cross_slip$/, methods: ['DELETE'], access: ['approvable'] },
+  { match: /^\/cross_slip$/, methods: ['DELETE'], access: ANY },
 
   { match: /^\/cross-slip-detail\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/cross-slip-detail$/, methods: ['PUT'], access: ['accounting'] },

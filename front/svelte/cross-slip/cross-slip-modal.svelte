@@ -88,6 +88,10 @@
             {:else}
             <button type="button" class="btn btn-warning" id="approve-button"
               on:click={approve}>承認</button>
+            {/if}
+          {/if}
+          {#if (( status.user.approvable ) || ( slip.createdBy == status.user.id ))}
+            {#if ( !slip.approvedAt )}
             <button type="button" class="btn btn-danger" id="delete-button"
               on:click={delete_}>削除</button>
             {/if}

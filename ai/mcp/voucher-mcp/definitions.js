@@ -163,7 +163,7 @@ export const toolDefinitions = [
   },
   {
     name: 'delete_cross_slip',
-    description: '未承認の仕訳伝票を削除します（承認権限が必要）。',
+    description: '未承認の仕訳伝票を削除します（作成者または承認権限者に限る。承認済みは削除不可）。',
     inputSchema: {
       type: 'object',
       properties: {

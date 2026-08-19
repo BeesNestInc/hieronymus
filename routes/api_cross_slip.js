@@ -196,34 +196,41 @@ export default {
   },
   delete: async(req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if	( req.session.user.approvable )	{
-      let body = req.body;
-      //console.log('body:', body);
-      let slip = await models.CrossSlip.findOne({
-        where: {
-          year: body.year,
-          month: body.month,
-          day: body.day,
-          no: body.no
-        }
-      });
-      if	( !slip.approvedAt )	{
-        await slip.destroy();
-        res.json({
-          code: 0,
-        });
-      } else {
-        res.json({
-          code: -2,
-          message: 'thid slip was approved'
-        });
+    let body = req.body;
+    let slip = await models.CrossSlip.findOne({
+      where: {
+        year: body.year,
+        month: body.month,
+        day: body.day,
+        no: body.no
       }
-    } else {
+    });
+    if	( !slip )	{
+      res.json({
+        code: -1,
+        message: 'record not found'
+      });
+      return;
+    }
+    if	( slip.approvedAt )	{
+      res.json({
+        code: -2,
+        message: 'thid slip was approved'
+      });
+      return;
+    }
+    if	( ( !req.session.user.approvable ) &&
+         ( slip.createdBy !== req.session.user.id ) )	{
       res.json({
         code: -10,
-        message: 'this account can not delete'
+        message: 'permission denied'
       });
+      return;
     }
+    await slip.destroy();
+    res.json({
+      code: 0,
+    });
   },
   approve: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
