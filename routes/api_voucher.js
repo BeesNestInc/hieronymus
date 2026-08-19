@@ -79,7 +79,7 @@ export default {
       let where;
       console.log('query', req.query);
       if	( req.query.order )	{
-        order = req.params.order;
+        order = req.query.order;
       } else {
         order = [
           [ "issueDate", "ASC" ]
@@ -137,6 +137,11 @@ export default {
             }
           ]
         };
+      } else if ( !req.session.term ) {
+        return res.status(400).json({
+          code: -2,
+          message: '会計年度(term)が未設定です。/api/voucher には ?month=YYYY-MM か ?date=YYYY-MM-DD を指定してください'
+        });
       } else {
         let fy = await models.FiscalYear.findOne({
           where: {
@@ -261,7 +266,7 @@ export default {
           code: 0,
           vouchers: vouchers
       	});
-      });
+      }).catch((e) => next(e));
     } else {
       models.Voucher.findOne({
         where: {
@@ -292,7 +297,7 @@ export default {
           code: 0,
           voucher: voucher
         });
-      });
+      }).catch((e) => next(e));
     }
   },
   post: async(req, res, next) => {

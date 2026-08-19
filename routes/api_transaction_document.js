@@ -229,6 +229,12 @@ export default {
       body.createdBy = req.session.user.id;
       body.updatedBy = req.session.user.id;
       if  ( !body.no )  {
+        if	( !req.session.term )  {
+          return res.status(400).json({
+            code: -2,
+            message: '会計年度(term)が未設定です。'
+          });
+        }
         let fy = await models.FiscalYear.findOne({
           where: {
             term: req.session.term

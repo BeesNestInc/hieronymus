@@ -93,7 +93,7 @@ export const toolDefinitions = [
   },
   {
     name: 'list_vouchers',
-    description: '証憑の一覧を取得します（期間・取引先・種別・金額範囲で絞り込み可）。',
+    description: '証憑の一覧を取得します（期間・取引先・種別・金額範囲で絞り込み可）。month または date の指定が必須です。',
     inputSchema: {
       type: 'object',
       properties: {

@@ -78,3 +78,5 @@ extract_document {file_path: <写真パス>}
 
 - 金額・日付・会社名の誤読は必ず人間が承認時に確認できるように、作成した伝票の摘要（`application1`）に「OCR: <取引内容>」を残す
 - 自動仕訳が誤っていた場合は、その結果を `journal-learning` でパターンに反映する（自分の推測を「事実」にしない）
+- 証憑・仕訳の一覧取得（`list_vouchers`, `get_journal`）は必ず `month`（例: 2026-08）または `date`（YYYY-MM-DD）を指定する。未指定だとサーバーが会計年度(term)を特定できずエラーになる
+- 該当年月が属する会計年度（term）は先に `get_fiscal_year` で確認する

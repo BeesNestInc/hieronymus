@@ -73,6 +73,9 @@ export const handlers = {
   },
 
   list_vouchers: async (args) => {
+    if ( !args.date && !args.month ) {
+      throw new Error('list_vouchers は month（例: 2026-03）または date（YYYY-MM-DD）の指定が必須です。先に get_fiscal_year で該当年月を確認してください。');
+    }
     const params = {};
     for ( const key of ['date', 'month', 'company', 'voucherClassId', 'lower', 'upper'] ) {
       if ( args[key] !== undefined ) {

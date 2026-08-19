@@ -143,6 +143,14 @@ app.use((err, req, res, next) => {
         headers: req.headers
     });
     
+    if ( req.originalUrl.startsWith('/api/') ) {
+        res.status(500).json({
+            code: -500,
+            message: err.message
+        });
+        return;
+    }
+
     res.status(500).send(`
         <h1>500 - Internal Server Error</h1>
         <p>${err.message}</p>
