@@ -116,12 +116,14 @@ const onUserInput = (event) =>{
       companys = [];
   } else {
     companys = [];
-    original_companies.forEach((company) => {
-      if  (( company.key && company.key.match(companyKey) ) ||
-           ( company.name && company.name.match(companyKey)) ) {
-        companys.push(company);
-      }
-    })
+    if (original_companies) {
+      original_companies.forEach((company) => {
+        if  (( company.key && company.key.includes(companyKey) ) ||
+             ( company.name && company.name.includes(companyKey)) ) {
+          companys.push(company);
+        }
+      })
+    }
     if	( companys.length > 0 )	{
       _companyId = companys[0].id;
     }
@@ -140,7 +142,7 @@ const clearInput = () => {
   inputValue = '';
   companyKey = '';
   isInitialInput = false;
-  companys = [...original_companies];
+  companys = original_companies ? [...original_companies] : [];
 };
 
 
@@ -234,10 +236,18 @@ onMount(() => {
   inputValue = companyName ?? '';
   isInitialInput = true;
   let param = clientOnly ? `?${encodeURI('clientOnly=true')}` : '';
-  axios.get(`/api/company/${param}`).then((result) => {
+  axios.get(`/api/company${param}`).then((result) => {
     original_companies = result.data.companies;
     companys = original_companies;
     companyDecide(companyId);
+    // 一覧の取得前に検索キーが入力されていた場合は、取得完了後に再フィルタして候補を反映する。
+    if (inputValue) {
+      onUserInput();
+    } else {
+      companys = [];
+    }
+  }).catch((err) => {
+    console.error('/api/company failed', err?.response?.status ?? err);
     companys = [];
   });
 })

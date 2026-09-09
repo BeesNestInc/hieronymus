@@ -181,8 +181,11 @@ const save = (event) => {
         axios.get(`/api/company/${id}`).then((res) => {
           company = res.data.company;
           currentCompany.set(company);
+          // status は URLSearchParams 等の clone 不可オブジェクトを含む場合があるため、
+          // replaceState が DataCloneError になる。history.state は参照されていないので page のみ渡す。
+          const entryUrl = `/company/entry/${id}`;
           window.history.replaceState(
-            status, "", `/company/entry/${id}`);
+            { page: entryUrl }, "", entryUrl);
         })
       }
     });

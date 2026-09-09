@@ -164,8 +164,11 @@ const save = (event) => {
       	}
       }
       if	( create )	{
+        // status は URLSearchParams 等の clone 不可オブジェクトを含むため、そのまま渡すと
+        // replaceState が DataCloneError になる。history.state は参照されていないので page のみ渡す。
+        const entryUrl = `/voucher/entry/${voucher.id}`;
         window.history.replaceState(
-          status, "", `/voucher/entry/${voucher.id}`);
+          { page: entryUrl }, "", entryUrl);
       }
       axios.get(`/api/voucher/${voucher.id}`).then((result) => {
         voucher = result.data.voucher;

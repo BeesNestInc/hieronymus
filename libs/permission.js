@@ -21,7 +21,7 @@ const RULES = [
   { match: /^\/company\/info$/, methods: ['PUT'], access: ['companyManagement', 'accounting'] },
   { match: /^\/company\/kinds$/, methods: ['GET'], access: ANY },
   { match: /^\/company\/kinds$/, methods: ['PUT'], access: ['companyManagement', 'accounting'] },
-  { match: /^\/company(\/\d+)?$/, methods: ['GET'], access: ANY },
+  { match: /^\/company(\/\d+)?\/?$/, methods: ['GET'], access: ANY },
   { match: /^\/company/, methods: ['POST', 'PUT', 'DELETE'], access: ['companyManagement', 'accounting'] },
 
   { match: /^\/voucher\/classes$/, methods: ['GET'], access: ANY },
