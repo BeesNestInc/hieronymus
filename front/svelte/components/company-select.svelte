@@ -107,6 +107,7 @@ let	companys = [];
 let company = {};
 let status = 'select';
 let _companyId;
+let resolvedCompanyId;
 
 const onUserInput = (event) =>{
   isInitialInput = false;
@@ -146,6 +147,7 @@ const clearInput = () => {
 const update = (event) => {
   //console.log('update', company);
   companyId = company.id;
+  resolvedCompanyId = company.id;
   companyName = company.name;
   chargeName = company.chargeName;
   zip = company.zip;
@@ -183,6 +185,7 @@ const companyDecide = (id) => {
         let company = companys[i];
         //console.log(company)
         companyId = company.id;
+        resolvedCompanyId = company.id;
         companyName = company.name;
         inputValue = company.name;
         chargeName = company.chargeName;
@@ -203,6 +206,15 @@ const	companySelect = (event)	=> {
   companyDecide(event.target.value);
   companys = [];
   dispatch('input', companyId);
+}
+// voucher詳細のように companyId がマウント後に確定・差し替えされる場合に追従する。
+// ユーザ検索中（候補リスト表示中）は上書きしない。
+$: if (original_companies && original_companies.length && companyId &&
+    String(resolvedCompanyId ?? '') !== String(companyId) &&
+    (!companys || companys.length === 0)) {
+  companys = original_companies;
+  companyDecide(companyId);
+  companys = [];
 }
 beforeUpdate(() => {
   //console.log({companyId});

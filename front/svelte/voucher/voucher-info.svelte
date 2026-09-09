@@ -47,9 +47,14 @@
       <CompanySelect
         on:startregister
         on:endregister
-        register=true
+        register="true"
         input="view"
-        bind:companyId={voucher.companyId}/>
+        bind:companyId={voucher.companyId}
+        companyName={voucher?.company?.name ?? ''}
+        chargeName={voucher?.company?.chargeName ?? ''}
+        zip={voucher?.company?.zip ?? ''}
+        address1={voucher?.company?.address1 ?? ''}
+        address2={voucher?.company?.address2 ?? ''}/>
     </div>
   </div>
   <div class="row mt-3">
@@ -245,7 +250,7 @@ onMount(async () => {
   if	( voucher.id )	{
     const result = await axios.get(`/api/voucher/files/${voucher.id}`);
     files = result.data;
-    companyKey = voucher.company.name;
+    companyKey = voucher.company?.name ?? '';
     voucher.amount = numeric(voucher.amount).toLocaleString();
     voucher.tax = numeric(voucher.tax).toLocaleString();
   } else {
