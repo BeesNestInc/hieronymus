@@ -86,17 +86,23 @@ export default {
         ]
       }
       if	( req.query.date )	{
-        let date = new Date(req.query.date);
+        // YYYY-M-D / YYYY-MM-DD のどちらも受け付け、DATEONLY列との比較は
+        // 文字列(YYYY-MM-DD)で行う。new Date()でDateオブジェクト化すると
+        // ゼロパディング有無でUTC/ローカル解釈が変わり9時間ずれるため。
+        const m = String(req.query.date).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        const dateStr = m
+          ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+          : String(req.query.date);
         where = {
           [Op.or]: [
             {
               issueDate: {
-                [Op.eq]: date
+                [Op.eq]: dateStr
               }
             },
             {
               paymentDate: {
-                [Op.eq]: date
+                [Op.eq]: dateStr
               }
             }
           ]

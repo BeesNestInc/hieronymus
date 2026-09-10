@@ -299,9 +299,9 @@ const openVouchers = (event) => {
     vouchers = undefined;
   } else {
     vouchers = [];
-    axios.get(`/api/voucher/`, {
+    axios.get(`/api/voucher`, {
       params: {
-        date: `${slip.year}-${slip.month}-${slip.day}`
+        date: dateStr(slip.year, slip.month, slip.day)
       }
     }).then((result) => {
       vouchers = result.data.vouchers;
