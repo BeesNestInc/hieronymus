@@ -50,6 +50,9 @@
               }
             }}
             id="slip-button">伝票</button>
+          <button type="button" class="btn btn-info" disabled={disabled}
+            on:click={newEntry}
+            id="new-button">新規入力</button>
         {/if}
         <button type="button" class="btn btn-primary" disabled={disabled}
             on:click={save}
@@ -69,6 +72,7 @@ import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte'
 const dispatch = createEventDispatcher();
 import VoucherInfo from './voucher-info.svelte';
 import {currentVoucher, getStore} from '../../javascripts/current-record.js'
+import {link} from '../../javascripts/router.js';
 
 
 export let voucher;
@@ -78,6 +82,37 @@ let	files;
 let ok = true;
 let errorMessages = [];
 let disabled = false;
+
+// 直近にファイルを取得したvoucherのid。画面遷移（ブラウザバック等）では
+// コンポーネントが再利用されonMountが走らないため、id変化で再取得する。
+let loadedFilesFor;
+const reloadFiles = (id) => {
+  axios.get(`/api/voucher/files/${id}`).then((result) => {
+    // 取得完了前に別の証憑へ移動していたら反映しない
+    if ( voucher && voucher.id === id ) {
+      files = result.data;
+    }
+  }).catch(() => {});
+};
+$: {
+  const vid = voucher ? voucher.id : undefined;
+  if ( vid == null ) {
+    // 新規画面では別証憑のファイルが残っていたら消す。
+    // 未保存アップロード中（loadedFilesForが空）は手元のfilesを優先する。
+    if ( loadedFilesFor != null ) {
+      files = [];
+      loadedFilesFor = undefined;
+    }
+  } else if ( vid !== loadedFilesFor ) {
+    if ( loadedFilesFor == null && files && files.length > 0 ) {
+      // 新規保存直後など、手元にファイルがある場合は再取得で消さない
+      loadedFilesFor = vid;
+    } else {
+      loadedFilesFor = vid;
+      reloadFiles(vid);
+    }
+  }
+}
 
 const create_voucher = async (_voucher) => {
   let result = await axios.post('/api/voucher', _voucher);
@@ -164,16 +199,16 @@ const save = (event) => {
       	}
       }
       if	( create )	{
-        // status は URLSearchParams 等の clone 不可オブジェクトを含むため、そのまま渡すと
-        // replaceState が DataCloneError になる。history.state は参照されていないので page のみ渡す。
-        const entryUrl = `/voucher/entry/${voucher.id}`;
-        window.history.replaceState(
-          { page: entryUrl }, "", entryUrl);
+        // status は URLSearchParams 等の clone 不可オブジェクトを含むため、
+        // state には page のみ渡す（router.js の _link と同じ形式）。
+        // replaceState相当でURLをentryに切り替え、store/stateも同期させる。
+        link(`/voucher/entry/${voucher.id}`, {replace: true});
+      } else {
+        axios.get(`/api/voucher/${voucher.id}`).then((result) => {
+          voucher = result.data.voucher;
+          currentVoucher.set(voucher);
+        })
       }
-      axios.get(`/api/voucher/${voucher.id}`).then((result) => {
-        voucher = result.data.voucher;
-        currentVoucher.set(voucher);
-      })
     });
   }
   catch(e) {
@@ -195,6 +230,19 @@ const	close_ = (event) => {
   clean_popup();
   window.history.back();
   dispatch('close');
+}
+
+const newEntry = (event) => {
+  // IDなしの新規voucherへの置き換えは親（voucher.svelte）が行う。
+  // URLが変わらない場合でもcheckPageが走らないため、ここではlinkせずcopyイベントで依頼する。
+  clean_popup();
+  dispatch('copy', {
+    voucherClassId: (voucher.voucherClassId != null && String(voucher.voucherClassId) !== '-1')
+      ? voucher.voucherClassId : undefined,
+    issueDate: voucher.issueDate ? formatDate(voucher.issueDate) : undefined,
+    paymentDate: voucher.paymentDate ? formatDate(voucher.paymentDate) : undefined,
+    companyId: voucher.companyId ? voucher.companyId : undefined
+  });
 }
 
 onMount(() => {

@@ -76,12 +76,11 @@
 {:else}
   <CompanyEntry
     inline=true
-	  on:save={update}
+	  on:save={saveCompany}
     on:close={closeEntry}
 	  bind:company={company}>
   </CompanyEntry>
 {/if}
-
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
@@ -161,6 +160,11 @@ const closeEntry = (event) => {
   update();
   dispatch('endregister');
 }
+// 取引先の新規登録・編集保存時は決定会社として親にも通知する（表示同期用）
+const saveCompany = (event) => {
+  update(event);
+  dispatch('decide', company);
+}
 const	openEntry = async (event)	=> {
   company = {
     name: companyName,
@@ -196,6 +200,7 @@ const companyDecide = (id) => {
         address2 = company.address2;
         companyKey = companyName;
         dispatch('input', companyId);
+        dispatch('decide', company);
         companys = [];
         break;
       }
@@ -210,10 +215,10 @@ const	companySelect = (event)	=> {
   dispatch('input', companyId);
 }
 // voucher詳細のように companyId がマウント後に確定・差し替えされる場合に追従する。
-// ユーザ検索中（候補リスト表示中）は上書きしない。
+// キー入力では companyId は変わらないため、この分岐は外部からの差し替え時のみ走る。
+// 証憑切替時は古い候補・検索表示もリセットする（companyDecideがinputValueを更新する）。
 $: if (original_companies && original_companies.length && companyId &&
-    String(resolvedCompanyId ?? '') !== String(companyId) &&
-    (!companys || companys.length === 0)) {
+    String(resolvedCompanyId ?? '') !== String(companyId)) {
   companys = original_companies;
   companyDecide(companyId);
   companys = [];

@@ -47,6 +47,7 @@
       <CompanySelect
         on:startregister
         on:endregister
+        on:decide={syncCompany}
         register="true"
         input="view"
         bind:companyId={voucher.companyId}
@@ -105,7 +106,7 @@
           {:else}
           {#each files as file}
           <div class="file-item">
-            <div style="margin:10px 0 5px 0;">
+            <div class="file-del">
               <button type="button" on:click={delete_file} data-id={file.id}>
                 <i class="fas fa-trash"></i>
               </button>
@@ -132,16 +133,42 @@
   background-color: #fff;
   border-radius: 4px;
   border: 1px solid #ccc;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
 }
 .file-item {
-  width:90px;
-  height:120px;
+  width:120px;
+  height:160px;
   border:1px #8CC solid;
-  margin:10px;
-  padding: 0 10px 10px 10px;
+  margin:5px;
+  padding: 2px 6px 6px 6px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.file-item .file-del {
+  margin:0 0 2px 0;
+}
+.file-item .file-del button {
+  padding:0 5px;
+  font-size:0.75rem;
+  line-height:1.5;
+}
+.file-item a {
+  flex:1;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
 }
 .rect-image {
-  width:70px;
+  max-width:100%;
+  max-height:100%;
+  width:auto;
+  height:auto;
+  object-fit:contain;
 }
 </style>
 
@@ -174,6 +201,15 @@ const copy_up = (event) => {
 }
 const copy_down = (event) => {
   voucher.paymentDate = voucher.issueDate;
+}
+
+// CompanySelectで相手先が選択・登録されたらvoucher.companyを表示用に同期する。
+// 同期しないと親の再描画で古いvoucher.companyの値が子に上書きされ、表示が元に戻ってしまう。
+const syncCompany = (event) => {
+  if ( voucher ) {
+    voucher.company = event.detail;
+    voucher = voucher;
+  }
 }
 
 const delete_file = (event) => {
@@ -248,8 +284,7 @@ onMount(async () => {
     voucherClasses = result.data.values;
   });
   if	( voucher.id )	{
-    const result = await axios.get(`/api/voucher/files/${voucher.id}`);
-    files = result.data;
+    // ファイル欄の取得は親（voucher-entry）がvoucher.idの変化に追従して行う
     companyKey = voucher.company?.name ?? '';
     voucher.amount = numeric(voucher.amount).toLocaleString();
     voucher.tax = numeric(voucher.tax).toLocaleString();
