@@ -8,6 +8,7 @@
   { type: "checkbox", name: 'send', title: "差出", width: "50px"},
   { type: "dropdown", name: 'form', title: "プログラム名", width: "200px",
   source: [
+    [ '', 'なし' ],
     [ 'invoice', '請求書' ],
     [ 'receipt', '領収書' ],
     [ 'estimate', '見積書']

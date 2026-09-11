@@ -25,6 +25,7 @@ const RULES = [
   { match: /^\/company/, methods: ['POST', 'PUT', 'DELETE'], access: ['companyManagement', 'accounting'] },
 
   { match: /^\/voucher\/classes\/?$/, methods: ['GET'], access: ANY },
+  { match: /^\/voucher\/classes\/?$/, methods: ['PUT'], access: ['administrable', 'accounting', 'companyManagement'] },
   { match: /^\/voucher\/files\/\d+\/?$/, methods: ['GET'], access: ANY },
   { match: /^\/voucher\/upload/, methods: ['POST'], access: ANY },
   { match: /^\/voucher\/bind\/?$/, methods: ['PUT'], access: ANY },
