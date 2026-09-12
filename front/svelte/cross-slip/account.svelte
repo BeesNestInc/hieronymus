@@ -8,10 +8,13 @@
     {#if ( list.length > 0 ) }
     <select bind:value={code}
       on:focusout={accountSelect}>
+      <option value=""></option>
     {#each list as item}
+      {#if ( item.code !== '' ) }
     <option value={item.code}>
       {item.name}
     </option>
+      {/if}
     {/each}
     </select>
     {/if}
@@ -69,7 +72,12 @@ const onAccountInput = (event) => {
   isInitialInput = false;
   accountKey = inputAccount;
   list = searchAccountByKey(accountKey);
-  if  ( list.length > 0 ) {
+  if  ( !accountKey ) {
+    // キー未入力時は「入力しない」を選択できるよう空を先頭にする
+    code = '';
+    account = undefined;
+    clearSubInput();
+  } else if  ( list.length > 0 ) {
     code = list[0].code;
   }
 }
@@ -84,11 +92,21 @@ const keyCheck = (event) => {
 const clearInput = () => {
   inputAccount = '';
   accountKey = '';
+  code = '';
+  account = undefined;
   isInitialInput = false;
   list = searchAccountByKey(accountKey);
   clearSubInput();
 }
 const accountDecide = (selectCode) => {
+  if  ( !selectCode ) {
+    code = '';
+    account = undefined;
+    accountKey = '';
+    inputAccount = '';
+    clearSubInput();
+    return;
+  }
   const decided = list?.find((acc) => acc.code === selectCode);
   if  ( !decided )  return;
   code = decided.code;
@@ -97,7 +115,18 @@ const accountDecide = (selectCode) => {
   setAccount();
 }
 const accountSelect = (event) => {
-  code = event.target.value || null;
+  const value = event.target.value;
+  if  ( !value ) {
+    // 先頭の空（入力しない）が選ばれたら入力クリア
+    code = '';
+    account = undefined;
+    accountKey = '';
+    inputAccount = '';
+    clearSubInput();
+    list = [];
+    return;
+  }
+  code = value;
   //console.log(`accountSelect [${code}]`);
   accountDecide(code);
   list = [];
@@ -107,6 +136,18 @@ const accountSelect = (event) => {
 const onSubAccountInput = (event) => {
   isInitialSubInput = false;
   subAccountKey = inputSubAccount;
+  if  ( !account ) {
+    sub_list = [];
+    sub_code = undefined;
+    return;
+  }
+  if  ( !subAccountKey ) {
+    // キー未入力時は「入力しない」を選択できるよう空を先頭にする
+    sub_list = searchSubAccountByKey(account, '');
+    sub_code = undefined;
+    sub_account = undefined;
+    return;
+  }
   sub_list = searchSubAccountByKey(account, subAccountKey);
   sub_code = ( sub_list && sub_list.length > 0 ) ? sub_list[0].code : undefined;
 }
@@ -126,6 +167,14 @@ const subCheck = (event) => {
   }
 }
 const subAccountDecide = (selectCode) => {
+  if  ( !selectCode ) {
+    // 先頭の空（入力しない）が選ばれたらクリア
+    sub_code = undefined;
+    sub_account = undefined;
+    subAccountKey = '';
+    inputSubAccount = '';
+    return;
+  }
   const decided = sub_list?.find((sub) => sub.code === selectCode);
   //console.log({decided});
   if  ( !decided )  return;
@@ -134,7 +183,26 @@ const subAccountDecide = (selectCode) => {
   inputSubAccount = decided.name;
 }
 const subAccountSelect = (event) => {
-  sub_code = parseInt(event.target.value);
+  const raw = event.target.value;
+  if  ( raw === '' || raw == null ) {
+    sub_code = undefined;
+    sub_account = undefined;
+    subAccountKey = '';
+    inputSubAccount = '';
+    sub_list = [];
+    return;
+  }
+  const value = parseInt(raw);
+  if  ( !value ) {
+    // 0 は補助科目なし
+    sub_code = undefined;
+    sub_account = undefined;
+    subAccountKey = '';
+    inputSubAccount = '';
+    sub_list = [];
+    return;
+  }
+  sub_code = value;
   //console.log({sub_code});
   subAccountDecide(sub_code);
   sub_list = [];
@@ -142,6 +210,12 @@ const subAccountSelect = (event) => {
 
 const setAccount = () => {
   list = [];
+  if  ( !code ) {
+    account = undefined;
+    inputAccount = '';
+    subAccountKey = '';
+    return;
+  }
   account = findAccount(code);
   console.log('account', account);
   if	( account )	{
@@ -177,17 +251,27 @@ const searchAccountByKey = (key) => {
 }
 const searchSubAccountByKey = (account, key) => {
   let list = [];
-  if	( account.subAccounts )	{
-    account.subAccounts.forEach((sub) => {
-      if	((( sub.key ) &&
-          ( sub.key.match(key) )) ||
-         ( sub.name.match(key) ))	{
+  if	( account && account.subAccounts )	{
+    if	(	( key )
+      &&	( key != '' ) )	{
+      account.subAccounts.forEach((sub) => {
+        if	((( sub.key ) &&
+            ( sub.key.match(key) )) ||
+            ( sub.name.match(key) ))	{
+          list.push({
+            name: sub.name,
+            code: sub.code
+          });
+        }
+      });
+    } else {
+      account.subAccounts.forEach((sub) => {
         list.push({
           name: sub.name,
           code: sub.code
         });
-      }
-    });
+      });
+    }
   }
   return (list);
 }
