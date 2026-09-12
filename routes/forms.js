@@ -118,7 +118,7 @@ router.get('/trial_balance/:term', is_authenticated, async (req, res, next) => {
     if	( req.query.format === 'html')	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
     } else {
-      trial_balance(parseInt(req.params.term)).then((buff) => {
+      trial_balance(parseInt(req.params.term), undefined, req.session.user).then((buff) => {
         res.send(buff);
       })
     }
@@ -129,7 +129,7 @@ router.get('/trial_balance/:term', is_authenticated, async (req, res, next) => {
 router.get('/trial_balance/:term/:month', is_authenticated, (req, res, next) => {
 	if (( req.session.user.accounting ) ||
       ( req.session.user.fiscalBrowsing )) {
-    trial_balance(parseInt(req.params.term), req.params.month).then((buff) => {
+    trial_balance(parseInt(req.params.term), req.params.month, req.session.user).then((buff) => {
       res.send(buff);
     })
 	} else {

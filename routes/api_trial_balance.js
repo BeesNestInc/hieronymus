@@ -28,13 +28,14 @@ export default {
         }
       }
       let ret;
+      const actor = (req.session && req.session.user) ? req.session.user : undefined;
       if (ym) {
         const year = parseInt(ym[0]);
         const monthIndex = parseInt(ym[1]) - 1;
         // 期間の終わりを「月の最終日」に設定する
         // 次の月の0日目を指定すると、対象月の最終日が得られる
         lastDate = new Date(year, monthIndex + 1, 0);
-        ret = await trial_balance(term, lastDate, { monthly: true });
+        ret = await trial_balance(term, lastDate, { monthly: true, autoDisapprove: true, actor });
       } else {
         // 月の指定がない場合は、termからfyを取得し、会計年度の最終日をセットする
         const fy = await models.FiscalYear.findOne({ where: { term: term }});
@@ -42,7 +43,7 @@ export default {
           return res.status(404).json({ error: `Fiscal year for term ${term} not found.` });
         }
         lastDate = new Date(fy.endDate);
-        ret = await trial_balance(term, lastDate);
+        ret = await trial_balance(term, lastDate, { autoDisapprove: true, actor });
       }
 
       res.json(ret.lines);

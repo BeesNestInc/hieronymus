@@ -307,7 +307,7 @@ TrialBalance(TERM).then((lines) => {
     book.save('残高試算表.xlsx');
 });
 */
-export default async (term, month) => {
+export default async (term, month, actor) => {
   console.log(term, month);
   let lastDate;
   if	( month )	{
@@ -316,7 +316,7 @@ export default async (term, month) => {
   }
 
   let book = new Book(term);
-  let {lines} = await TrialBalance(term, lastDate);
+  let {lines} = await TrialBalance(term, lastDate, { autoDisapprove: true, actor });
   let trial_balance_page = new TrialBalancePage(book, term, lines, month);
   await trial_balance_page.run();
   return  book.book.xlsx.writeBuffer();
