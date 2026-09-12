@@ -151,14 +151,25 @@ export default {
     res.set('Access-Control-Allow-Origin', '*');
     let body = await recalcReject(req, res);
     if ( !body ) return;
-    let slip = await createCrossSlip(body, req.session.user);
-    if  ( slip )  {
-      res.json(slip);
-    } else {
-      res.status(422).json({
-        code: -2,
-        message: 'date error'
-      });
+    try {
+      let slip = await createCrossSlip(body, req.session.user);
+      if  ( slip )  {
+        res.json(slip);
+      } else {
+        res.status(422).json({
+          code: -2,
+          message: 'date error'
+        });
+      }
+    } catch (e) {
+      if ( e && e.name === 'SequelizeUniqueConstraintError' ) {
+        res.status(409).json({
+          code: -3,
+          message: '伝票番号が重複しました。再度登録してください。'
+        });
+        return;
+      }
+      next(e);
     }
   },
   update: async(req, res, next) => {
