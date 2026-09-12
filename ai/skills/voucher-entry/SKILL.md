@@ -67,6 +67,7 @@ extract_document {file_path: <写真パス>}
 - **合致するパターンがある**: 借方/貸方科目をそのパターンに従って決定し、`create_cross_slip` で作成（承認待ち）
   - 証憑の方向: 伝票種別が `send=true` なら貸方側、`send=false` なら借方側に証憑IDを紐付ける
   - 明細行: `debitAccount/debitSubAccount/debitAmount` / `creditAccount/creditSubAccount/creditAmount`、証憑IDは `debitVoucherId` or `creditVoucherId`
+  - 科目コードは `get_accounts` の `code` をそのまま使う。使わない脚の科目は JSON の `null`（文字列 `"null"` は厳禁。金額は0）。保存前に `compute_slip_taxes` でプレビューし、科目・金額を確認する
 - **パターンにない新規ケース**: 自動仕訳せず、推定の提案（借方/貸方の候補）を人間に提示して判断を仰ぐ
 - 参考: 過去の類似仕訳は `get_journal` で確認できる
 

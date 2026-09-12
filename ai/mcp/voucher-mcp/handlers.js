@@ -1,6 +1,6 @@
 import { api } from './client.js';
 import { previewSlip } from './tax.js';
-import { validateDay, validateLines } from './validate.js';
+import { validateDay, validateLines, normalizeLines } from './validate.js';
 
 const READONLY = process.env.HIERONYMUS_READONLY === '1';
 
@@ -92,15 +92,17 @@ export const handlers = {
     if ( dayErr ) {
       throw new Error(dayErr);
     }
-    const lineErr = validateLines(args.lines);
-    if ( lineErr ) {
-      throw new Error(lineErr);
+    const createLines = normalizeLines(args.lines);
+    const createAccounts = await api.getAccounts();
+    const createLineErr = validateLines(createLines, createAccounts);
+    if ( createLineErr ) {
+      throw new Error(createLineErr);
     }
     const body = {
       year: args.year,
       month: args.month,
       day: args.day,
-      lines: args.lines
+      lines: createLines
     };
     const result = await api.createCrossSlip(body);
     return text(result);
@@ -112,16 +114,18 @@ export const handlers = {
     if ( dayErr ) {
       throw new Error(dayErr);
     }
-    const lineErr = validateLines(args.lines);
-    if ( lineErr ) {
-      throw new Error(lineErr);
+    const updateLines = normalizeLines(args.lines);
+    const updateAccounts = await api.getAccounts();
+    const updateLineErr = validateLines(updateLines, updateAccounts);
+    if ( updateLineErr ) {
+      throw new Error(updateLineErr);
     }
     const body = {
       year: args.year,
       month: args.month,
       day: args.day,
       no: args.no,
-      lines: args.lines
+      lines: updateLines
     };
     return text(await api.updateCrossSlip(body));
   },

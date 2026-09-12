@@ -1,21 +1,21 @@
 const slipLineSchema = {
   type: 'object',
   properties: {
-    debitAccount: { type: 'string', description: '借方の勘定科目コード（例: 1000001）' },
+    debitAccount: { type: ['string', 'null'], description: '借方の勘定科目コード（例: 1000001。get_accounts で確認。使わない脚は JSON null。文字列 "null" は禁止）' },
     debitSubAccount: { type: 'integer', description: '借方の補助科目コード（任意）' },
-    debitAmount: { type: 'number', description: '借方の金額' },
+    debitAmount: { type: 'number', description: '借方の金額（使わない脚は0）' },
     debitTaxRuleId: { type: 'integer', description: '借方の消費税率ルールID（任意。指定時はサーバ側で税額を計算します）' },
     debitVoucherId: { type: 'integer', description: '借方に紐付ける証憑ID（任意）' },
-    creditAccount: { type: 'string', description: '貸方の勘定科目コード（例: 1000001）' },
+    creditAccount: { type: ['string', 'null'], description: '貸方の勘定科目コード（例: 1000001。get_accounts で確認。使わない脚は JSON null。文字列 "null" は禁止）' },
     creditSubAccount: { type: 'integer', description: '貸方の補助科目コード（任意）' },
-    creditAmount: { type: 'number', description: '貸方の金額' },
+    creditAmount: { type: 'number', description: '貸方の金額（使わない脚は0）' },
     creditTaxRuleId: { type: 'integer', description: '貸方の消費税率ルールID（任意。指定時はサーバ側で税額を計算します）' },
     creditVoucherId: { type: 'integer', description: '貸方に紐付ける証憑ID（任意）' },
     projectId: { type: 'integer', description: 'プロジェクトID（任意。部門会計利用時）' },
     application1: { type: 'string', description: '摘要（任意）' },
     application2: { type: 'string', description: '備考・補足（任意）' }
   },
-  required: ['debitAccount', 'debitAmount', 'creditAccount', 'creditAmount']
+  required: ['debitAmount', 'creditAmount']
 };
 
 export const toolDefinitions = [
