@@ -96,6 +96,24 @@ describe('tax-calc unit', () => {
       assert.equal(result[0].debitAccount, null);
       assert.equal(result[0].debitAmount, 1000);
     });
+    it("'null'・'undefined'・空白のみの科目文字列をnullに変換する（MCP混入対策）", () => {
+      const lines = [{
+        debitAccount: 'null', debitAmount: 0,
+        creditAccount: 'NULL', creditAmount: 0
+      }, {
+        debitAccount: 'undefined', debitAmount: 0,
+        creditAccount: '   ', creditAmount: 0
+      }, {
+        debitAccount: ' 1000001 ', debitAmount: 1000,
+        creditAccount: '6000000', creditAmount: 1000
+      }];
+      const result = normalizeLines(lines);
+      assert.equal(result[0].debitAccount, null);
+      assert.equal(result[0].creditAccount, null);
+      assert.equal(result[1].debitAccount, null);
+      assert.equal(result[1].creditAccount, null);
+      assert.equal(result[2].debitAccount, '1000001');
+    });
   });
 
   describe('validateDay', () => {

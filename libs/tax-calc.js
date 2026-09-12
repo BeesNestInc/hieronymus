@@ -70,14 +70,29 @@ const isTaxAccount = (code) => {
   return ( Boolean(code.match(/^114|^308/)) );
 };
 
+// 科目コードの正規化: 空白のみ・'null'・'undefined' 文字列（AI/MCP経路での混入対策）は未入力(null)扱いにする。
+// 有効なコードは前後の空白を除去する。
+const nullAccount = (code) => {
+  if ( code === null || code === undefined ) return null;
+  if ( typeof code !== 'string' ) return code;
+  const t = code.trim();
+  const lower = t.toLowerCase();
+  if ( t === '' || lower === 'null' || lower === 'undefined' ) return null;
+  return t;
+};
+
 export const normalizeLines = (lines) => {
   return (lines || []).map((line) => {
     const l = { ...line };
     if ( l.debitAccount === 'sundries' ) {
       l.debitAccount = null;
+    } else {
+      l.debitAccount = nullAccount(l.debitAccount);
     }
     if ( l.creditAccount === 'sundries' ) {
       l.creditAccount = null;
+    } else {
+      l.creditAccount = nullAccount(l.creditAccount);
     }
     l.debitAmount = numeric(l.debitAmount);
     l.creditAmount = numeric(l.creditAmount);
