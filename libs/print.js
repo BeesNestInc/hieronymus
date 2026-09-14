@@ -47,8 +47,25 @@ export const print = async (reportName, props) => {
     height: Math.round(297 / 0.264583)  // ≒ 1122.5
   });
   await page.addStyleTag({
-    url: 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap'
+    url: 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap'
   });
+  // Webフォントの到着待ち。到着前にPDF化すると代替フォントで確定してしまう。
+  // 400のみだと太字が合成太字になるため700も要求する。
+  // オフライン等で取得できなくてもsystemフォントで描画できるよう短時間で打切り
+  try {
+    await page.evaluate(async () => {
+      try {
+        await Promise.race([
+          Promise.all([
+            document.fonts.load('400 16px "Noto Sans JP"'),
+            document.fonts.load('700 16px "Noto Sans JP"'),
+          ]),
+          new Promise((resolve) => setTimeout(resolve, 5000)),
+        ]);
+      } catch { /* フォント取得失敗時はsystemフォールバックで描画 */ }
+      await document.fonts.ready;
+    });
+  } catch { /* headless側の問題時はそのままPDF化 */ }
   const pdfBuffer = await page.pdf({
     width: '210mm',
     height: '297mm',
