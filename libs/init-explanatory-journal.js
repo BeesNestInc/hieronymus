@@ -1,6 +1,14 @@
 import axios from 'axios';
-import {numeric, burstPage } from './utils.js';
+import {numeric, burstPage, isNode } from './utils.js';
 import {setAccounts, findAccount, findSubAccountByCode} from '../front/javascripts/cross-slip.js';
+
+const apiGet = async (path) => {
+  if  ( isNode() )  {
+    const {apiGet: serverGet} = await import(/* @vite-ignore */ './server-data.js');
+    return  (serverGet(path));
+  }
+  return  (axios.get(path));
+};
 
 let fy = {};
 let dates;
@@ -8,13 +16,13 @@ let dates;
 const LINES = 24;
 
 const setupDates = async (term) => {
-  let result = await axios.get(`/api/term/${term}`);
+  let result = await apiGet(`/api/term/${term}`);
   dates = [];
   fy = result.data;
   for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
     let year = mon.getFullYear();
     let month = mon.getMonth() + 1;
-    let result = await axios.get(`/api/journal/${year}/${month}`)
+    let result = await apiGet(`/api/journal/${year}/${month}`)
     const ret = ready(result.data.journal);
 
     let pages = burstPage(ret.lines, LINES);
@@ -28,11 +36,9 @@ const setupDates = async (term) => {
     //mon = new Date(fy.endDate);
   }
 }
-const setupAccount = () => {
-  axios.get(`/api/accounts`).then((res) => {
-    let accounts = res.data;
-    setAccounts(accounts);
-  });
+const setupAccount = async () => {
+  const res = await apiGet(`/api/accounts`);
+  setAccounts(res.data);
 }
 const ready = (slips) => {
   let _lines = [];
@@ -94,7 +100,7 @@ const ready = (slips) => {
 }
 
 export default async (term) => {
-  setupAccount();  
+  await setupAccount();  
   await setupDates(term);
   return  ({
     fy: fy,

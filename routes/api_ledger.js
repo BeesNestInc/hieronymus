@@ -2,8 +2,7 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import Accounts from '../libs/accounts.js';
 
-const	get_details = async (fy, account, sub_account) => {
-  //console.log({account});
+export const	get_details = async (fy, account, sub_account, includeUnapproved) => {  //console.log({account});
   //console.log({sub_account});
   let ledger = [];
   const endDate = new Date(fy.endDate);
@@ -82,7 +81,7 @@ const	get_details = async (fy, account, sub_account) => {
       ]
     });
     for ( let i = 0; i < details.length; i ++ ) {
-      if  ( details[i].crossSlip.approvedAt ) {
+      if  ( includeUnapproved || details[i].crossSlip.approvedAt ) {
         ledger.push(details[i]);
       }
     }
@@ -102,7 +101,7 @@ export default {
         term: term
       }
     }).then((fy) => {
-      get_details(fy, account, sub_account).then((ledger)=> {
+      get_details(fy, account, sub_account, req.query.includeUnapproved).then((ledger)=> {
         res.json(ledger);
       })
     });

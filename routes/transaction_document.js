@@ -17,7 +17,8 @@ const screen = (req, res, next) => {
     }
 }
 
-const form_out = async (req, res, form) => {
+const form_out = async (req, res, next, form) => {
+  try {
   let id = req.params.id;
   const company = await myCompany();
   let transaction = await models.TransactionDocument.findByPk(id, {
@@ -45,18 +46,21 @@ const form_out = async (req, res, form) => {
     transaction: transaction,
     company: company
   });
+  } catch (err) {
+    next(err);
+  }
 }
 
 const form_transaction = async (req, res, next) => {
   if  ( req.session.user.accounting ) {
-    await form_out(req, res, 'transaction');
+    await form_out(req, res, next, 'transaction');
   } else {
     res.redirect('/home');
   }
 }
 const form_estimate = async (req, res, next) => {
   if  ( req.session.user.accounting ) {
-    await form_out(req, res, 'estimate');
+    await form_out(req, res, next, 'estimate');
   } else {
     res.redirect('/home');
   }

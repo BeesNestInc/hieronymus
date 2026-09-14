@@ -1,7 +1,15 @@
 import {field} from './parse_account_code.js';
 import SumTable from '../forms/sum-table.js';
-import {formatMoney} from './utils.js';
+import {formatMoney, isNode} from './utils.js';
 import axios from 'axios';
+
+const apiGet = async (path) => {
+  if  ( isNode() )  {
+    const {apiGet: serverGet} = await import(/* @vite-ignore */ './server-data.js');
+    return  (serverGet(path));
+  }
+  return  (axios.get(path));
+};
 
 let trialBalanceLines;
 
@@ -467,9 +475,9 @@ const SGA = () => {
 
 
 export default async(term) => {
-  let result = await axios.get(`/api/term/${term}`);
+  let result = await apiGet(`/api/term/${term}`);
   let fy = result.data;
-  let res = await axios.get(`/api/trial-balance/${term}`);
+  let res = await apiGet(`/api/trial-balance/${term}`);
   trialBalanceLines = res.data;
   trialBalanceLines.forEach((line) => {
     if  ( parseInt(line.acl_code) < 400 ) {

@@ -1,12 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
-export default {
-  get: async (req, res, next) => {
-    let year =  parseInt(req.params.year);
-    let month =  parseInt(req.params.month);
-    //console.log('/api/journal/', year, month);
-    
+export const fetchJournal = async (year, month) => {
     let cross_slips = [];
 
     let slips = await models.CrossSlip.findAll({
@@ -118,6 +113,15 @@ export default {
       });
     }
     //console.log(JSON.stringify(cross_slips, ' ', 2));
+    return (cross_slips);
+};
+
+export default {
+  get: async (req, res, next) => {
+    let year =  parseInt(req.params.year);
+    let month =  parseInt(req.params.month);
+    //console.log('/api/journal/', year, month);
+    const cross_slips = await fetchJournal(year, month);
     res.json({
       journal: cross_slips
     });

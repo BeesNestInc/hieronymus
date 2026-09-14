@@ -23,16 +23,19 @@ router.get('/explanatory_journal/:term', is_authenticated, async (req, res, next
 	if (( req.session.user.accounting ) ||
     	( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
-      const company = await myCompany();
-      const {fy, dates} = await initializeExplanatoryJournal(req.params.term);
-      print('explanatory-journal', {
-        fy: fy,
-        dates: dates,
-        company: company
-      }).then((pdf) => {
+      try {
+        const company = await myCompany();
+        const {fy, dates} = await initializeExplanatoryJournal(req.params.term);
+        const pdf = await print('explanatory-journal', {
+          fy: fy,
+          dates: dates,
+          company: company
+        });
         res.setHeader('Content-Type', 'application/pdf');
         res.send(pdf);
-      })
+      } catch (err) {
+        next(err);
+      }
     } else
     if	( req.query.format === 'html' )	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
@@ -49,17 +52,20 @@ router.get('/general_ledger/:term', is_authenticated, async (req, res, next) => 
 	if (( req.session.user.accounting ) ||
         ( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
-      const company = await myCompany();
-      const {fy, accountPages, ledgerPages} = await initializeGeneralLedger(req.params.term);
-      print('general-ledger', {
-        fy: fy,
-        company: company,
-        accountPages: accountPages,
-        ledgerPages: ledgerPages
-      }).then((pdf) => {
+      try {
+        const company = await myCompany();
+        const {fy, accountPages, ledgerPages} = await initializeGeneralLedger(req.params.term);
+        const pdf = await print('general-ledger', {
+          fy: fy,
+          company: company,
+          accountPages: accountPages,
+          ledgerPages: ledgerPages
+        });
         res.setHeader('Content-Type', 'application/pdf');
         res.send(pdf);
-      })
+      } catch (err) {
+        next(err);
+      }
     } else
     if	( req.query.format === 'html')	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
@@ -76,16 +82,19 @@ router.get('/subsidiary_ledger/:term', is_authenticated, async (req, res, next) 
 	if (( req.session.user.accounting ) ||
         ( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
-      const company = await myCompany();
-      const {fy, ledgerPages} = await initializeSubsidiaryLedger(req.params.term);
-      print('subsidiary-ledger', {
-        fy: fy,
-        company: company,
-        ledgerPages: ledgerPages
-      }).then((pdf) => {
+      try {
+        const company = await myCompany();
+        const {fy, ledgerPages} = await initializeSubsidiaryLedger(req.params.term);
+        const pdf = await print('subsidiary-ledger', {
+          fy: fy,
+          company: company,
+          ledgerPages: ledgerPages
+        });
         res.setHeader('Content-Type', 'application/pdf');
         res.send(pdf);
-      })
+      } catch (err) {
+        next(err);
+      }
     } else
     if	( req.query.format === 'html')	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
@@ -102,18 +111,21 @@ router.get('/trial_balance/:term', is_authenticated, async (req, res, next) => {
 	if (( req.session.user.accounting ) ||
       ( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
-      const company = await myCompany();
-      const {fy, assetPages, liabilitiesAndCapitalPages, incomeStatementPages} = await initializeTrialBalance(req.params.term);
-      print('trial-balance', {
-        fy: fy,
-        company: company,
-        assetPages: assetPages,
-        liabilitiesAndCapitalPages: liabilitiesAndCapitalPages,
-        incomeStatementPages: incomeStatementPages
-      }).then((pdf) => {
+      try {
+        const company = await myCompany();
+        const {fy, assetPages, liabilitiesAndCapitalPages, incomeStatementPages} = await initializeTrialBalance(req.params.term);
+        const pdf = await print('trial-balance', {
+          fy: fy,
+          company: company,
+          assetPages: assetPages,
+          liabilitiesAndCapitalPages: liabilitiesAndCapitalPages,
+          incomeStatementPages: incomeStatementPages
+        });
         res.setHeader('Content-Type', 'application/pdf');
         res.send(pdf);
-      })
+      } catch (err) {
+        next(err);
+      }
     } else
     if	( req.query.format === 'html')	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
@@ -140,22 +152,25 @@ router.get('/financial_statement/:term', is_authenticated, async (req, res, next
 	if (( req.session.user.accounting ) ||
       ( req.session.user.fiscalBrowsing )) {
     if  ( req.query.format === 'pdf' )  {
-      const company = await myCompany();
-      const {fy, bsLines, plOut, sgaPage, asset, liabilities, networth, sgaSum} = await initializeFinancialStatement(req.params.term);
-      print('financial-statement', {
-        fy: fy,
-        company: company,
-        bsLines: bsLines,
-        plOut: plOut,
-        sgaPage: sgaPage,
-        sgaSum: sgaSum,
-        asset: asset,
-        liabilities: liabilities,
-        networth: networth
-      }).then((pdf) => {
+      try {
+        const company = await myCompany();
+        const {fy, bsLines, plOut, sgaPage, asset, liabilities, networth, sgaSum} = await initializeFinancialStatement(req.params.term);
+        const pdf = await print('financial-statement', {
+          fy: fy,
+          company: company,
+          bsLines: bsLines,
+          plOut: plOut,
+          sgaPage: sgaPage,
+          sgaSum: sgaSum,
+          asset: asset,
+          liabilities: liabilities,
+          networth: networth
+        });
         res.setHeader('Content-Type', 'application/pdf');
         res.send(pdf);
-      })
+      } catch (err) {
+        next(err);
+      }
     } else
     if	( req.query.format === 'html')	{
       res.sendFile(path.join(__dirname, '../views/form.html'));
@@ -169,7 +184,7 @@ router.get('/financial_statement/:term', is_authenticated, async (req, res, next
 	}
 });
 
-router.get('/transaction/:form/:id', is_authenticated, async (req, res) => {
+router.get('/transaction/:form/:id', is_authenticated, async (req, res, next) => {
   console.log(req.query);
   if  (( !req.query ) ||
        ( !req.query.format ) ||
@@ -177,6 +192,7 @@ router.get('/transaction/:form/:id', is_authenticated, async (req, res) => {
     res.sendFile(path.join(__dirname, '../views/form.html'));
   } else
   if  ( req.query.format === 'pdf' )  {
+    try {
     const company = await myCompany();
     const transaction = await models.TransactionDocument.findByPk(req.params.id, {
       include: [
@@ -228,6 +244,9 @@ router.get('/transaction/:form/:id', is_authenticated, async (req, res) => {
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdf);
+    } catch (err) {
+      next(err);
+    }
   }
 })
 

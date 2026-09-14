@@ -1,7 +1,15 @@
 import axios from 'axios';
-import {numeric, formatDate, burstPage } from './utils.js';
+import {numeric, formatDate, burstPage, isNode } from './utils.js';
 import {setAccounts, findAccount, findSubAccountByCode} from '../front/javascripts/cross-slip.js';
 import {ledgerLines} from './ledger.js';
+
+const apiGet = async (path) => {
+  if  ( isNode() )  {
+    const {apiGet: serverGet} = await import(/* @vite-ignore */ './server-data.js');
+    return  (serverGet(path));
+  }
+  return  (axios.get(path));
+};
 
 const ledgerPages = async (term, account, subAccount) => {
   const LINES = 17;
@@ -10,7 +18,7 @@ const ledgerPages = async (term, account, subAccount) => {
   let remaining;
   let details;
   let ledger;
-  let result = await axios.get(`/api/ledger/${term}/${account.code}/${subAccount.code}`);
+  let result = await apiGet(`/api/ledger/${term}/${account.code}/${subAccount.code}`);
   details = result.data;
   ledger = ledgerLines(account.code, subAccount.code, subAccount, details);
   let {lines, pickup, sums} = ledger;
@@ -42,10 +50,10 @@ const ledgerPages = async (term, account, subAccount) => {
 }
 
 export default async (term) => {
-  let result = await axios.get(`/api/term/${term}`);
+  let result = await apiGet(`/api/term/${term}`);
   let fy = result.data;
 
-  let res = await axios.get(`/api/accounts2/${term}`);
+  let res = await apiGet(`/api/accounts2/${term}`);
   let accounts = res.data;
 
   let ledgerLines = [];

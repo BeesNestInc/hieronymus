@@ -1,7 +1,15 @@
 import axios from 'axios';
-import {numeric, burstPage} from './utils.js';
+import {numeric, burstPage, isNode} from './utils.js';
 import SumTable from '../forms/sum-table.js';
 import {field} from './parse_account_code.js';
+
+const apiGet = async (path) => {
+  if  ( isNode() )  {
+    const {apiGet: serverGet} = await import(/* @vite-ignore */ './server-data.js');
+    return  (serverGet(path));
+  }
+  return  (axios.get(path));
+};
 
 let fy;
 let assetPages;
@@ -279,9 +287,9 @@ const printIncomeStatementPage = () => {
 
 
 export default async (term) => {
-  let res = await axios.get(`/api/trial-balance/${term}`);
+  let res = await apiGet(`/api/trial-balance/${term}`);
   lines = res.data;
-  let result = await axios.get(`/api/term/${term}`);
+  let result = await apiGet(`/api/term/${term}`);
   fy = result.data;
 
   printAssetPage();
