@@ -446,12 +446,15 @@ const bindVoucher = (i, voucher_id) => {
       detail.debitTax = voucher.tax;
       detail.debitTaxRuleId = voucher.taxRuleId;
     }
-    detail.creditAmount = voucher.amount;
-    detail.debitAmount = voucher.amount;
+    // 証憑金額が 0 / undefined 等のときは明細金額を上書きしない
+    if ( voucher.amount != null && numeric(voucher.amount) !== 0 ) {
+      detail.creditAmount = voucher.amount;
+      detail.debitAmount = voucher.amount;
+      detail.debitAmount = detail.debitAmount != null ? numeric(detail.debitAmount).toLocaleString() : '';
+      detail.creditAmount = detail.creditAmount != null ? numeric(detail.creditAmount).toLocaleString() : '';
+    }
     detail.application2 = voucher.company.name;
-    detail.debitAmount = detail.debitAmount != null ? numeric(detail.debitAmount).toLocaleString() : '';
     detail.debitTax = detail.debitTax != null ? numeric(detail.debitTax).toLocaleString() : '';
-    detail.creditAmount = detail.creditAmount != null ? numeric(detail.creditAmount).toLocaleString() : '';
     detail.creditTax =  detail.creditTax != null ? numeric(detail.creditTax).toLocaleString() : '';
     slip = slip;
   })
