@@ -30,6 +30,50 @@ export default {
       res.json(data);
     });
   },
+  post_class: async (req, res, next) => {
+    let major = (req.body.major || '').trim();
+    let middle = (req.body.middle || '').trim();
+    let minor = (req.body.minor || '').trim();
+    let field = parseInt(req.body.field, 10);
+    let adding = parseInt(req.body.adding, 10);
+    if (!major || !middle || !minor || isNaN(field) || isNaN(adding)) {
+      res.status(400).json({ code: -1, message: '大分類・中分類・小分類・field・addingは必須です' });
+      return;
+    }
+    let dup = await models.AccountClass.findOne({
+      where: { field: field, adding: adding }
+    });
+    if (dup) {
+      res.status(409).json({ code: -2, message: '同じfield・addingの科目クラスが既に存在します' });
+      return;
+    }
+    let rec = await models.AccountClass.create({
+      major: major,
+      middle: middle,
+      minor: minor,
+      field: field,
+      adding: adding
+    });
+    res.json({ id: rec.id });
+  },
+  update_class: async (req, res, next) => {
+    let id = req.params.id;
+    let rec = await models.AccountClass.findOne({ where: { id: id } });
+    if (!rec) {
+      res.status(404).json({ code: -3, message: '科目クラスが見つかりません' });
+      return;
+    }
+    // field/addingは既存科目コードとの整合のため編集不可とし、名称のみ更新する
+    if (req.body.major !== undefined) rec.major = String(req.body.major).trim();
+    if (req.body.middle !== undefined) rec.middle = String(req.body.middle).trim();
+    if (req.body.minor !== undefined) rec.minor = String(req.body.minor).trim();
+    if (!rec.major || !rec.middle || !rec.minor) {
+      res.status(400).json({ code: -1, message: '大分類・中分類・小分類は必須です' });
+      return;
+    }
+    await rec.save();
+    res.json({ code: 0 });
+  },
   post: async(req, res, next) => {
     let term = parseInt(req.params.term);
     let new_account = await models.Account.create({

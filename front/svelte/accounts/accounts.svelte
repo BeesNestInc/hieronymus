@@ -13,6 +13,8 @@
 <AccountModal
   account={account}
   subAccount={subAccount}
+  accountClass={accountClass}
+  existingClassKeys={existingClassKeys}
   mode={mode}
   status={status}
   modal={modal}
@@ -41,8 +43,10 @@ let modal;
 let	mode;
 let	account = {};
 let	subAccount = {};
+let	accountClass = {};
 
 $: checkPage($currentPage);
+$: existingClassKeys = (accounts || []).map((a) => a.acl_field + '-' + a.acl_adding);
 
 const ready = () => {
   lines = [];
@@ -51,7 +55,11 @@ const ready = () => {
     let account = accounts[i];
     let new_line = {
       aclId: account.acl_id,
-      aclCode: account.acl_code
+      aclCode: account.acl_code,
+      aclField: account.acl_field,
+      aclAdding: account.acl_adding,
+      // all4はfield・adding順のため、acl_idの変わり目が科目クラス(adding単位)の区切り
+      isClassStart: account.acl_id !== last_account.acl_id
     };
     if ( last_account.major_name != account.major_name ) {
       new_line.majorName = account.major_name;
@@ -147,8 +155,9 @@ const	openAccount = (event) => {
   let	args = event.detail;
   console.log({args});
   mode = args.mode;
-  account = args.account;
+  account = args.account || {};
   subAccount = args.subAccount;
+  accountClass = args.accountClass || {};
   openModal = true;
 }
 </script>

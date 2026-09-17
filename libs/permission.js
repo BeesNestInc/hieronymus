@@ -14,6 +14,8 @@ const RULES = [
   { match: /^\/accounts3\/.+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/account\/.+$/, methods: ['GET'], access: ANY },
   { match: /^\/account-class\/.+$/, methods: ['GET'], access: ANY },
+  { match: /^\/account-class\/?$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/account-class\/.+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/account\/.+$/, methods: ['POST', 'PUT', 'DELETE'], access: ['accounting'] },
   { match: /^\/sub_account\/.+$/, methods: ['POST', 'PUT', 'DELETE'], access: ['accounting'] },
 

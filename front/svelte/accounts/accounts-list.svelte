@@ -41,6 +41,15 @@
     <tr>
       <td>
         {line.majorName}
+        {#if (line.aclId && line.majorName != '')}
+        <button type="button" class="btn btn-link btn-sm p-0 ms-1"
+          title="科目クラスを編集"
+          on:click={() => {
+            editAccountClass(line.aclId);
+          }}>
+          <i class="bi bi-pencil"></i>
+        </button>
+        {/if}
       </td>
       <td>
         {line.middleName}
@@ -48,6 +57,20 @@
       <td>
         {#if (line.minorName != '')}
         {line.minorName}
+        {/if}
+        {#if (!line.code && line.isClassStart)}
+        {#if (line.aclCode)}
+        <span class="text-muted small ms-1">[{line.aclCode}]</span>
+        {/if}
+        {#if (line.aclField != null && line.aclAdding != null)}
+        <button type="button" class="btn btn-primary btn-sm ms-1"
+          title="このクラスの次に科目クラスを追加"
+          on:click={() => {
+            newAccountClass(line.aclField, line.aclAdding + 1, line.aclId);
+          }}>
+          <i class="bi bi-plus"></i>
+        </button>
+        {/if}
         {/if}
       </td>
       <td>
@@ -109,6 +132,23 @@
     </tr>
     {/each}
   </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="12">
+        <button type="button" class="btn btn-primary btn-sm"
+          on:click={() => {
+            let last = lastAccountClass();
+            if (last) {
+              newAccountClass(last.aclField, last.aclAdding + 1, last.aclId);
+            } else {
+              newAccountClass('', '', null);
+            }
+          }}>
+          <i class="bi bi-plus"></i> 科目クラス追加
+        </button>
+      </td>
+    </tr>
+  </tfoot>
 </table>
 
 <style>
@@ -144,7 +184,7 @@ const	newAccount = (id, code) => {
 	  let acl = result.data;
 	  console.log({acl});
 	  let account = {
-		  code: code + '****',
+		  code: code + nextAccountSeq(acl.id, code),
 		  major_name: acl.major,
 		  middle_name: acl.middle,
 		  minor_name: acl.minor,
@@ -196,5 +236,74 @@ const	newSubAccount = async (code) => {
 		subAccount: subAccount,
 		mode: 'new-sub-account'
 	});
+}
+const	newAccountClass = (field, adding, aclId) => {
+	let names = classNames(aclId);
+	let sugAdding = (field === '' || field == null) ? '' : nextFreeAdding(field, adding);
+	dispatch('open',{
+		account: null,
+		subAccount: null,
+		accountClass: {
+			major: names.major,
+			middle: names.middle,
+			minor: '',
+			field: (field === undefined || field === null) ? '' : field,
+			adding: sugAdding
+		},
+		mode: 'new-account-class'
+	});
+}
+const	classNames = (aclId) => {
+	// 表示行のmajorName/middleNameは変わり目にしか入らないため、元データから引く
+	for ( const a of (accounts || []) ) {
+		if ( Number(a.acl_id) === Number(aclId) ) {
+			return { major: a.major_name || '', middle: a.middle_name || '' };
+		}
+	}
+	return { major: '', middle: '' };
+}
+const	nextFreeAdding = (field, from) => {
+	// 同じfieldで使われているaddingを集め、from以上の最初の空き番号を返す
+	let used = {};
+	for ( const a of (accounts || []) ) {
+		if ( a.acl_field != null && String(a.acl_field) === String(field) ) {
+			used[Number(a.acl_adding)] = true;
+		}
+	}
+	let n = parseInt(from, 10);
+	if ( isNaN(n) || n < 0 ) n = 0;
+	while ( used[n] ) n++;
+	return n;
+}
+const	lastAccountClass = () => {
+	let last = null;
+	for ( let i = 0; i < lines.length ; i ++ ) {
+		if ( !lines[i].code && lines[i].isClassStart && lines[i].aclAdding != null ) {
+			last = lines[i];
+		}
+	}
+	return last;
+}
+const	editAccountClass = (id) => {
+	axios.get(`/api/account-class/${id}`).then((result) => {
+	  let acl = result.data;
+	  dispatch('open',{
+		  account: null,
+		  subAccount: null,
+		  accountClass: acl,
+		  mode: 'edit-account-class'
+	  });
+  });
+}
+const	nextAccountSeq = (aclId, aclCode) => {
+	// 同クラスの既存科目コードから連番の最大値を求め、+10した4桁を提案する
+	let maxSeq = -10;
+	for ( const a of (accounts || []) ) {
+		if ( a.code && Number(a.acl_id) === Number(aclId) ) {
+			let seq = parseInt(String(a.code).slice(String(aclCode).length), 10);
+			if ( !isNaN(seq) && seq > maxSeq ) maxSeq = seq;
+		}
+	}
+	return String(maxSeq + 10).padStart(4, '0');
 }
 </script>

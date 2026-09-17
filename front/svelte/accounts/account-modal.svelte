@@ -2,16 +2,25 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalLabel">勘定科目</h5>
+        <h5 class="modal-title" id="modalLabel">{isClassMode(mode) ? '科目クラス' : '勘定科目'}</h5>
         <button type="button" class="btn-close" id="close-button" area-label="Close"
             on:click={close_}></button>
       </div>
       <div class="modal-body">
+        {#if isClassMode(mode)}
+        <AccountClassEntry
+          bind:accountClass={accountClass}
+          bind:valid={classValid}
+          existingKeys={existingClassKeys}
+          mode={mode}>
+        </AccountClassEntry>
+        {:else}
         <AccountEntry
           bind:account={account}
           bind:subAccount={subAccount}
           mode={mode}>
         </AccountEntry>
+        {/if}
       </div>
       <div class="modal-footer">
         {#if ( ( mode == 'edit-account' ) || ( mode == 'edit-sub-account') )}
@@ -20,6 +29,7 @@
         {/if}
         <button type="button" class="btn btn-primary"
             on:click={save}
+            disabled={isClassMode(mode) && !classValid}
             id="save-button">保存&nbsp;<i class="bi bi-save"></i></button>
       </div>
     </div>
@@ -29,6 +39,7 @@
 <script>
 import axios from 'axios';
 import AccountEntry from './account-entry.svelte';
+import AccountClassEntry from './account-class-entry.svelte';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 
@@ -37,6 +48,14 @@ export	let	mode;
 export	let	modal;
 export	let account;
 export	let	subAccount;
+export	let	accountClass;
+export	let	existingClassKeys = [];
+
+let	classValid = true;
+
+const	isClassMode = (mode) => {
+  return mode === 'new-account-class' || mode === 'edit-account-class';
+}
 
 beforeUpdate(() => {
   console.log('account-modal beforeUpdate');
@@ -58,10 +77,31 @@ const update_account = (term, mode, params) => {
     case 'new-sub-account':
       pr = axios.post(`/api/sub_account/${term}`, params);
       break;
+    case 'new-account-class':
+      pr = axios.post(`/api/account-class`, params);
+      break;
+    case 'edit-account-class':
+      pr = axios.put(`/api/account-class/${params.id}`, params);
+      break;
   }
   return	(pr);
 }
 const	save = async(event) => {
+  if (isClassMode(mode)) {
+    update_account(status.fy.term, mode, {
+      id: accountClass.id,
+      major: accountClass.major,
+      middle: accountClass.middle,
+      minor: accountClass.minor,
+      field: accountClass.field,
+      adding: accountClass.adding
+    }).then(() => {
+      close_();
+    }).catch((err) => {
+      alert(err.response?.data?.message || '科目クラスの保存に失敗しました');
+    });
+    return;
+  }
   let name = account.name;
   let	sub_name;
   let	key;

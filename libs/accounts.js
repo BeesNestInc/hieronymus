@@ -292,6 +292,8 @@ export default class {
 					middle_name: acl.middle,
 					minor_name: acl.minor,
 					acl_id: acl.id,
+					acl_field: acl.field,
+					acl_adding: acl.adding,
 					acl_code: make_klass(acl.field, acl.adding)
 				});
 			} else
@@ -334,6 +336,8 @@ export default class {
 						middle_name: acl.middle,
 						minor_name: acl.minor,
 						acl_id: acl.id,
+						acl_field: acl.field,
+						acl_adding: acl.adding,
 						acl_code: make_klass(acl.field, acl.adding),
 						key: acc.key,
 						name: acc.name,
@@ -354,17 +358,19 @@ export default class {
 						}
 					});
 					//console.log('remaining', rem);
-					lines.push({
-						id: acc.id,
-						major_name: acl.major,
-						middle_name: acl.middle,
-						minor_name: acl.minor,
-						acl_id: acl.id,
-						acl_code: make_klass(acl.field, acl.adding),
-						key: acc.key,
-						name: acc.name,
-						code: acc.accountCode,
-						taxClass: acc.taxClass,
+						lines.push({
+							id: acc.id,
+							major_name: acl.major,
+							middle_name: acl.middle,
+							minor_name: acl.minor,
+							acl_id: acl.id,
+							acl_field: acl.field,
+							acl_adding: acl.adding,
+							acl_code: make_klass(acl.field, acl.adding),
+							key: acc.key,
+							name: acc.name,
+							code: acc.accountCode,
+							taxClass: acc.taxClass,
 						debit: rem ? rem.debit : 0,
 						credit: rem ? rem.credit : 0,
 						balance: rem ? rem.balance :0

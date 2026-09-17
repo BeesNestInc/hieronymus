@@ -100,6 +100,8 @@ router.get('/accounts3/:term', account.all3);
 router.get('/accounts4/:term', account.all4);
 router.get('/account/:code', account.get);
 router.get('/account-class/:id', account.get_class);
+router.post('/account-class', account.post_class);
+router.put('/account-class/:id', account.update_class);
 router.put('/account/:term', account.update);
 router.post('/account/:term', account.post);
 
