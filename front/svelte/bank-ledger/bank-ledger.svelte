@@ -257,7 +257,7 @@ const updateList = () => {
     axios.get(`/api/remaining/${status.fy.term}/${accountCode}/${subAccountCode}`).then((result) => {
       let remaining = result.data;
 
-      axios.get(`/api/ledger/${status.fy.term}/${accountCode}/${subAccountCode}`).then((result) => {
+      axios.get(`/api/ledger/${status.fy.term}/${accountCode}/${subAccountCode}?includeUnapproved=1`).then((result) => {
         let details = result.data;
         let ret = ledgerLines(accountCode, subAccountCode, remaining, details);
         lines = ret.lines;
