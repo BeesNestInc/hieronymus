@@ -28,6 +28,33 @@ const text = (data) => {
   };
 };
 
+// 添付ファイルの本文（files[].body = Buffer/バイト列）は応答が巨大になり
+// MCP がタイムアウトする原因になる（例: get_journal が46MB）。メタデータだけを残す。
+// 本文が必要な場合は list_voucher_files で個別に取得する。
+const stripFileBodies = (o) => {
+  if ( Array.isArray(o) ) {
+    return o.map(stripFileBodies);
+  }
+  if ( o && typeof o === 'object' && !Buffer.isBuffer(o) ) {
+    const out = {};
+    for ( const [k, v] of Object.entries(o) ) {
+      if ( k === 'files' && Array.isArray(v) ) {
+        out.files = v.map((f) => {
+          if ( f && typeof f === 'object' && !Buffer.isBuffer(f) ) {
+            const { body, ...rest } = f;
+            return rest;
+          }
+          return f;
+        });
+      } else {
+        out[k] = stripFileBodies(v);
+      }
+    }
+    return out;
+  }
+  return o;
+};
+
 const pad2 = (n) => String(n).padStart(2, '0');
 
 export const handlers = {
@@ -61,15 +88,15 @@ export const handlers = {
 
   get_journal: async (args) => {
     const data = await api.getJournal(args.year, args.month);
-    return text(data.journal);
+    return text(stripFileBodies(data.journal));
   },
 
   get_cross_slip: async (args) => {
-    return text(await api.getCrossSlip(args.year, args.month, args.no));
+    return text(stripFileBodies(await api.getCrossSlip(args.year, args.month, args.no)));
   },
 
   list_cross_slips: async (args) => {
-    return text(await api.listCrossSlips(args.type));
+    return text(stripFileBodies(await api.listCrossSlips(args.type)));
   },
 
   list_vouchers: async (args) => {
@@ -83,7 +110,7 @@ export const handlers = {
       }
     }
     const data = await api.listVouchers(params);
-    return text(data.vouchers);
+    return text(stripFileBodies(data.vouchers));
   },
 
   create_cross_slip: async (args) => {
@@ -195,7 +222,7 @@ export const handlers = {
   },
 
   get_voucher: async (args) => {
-    return text(await api.getVoucher(args.id));
+    return text(stripFileBodies(await api.getVoucher(args.id)));
   },
 
   attach_voucher_file: async (args) => {
