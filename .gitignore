@@ -80,3 +80,5 @@ accounts.json
 @chrome/
 @Docs/
 GEMINI.md
+
+.venv/
