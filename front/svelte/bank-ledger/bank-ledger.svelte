@@ -50,7 +50,7 @@
     </div>
     <div>
     	<button type="button" class="btn btn-primary" id="open-cross-slip"
-    		on:click={openSlip}>
+    		on:click={openNewSlip}>
         伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
       </button>
     </div>
@@ -88,7 +88,7 @@
           <td style="width:50px;" class={'number ' + ( line.approvedAt ? 'bg-body' : 'bg-warning' )}>
             <button type="button" class="btn btn-link"
               on:click={() => {
-                openSlip(line.year, line.month, line.no)
+                openExistingSlip(line.year, line.month, line.no)
               }}>
               {line.no}
             </button>
@@ -149,41 +149,23 @@
     </table>
   </div>
 </div>
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-  slip={slip}
-  status={status}
-  accounts={accounts}
-  bind:popUp={popUp}
-  on:close={updateList}></CrossSlipModal>
-{/key}
-{/if}
   
 <style>
 </style>
 
 <script>
 import axios from 'axios';
-import {onMount, afterUpdate} from 'svelte';
+import {onMount} from 'svelte';
 import {ledgerLines} from '../../../libs/ledger';
 import {setAccounts} from '../../javascripts/cross-slip';
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {DateString} from '../../../libs/utils.js';
-import {currentPage} from '../../javascripts/router.js';
+import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
 export let status;
 
 let	bank_list = { subAccounts: []};
-let slip = {
-    year: 0,
-    month: 0,
-    lines: []
-  };
 let	lines = [];
 let	accounts;
-let modalCount = 0;
-let popUp;
 
 $: checkPage($currentPage);
 
@@ -236,11 +218,6 @@ onMount(async () => {
   checkPage();
 
 });
-afterUpdate(() => {
-  if  (!popUp)  {
-    modalCount += 1;
-  }
-})
 
 const updateAccount = () => {
   if	( accountCode )	{
@@ -266,39 +243,13 @@ const updateList = () => {
   }
 }
 
-const	openSlip = (year, month, no) => {
-  if  ( !no ) {
-    slip = {
-      year: status.fy.startDate.getFullYear(),
-      month: status.fy.startDate.getMonth()+1,
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-    popUp = true;
-  } else {
-    axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
-      let data = result.data;
-      slip = {
-        year: data.year,
-        month: data.month,
-        day: data.day,
-        no: data.no,
-        createdBy: data.createdBy,
-        approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
-        createrName: data.creater ? data.creater.name: '',
-        approverName: data.approver ? data.approver.name : '',
-        lines: data.lines
-      };
-      popUp = true;
-    });
-  }
+const currentReturnTo = () => encodeURIComponent(location.pathname + location.search);
+const	openExistingSlip = (year, month, no) => {
+  routerLink(`/slip/${year}/${month}/${no}?returnTo=${currentReturnTo()}`);
+}
+const	openNewSlip = () => {
+  const year = status.fy.startDate.getFullYear();
+  const month = status.fy.startDate.getMonth() + 1;
+  routerLink(`/slip/new?year=${year}&month=${month}&returnTo=${currentReturnTo()}`);
 }
 </script>

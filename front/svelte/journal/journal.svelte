@@ -33,7 +33,7 @@
      	<span class="text-muted">この年度は確定済みです</span>
      	{:else}
      	<button type="button" class="btn btn-primary" id="open-cross-slip"
-     		on:click={openSlip}>
+     		on:click={openNewSlip}>
          仕訳明細入力&nbsp;<i class="bi bi-pencil-square"></i>
        </button>
        {/if}
@@ -44,18 +44,8 @@
   	slips={slips}
   	lines={lines}
   	sums={sums}
-  	on:open={openSlip}></JournalList>
+  	on:open={openExistingSlip}></JournalList>
 </div>
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-  accounts={accounts}
-  slip={slip}
-  status={status}
-  bind:popUp={popUp}
-  on:close={close_}></CrossSlipModal>
-{/key}
-{/if}
 <style>
 </style>
 
@@ -63,25 +53,21 @@
 import axios from 'axios';
 import Icon from '@iconify/svelte';
 
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount} from 'svelte';
 import JournalList from './journal-list.svelte';
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {setAccounts, findAccount, findSubAccountByCode} from '../../javascripts/cross-slip';
 import {numeric, dateStr} from '../../../libs/utils.js';
-import {currentPage} from '../../javascripts/router.js';
+import {currentPage, link} from '../../javascripts/router.js';
 export let status;
 
 let year;
 let month;
 let fy = {};
-let slip = { lines: []};
 let dates = [];
 let accounts;
 let	sums;
 let	lines = [];
 let slips;
-let modalCount = 0;
-let popUp;
 let today;
 
 $: checkPage($currentPage);
@@ -210,11 +196,6 @@ const checkPage = (page) => {
   update();
 }
 
-afterUpdate(() => {
-  if  (!popUp)  {
-    modalCount += 1;
-  }
-})
 onMount(async () => {
   console.log('journal onMount');
   let args = location.pathname.split('/');
@@ -224,32 +205,17 @@ onMount(async () => {
   setupAccount();
   let now = new Date();
   today = `${now.getUTCFullYear()}${("00"+(now.getMonth()+1).toString()).slice(-2)}${("00"+now.getDate().toString()).slice(-2)}`;
-  slip = {
-      year: year,
-      month: month,
-      lines: []
-  };
   checkPage($currentPage);
 })
 
-const openSlip = (event) => {
-  slip = event.detail;
-  if	( !slip.no )	{
-    slip = {
-      year: parseInt(year),
-      month: parseInt(month),
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-  }
-  popUp = true;
+const openNewSlip = () => {
+  const returnTo = encodeURIComponent(`/journal/${year}/${month}`);
+  link(`/slip/new?year=${year}&month=${month}&returnTo=${returnTo}`);
+}
+
+const openExistingSlip = (event) => {
+  const slip = event.detail;
+  const returnTo = encodeURIComponent(`/journal/${year}/${month}`);
+  link(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${returnTo}`);
 }
 </script>

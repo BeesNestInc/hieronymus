@@ -54,42 +54,22 @@
     </div>
   </div>
 </div>
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-	slip={slip}
-	status={status}
-	user={status.user}
-	accounts={accounts}
-	bind:popUp={popUp}
-	on:close={close_}></CrossSlipModal>
-{/key}
-{/if}
 {/if}
 <style>
 
 </style>
 <script>
 import axios from 'axios';
-import {onMount, afterUpdate, tick, createEventDispatcher} from 'svelte';
-const dispatch = createEventDispatcher();
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
+import {onMount} from 'svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
-import { v4 as uuidv4 } from "uuid";
+import {link} from '../../javascripts/router.js';
 
 export let status;
 export let toast;
 
 let count = 0;
 let slips = [];
-let slip = {
-  lines:[]
-};
 let accounts;
-let modal;
-const newId = uuidv4();
-let modalCount = 0;
-let popUp;
 
 
 const setupAccount = () => {
@@ -100,15 +80,8 @@ const setupAccount = () => {
 	});
 }
 
-const close_ = (event) => {
-	getSlips();
-}
-
 const openSlip = (year, month, no) => {
-  axios.get(`/api/cross_slip/${year}/${month}/${no}`).then((result) => {
-    slip = result.data;
-    popUp = true;
-  })
+  link(`/slip/${year}/${month}/${no}?returnTo=${encodeURIComponent('/home')}`);
 }
 
 const getSlips = () => {
@@ -125,11 +98,6 @@ onMount(() => {
   }
   getSlips();
   console.log('approve onMount end');
-})
-afterUpdate(() => {
-  if  (!popUp)  {
-    modalCount += 1;
-  }
 })
 
 </script>

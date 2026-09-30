@@ -15,39 +15,20 @@
   on:close={closeEntry}>
 </VoucherEntry>
 {/if}
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-  accounts={accounts}
-  slip={slip}
-  status={status}
-  bind:popUp={popUp}
-  on:close={updateSlip}></CrossSlipModal>
-{/key}
-{/if}
 
 <style>
 </style>
 
 <script>
 import axios from 'axios';
-import {onMount, afterUpdate} from 'svelte';
+import {onMount} from 'svelte';
 import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentVoucher, getStore} from '../../javascripts/current-record.js';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {parseParams, buildParam} from '../../javascripts/params.js';
 import {currentPage, link, getStore as getPage} from '../../javascripts/router.js';
-
-let slip = {
-  year: 0,
-  month: 0,
-  lines: []
-};
-let modalCount = 0;
-let popUp;
 
 export let status;
 
@@ -62,30 +43,11 @@ $: checkPage($currentPage);
 
 const openSlip = (event) => {
   const slipNo = event.detail;
+  const returnTo = encodeURIComponent(location.pathname + location.search);
   if	( slipNo.no )	{
-    axios.get(`/api/cross_slip/${slipNo.year}/${slipNo.month}/${slipNo.no}`).then((result) => {
-      slip = result.data;
-      slip.approvedAt = slip.approvedAt ? new Date(slip.approvedAt) : null;
-      console.log('slip', slip);
-      popUp = true;
-    })
+    link(`/slip/${slipNo.year}/${slipNo.month}/${slipNo.no}?returnTo=${returnTo}`);
   } else {
-    slip = {
-      year: parseInt(slipNo.year),
-      month: parseInt(slipNo.month),
-      day: parseInt(slipNo.day),
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-    popUp = true;
+    link(`/slip/new?year=${slipNo.year}&month=${slipNo.month}&day=${slipNo.day}&returnTo=${returnTo}`);
   }
 };
 
@@ -238,11 +200,5 @@ onMount(async () => {
 
   checkPage(location.href);
 
-})
-
-afterUpdate(() => {
-  if  (!popUp)  {
-    modalCount += 1;
-  }
 })
 </script>

@@ -34,7 +34,7 @@
     </button>
     {/if}
     <button type="button" class="btn btn-primary" id="open-cross-slip"
-    	on:click={openSlip}>
+    	on:click={openNewSlip}>
       伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
     </button>
   </div>
@@ -73,28 +73,17 @@
   	lines={lines}
   	bind:status={status}
   	on:link={_link}
-  	on:select={(event) => {
-    	accountSelect(event.detail);
-  	}}
-    on:open={openSlip}></LedgerList>
+   on:select={(event) => {
+    		accountSelect(event.detail);
+  		}}
+    on:open={openExistingSlip}></LedgerList>
 </div>
-{#if popUp}
-{#key modalCount}
-<CrossSlipModal
-  slip={slip}
-  status={status}
-  accounts={accounts}
-  bind:popUp={popUp}
-  on:close={updateList}></CrossSlipModal>
-{/key}
-{/if}
 
 <script>
 
 import axios from 'axios';
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, createEventDispatcher} from 'svelte';
 import LedgerList from './ledger-list.svelte';
-import CrossSlipModal from '../cross-slip/cross-slip-modal.svelte';
 import {ledgerLines} from '../../../libs/ledger';
 import AccountSelect from '../components/account-select.svelte';
 import SubAccountSelect from '../components/subaccount-select.svelte';
@@ -104,17 +93,10 @@ import {currentPage, link} from '../../javascripts/router.js';
 
 export let status;
 
-let modalCount = 0;
-let popUp;
 let accounts = [];
 let account;
 let details;
 let remaining;
-let slip = {
-    year: 0,
-    month: 0,
-    lines: []
-  };
 let pickup;
 let sums;
 let lines;
@@ -236,12 +218,6 @@ onMount(() => {
   }
 })
 
-afterUpdate(() => {
-  if  (!popUp)  {
-    modalCount += 1;
-  }
-});
-
 const updateList = () => {
   let args = location.pathname.split('/');
   accountCode = args[2];
@@ -266,40 +242,14 @@ const updateList = () => {
     pickup = ret.pickup;
   });
 }
-const openSlip = (event) => {
-  let dataset = event.detail;
-  if  ( dataset.no ) {
-    axios.get(`/api/cross_slip/${dataset.year}/${dataset.month}/${dataset.no}`).then((result) => {
-      let data = result.data;
-      slip = {
-          year: data.year,
-          month: data.month,
-          day: data.day,
-          no: data.no,
-          createdBy: data.createdBy,
-          approvedAt: data.approvedAt ? new Date(data.approvedAt): null,
-          createrName: data.creater ? data.creater.name: '',
-          approverName: data.approver ? data.approver.name : '',
-          lines: data.lines
-      };
-      popUp = true;
-    });
-  } else {
-    slip = {
-      year: status.fy.startDate.getFullYear(),
-      month: status.fy.startDate.getMonth()+1,
-      lines: [{
-        debitAccount: "",
-        debitSubAccount: 0,
-        debitAmount: "",
-        debitTax: "",
-        creditAccount: "",
-        creditSubAccount: 0,
-        creditAmount: "",
-        creditTax: "",
-      }]
-    };
-    popUp = true;
-  }
+const currentReturnTo = () => encodeURIComponent(location.pathname + location.search);
+const openExistingSlip = (event) => {
+  const dataset = event.detail;
+  link(`/slip/${dataset.year}/${dataset.month}/${dataset.no}?returnTo=${currentReturnTo()}`);
+}
+const openNewSlip = () => {
+  const year = status.fy.startDate.getFullYear();
+  const month = status.fy.startDate.getMonth() + 1;
+  link(`/slip/new?year=${year}&month=${month}&returnTo=${currentReturnTo()}`);
 }
 </script>
