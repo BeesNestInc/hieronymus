@@ -56,6 +56,8 @@ const RULES = [
 
   { match: /^\/tax-rule/, methods: ['GET'], access: ANY },
   { match: /^\/tax-rule/, methods: ['PUT'], access: ['accounting'] },
+  { match: /^\/term\/\d+\/unlock$/, methods: ['PUT'], access: ['administrable'] },
+  { match: /^\/term\/\d+\/lock$/, methods: ['PUT'], access: ['accounting', 'administrable'] },
   { match: /^\/term\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/term/, methods: ['GET'], access: ANY },
 

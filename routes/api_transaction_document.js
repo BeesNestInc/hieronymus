@@ -2,6 +2,18 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {print} from '../libs/print.js';
 import {DateString} from '../libs/utils.js';
+import {isLocked, findFiscalYearForDate} from '../libs/fiscal-lock.js';
+
+const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
+
+const rejectIfTxLocked = async (issueDate, res) => {
+  const fy = await findFiscalYearForDate(issueDate ? new Date(issueDate) : new Date());
+  if ( fy && isLocked(fy) ) {
+    res.status(423).json({ code: -423, message: LOCK_MESSAGE, term: fy.term });
+    return true;
+  }
+  return false;
+};
 
 export default {
   get: async (req, res, next) => {
@@ -228,6 +240,9 @@ export default {
       let body = req.body;
       body.createdBy = req.session.user.id;
       body.updatedBy = req.session.user.id;
+      if ( await rejectIfTxLocked(body.issueDate, res) ) {
+        return;
+      }
       if  ( !body.no )  {
         if	( !req.session.term )  {
           return res.status(400).json({
@@ -300,6 +315,14 @@ export default {
         ]
       }).then(async (transaction) => {
         //console.log(JSON.stringify(transaction, ' ', 2));
+        if ( await rejectIfTxLocked(transaction.issueDate, res) ) {
+          return;
+        }
+        if ( body.issueDate && String(body.issueDate) !== String(transaction.issueDate) ) {
+          if ( await rejectIfTxLocked(body.issueDate, res) ) {
+            return;
+          }
+        }
         let kind = transaction.kind;
         let documentId = transaction.documentId;
         transaction.set(body);
@@ -367,7 +390,10 @@ export default {
     res.set('Access-Control-Allow-Origin', '*');
     let id = parseInt(req.params.id);
     if  ( req.session.user.companyManagement )   {
-      models.TransactionDocument.findByPk(id).then((transaction) => {
+      models.TransactionDocument.findByPk(id).then(async (transaction) => {
+        if ( transaction && await rejectIfTxLocked(transaction.issueDate, res) ) {
+          return;
+        }
         transaction.destroy().then(() => {
           res.json({ code: 0});
         }).catch (()=> {
@@ -426,6 +452,9 @@ export default {
         },
         ]
     });
+    if  ( transaction && await rejectIfTxLocked(transaction.issueDate, res) ) {
+      return;
+    }
     if  ( transaction.kind.forBook )  {
 		  if	( transaction.kind.book && transaction.kind.book.form )	{
         const company = await models.Company.findOne({

@@ -1,6 +1,9 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import Accounts from '../libs/accounts.js';
+import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
+
+const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
 
 export default {
   get: async (req, res, next) => {
@@ -76,6 +79,11 @@ export default {
   },
   post: async(req, res, next) => {
     let term = parseInt(req.params.term);
+    const fy = await findFiscalYearForTerm(term);
+    if ( fy && isLocked(fy) ) {
+      res.status(423).json({ code: -423, message: LOCK_MESSAGE, term: fy.term });
+      return;
+    }
     let new_account = await models.Account.create({
       name: req.body.name,
       key: req.body.key,
@@ -98,6 +106,11 @@ export default {
   update: async(req, res, next) => {
     let sub_code = req.body.sub_code;
     let term = parseInt(req.params.term);
+    const fy = await findFiscalYearForTerm(term);
+    if ( fy && isLocked(fy) ) {
+      res.status(423).json({ code: -423, message: LOCK_MESSAGE, term: fy.term });
+      return;
+    }
     let account = await models.Account.findOne({
       where: {
         accountCode: req.body.code

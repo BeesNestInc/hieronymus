@@ -73,6 +73,9 @@
         {/if}
       </div>
       <div class="modal-footer">
+        {#if slipLocked}
+        <span class="text-muted">この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。</span>
+        {:else}
         {#if (( !slip ) ||
             (( !slip.approvedAt ) &&
              (( status.user.accounting ) ||
@@ -104,6 +107,7 @@
           <button type="button" class="btn btn-primary" id="save-button"
             on:click={save}>Save</button>
         {/if}
+        {/if}
       </div>
     </div>
   </div>
@@ -129,6 +133,7 @@ let vouchers;
 let ok = true;
 let errorMessages = [];
 let taxRules = [];
+let slipLocked = false;
 
 const clean_popup = () => {
   dispatch('close');
@@ -158,6 +163,17 @@ onMount(async () => {
   const result = await axios.get(`/api/tax-rule?type=active&date=${date}`);
   taxRules = result.data.values;
   console.log(taxRules);
+  try {
+    if ( slip.year && slip.month ) {
+      const fyRes = await axios.get(`/api/term/${slip.year}/${slip.month}`);
+      slipLocked = !!( fyRes.data && fyRes.data.lockedAt );
+    } else {
+      slipLocked = !!( status.fy && status.fy.lockedAt );
+    }
+  } catch (e) {
+    console.log('fiscal lock check failed', e);
+    slipLocked = false;
+  }
   modal = new Modal(document.getElementById('cross-slip-modal'));
   modal.show();
 });
@@ -234,6 +250,8 @@ const save = (event) => {
       }
       pr.then(() => {
         close_();
+      }).catch((e) => {
+        alert(writeErrorMessage(e));
       });
     } catch(e) {
       console.log(e);
@@ -243,6 +261,16 @@ const save = (event) => {
   } else {
     errorMessages = errorMessages;
   }
+};
+
+const writeErrorMessage = (e) => {
+  if ( e && e.response && e.response.status === 423 ) {
+    return 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
+  }
+  if ( e && e.response && e.response.data && e.response.data.message ) {
+    return e.response.data.message;
+  }
+  return '保存に失敗しました。';
 };
 
 const close_ = (event) => {
@@ -261,6 +289,8 @@ const delete_ = (event) => {
       }
     }).then((result) => {
       clean_popup();
+    }).catch((e) => {
+      alert(writeErrorMessage(e));
     });
   } catch(e) {
     console.log(e);
@@ -270,6 +300,8 @@ const delete_ = (event) => {
 }
 
 const disapprove = (event) => {
+  const prevApprovedAt = slip.approvedAt;
+  const prevApproverName = slip.approverName;
   slip.approvedAt = null;
   axios.put('/api/cross_slip/approve', {
     year: slip.year,
@@ -279,9 +311,14 @@ const disapprove = (event) => {
   }).then(() => {
     slip.approverName = undefined;
     //close_();
+  }).catch((e) => {
+    slip.approvedAt = prevApprovedAt;
+    slip.approverName = prevApproverName;
+    alert(writeErrorMessage(e));
   })
 }
 const approve = (event) => {
+  const prevApprovedAt = slip.approvedAt;
   slip.approvedAt = new Date();
   axios.put('/api/cross_slip/approve', {
     year: slip.year,
@@ -291,6 +328,9 @@ const approve = (event) => {
   }).then(() => {
     slip.approverName = status.user.name;
     close_();
+  }).catch((e) => {
+    slip.approvedAt = prevApprovedAt;
+    alert(writeErrorMessage(e));
   })
 }
 

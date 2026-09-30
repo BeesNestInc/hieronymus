@@ -29,10 +29,14 @@
 	<div class="page-subtitle d-flex justify-content-between">
   	<h2>{year}年 {month}月</h2>
   	<div>
-    	<button type="button" class="btn btn-primary" id="open-cross-slip"
-    		on:click={openSlip}>
-        仕訳明細入力&nbsp;<i class="bi bi-pencil-square"></i>
-      </button>
+     	{#if fy.lockedAt}
+     	<span class="text-muted">この年度は確定済みです</span>
+     	{:else}
+     	<button type="button" class="btn btn-primary" id="open-cross-slip"
+     		on:click={openSlip}>
+         仕訳明細入力&nbsp;<i class="bi bi-pencil-square"></i>
+       </button>
+       {/if}
   	</div>
 	</div>
 	<JournalList

@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import CrossSlipDetails from '../libs/crossslipdetails.js';
+import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 
 export default {
   get: (req, res, next) => {
@@ -42,8 +43,16 @@ export default {
       where: {
         id: detail.id
       }
-    }).then((result) => {
+    }).then(async (result) => {
       if ( result ) {
+        const slip = await models.CrossSlip.findByPk(result.crossSlipId);
+        if ( slip ) {
+          const fy = await findFiscalYearForTerm(slip.term);
+          if ( fy && isLocked(fy) ) {
+            res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: fy.term });
+            return;
+          }
+        }
         result.set(detail);
         result.save().then(() => {
           res.json(result);

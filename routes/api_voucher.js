@@ -4,6 +4,18 @@ const Op = models.Sequelize.Op;
 import Mime from 'mime';
 import {numeric} from '../libs/utils.js';
 import * as taxcalc from '../libs/tax-calc.js';
+import {isLocked, findFiscalYearForDate} from '../libs/fiscal-lock.js';
+
+const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
+
+const rejectIfVoucherLocked = async (issueDate, res) => {
+  const fy = await findFiscalYearForDate(issueDate ? new Date(issueDate) : new Date());
+  if ( fy && isLocked(fy) ) {
+    res.status(423).json({code: -423, message: LOCK_MESSAGE, term: fy.term});
+    return true;
+  }
+  return false;
+};
 
 const prepareVoucher = async (body, res) => {
   if ( !body.companyId ) {
@@ -17,6 +29,10 @@ const prepareVoucher = async (body, res) => {
   }
   const issueDate = body.issueDate ? new Date(body.issueDate) : new Date();
   const ctx = await taxcalc.loadTaxContext(issueDate.getFullYear(), issueDate.getMonth() + 1);
+  if ( ctx.fy && isLocked(ctx.fy) ) {
+    res.status(423).json({code: -423, message: LOCK_MESSAGE, term: ctx.fy.term});
+    return false;
+  }
   if ( body.amount ) {
     body.amount = numeric(body.amount);
     body.tax = body.taxRuleId
@@ -337,6 +353,9 @@ export default {
         res.json({code: -10, message: 'permission denied'});
         return;
       }
+      if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+        return;
+      }
       voucher.set(body);
       voucher.save().then(() => {
         res.json({
@@ -353,10 +372,13 @@ export default {
     let body = req.body;
     let id = req.params.id ? req.params.id : body.id;
 
-    models.Voucher.findByPk(id).then((voucher) => {
+    models.Voucher.findByPk(id).then(async (voucher) => {
       if  ( voucher )  {
         if  ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id )  {
           res.json({code: -10, message: 'permission denied'});
+          return;
+        }
+        if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
         voucher.destroy().then(() => {
@@ -374,8 +396,14 @@ export default {
       })
     });
   },
-  upload: (req, res, next) => {
+  upload: async (req, res, next) => {
     let voucher_id = req.params.id ? parseInt(req.params.id): null;
+    if ( voucher_id ) {
+      const voucher = await models.Voucher.findByPk(voucher_id);
+      if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+        return;
+      }
+    }
     let name = req.files.file.name;
     let tmp_name = req.files.file.path;
     let body = fs.readFileSync(tmp_name);
@@ -407,7 +435,13 @@ export default {
   },
   bind: (req, res, next) => {
     let	body = req.body;
-    models.VoucherFile.findByPk(body.id).then((file) => {
+    models.VoucherFile.findByPk(body.id).then(async (file) => {
+      if ( body.voucherId ) {
+        const voucher = await models.Voucher.findByPk(body.voucherId);
+        if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+          return;
+        }
+      }
       file.voucherId = body.voucherId;
       file.save().then(() => {
         res.json({
@@ -424,7 +458,13 @@ export default {
   deleteFile: (req, res, next) => {
     let id = parseInt(req.body.id);
     console.log('deleteFile', id);
-    models.VoucherFile.findByPk(id).then((file) => {
+    models.VoucherFile.findByPk(id).then(async (file) => {
+      if ( file && file.voucherId ) {
+        const voucher = await models.Voucher.findByPk(file.voucherId);
+        if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+          return;
+        }
+      }
       file.destroy().then(() => {
         res.json({
           code: 0

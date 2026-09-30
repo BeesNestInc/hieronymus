@@ -1,5 +1,6 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
+import {isLocked} from './fiscal-lock.js';
 
 const createDetail = (line, slipId, lineNo) => {
   return models.CrossSlipDetail.create({
@@ -44,6 +45,13 @@ export const create = async (body, user) => {
       if  ( !fy ) {
         await t.rollback();
         return;
+      }
+      if  ( isLocked(fy) ) {
+        // rollbackは外側のcatchに任せる（二重rollbackすると元エラーが隠れる）
+        const err = new Error('fiscal year is locked');
+        err.name = 'FiscalYearLocked';
+        err.term = fy.term;
+        throw err;
       }
       let ml = await models.MonthlyLog.findOne({
         where: {
@@ -142,6 +150,17 @@ export const create = async (body, user) => {
 }
 
 export const update = async (slip, body, user) => {
+  const fy = await models.FiscalYear.findOne({
+    where: {
+      term: slip.term
+    }
+  });
+  if  ( fy && isLocked(fy) ) {
+    const err = new Error('fiscal year is locked');
+    err.name = 'FiscalYearLocked';
+    err.term = fy.term;
+    throw err;
+  }
   slip.lineCount = body.lines.length;
   slip.day = body.day;
   slip.updatedBy = user.id;

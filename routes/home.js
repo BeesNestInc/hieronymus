@@ -8,9 +8,9 @@ import closing from '../forms/closing.js';
 router.get('/closing/:term', is_authenticated,(req, res, next) => {
   if (( req.session.user.accounting ) ||
       ( req.session.user.fiscalBrowsing )) {
-    closing(parseInt(req.params.term)).then(() => {
+    closing(parseInt(req.params.term), req.session.user).then(() => {
       res.redirect('/');
-    })
+    }).catch(next);
   } else {
     res.redirect('/home');
   }

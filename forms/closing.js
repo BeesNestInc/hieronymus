@@ -5,6 +5,7 @@ import {field, dc, numeric} from '../libs/parse_account_code.js';
 import {ledgerLines} from '../libs/ledger.js';
 import TrialBalance from '../libs/trial_balance.js';
 import {printPL} from '../libs/init-financial-statement.js';
+import {isLocked} from '../libs/fiscal-lock.js';
 
 const   fiscalYear = async (term) => {
     let fy = await models.FiscalYear.findOne({
@@ -145,9 +146,19 @@ const	net_income = (lines) => {
     return  (line);
 }
 
-export default async (term) => {
+export default async (term, user) => {
     let fy = await fiscalYear(term);
+    if ( isLocked(fy[0]) ) {
+        const err = new Error('fiscal year is locked');
+        err.name = 'FiscalYearLocked';
+        err.term = fy[0].term;
+        throw err;
+    }
     let {lines} = await TrialBalance(term);
     let carry = net_income(lines);
     await Closing(fy, carry);
+    // 繰越成功後に旧年度を自動確定する
+    fy[0].lockedAt = new Date();
+    fy[0].lockedBy = user ? user.id : null;
+    await fy[0].save();
 }

@@ -18,7 +18,7 @@
   </div>
 </div>
 <div class="row">
-  <div class="col-7" style="padding:10px;">
+  <div class="col-8" style="padding:10px;">
     <SelectTerm
       bind:status={status}>
     </SelectTerm>

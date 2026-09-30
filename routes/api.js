@@ -80,8 +80,14 @@ router.get('/ledger/:term/:account/:sub_account', ledger.get);
 router.post('/closing/:term', is_authenticated,(req, res, next) => {
   if (( req.session.user.accounting ) ||
       ( req.session.user.fiscalBrowsing )) {
-    closing(parseInt(req.params.term)).then(() => {
+    closing(parseInt(req.params.term), req.session.user).then(() => {
       res.json({ code: 0});
+    }).catch((e) => {
+      if ( e && e.name === 'FiscalYearLocked' ) {
+        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: e.term });
+        return;
+      }
+      next(e);
     })
   } else {
     res.json({ code: -10});
@@ -193,6 +199,8 @@ router.delete('/menu/:id', menu.delete);
 router.get('/term/:year/:month', term.get);
 router.get('/term/:term', term.get);
 router.get('/term', term.get);
+router.put('/term/:id/lock', term.lock);
+router.put('/term/:id/unlock', term.unlock);
 router.put('/term/:id', term.update);
 
 router.get('/tax-rule/', taxRule.get);

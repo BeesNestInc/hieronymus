@@ -2,6 +2,7 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
 import * as taxcalc from '../libs/tax-calc.js';
+import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 
 const recalcReject = (req, res) => {
   const body = req.body;
@@ -17,6 +18,10 @@ const recalcReject = (req, res) => {
     const ctx = await taxcalc.loadTaxContext(year, month);
     if ( !ctx.fy ) {
       res.status(422).json({ code: -2, message: 'date error' });
+      return null;
+    }
+    if ( isLocked(ctx.fy) ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: ctx.fy.term });
       return null;
     }
     const lines = taxcalc.recalcSlipLines(body.lines, ctx);
@@ -162,6 +167,14 @@ export default {
         });
       }
     } catch (e) {
+      if ( e && e.name === 'FiscalYearLocked' ) {
+        res.status(423).json({
+          code: -423,
+          message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。',
+          term: e.term
+        });
+        return;
+      }
       if ( e && e.name === 'SequelizeUniqueConstraintError' ) {
         res.status(409).json({
           code: -3,
@@ -183,10 +196,23 @@ export default {
         }
       });
     if ( slip ) {
+      const oldFy = await findFiscalYearForTerm(slip.term);
+      if ( oldFy && isLocked(oldFy) ) {
+        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: oldFy.term });
+        return;
+      }
       if	( !slip.approvedAt )	{
         if	(( req.session.user.accounting ) ||
            ( req.session.user.id == slip.createdBy )) {
-            await updateCrossSlip(slip, body, req.session.user);
+            try {
+              await updateCrossSlip(slip, body, req.session.user);
+            } catch (e) {
+              if ( e && e.name === 'FiscalYearLocked' ) {
+                res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: e.term });
+                return;
+              }
+              throw e;
+            }
             res.json({
               code: 0
             });
@@ -230,6 +256,11 @@ export default {
       });
       return;
     }
+    const slipFy = await findFiscalYearForTerm(slip.term);
+    if ( slipFy && isLocked(slipFy) ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+      return;
+    }
     if	( ( !req.session.user.approvable ) &&
          ( slip.createdBy !== req.session.user.id ) )	{
       res.json({
@@ -243,18 +274,31 @@ export default {
       code: 0,
     });
   },
-  approve: (req, res, next) => {
+  approve: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     if	( req.session.user.approvable )	{
       let body = req.body;
       //console.log('update body:', body);
-      models.CrossSlip.findOne({
-        where: {
-          year: body.year,
-          month: body.month,
-          no: body.no
+      try {
+        const slip = await models.CrossSlip.findOne({
+          where: {
+            year: body.year,
+            month: body.month,
+            no: body.no
+          }
+        });
+        if ( !slip ) {
+          res.json({
+            code: -1,
+            message: 'record not found'
+          });
+          return;
         }
-      }).then((slip) => {
+        const slipFy = await findFiscalYearForTerm(slip.term);
+        if ( slipFy && isLocked(slipFy) ) {
+          res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+          return;
+        }
         slip.approvedAt = body.approvedAt;
         if	( body.approvedAt )	{
           slip.approvedBy = req.session.user.id;
@@ -262,17 +306,17 @@ export default {
           slip.approvedBy = null;
         }
         slip.updatedBy = req.session.user.id;
-        slip.save();
+        await slip.save();
         res.json({
           code: 0,
           id: slip.id
         });
-      }).catch((e) => {
+      } catch (e) {
         res.json({
           code: -1,
           message: 'record not found'
         });
-      });
+      }
     } else {
       res.json({
         code: -10,

@@ -16,7 +16,10 @@
             終了年月日
           </th>
           <th col="col">
-            税込み会計
+            税込み
+          </th>
+          <th col="col">
+            確定
           </th>
           <th col="col">
             年度末処理
@@ -47,9 +50,28 @@
               {line.endDate.getMonth()+1}月
               {line.endDate.getDate()}日
             </td>
-            <td>
+            <td style="text-align: center;">
               <input type="checkbox" bind:checked={line.taxIncluded}
+                disabled={!!line.lockedAt}
                 on:change={() => change(line)}>
+            </td>
+            <td>
+              {#if ( line.lockedAt )}
+              <span title={new Date(line.lockedAt).toLocaleString()}>
+                確定済み
+              </span><br/>
+              {#if ( status.user && status.user.administrable )}
+              <button class="btn btn-sm btn-outline-secondary" on:click={() => unlock(line)}>
+                確定を取り消す
+              </button>
+              {/if}
+              {:else}
+              {#if ( status.user && (status.user.administrable || status.user.accounting) )}
+              <button class="btn btn-sm btn-outline-secondary" on:click={() => lock(line)}>
+                確定
+              </button>
+              {/if}
+              {/if}
             </td>
             <td>
               {#if ( status.user && status.user.administrable )}
@@ -88,10 +110,16 @@ const change = (line) => {
   //console.log('change', line)
   axios.put(`/api/term/${line.id}`, line).then((result) => {
     lines = undefined;
+  }).catch((e) => {
+    if ( e.response && e.response.status === 423 ) {
+      alert('この年度は確定済みのため変更できません。');
+      reload();
+    }
   })
 }
 
-onMount(() => {
+const reload = () => {
+  lines = [];
   axios.get('/api/term').then((res) => {
     let data = res.data;
     for ( let i = 0; i < data.length; i ++ )    {
@@ -101,11 +129,42 @@ onMount(() => {
         term: line.term,
         startDate: new Date(line.startDate),
         endDate: new Date(line.endDate),
-        taxIncluded: line.taxIncluded
+        taxIncluded: line.taxIncluded,
+        lockedAt: line.lockedAt,
+        lockedBy: line.lockedBy
       });
     }
     lines = lines;
-    //console.log(lines);
   });
+}
+
+const lock = (line) => {
+  if ( !confirm(`${line.term}期を確定しますか？確定後は管理権限でも通常の編集はできなくなります。`) ) {
+    return;
+  }
+  axios.put(`/api/term/${line.id}/lock`).then(() => {
+    reload();
+  }).catch((e) => {
+    alert('確定に失敗しました。');
+  });
+}
+
+const unlock = (line) => {
+  if ( !confirm(`${line.term}期の確定を取り消しますか？`) ) {
+    return;
+  }
+  axios.put(`/api/term/${line.id}/unlock`).then(() => {
+    reload();
+  }).catch((e) => {
+    if ( e.response && e.response.status === 403 ) {
+      alert('確定を取り消すには管理権限が必要です。');
+    } else {
+      alert('確定の取り消しに失敗しました。');
+    }
+  });
+}
+
+onMount(() => {
+  reload();
 });
 </script>
