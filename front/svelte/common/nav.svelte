@@ -5,7 +5,7 @@
     {#if ( status.fy.startDate && status.fy.endDate )}
     第{status.fy.term}期
     {#if ( status.fy.lockedAt )}
-    <span class="badge bg-secondary ms-1" title="確定済みの年度は変更できません">確定済み</span>
+    <span class="badge bg-warning text-dark ms-1" title="確定済みの年度は変更できません">確定済み</span>
     {/if}
     ({status.fy.startDate.getFullYear()}年
     ({wareki(status.fy.startDate)})
