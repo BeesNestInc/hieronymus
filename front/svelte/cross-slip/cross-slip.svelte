@@ -37,8 +37,11 @@
     </div>
 	</div>
   <div class="row">
+    <div class="col-12">
+    <div class="table-responsive">
     <table class="table table-striped table-bordered">
       <thead class="table-light">
+        <tr>
         <th>
           借方科目
         </th>
@@ -56,6 +59,7 @@
         </th>
         <th>
         </th>
+        </tr>
       </thead>
       <tbody id="cross-slip">
         {#if slip}
@@ -228,6 +232,8 @@
         </tr>
       </tbody>
     </table>
+    </div>
+    </div>
   </div>
 </div>
 

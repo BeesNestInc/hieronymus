@@ -29,7 +29,7 @@
   <p>読み込み中...</p>
   {:else if slip}
   <div class="row">
-    <div class={vouchers ? "col-12 col-xl-8" : "col-12"}>
+    <div class={vouchers ? "col-12 col-xl-8 slip-main" : "col-12 slip-main"}>
       <CrossSlip
         bind:slip={slip}
         fy={fy}
@@ -38,25 +38,28 @@
         ></CrossSlip>
     </div>
     {#if vouchers}
-    <div class="col-12 col-xl-4">
+    <div class="col-12 col-xl-4 slip-vouchers">
       <h2 class="fs-5">証憑候補（{slip.year}年{slip.month}月{slip.day}日）</h2>
-      <div class="voucher-pane" style="overflow-y:auto;max-height:70vh;">
+      <div class="voucher-pane" style="overflow:auto;max-height:70vh;">
+        <div class="table-responsive">
         <table class="table table-striped table-bordered">
           <thead class="table-light">
+            <tr>
             <th style="width:20px;">
             </th>
-            <th style="width:100px;">
+            <th>
               種別
             </th>
-            <th style="width:200px;">
+            <th>
               相手先
             </th>
-            <th style="width:100px;">
+            <th class="number">
               金額
             </th>
             <th>
               説明
             </th>
+            </tr>
           </thead>
           <tbody>
             {#each vouchers as line}
@@ -86,6 +89,7 @@
             {/each}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
     {/if}
@@ -138,9 +142,21 @@
 <style>
 .slip-page {
   width: 100%;
+  min-width: 0;
+}
+.slip-main,
+.slip-vouchers {
+  min-width: 0;
+}
+.slip-page :global(.crossslip) {
+  min-width: 0;
 }
 .slip-page :global(.crossslip table) {
   width: 100%;
+}
+.voucher-pane table {
+  white-space: normal;
+  word-break: break-word;
 }
 </style>
 
