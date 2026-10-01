@@ -29,7 +29,7 @@
   <p>読み込み中...</p>
   {:else if slip}
   <div class="row">
-    <div class={vouchers ? "col-12 col-xl-8 slip-main" : "col-12 slip-main"}>
+    <div class="col-12 slip-main">
       <CrossSlip
         bind:slip={slip}
         fy={fy}
@@ -38,7 +38,7 @@
         ></CrossSlip>
     </div>
     {#if vouchers}
-    <div class="col-12 col-xl-4 slip-vouchers">
+    <div class="col-12 slip-vouchers">
       <h2 class="fs-5">証憑候補（{slip.year}年{slip.month}月{slip.day}日）</h2>
       <div class="voucher-pane" style="overflow:auto;max-height:70vh;">
         <div class="table-responsive">
