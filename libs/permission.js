@@ -47,6 +47,18 @@ const RULES = [
   { match: /^\/cross-slip-detail\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/cross-slip-detail$/, methods: ['PUT'], access: ['accounting'] },
 
+  { match: /^\/expense_report\/approve$/, methods: ['PUT'], access: ['approvable'] },
+  { match: /^\/expense_reports(\/.*)?$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report\/ai_available$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report\/tasks$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report(\/\d+)?$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report$/, methods: ['POST'], access: ANY },
+  { match: /^\/expense_report$/, methods: ['PUT'], access: ANY },
+  { match: /^\/expense_report$/, methods: ['DELETE'], access: ANY },
+  { match: /^\/expense_report\/ocr$/, methods: ['POST'], access: ANY },
+  { match: /^\/expense_mapping$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_mapping$/, methods: ['PUT'], access: ['accounting'] },
+
   { match: /^\/journal/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/ledger/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/remaining/, access: ['accounting', 'fiscalBrowsing'] },

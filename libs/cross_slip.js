@@ -24,7 +24,9 @@ const createDetail = (line, slipId, lineNo) => {
   });
 }
 
-export const create = async (body, user) => {
+// options.forceUnapproved: true の場合、作成者が承認権限を持っていても未承認で登録する
+// （経費精算の承認時自動起票など、確定は別の承認フローで行う用途向け）
+export const create = async (body, user, options = {}) => {
   const MAX_RETRIES = 5;
   let lastError;
   for ( let attempt = 0; attempt < MAX_RETRIES; attempt ++ ) {
@@ -84,7 +86,7 @@ export const create = async (body, user) => {
 
       let approvedAt;
       let approvedBy;
-      if	( user.approvable )	{
+      if	( user.approvable && !options.forceUnapproved )	{
         approvedAt = new Date();
         approvedBy = user.id;
       }
@@ -127,6 +129,7 @@ export const create = async (body, user) => {
       }
       await t.commit();
       return  ({
+        id: slip.id,
         year: body.year,
         month: body.month,
         day: body.day,

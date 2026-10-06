@@ -8,6 +8,9 @@ import Company from './company.js';
 import CompanyClass from './company-class.js';
 import Document from './document.js';
 import DocumentFile from './document-file.js';
+import ExpenseMapping from './expense-mapping.js';
+import ExpenseReport from './expense-report.js';
+import ExpenseReportLine from './expense-report-line.js';
 import FiscalYear from './fiscalyear.js';
 import MonthlyLog from './monthlylog.js';
 import Item from './item.js';
@@ -59,6 +62,9 @@ const models = {
   CompanyClass: CompanyClass(sequelize, DataTypes),
   Document: Document(sequelize, DataTypes),
   DocumentFile: DocumentFile(sequelize, DataTypes),
+  ExpenseMapping: ExpenseMapping(sequelize, DataTypes),
+  ExpenseReport: ExpenseReport(sequelize, DataTypes),
+  ExpenseReportLine: ExpenseReportLine(sequelize, DataTypes),
   FiscalYear: FiscalYear(sequelize, DataTypes),
   Item: Item(sequelize, DataTypes),
   ItemClass: ItemClass(sequelize, DataTypes),

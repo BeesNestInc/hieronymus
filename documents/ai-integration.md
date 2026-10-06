@@ -77,3 +77,35 @@ npm install
 - **journal-learning**: 過去の仕訳日記帳から仕分けパターンを学習し、Wiki の仕訳パターンを保守する手順
 
 仕訳パターンは人間が確認・編集できる Markdown で管理されます。AI は学習結果をこのパターンに反映し、人間の編集を常に優先します。
+
+## expense-mcp（経費精算MCP）
+
+経費精算を操作するためのMCPサーバーです（`ai/mcp/expense-mcp/`）。
+
+### ツール一覧
+
+**読み取り**
+
+| ツール | 内容 |
+|---|---|
+| `list_expense_mappings` | 支払先/出金元のマッピング一覧 |
+| `list_expense_reports` | 精算書一覧（`type=not_approved` で承認待ちのみ） |
+| `get_expense_report` | 精算書の取得（明細含む） |
+
+**書き込み**（会計権限が必要）
+
+| ツール | 内容 |
+|---|---|
+| `create_expense_mapping` / `update_expense_mapping` / `delete_expense_mapping` | マッピングの追加/変更/削除 |
+| `update_expense_report` | 未承認の精算書の更新（明細行の作成・修正） |
+
+### 経費精算の流れ
+
+1. 利用者が経費精算画面（またはこのMCP経由）で精算書を作成する
+2. 承認すると、仕訳伝票が**未承認（承認待ち）で自動起票**されます：
+   - 借方: 支払先マッピングで決まる経費科目+補助科目
+   - 貸方: 出金元マッピングで決まる科目。「個人立て替え」(advance=true) では仮払金+提出者から自動決定される補助科目
+3. 立替精算（仮払金→預金の振替）は直ちには行われません。別途、伝票入力で行います
+
+環境変数/セットアップは voucher-mcp と同じです（`ai/mcp/expense-mcp/README.md` 参照）。
+

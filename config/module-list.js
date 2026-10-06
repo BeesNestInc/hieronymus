@@ -226,6 +226,35 @@ export default [
       }
     ]
   }, {
+    name: 'expense',
+    title: '経費精算',
+    href: (status) => {
+      return	(`/expense/`);
+    },
+    match: /^\/expense/,
+    authority: (user) => {
+      return  true;
+    },
+    icon: { name: 'bi:wallet2' },
+    description: `
+経費精算書の入力・提出を行います。<br/>
+領収書等の証憑を添付して提出すると、承認後に仕訳伝票が起票されます。`,
+    submenu: [
+      {
+        title: '経費精算',
+        href: (status) => {
+          return	(`/expense/`);
+        },
+        match: /^\/expense\/($|entry|new)/,
+      }, {
+        title: '設定',
+        match: /^\/expense\/home/,
+        href: (status) => {
+          return	(`/expense/home`);
+        }
+      }
+    ]
+  }, {
     name: 'users',
     title: 'ユーザ管理',
     authority: (user) => {

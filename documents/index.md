@@ -54,6 +54,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
     * [仕訳明細から](crossslip.md#仕訳明細入力から始めるパターン)
     * [証憑入力から](crossslip.md#証憑入力から始めるパターン)
 * [証憑管理](voucher.md)
+* [経費精算](expense.md)
 * [元帳の確認](ledger.md)
 * [残高試算表](trial-balance.md)
 * [勘定科目管理](account.md)
@@ -87,3 +88,5 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 
 ### AI連携
 * [AIによる伝票入力（MCP・スキル）](ai-integration.md)
+* [経費精算とAI（expense-mcp）](ai-integration.md#expense-mcp)
+* [経費精算](expense.md)

@@ -33,6 +33,8 @@ import projectSummary from './api-project-summary.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
+import expense_report from './api_expense_report.js';
+import expense_mapping from './api_expense_mapping.js';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
 const VERSION = pkg.version;
@@ -123,6 +125,20 @@ router.delete('/cross_slip', cross_slip.delete);
 
 router.get('/cross-slip-detail/:id', cross_slip_detail.get);
 router.put('/cross-slip-detail', cross_slip_detail.update);
+
+router.get('/expense_reports/:type', expense_report.list);
+router.get('/expense_reports', expense_report.list);
+router.get('/expense_report/ai_available', expense_report.aiAvailable);
+router.get('/expense_report/tasks', expense_report.tasks);
+router.get('/expense_report/:id', expense_report.get);
+router.post('/expense_report', expense_report.post);
+router.put('/expense_report', expense_report.update);
+router.put('/expense_report/approve', expense_report.approve);
+router.delete('/expense_report', expense_report.delete);
+router.post('/expense_report/ocr', expense_report.ocr);
+
+router.get('/expense_mapping', expense_mapping.list);
+router.put('/expense_mapping', expense_mapping.update);
 
 router.get('/trial-balance', trial_balance.get);
 router.get('/trial-balance/:param', trial_balance.get);

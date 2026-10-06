@@ -20,5 +20,10 @@
 		"dialect": "postgres",
 		"host": "localhost",
 		"database": "sample_production"
+	},
+	"llms": {
+		"provider": "gemini",
+		"model": "gemini-2.0-flash",
+		"apiKey": ""
 	}
 }

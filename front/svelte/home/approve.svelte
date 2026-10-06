@@ -63,7 +63,57 @@
             </td>
           </tr>
           {/each}
-        </tbody>              
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{/if}
+{#if ( expenseCount > 0 ) }
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">経費精算の承認待ち</h3>
+  </div>
+  <div class="card-body">
+    <div class="row full-height" style="overflow-y: scroll;">
+		  <table class="table table-bordered">
+        <thead class="table-light">
+          <th>
+            提出日
+          </th>
+          <th style="width: 120px;">
+            提出者
+          </th>
+          <th>
+            目的
+          </th>
+          <th style="width: 100px;">
+            金額
+          </th>
+        </thead>
+        <tbody>
+          {#each expenseReports as report}
+          <tr>
+            <td>
+              <button type="button" class="btn btn-link"
+                on:click|preventDefault={() => {
+                  openExpense(report.id);
+                }}>
+                {formatDate(report.submittedAt)}
+              </button>
+            </td>
+            <td>
+              {report.submitter ? report.submitter.name : ''}
+            </td>
+            <td>
+              {report.purpose || ''}
+            </td>
+            <td class="number">
+              {expenseTotal(report).toLocaleString()}
+            </td>
+          </tr>
+          {/each}
+        </tbody>
       </table>
     </div>
   </div>
@@ -75,6 +125,7 @@ import axios from 'axios';
 import {onMount} from 'svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {link} from '../../javascripts/router.js';
+import {numeric, formatDate} from '../../../libs/utils.js';
 
 export let status;
 export let toast;
@@ -82,6 +133,23 @@ export let toast;
 let count = 0;
 let slips = [];
 let accounts;
+let expenseReports = [];
+let expenseCount = 0;
+
+const expenseTotal = (report) => {
+  return (report.lines || []).reduce((sum, line) => sum + numeric(line.amount), 0);
+};
+
+const openExpense = (id) => {
+  link(`/expense/entry/${id}?returnTo=${encodeURIComponent('/home')}`);
+}
+
+const getExpenseReports = () => {
+  axios.get('/api/expense_reports/not_approved').then((result) => {
+    expenseReports = result.data;
+    expenseCount = expenseReports.length;
+  })
+}
 
 const setupAccount = () => {
 	accounts = [];
@@ -107,6 +175,7 @@ onMount(() => {
     setupAccount();
   }
   getSlips();
+  getExpenseReports();
 })
 
 </script>
