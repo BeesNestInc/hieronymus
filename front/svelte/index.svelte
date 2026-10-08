@@ -65,6 +65,7 @@ import Accounts from './accounts/accounts.svelte';
 import Company from './company/company.svelte';
 import Project from './project/project.svelte';
 import Expense from './expense/expense-report.svelte';
+import Karibarai from './karibarai/karibarai.svelte';
 
 import Users from './users/users.svelte';
 import Transaction from './transaction/transaction.svelte';
@@ -131,6 +132,10 @@ const routes = [
   {
     match: /^\/expense/,
     component: Expense
+  },
+  {
+    match: /^\/karibarai/,
+    component: Karibarai
   },
   {
     match: /^\/task/,

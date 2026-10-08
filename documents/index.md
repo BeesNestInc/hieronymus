@@ -55,6 +55,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
     * [証憑入力から](crossslip.md#証憑入力から始めるパターン)
 * [証憑管理](voucher.md)
 * [経費精算](expense.md)
+* [仮払金精算](expense.md#仮払金精算)
 * [元帳の確認](ledger.md)
 * [残高試算表](trial-balance.md)
 * [勘定科目管理](account.md)

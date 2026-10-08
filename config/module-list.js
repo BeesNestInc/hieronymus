@@ -255,6 +255,20 @@ export default [
       }
     ]
   }, {
+    name: 'karibarai',
+    title: '仮払金精算',
+    href: (status) => {
+      return	(`/karibarai`);
+    },
+    match: /^\/karibarai/,
+    authority: (user) => {
+      return  ( user.accounting );
+    },
+    icon: { name: 'bi:cash-coin' },
+    description: `
+仮払金の補助科目（立替者）別の残高を表示し、精算の伝票を起票します。<br/>
+「返す」（会社から立替者へ精算）と「もらう」（立替者から会社へ返納）の両方向に対応します。`
+  }, {
     name: 'users',
     title: 'ユーザ管理',
     authority: (user) => {
