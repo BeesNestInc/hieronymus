@@ -146,7 +146,7 @@ const openExpense = (id) => {
 
 const getExpenseReports = () => {
   axios.get('/api/expense_reports/not_approved').then((result) => {
-    expenseReports = result.data;
+    expenseReports = result.data || [];
     expenseCount = expenseReports.length;
   })
 }

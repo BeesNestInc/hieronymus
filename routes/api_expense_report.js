@@ -1,5 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
+import fs from 'fs';
+import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
 import { createSlipForReport } from '../libs/expense.js';
 import * as vision from '../libs/vision.js';
@@ -104,8 +106,6 @@ export default {
         companyId: body.companyId || null,
         taskId: body.taskId || null,
         purpose: body.purpose || null,
-        settlementDate: body.settlementDate || null,
-        settlementMappingId: body.settlementMappingId || null,
         createdBy: req.session.user.id,
         updatedBy: req.session.user.id
       });
@@ -154,8 +154,6 @@ export default {
       report.companyId = body.companyId !== undefined ? (body.companyId || null) : report.companyId;
       report.taskId = body.taskId !== undefined ? (body.taskId || null) : report.taskId;
       report.purpose = body.purpose !== undefined ? body.purpose : report.purpose;
-      report.settlementDate = body.settlementDate !== undefined ? (body.settlementDate || null) : report.settlementDate;
-      report.settlementMappingId = body.settlementMappingId !== undefined ? (body.settlementMappingId || null) : report.settlementMappingId;
       report.updatedBy = req.session.user.id;
       await report.save();
       if ( body.lines ) {
@@ -274,33 +272,46 @@ export default {
     res.set('Access-Control-Allow-Origin', '*');
     try {
       const tasks = await models.Task.findAll({
-        attributes: [ 'id', 'name' ],
+        attributes: [ 'id', 'subject' ],
         order: [[ 'issueDate', 'DESC' ]]
       });
-      res.json({ values: tasks });
+      res.json({
+        values: tasks.map((task) => {
+          return { id: task.id, name: task.subject };
+        })
+      });
     } catch (e) {
       console.log(e);
-      res.json({ code: -1 });
+      res.json({ code: -1, values: [] });
     }
   },
-  // 証憑ファイルをAIで読み取り、帳票情報（会社名/日付/金額等）を抽出する
+  // 証憑ファイルをAIで読み取り、帳票情報（会社名/日付/金額等）を抽出する。
+  // multipart でファイルを直接渡すか、JSON {voucherId} で既存証憑を指定できる。
   ocr: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     try {
-      const voucherId = req.body.voucherId;
-      if ( !voucherId ) {
-        res.status(422).json({ code: -2, message: 'voucherId is required' });
-        return;
+      let buffer;
+      let mimeType;
+      if (( req.files ) && ( req.files.file )) {
+        buffer = fs.readFileSync(req.files.file.path);
+        mimeType = req.files.file.type || Mime.getType(req.files.file.path);
+      } else {
+        const voucherId = req.body.voucherId;
+        if ( !voucherId ) {
+          res.status(422).json({ code: -2, message: 'voucherId is required' });
+          return;
+        }
+        const voucher = await models.Voucher.findByPk(voucherId, {
+          include: [{ model: models.VoucherFile, as: 'files' }]
+        });
+        if (( !voucher ) || ( !voucher.files ) || ( voucher.files.length === 0 )) {
+          res.status(422).json({ code: -2, message: '証憑ファイルが添付されていません。' });
+          return;
+        }
+        buffer = voucher.files[0].body;
+        mimeType = voucher.files[0].mimeType;
       }
-      const voucher = await models.Voucher.findByPk(voucherId, {
-        include: [{ model: models.VoucherFile, as: 'files' }]
-      });
-      if (( !voucher ) || ( !voucher.files ) || ( voucher.files.length === 0 )) {
-        res.status(422).json({ code: -2, message: '証憑ファイルが添付されていません。' });
-        return;
-      }
-      const file = voucher.files[0];
-      const data = await vision.extract(file.body, file.mimeType);
+      const data = await vision.extract(buffer, mimeType);
       if ( !data ) {
         res.status(422).json({ code: -2, message: '帳票情報を読み取れませんでした。' });
         return;

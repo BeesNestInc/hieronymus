@@ -69,8 +69,6 @@ export const toolDefinitions = [
         companyId: { type: ['integer', 'null'], description: '取引先ID' },
         taskId: { type: ['integer', 'null'], description: '案件ID' },
         purpose: { type: ['string', 'null'], description: '目的' },
-        settlementDate: { type: ['string', 'null'], description: '精算日 YYYY-MM-DD（立替精算は直ちには行われず、ここは記録のみ）' },
-        settlementMappingId: { type: ['integer', 'null'], description: '精算の出金元マッピングID' },
         lines: {
           type: 'array',
           description: '明細行（指定時は全行を差し替え）',

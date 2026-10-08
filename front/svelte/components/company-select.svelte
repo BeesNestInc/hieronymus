@@ -11,6 +11,9 @@
       {#if ( companys && companys.length > 0 ) }
         <select id="companyId" class="col-12 form-control" style="margin-top:5px;"
           bind:value={_companyId}
+          on:change={(e) => {
+            companySelect(e);
+          }}
           on:focusout={(e) => {
             companyDecide(_companyId);
           }}>

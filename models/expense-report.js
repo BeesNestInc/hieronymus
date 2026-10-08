@@ -35,10 +35,6 @@ export default (sequelize, DataTypes) => {
 				as: 'crossSlip',
 				onDelete: 'SET NULL'
 			});
-			this.belongsTo(models.ExpenseMapping, {
-				foreignKey: 'settlementMappingId',
-				onDelete: 'SET NULL'
-			});
 			this.hasMany(models.ExpenseReportLine, {
 				foreignKey: 'expenseReportId',
 				as: 'lines',
@@ -52,8 +48,6 @@ export default (sequelize, DataTypes) => {
 		companyId: DataTypes.INTEGER,
 		taskId: DataTypes.INTEGER,
 		purpose: DataTypes.TEXT,
-		settlementDate: DataTypes.DATEONLY,
-		settlementMappingId: DataTypes.INTEGER,
 		approvedAt: DataTypes.DATE,
 		approvedBy: DataTypes.INTEGER,
 		crossSlipId: DataTypes.INTEGER,

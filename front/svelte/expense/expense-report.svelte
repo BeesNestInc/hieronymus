@@ -26,6 +26,7 @@ import {onMount} from 'svelte';
 import ExpenseEntry from './expense-entry.svelte';
 import ExpenseList from './expense-list.svelte';
 import ExpenseHome from './expense-home.svelte';
+import {formatDate} from '../../../libs/utils.js';
 import {parseParams, buildParam} from '../../javascripts/params.js';
 import {currentPage, link} from '../../javascripts/router.js';
 
@@ -59,18 +60,16 @@ const refreshReports = (event) => {
   const t = ++pageToken;
   axios.get(`/api/expense_reports?${param}`).then((result) => {
     if ( t !== pageToken ) return;
-    reports = result.data;
+    reports = result.data || [];
   });
 };
 
 const buildNewReport = () => {
   return {
-    submittedAt: new Date().toISOString().slice(0, 10),
+    submittedAt: formatDate(new Date()),
     companyId: null,
     taskId: null,
     purpose: '',
-    settlementDate: null,
-    settlementMappingId: null,
     lines: [{}]
   };
 };

@@ -101,19 +101,6 @@ module.exports = {
       purpose: {
         type: Sequelize.TEXT
       },
-      settlementDate: {
-        type: Sequelize.DATEONLY
-      },
-      settlementMappingId: {
-        type: Sequelize.INTEGER,
-        allowNull: true,
-        references: {
-          model: 'ExpenseMappings',
-          key: 'id'
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
-      },
       approvedAt: {
         type: Sequelize.DATE
       },
