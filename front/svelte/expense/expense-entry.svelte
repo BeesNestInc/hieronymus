@@ -92,11 +92,17 @@
                       bind:value={line.paymentDate} disabled={!editable}>
                   </div>
                   <div class="mt-1">
-                    <CompanySelect
-                      bind:companyId={line.companyId}></CompanySelect>
+                    <!-- 支払先は経理が登録した支払先マッピングから選ぶ（件数は知れているので単純なselect） -->
+                    <select class="form-select form-select-sm"
+                      bind:value={line.payeeMappingId} disabled={!editable}>
+                      <option value={null}></option>
+                      {#each payeeMappings as mapping}
+                      <option value={mapping.id}>{mapping.name}</option>
+                      {/each}
+                    </select>
                   </div>
-                  {#if ( line.companyId )}
-                    {#if ( payeeMappingFor(line) )}
+                  {#if ( line.payeeMappingId )}
+                    {#if ( payeeMappingFor(line).account )}
                     <div class="text-muted" style="font-size:0.75rem;">
                       → {payeeLabelFor(line)}
                     </div>
@@ -385,6 +391,8 @@ $: if ( report && ( !report.lines || report.lines.length === 0 ) ) {
 
 $: paymentMappings = mappings.filter((m) => ( m.kind === 'payment' ));
 
+$: payeeMappings = mappings.filter((m) => ( m.kind === 'payee' ));
+
 $: editable = !report.approvedAt &&
   (( status.user.accounting ) || ( status.user.approvable ) ||
    ( report.createdBy === status.user.id ) || ( !report.id ));
@@ -392,8 +400,7 @@ $: editable = !report.approvedAt &&
 $: totalAmount = (report.lines || []).reduce((sum, line) => sum + numeric(line.amount), 0);
 
 const payeeMappingFor = (line) => {
-  return mappings.find((m) => ( m.kind === 'payee' ) &&
-    ( line.companyId && ( m.companyId == line.companyId ) ));
+  return mappings.find((m) => ( m.id == line.payeeMappingId ));
 };
 
 const accountNameFor = (code) => {
@@ -438,7 +445,7 @@ const buildBody = () => {
     lines: report.lines.map((line, i) => ({
       lineNo: i,
       paymentDate: line.paymentDate || null,
-      companyId: line.companyId || null,
+      payeeMappingId: line.payeeMappingId || null,
       description: line.description || null,
       amount: numeric(line.amount),
       paymentMappingId: line.paymentMappingId || null,
@@ -450,19 +457,21 @@ const buildBody = () => {
 };
 
 // ペンディングファイルがあれば保存時にVoucherを作成してファイルを添付する。
-// Voucherには支払先(companyId)が必要なため、支払先の未選択行はエラーにする。
+// Voucherには支払先(companyId)が必要なため、支払先マッピングに取引先の
+// 紐付けがない行はエラーにする。
 const savePendingFiles = async () => {
   for ( let i = 0; i < report.lines.length; i ++ ) {
     const line = report.lines[i];
     if (( line.pendingFiles ) && ( line.pendingFiles.length > 0 ) && ( !line.voucherId )) {
-      if ( !line.companyId ) {
+      const payee = payeeMappingFor(line);
+      if (( !payee ) || ( !payee.companyId )) {
         ok = false;
-        errorMessages.push(`${i + 1}行目 : 証憑の登録には支払先の選択が必要です。`);
+        errorMessages.push(`${i + 1}行目 : 証憑の登録には、支払先に取引先が紐付いている必要があります。経理担当者に連絡してください。`);
         continue;
       }
       const res = await axios.post('/api/voucher', {
         issueDate: line.paymentDate || report.submittedAt || new Date().toISOString().slice(0, 10),
-        companyId: line.companyId,
+        companyId: payee.companyId,
         amount: numeric(line.amount)
       });
       const vid = res.data.voucher.id;
@@ -606,7 +615,13 @@ const bindVoucher = async (line, voucherId) => {
     line.voucherId = voucher.id;
     line.voucher = voucher;
     if ( voucher.companyId ) {
-      line.companyId = voucher.companyId;
+      // 証憑の取引先から支払先マッピングを逆引きする
+      const payee = payeeMappings.find((m) => ( m.companyId == voucher.companyId ));
+      if ( payee ) {
+        line.payeeMappingId = payee.id;
+      } else {
+        toast.show('経費精算', '証憑の取引先に対応する支払先マッピングが未登録です。手動で支払先を選択するか、経理担当者に連絡してください。', 'warning');
+      }
     }
     if ( voucher.paymentDate || voucher.issueDate ) {
       line.paymentDate = voucher.paymentDate || voucher.issueDate;
@@ -744,7 +759,13 @@ const aiRead = async (line) => {
         companies.find((c) => ( c.name && ( c.name.includes(values.company) ||
           values.company.includes(c.name) ) ));
       if ( matched ) {
-        line.companyId = matched.id;
+        // 取引先から支払先マッピングを逆引きする
+        const payee = payeeMappings.find((m) => ( m.companyId == matched.id ));
+        if ( payee ) {
+          line.payeeMappingId = payee.id;
+        } else {
+          toast.show('経費精算', `取引先「${values.company}」の支払先マッピングが未登録です。経理担当者に連絡してください。`, 'warning');
+        }
       } else {
         toast.show('経費精算', `支払先「${values.company}」が取引先に見つかりません。手動で選択してください。`, 'warning');
       }

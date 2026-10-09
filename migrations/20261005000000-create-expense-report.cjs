@@ -161,11 +161,11 @@ module.exports = {
       paymentDate: {
         type: Sequelize.DATEONLY
       },
-      companyId: {
+      payeeMappingId: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Companies',
+          model: 'ExpenseMappings',
           key: 'id'
         },
         onUpdate: 'CASCADE',

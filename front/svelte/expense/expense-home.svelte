@@ -16,7 +16,7 @@
           { type: "id", name: 'id'},
           { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
           { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
-          { type: "dropdown", name: 'companyId', title: "取引先", width: "180px", func: fetchCompanies},
+          { type: "company", name: 'companyId', title: "取引先"},
           { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"}
       ]}></TableMaintenance>
     </div>
@@ -50,11 +50,6 @@ export let status;
 let payeeMinimize = false;
 let paymentMinimize = false;
 let accounts = [];
-
-const fetchCompanies = async () => {
-  const result = await axios.get('/api/company');
-  return (result.data.companies || []).map((company) => [company.id, company.name]);
-};
 
 onMount(() => {
   axios.get('/api/accounts').then((result) => {

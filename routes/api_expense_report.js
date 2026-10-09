@@ -25,7 +25,7 @@ const listQuery = {
       model: models.ExpenseReportLine,
       as: 'lines',
       include: [
-        { model: models.Company, as: 'payee' },
+        { model: models.ExpenseMapping, as: 'payeeMapping' },
         { model: models.ExpenseMapping, as: 'paymentMapping' },
         {
           model: models.Voucher, as: 'voucher',
@@ -116,7 +116,7 @@ export default {
             expenseReportId: report.id,
             lineNo: i,
             paymentDate: line.paymentDate || null,
-            companyId: line.companyId || null,
+            payeeMappingId: line.payeeMappingId || null,
             description: line.description || null,
             amount: numeric(line.amount),
             paymentMappingId: line.paymentMappingId || null,
@@ -166,7 +166,7 @@ export default {
             expenseReportId: report.id,
             lineNo: i,
             paymentDate: line.paymentDate || null,
-            companyId: line.companyId || null,
+            payeeMappingId: line.payeeMappingId || null,
             description: line.description || null,
             amount: numeric(line.amount),
             paymentMappingId: line.paymentMappingId || null,

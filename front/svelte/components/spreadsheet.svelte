@@ -35,6 +35,9 @@
           accounts={accounts}
           bind:code={line[column.name]}
           bind:sub_code={line[column.sub]}></Account>
+        {:else if ( column.type === 'company' )}
+        <CompanySelect
+          bind:companyId={line[column.name]}></CompanySelect>
         {:else}
         <OmniInput
           style="height:30px;margin:0px;font-size:12pt;{column.width ? `width:${column.width}` : ""}"
@@ -73,6 +76,7 @@
 import { onMount, beforeUpdate } from "svelte";
 import OmniInput from "./omni-input.svelte";
 import Account from "../cross-slip/account.svelte";
+import CompanySelect from "./company-select.svelte";
 import Sortable from "sortablejs";
 
 export let values = [];

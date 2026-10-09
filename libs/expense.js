@@ -67,13 +67,13 @@ const deriveTaxRuleId = async (accountCode, date) => {
 // 借方 = 支払先マッピングの経費科目（+補助科目）、貸方 = 出金元マッピングの科目。
 // 出金元が「個人立て替え」（advance=true）の場合、貸方補助科目は提出者から動的に解決する。
 const buildSlipLines = async (report, lines) => {
-  const payeeMappings = await models.ExpenseMapping.findAll({
-    where: { kind: 'payee' }
-  });
-  const paymentMappingIds = [...new Set(lines.map((l) => l.paymentMappingId).filter((id) => id))];
-  const paymentMappings = ( paymentMappingIds.length > 0 ) ?
+  const mappingIds = [...new Set(
+    lines.map((l) => l.payeeMappingId).filter((id) => id)
+      .concat(lines.map((l) => l.paymentMappingId).filter((id) => id))
+  )];
+  const mappings = ( mappingIds.length > 0 ) ?
     await models.ExpenseMapping.findAll({
-      where: { id: { [Op.in]: paymentMappingIds } }
+      where: { id: { [Op.in]: mappingIds } }
     }) : [];
   const voucherIds = [...new Set(lines.map((l) => l.voucherId).filter((id) => id))];
   const vouchers = ( voucherIds.length > 0 ) ?
@@ -82,26 +82,19 @@ const buildSlipLines = async (report, lines) => {
       include: [{ model: models.VoucherClass, as: 'voucherClass' }]
     }) : [];
 
-  const companyIds = [...new Set(lines.map((l) => l.companyId).filter((id) => id))];
-  const companies = ( companyIds.length > 0 ) ?
-    await models.Company.findAll({
-      where: { id: { [Op.in]: companyIds } }
-    }) : [];
-
   const slipLines = [];
   for ( const line of lines ) {
     if ( !line.amount ) {
       continue;
     }
-    const payee = payeeMappings.find((m) => ( line.companyId && ( m.companyId == line.companyId ) ));
+    const payee = mappings.find((m) => ( m.id == line.payeeMappingId ));
     if ( !payee || !payee.account ) {
-      const company = companies.find((c) => ( c.id == line.companyId ));
-      const name = company ? company.name : `会社ID ${line.companyId}`;
+      const name = payee ? payee.name : '未選択';
       const err = new Error(`支払先「${name}」のマッピングが未登録です。経理担当者に連絡してください。`);
       err.name = 'ExpenseMappingNotFound';
       throw err;
     }
-    const payment = paymentMappings.find((m) => ( m.id == line.paymentMappingId ));
+    const payment = mappings.find((m) => ( m.id == line.paymentMappingId ));
     if ( !payment || !payment.account ) {
       const err = new Error('出金元が未選択、または出金元のマッピングが未登録です。');
       err.name = 'ExpenseMappingNotFound';

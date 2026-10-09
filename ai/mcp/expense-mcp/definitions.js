@@ -76,7 +76,7 @@ export const toolDefinitions = [
             properties: {
               lineNo: { type: 'integer', description: '行番号（0始まり。省略時は配列順）' },
               paymentDate: { type: ['string', 'null'], description: '支払日 YYYY-MM-DD' },
-              companyId: { type: ['integer', 'null'], description: '支払先の取引先ID（支払先マッピングから経費科目・補助科目が決まる）' },
+              payeeMappingId: { type: ['integer', 'null'], description: '支払先マッピングID（list_expense_mappings の kind=payee のエントリ。ここから経費科目・補助科目・証憑登録用の取引先が決まる）' },
               description: { type: ['string', 'null'], description: '内容（摘要）' },
               amount: { type: 'number', description: '支払金額' },
               paymentMappingId: { type: ['integer', 'null'], description: '出金元マッピングID' },

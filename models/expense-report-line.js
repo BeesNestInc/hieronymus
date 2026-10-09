@@ -12,9 +12,9 @@ export default (sequelize, DataTypes) => {
 				foreignKey: 'expenseReportId',
 				onDelete: 'CASCADE'
 			});
-			this.belongsTo(models.Company, {
-				foreignKey: 'companyId',
-				as: 'payee',
+			this.belongsTo(models.ExpenseMapping, {
+				foreignKey: 'payeeMappingId',
+				as: 'payeeMapping',
 				onDelete: 'SET NULL'
 			});
 			this.belongsTo(models.ExpenseMapping, {
@@ -37,7 +37,7 @@ export default (sequelize, DataTypes) => {
 		expenseReportId: DataTypes.INTEGER,
 		lineNo: DataTypes.INTEGER,
 		paymentDate: DataTypes.DATEONLY,
-		companyId: DataTypes.INTEGER,
+		payeeMappingId: DataTypes.INTEGER,
 		description: DataTypes.STRING,
 		amount: DataTypes.DECIMAL(12),
 		paymentMappingId: DataTypes.INTEGER,

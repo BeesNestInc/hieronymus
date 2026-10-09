@@ -68,14 +68,12 @@ describe('expense (test db)', () => {
       name: 'テスト取引先',
       companyId: data.company.id,
       account: '7000001',
-      displayOrder: 1
     });
     paymentMapping = await models.ExpenseMapping.create({
       kind: 'payment',
       name: '個人立て替え',
       account: '1130000',
       advance: true,
-      displayOrder: 1
     });
   });
 
@@ -98,7 +96,7 @@ describe('expense (test db)', () => {
       expenseReportId: report.id,
       lineNo: 0,
       paymentDate: '2026-03-10',
-      companyId: data.company.id,
+      payeeMappingId: payeeMapping.id,
       description: '書籍代',
       amount: 3000,
       paymentMappingId: paymentMapping.id,
@@ -203,9 +201,11 @@ describe('expense (test db)', () => {
   });
 
   it('支払先のマッピングが未登録の場合は起票がブロックされる', async () => {
-    await models.ExpenseMapping.destroy({ where: { kind: 'payee' } });
     const report = await buildReport(data.creator.id);
     await buildLine(report);
+    // 明細作成後にマッピングを破棄すると、payeeMappingId は SET NULL で null になる
+    // （支払先が未選択の状態になり、起票時にブロックされる）
+    await models.ExpenseMapping.destroy({ where: { kind: 'payee' } });
     const lines = await models.ExpenseReportLine.findAll({
       where: { expenseReportId: report.id },
       order: [['lineNo', 'ASC']]
@@ -225,10 +225,10 @@ describe('expense (test db)', () => {
         kind: 'payee',
         name: 'テスト取引先',
         companyId: data.company.id,
-        account: '7000001',
-        displayOrder: 1
+        account: '7000001'
       });
-    }  });
+    }
+  });
 
   it('承認権限を持つユーザーでもforceUnapprovedなら未承認で登録される', async () => {
     const slip = await createCrossSlip({
