@@ -41,11 +41,10 @@
             立替
           </th>
           {/if}
-          <th scope="col" style="width: 74px;"></th>
         </tr>
       </thead>
       <tbody>
-        {#each table as line, i}
+        {#each table as line}
         <tr style="height:30px;">
           <td style="padding:0;">
             <input type="text" style="width:100%;height:30px;margin:0px;font-size:12pt;"
@@ -77,26 +76,6 @@
             <input type="checkbox" bind:checked={line.advance}/>
           </td>
           {/if}
-          <td style="padding:0;width:68px;">
-            <button type="button"
-              class="btn btn-primary btn-sm"
-              on:click={() => {
-                table.splice(i + 1, 0, {});
-                table = [...table];
-              }}>
-              <i class="fas fa-plus"></i>
-            </button>
-            {#if (table.length > 1)}
-            <button type="button"
-              class="btn btn-danger btn-sm"
-              on:click={() => {
-                table.splice(i, 1);
-                table = [...table];
-              }}>
-              <i class="fas fa-minus"></i>
-            </button>
-            {/if}
-          </td>
         </tr>
         {/each}
       </tbody>
