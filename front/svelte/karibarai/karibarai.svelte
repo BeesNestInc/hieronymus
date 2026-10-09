@@ -180,6 +180,7 @@ import {numeric} from '../../../libs/utils';
 import {onMount, createEventDispatcher} from 'svelte';
 import Account from '../cross-slip/account.svelte';
 import {link} from '../../javascripts/router.js';
+import {setAccounts} from '../../javascripts/cross-slip';
 
 export let status;
 
@@ -350,6 +351,7 @@ const errMsg = (e) => {
 onMount(async () => {
   const res = await axios.get('/api/accounts');
   accounts = res.data || [];
+  setAccounts(accounts);
   const karibarai = accounts.find((a) => ( a.code === KARIBARAI_CODE ));
   karibaraiSubs = ( karibarai && karibarai.subAccounts ) ? karibarai.subAccounts : [];
   await loadBalances();

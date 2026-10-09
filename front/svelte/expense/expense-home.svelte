@@ -4,55 +4,30 @@
 <div class="full-height-1">
   <div class="row">
     <div class="col-8" style="padding:10px;">
-      <TableMaintenance
+      <MappingTable
+        kind={'payee'}
         title={'支払先マッピング'}
-        endpoint={'/api/expense_mapping/payee'}
-        bind:minimize={payeeMinimize}
-        columns={[
-          { type: "id", name: 'id'},
-          { type: "order", name: 'displayOrder'},
-          { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
-          { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
-          { type: "dropdown", name: 'companyId', title: "取引先", width: "180px", func: fetchCompanies},
-          { type: "dropdown", name: 'account', title: "勘定科目", width: "180px", func: fetchAccounts},
-          { type: "numeric", name: 'subAccount', title: "補助コード", width: "90px"}
-      ]}></TableMaintenance>
+        showCompany={true}
+        showAdvance={false}
+        bind:minimize={payeeMinimize}></MappingTable>
     </div>
   </div>
   <div class="row">
     <div class="col-8" style="padding:10px;">
-      <TableMaintenance
+      <MappingTable
+        kind={'payment'}
         title={'出金元マッピング'}
-        endpoint={'/api/expense_mapping/payment'}
-        bind:minimize={paymentMinimize}
-        columns={[
-          { type: "id", name: 'id'},
-          { type: "order", name: 'displayOrder'},
-          { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
-          { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
-          { type: "dropdown", name: 'account', title: "勘定科目", width: "180px", func: fetchAccounts},
-          { type: "numeric", name: 'subAccount', title: "補助コード", width: "90px"},
-          { type: "checkbox", name: 'advance', title: "立替", width: "50px"}
-      ]}></TableMaintenance>
+        showCompany={false}
+        showAdvance={true}
+        bind:minimize={paymentMinimize}></MappingTable>
     </div>
   </div>
 </div>
 <script>
-import TableMaintenance from '../components/table-maintenance.svelte';
-import axios from 'axios';
+import MappingTable from './mapping-table.svelte';
 
 export let status;
 
 let payeeMinimize = false;
 let paymentMinimize = false;
-
-const fetchCompanies = async () => {
-  const result = await axios.get('/api/company');
-  return (result.data.companies || []).map((company) => [company.id, company.name]);
-};
-
-const fetchAccounts = async () => {
-  const result = await axios.get('/api/accounts');
-  return (result.data || []).map((account) => [account.code, account.name]);
-};
 </script>
