@@ -8,8 +8,7 @@ const mappingSchema = {
     companyId: { type: ['integer', 'null'], description: '取引先ID（kind=payee の場合、この支払先で証憑登録する際の companyId。null 可）' },
     account: { type: 'string', description: '対応する勘定科目コード（例: 7030040）' },
     subAccount: { type: ['integer', 'null'], description: '補助科目コード（任意。advance=true の場合は立替者から自動解決されるため通常不要）' },
-    advance: { type: 'boolean', description: '立替フラグ。true の場合、貸方は仮払金（提出者から補助科目を自動解決）' },
-    displayOrder: { type: 'integer', description: '表示順（任意）' }
+    advance: { type: 'boolean', description: '立替フラグ。true の場合、貸方は仮払金（提出者から補助科目を自動解決）' }
   },
   required: ['kind', 'account']
 };

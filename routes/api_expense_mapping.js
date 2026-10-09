@@ -2,11 +2,11 @@ import models from '../models/index.js';
 
 const listAll = (kind) => {
   const where = kind ? { kind: kind } : {};
+  // 表示順は検索キー順（並べ替えは運用上意味を持たないため）
   return models.ExpenseMapping.findAll({
     where: where,
     order: [
-      [ 'kind', 'ASC' ],
-      [ 'displayOrder', 'ASC' ]
+      [ 'key', 'ASC' ]
     ]
   });
 };

@@ -21,8 +21,7 @@ export default (sequelize, DataTypes) => {
 		companyId: DataTypes.INTEGER,
 		account: DataTypes.STRING,
 		subAccount: DataTypes.INTEGER,
-		advance: DataTypes.BOOLEAN,
-		displayOrder: DataTypes.INTEGER
+		advance: DataTypes.BOOLEAN
 	}, {
 		sequelize,
 		modelName: 'ExpenseMapping',

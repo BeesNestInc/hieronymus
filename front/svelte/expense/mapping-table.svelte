@@ -120,16 +120,13 @@ let companies = [];
 // 変更があった行だけを差分として送る（spreadsheet.updateList と同じ発想）
 const diff = () => {
   const fields = ['key', 'name', 'companyId', 'account', 'subAccount', 'advance'];
-  table.forEach((row, i) => {
-    row.displayOrder = i;
-  });
   const out = [];
   kinds.forEach((ent) => {
     const found = table.find((v) => ( v.id === ent.id ));
     if ( !found ) {
       out.push({ id: ent.id });
     } else {
-      const changed = fields.some((f) => ( ent[f] !== found[f] )) || ( ent.displayOrder !== found.displayOrder );
+      const changed = fields.some((f) => ( ent[f] !== found[f] ));
       if ( changed ) {
         out.push(found);
       }

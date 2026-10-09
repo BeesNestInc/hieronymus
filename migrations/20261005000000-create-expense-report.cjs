@@ -44,9 +44,6 @@ module.exports = {
         allowNull: false,
         defaultValue: false
       },
-      displayOrder: {
-        type: Sequelize.INTEGER
-      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE
