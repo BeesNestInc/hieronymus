@@ -30,10 +30,17 @@
              ( column.type !== 'id') &&
              ( column.type !== 'order' ))}
       <td style="padding:0;height:30px;{column.align ? `text-align:${column.align}` : ''}">
+        {#if ( column.type === 'account' )}
+        <Account
+          accounts={accounts}
+          bind:code={line[column.name]}
+          bind:sub_code={line[column.sub]}></Account>
+        {:else}
         <OmniInput
           style="height:30px;margin:0px;font-size:12pt;{column.width ? `width:${column.width}` : ""}"
           bind:value={line[column.name]}
           column={column}></OmniInput>
+        {/if}
       </td>
       {/if}
       {/each}
@@ -65,10 +72,12 @@
 <script>
 import { onMount, beforeUpdate } from "svelte";
 import OmniInput from "./omni-input.svelte";
+import Account from "../cross-slip/account.svelte";
 import Sortable from "sortablejs";
 
 export let values = [];
 export let columns = [];
+export let accounts = [];
 export let reorder;
 
 let tbody;
@@ -102,7 +111,12 @@ const checkUpdate = (ent1, ent2) => {
     let column = columns[i];
     //console.log(ent1[column.name], ent2[column.name]);
     if  ( column.type !== 'id' ) {
-      if  ( ent1[column.name] !== ent2[column.name] ) {
+      if  ( column.type === 'account' ) {
+        if  (( ent1[column.name] !== ent2[column.name] ) ||
+             ( ent1[column.sub] !== ent2[column.sub] )) {
+          return  (true)
+        }
+      } else if  ( ent1[column.name] !== ent2[column.name] ) {
         return  (true)
       }
     }

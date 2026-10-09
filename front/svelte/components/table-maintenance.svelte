@@ -19,17 +19,12 @@
     <SpreadSheet
       bind:this={spreadsheet}
       columns={columns}
+      accounts={accounts}
       reorder={reorder}
       bind:values={table}
       />
   </div>
   <div class="card-footer">
-    <button type="button" class="btn btn-outline-primary"
-      on:click|preventDefault={() => {
-        table = [...table, {}];
-      }}>
-      新規
-    </button>
     <button type="button" class="btn btn-primary"
       on:click|preventDefault={update}>
       更新
@@ -50,6 +45,7 @@ import {eventBus} from '../../javascripts/table-maintenance.js';
 export let title = '';
 export let endpoint = '';
 export let columns = [];
+export let accounts = [];
 export let minimize;
 
 let table = [];
