@@ -10,7 +10,7 @@
 {:else if (column.type === 'checkbox')}
 <input type="checkbox" style="{style};height:20px;margin-top:5px;" class="w-100"
   bind:checked={value}/>
-{:else if (column.type === 'dropdown')}
+{:else if (( column.type === 'dropdown' ) && ( column.source ))}
 <select style="{style}" class="w-100"
   bind:value={value}>
   {#each column.source as source}

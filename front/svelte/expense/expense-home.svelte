@@ -10,8 +10,8 @@
       columns={[
         { type: "id", name: 'id'},
         { type: "order", name: 'displayOrder'},
-        { type: "text", name: 'key', title: "検索キー", align: "left"},
-        { type: "text", name: 'name', title: "名前", align: "left"},
+        { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
+        { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
         { type: "dropdown", name: 'kind', title: "種別", width: "100px", source: [['payee', '支払先'], ['payment', '出金元']]},
         { type: "dropdown", name: 'companyId', title: "取引先", width: "180px", func: fetchCompanies},
         { type: "dropdown", name: 'account', title: "勘定科目", width: "180px", func: fetchAccounts},

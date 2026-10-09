@@ -24,6 +24,12 @@
       />
   </div>
   <div class="card-footer">
+    <button type="button" class="btn btn-outline-primary"
+      on:click|preventDefault={() => {
+        table = [...table, {}];
+      }}>
+      新規
+    </button>
     <button type="button" class="btn btn-primary"
       on:click|preventDefault={update}>
       更新
@@ -68,12 +74,18 @@ const cancel = (event) => {
 }
 
 const columnsUpdate = async () => {
+  // columnオブジェクトをmutateしても子に同一参照として渡されるため
+  // 変更が伝播しない。sourceを持つcolumnは新オブジェクトに差し替える。
+  const next = [];
   for ( let column of columns ) {
-    if  ( column.func ) {
+    if ( column.func ) {
       let result = await column.func();
-      column.source = result;
+      next.push({ ...column, source: result });
+    } else {
+      next.push(column);
     }
   }
+  columns = next;
 }
 
 onMount(() => {

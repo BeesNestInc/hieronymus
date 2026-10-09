@@ -113,16 +113,14 @@
                     bind:value={line.amount} disabled={!editable}>
                 </td>
                 <td class="input">
-                  <div class="application d-flex">
-                    <input type="text" size="60" maxlength="61"
+                  <div>
+                    <input type="text" class="form-control form-control-sm"
                       placeholder="内容"
-                      style="width:100%;"
                       bind:value={line.description} disabled={!editable}>
                   </div>
-                  <div class="application d-flex">
-                    <input type="text" size="60" maxlength="61"
+                  <div>
+                    <input type="text" class="form-control form-control-sm"
                       placeholder="備考"
-                      style="width:100%;"
                       bind:value={line.note} disabled={!editable}>
                   </div>
                 </td>
@@ -163,14 +161,23 @@
                   {:else if ( line.pendingFiles && line.pendingFiles.length > 0 )}
                   <div class="pending-file">
                     {#each line.pendingFiles as pf, j}
-                    <div>
-                      <i class="bi bi-file-earmark"></i>&nbsp;{pf.name}
-                      {#if ( editable )}
-                      <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
-                        on:click={() => { removePendingFile(line, j); }}>
-                        <i class="bi bi-x"></i>
-                      </button>
-                      {/if}
+                    <div class="d-flex align-items-start">
+                      <div class="me-1">
+                        {#if ( pf.url )}
+                        <img src={pf.url} class="thumb"/>
+                        {:else}
+                        <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                        {/if}
+                      </div>
+                      <div class="pending-name">
+                        {pf.name}
+                        {#if ( editable )}
+                        <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
+                          on:click={() => { removePendingFile(line, j); }}>
+                          <i class="bi bi-x"></i>
+                        </button>
+                        {/if}
+                      </div>
                     </div>
                     {/each}
                   </div>
@@ -284,33 +291,31 @@
         </div>
         {/if}
       </div>
-      <div class="footer">
-        <div>
-          {#if ( editable )}
-          <button type="button" class="btn btn-secondary"
-            on:click={openVouchers}>証票</button>
-          {/if}
-        </div>
-        <div>
-          <button type="button" class="btn btn-secondary"
-            on:click={close_}>もどる</button>
-          {#if ( editable && report.id )}
-            <button type="button" class="btn btn-danger"
-              on:click={delete_}
-              id="delete-button">削除</button>
-          {/if}
-          {#if ( status.user.approvable && !report.approvedAt )}
-            <button type="button" class="btn btn-success"
-              on:click={approve} id="approve-button">承認</button>
-            <button type="button" class="btn btn-warning"
-              on:click={disapprove} id="disapprove-button">不承認</button>
-          {/if}
-          {#if ( editable )}
-            <button type="button" class="btn btn-primary"
-              on:click={save} id="save-button">保存</button>
-          {/if}
-        </div>
-      </div>
+  <div class="d-flex justify-content-end mt-3 mb-5">
+    <div>
+      {#if ( editable )}
+      <button type="button" class="btn btn-secondary me-2"
+        on:click={openVouchers} id="voucher-panel-button">証憑候補</button>
+      {/if}
+      <button type="button" class="btn btn-secondary me-2"
+        on:click={close_}>もどる</button>
+      {#if ( editable && report.id )}
+        <button type="button" class="btn btn-danger me-2"
+          on:click={delete_}
+          id="delete-button">削除</button>
+      {/if}
+      {#if ( status.user.approvable && !report.approvedAt )}
+        <button type="button" class="btn btn-success me-2"
+          on:click={approve} id="approve-button">承認</button>
+        <button type="button" class="btn btn-warning me-2"
+          on:click={disapprove} id="disapprove-button">不承認</button>
+      {/if}
+      {#if ( editable )}
+        <button type="button" class="btn btn-primary"
+          on:click={save} id="save-button">保存</button>
+      {/if}
+    </div>
+  </div>
     </div>
   </div>
 </div>
@@ -325,6 +330,9 @@
   background: #fff;
 }
 .pending-file {
+  font-size: 0.75rem;
+}
+.pending-name {
   font-size: 0.75rem;
 }
 tr.over {
@@ -461,7 +469,7 @@ const savePendingFiles = async () => {
       }
       line.voucherId = vid;
       line.voucher = { id: vid, files: [] };
-      delete line.pendingFiles;
+      clearPending(line);
     }
   }
 };
@@ -670,14 +678,34 @@ const addPendingFiles = (line, files) => {
     line.pendingFiles = [];
   }
   for ( let i = 0; i < files.length; i ++ ) {
-    line.pendingFiles.push({ name: files[i].name, blob: files[i] });
+    line.pendingFiles.push({
+      name: files[i].name,
+      blob: files[i],
+      url: ( files[i].type && files[i].type.match(/^image\//) ) ? URL.createObjectURL(files[i]) : null
+    });
   }
   report.lines = report.lines;
 };
 
 const removePendingFile = (line, index) => {
-  line.pendingFiles.splice(index, 1);
+  const removed = line.pendingFiles.splice(index, 1);
+  for ( const pf of removed ) {
+    if ( pf.url ) {
+      URL.revokeObjectURL(pf.url);
+    }
+  }
   report.lines = report.lines;
+};
+
+// 保存完了後にペンディングのサムネイルURLを解放する
+const clearPending = (line) => {
+  if ( !line.pendingFiles ) return;
+  for ( const pf of line.pendingFiles ) {
+    if ( pf.url ) {
+      URL.revokeObjectURL(pf.url);
+    }
+  }
+  delete line.pendingFiles;
 };
 
 // 証憑をAIで読み取り、明細に入力する。
