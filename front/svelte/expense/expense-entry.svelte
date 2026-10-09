@@ -378,6 +378,11 @@ $: if ( report && report.submittedAt && ( String(report.submittedAt).length > 10
   report.submittedAt = String(report.submittedAt).slice(0, 10);
 }
 
+// 空テーブルでも行の「+」が操作できるように、明細バッファには常に空行を1行積んでおく
+$: if ( report && ( !report.lines || report.lines.length === 0 ) ) {
+  report.lines = [{}];
+}
+
 $: paymentMappings = mappings.filter((m) => ( m.kind === 'payment' ));
 
 $: editable = !report.approvedAt &&

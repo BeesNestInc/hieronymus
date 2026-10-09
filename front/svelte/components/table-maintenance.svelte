@@ -65,8 +65,12 @@ const update = (event) => {
     eventBus.emit('update');
   });
 }
+// 空テーブルでも行の「+」が操作できるように、バッファには常に空行を1行積んでおく
+const buffered = (rows) => {
+  return ( rows.length === 0 ) ? [{}] : rows;
+}
 const cancel = (event) => {
-  table = structuredClone(kinds);
+  table = buffered(structuredClone(kinds));
 }
 
 const columnsUpdate = async () => {
@@ -95,7 +99,7 @@ onMount(() => {
   table = [];
   axios.get(endpoint).then((result) => {
     kinds = result.data.values;
-    table = structuredClone(kinds);
+    table = buffered(structuredClone(kinds));
   })
   columnsUpdate();
   eventBus.on('update', async () => {
