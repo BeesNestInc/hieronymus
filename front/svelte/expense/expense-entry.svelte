@@ -49,12 +49,14 @@
           <div class="row mt-3">
             <label for="task" class="col-2 col-form-label">案件</label>
             <div class="col-sm-3">
+              {#key tasks.length}
               <select class="form-select" id="task" bind:value={report.taskId} disabled={!editable}>
                 <option value={null}>-- 未設定 --</option>
                 {#each tasks as task}
                 <option value={task.id}>{task.name}</option>
                 {/each}
               </select>
+              {/key}
             </div>
           </div>
           <div class="row mt-3">
@@ -92,7 +94,9 @@
                       bind:value={line.paymentDate} disabled={!editable}>
                   </div>
                   <div class="mt-1">
-                    <!-- 支払先は経理が登録した支払先マッピングから選ぶ（件数は知れているので単純なselect） -->
+                    <!-- 支払先は経理が登録した支払先マッピングから選ぶ（件数は知れているので単純なselect）。
+                         optionsは非同期ロードなので揃ってからselectを作り直す（バインド値の再適用のため） -->
+                    {#key payeeMappings.length}
                     <select class="form-select form-select-sm"
                       bind:value={line.payeeMappingId} disabled={!editable}>
                       <option value={null}></option>
@@ -100,11 +104,12 @@
                       <option value={mapping.id}>{mapping.name}</option>
                       {/each}
                     </select>
+                    {/key}
                   </div>
                   {#if ( line.payeeMappingId )}
-                    {#if ( payeeMappingFor(line).account )}
+                    {#if ( lineHints[i] )}
                     <div class="text-muted" style="font-size:0.75rem;">
-                      → {payeeLabelFor(line)}
+                      → {lineHints[i]}
                     </div>
                     {:else}
                     <div class="text-danger" style="font-size:0.75rem;">
@@ -131,6 +136,7 @@
                   </div>
                 </td>
                 <td class="input">
+                  {#key paymentMappings.length}
                   <select class="form-select form-select-sm"
                     bind:value={line.paymentMappingId} disabled={!editable}>
                     <option value={null}></option>
@@ -138,6 +144,7 @@
                     <option value={mapping.id}>{mapping.name}</option>
                     {/each}
                   </select>
+                  {/key}
                 </td>
                 <td>
                   {#if ( line.voucherId )}
@@ -403,25 +410,24 @@ const payeeMappingFor = (line) => {
   return mappings.find((m) => ( m.id == line.payeeMappingId ));
 };
 
-const accountNameFor = (code) => {
-  const account = accounts.find((a) => ( a.code == code ));
-  return account ? account.name : code;
-};
-
-const subNameFor = (code, sub) => {
-  const account = accounts.find((a) => ( a.code == code ));
-  if ( !account || !account.subAccounts ) return null;
-  const found = account.subAccounts.find((s) => ( String(s.code) === String(sub) ));
-  return found ? found.name : sub;
-};
-
-const payeeLabelFor = (line) => {
-  const mapping = payeeMappingFor(line);
-  if ( !mapping ) return '';
-  const name = accountNameFor(mapping.account);
-  const sub = mapping.subAccount ? subNameFor(mapping.account, mapping.subAccount) : null;
+// 明細の支払先マッピングが解決する科目ラベル（「旅費交通費/補助」等）。
+// マッピング未ロード/未登録のときは null（テンプレートで「マッピング未登録」表示）。
+// テンプレートの依存追跡は式内の識別子だけを対象とするため、
+// 関数内部の参照は更新をトリガしない点に注意。ここではreactive変数にして参照させる。
+$: lineHints = (report.lines || []).map((line) => {
+  const mapping = mappings.find((m) => ( m.id == line.payeeMappingId ));
+  if ( !mapping || !mapping.account ) {
+    return null;
+  }
+  const account = accounts.find((a) => ( a.code == mapping.account ));
+  const name = account ? account.name : mapping.account;
+  let sub = null;
+  if ( mapping.subAccount && account && account.subAccounts ) {
+    const found = account.subAccounts.find((s) => ( String(s.code) === String(mapping.subAccount) ));
+    sub = found ? found.name : String(mapping.subAccount);
+  }
   return sub ? `${name}/${sub}` : name;
-};
+});
 
 const close_ = (event) => {
   const query = status.params ? `?${status.params.toString()}` : '';
