@@ -66,6 +66,20 @@
                 bind:value={report.purpose} disabled={!editable}></textarea>
             </div>
           </div>
+          {#if ( report.approvedAt )}
+          <div class="row mt-3">
+            <label class="col-2 col-form-label">承認者</label>
+            <div class="col-sm-3">
+              <input type="text" class="form-control"
+                value={report.approver ? report.approver.name : ''} disabled>
+            </div>
+            <label class="col-2 col-form-label">承認日</label>
+            <div class="col-sm-3">
+              <input type="text" class="form-control number"
+                value={formatDate(report.approvedAt)} disabled>
+            </div>
+          </div>
+          {/if}
         </div>
         <div class="container-fluid mt-4">
           <div class="table-responsive">
@@ -317,11 +331,14 @@
           on:click={delete_}
           id="delete-button">削除</button>
       {/if}
-      {#if ( status.user.approvable && !report.approvedAt )}
+      {#if ( status.user.approvable && report.id )}
+        {#if ( !report.approvedAt )}
         <button type="button" class="btn btn-success me-2"
           on:click={approve} id="approve-button">承認</button>
+        {:else}
         <button type="button" class="btn btn-warning me-2"
           on:click={disapprove} id="disapprove-button">不承認</button>
+        {/if}
       {/if}
       {#if ( editable )}
         <button type="button" class="btn btn-primary"

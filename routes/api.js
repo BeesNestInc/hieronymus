@@ -35,6 +35,7 @@ import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
 import expense_report from './api_expense_report.js';
 import expense_mapping from './api_expense_mapping.js';
+import karibarai from './api_karibarai.js';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
 const VERSION = pkg.version;
@@ -141,6 +142,8 @@ router.get('/expense_mapping', expense_mapping.list);
 router.put('/expense_mapping', expense_mapping.update);
 router.get('/expense_mapping/:kind', expense_mapping.list);
 router.put('/expense_mapping/:kind', expense_mapping.update);
+
+router.get('/karibarai/:term', karibarai.get);
 
 router.get('/trial-balance', trial_balance.get);
 router.get('/trial-balance/:param', trial_balance.get);

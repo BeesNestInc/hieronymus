@@ -27,7 +27,7 @@
   <div class="card-footer">
     <button type="button" class="btn btn-primary"
       on:click|preventDefault={update}>
-      更新
+      保存
     </button>
     <button type="button" class="btn btn-danger"
       on:click|preventDefault={cancel}>

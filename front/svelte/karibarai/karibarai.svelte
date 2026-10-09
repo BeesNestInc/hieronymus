@@ -14,7 +14,7 @@
   {/if}
   <div class="full-height-2 fontsize-12pt">
     <div class="container-fluid">
-      <h2 class="fs-5">仮払金の残高（立替者別）</h2>
+      <h2 class="fs-5">仮払金の残高（立替者別・承認待ち含む）</h2>
       <div class="col-8">
       <table class="table table-bordered">
         <thead class="table-light">
@@ -34,7 +34,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each subs as sub, i}
+          {#each subs as sub}
           <tr>
             <td>
               {sub.name}
@@ -71,8 +71,8 @@
     <div class="container-fluid mt-4">
       <h2 class="fs-5">精算</h2>
       <div class="row mb-3">
-        <div class="col-3 input-group">
-          <input type="text" autocomplete="off" class="number" size="2" maxlength="5"
+        <div class="col-4 input-group">
+          <input type="text" autocomplete="off" class="number" size="4" maxlength="5"
             bind:value={settlementYear}>
           <span class="input-group-text">年</span>
           <input type="text" autocomplete="off" class="number" size="2" maxlength="3"
@@ -93,7 +93,7 @@
               方向
             </th>
             <th scope="col">
-              相手科目
+              出金元
             </th>
             <th scope="col" style="width: 120px;">
               金額
@@ -109,9 +109,7 @@
                 bind:value={row.subAccountCode}>
                 <option value=""></option>
                 {#each subs as sub}
-                {#if ( sub.code )}
                 <option value={sub.code}>{sub.name}</option>
-                {/if}
                 {/each}
               </select>
             </td>
@@ -130,10 +128,13 @@
               </div>
             </td>
             <td class="input">
-              <Account
-                accounts={accounts}
-                bind:code={row.account}
-                bind:sub_code={row.subAccount}></Account>
+              <select class="form-select form-select-sm"
+                bind:value={row.paymentMappingId}>
+                <option value={null}></option>
+                {#each paymentMappings as mapping}
+                <option value={mapping.id}>{mapping.name}</option>
+                {/each}
+              </select>
             </td>
             <td class="number input">
               <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
@@ -157,13 +158,11 @@
       </table>
       <div class="text-muted" style="font-size:0.875rem;">
         「返す」= 会社から立替者へ精算する（仮払金 → 出金元）。<br/>
-        「もらう」= 立替者から会社へ返納する（入金先 → 仮払金）。
+        「もらう」= 立替者から会社へ返納する（出金元に相当する科目 → 仮払金）。
       </div>
     </div>
   </div>
-  <div class="d-flex justify-content-between mt-3 mb-5">
-    <div>
-    </div>
+  <div class="d-flex justify-content-end mt-3 mb-5">
     <div>
       <button type="button" class="btn btn-primary"
         on:click={book} id="book-button">起票</button>
@@ -177,62 +176,38 @@
 <script>
 import axios from 'axios';
 import {numeric} from '../../../libs/utils';
-import {onMount, createEventDispatcher} from 'svelte';
-import Account from '../cross-slip/account.svelte';
+import {onMount} from 'svelte';
 import {link} from '../../javascripts/router.js';
-import {setAccounts} from '../../javascripts/cross-slip';
 
 export let status;
 
 // 仮払金の科目コード（仕訳パターン・accounts.csv の既定）
 const KARIBARAI_CODE = '1130000';
 
-let accounts = [];
-let karibaraiSubs = [];
 let subs = [];
 let total = { debit: 0, credit: 0, balance: 0 };
 let rows = [];
+let mappings = [];
 let ok = true;
 let errorMessages = [];
 let settlementYear;
 let settlementMonth;
 let settlementDay;
 
+$: paymentMappings = mappings.filter((m) => ( m.kind === 'payment' ) && !m.advance );
+
 const blankRow = () => {
   return {
     subAccountCode: '',
     direction: 'repay',
-    account: '',
-    subAccount: 0,
+    paymentMappingId: null,
     amount: ''
   };
 };
 
 const loadBalances = async () => {
-  const balances = await Promise.all(
-    karibaraiSubs.map((sub) => {
-      return axios.get(`/api/remaining/${status.fy.term}/${KARIBARAI_CODE}/${sub.code}`)
-        .then((result) => {
-          return {
-            name: sub.name,
-            code: sub.code,
-            debit: result.data ? Number(result.data.debit) : 0,
-            credit: result.data ? Number(result.data.credit) : 0,
-            balance: result.data ? Number(result.data.balance) : 0
-          };
-        })
-        .catch(() => {
-          return {
-            name: sub.name,
-            code: sub.code,
-            debit: 0,
-            credit: 0,
-            balance: 0
-          };
-        });
-    })
-  );
-  subs = balances;
+  const result = await axios.get(`/api/karibarai/${status.fy.term}`);
+  subs = result.data.values || [];
   let debit = 0;
   let credit = 0;
   for ( const sub of subs ) {
@@ -261,9 +236,9 @@ const validateForm = () => {
       ok = false;
       errorMessages.push(`${i + 1}行目 : 立替者が未選択です。`);
     }
-    if ( !row.account ) {
+    if ( !row.paymentMappingId ) {
       ok = false;
-      errorMessages.push(`${i + 1}行目 : 相手科目が未入力です。`);
+      errorMessages.push(`${i + 1}行目 : 出金元が未選択です。`);
     }
   }
   if ( sum === 0 ) {
@@ -284,19 +259,23 @@ const book = async (event) => {
       continue;
     }
     const amount = numeric(row.amount);
-    // 「返す」: 借方=仮払金/立替者、貸方=相手科目（出金元）
-    // 「もらう」: 借方=相手科目（入金先）、貸方=仮払金/立替者
+    const mapping = mappings.find((m) => ( m.id == row.paymentMappingId ));
+    if ( !mapping || !mapping.account ) {
+      ok = false;
+      errorMessages.push(`出金元のマッピングが未登録です。`);
+      continue;
+    }
+    // 「返す」: 借方=仮払金/立替者、貸方=出金元マッピングの科目
+    // 「もらう」: 借方=出金元マッピングの科目、貸方=仮払金/立替者
     const karibaraiSide = {
       account: KARIBARAI_CODE,
       subAccount: parseInt(row.subAccountCode),
-      amount: amount,
-      tax: 0
+      amount: amount
     };
     const oppositeSide = {
-      account: row.account,
-      subAccount: row.subAccount || undefined,
-      amount: amount,
-      tax: 0
+      account: mapping.account,
+      subAccount: mapping.subAccount || undefined,
+      amount: amount
     };
     lines.push({
       ...( row.direction === 'repay' ) ? {
@@ -321,6 +300,10 @@ const book = async (event) => {
       application1: `仮払精算（${row.direction === 'repay' ? '返す' : 'もらう'}）`
     });
   }
+  if ( !ok ) {
+    errorMessages = errorMessages;
+    return;
+  }
   try {
     await axios.post('/api/cross_slip', {
       year: parseInt(settlementYear),
@@ -330,7 +313,6 @@ const book = async (event) => {
     });
     ok = true;
     errorMessages = [];
-    await loadBalances();
     link(`/journal/${settlementYear}/${settlementMonth}`);
   } catch (e) {
     ok = false;
@@ -349,12 +331,10 @@ const errMsg = (e) => {
 };
 
 onMount(async () => {
-  const res = await axios.get('/api/accounts');
-  accounts = res.data || [];
-  setAccounts(accounts);
-  const karibarai = accounts.find((a) => ( a.code === KARIBARAI_CODE ));
-  karibaraiSubs = ( karibarai && karibarai.subAccounts ) ? karibarai.subAccounts : [];
   await loadBalances();
+  axios.get('/api/expense_mapping').then((result) => {
+    mappings = result.data.values || [];
+  });
   rows = [blankRow()];
   const today = new Date();
   settlementYear = today.getFullYear();
