@@ -58,6 +58,8 @@ const RULES = [
   { match: /^\/expense_report\/ocr$/, methods: ['POST'], access: ANY },
   { match: /^\/expense_mapping$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_mapping$/, methods: ['PUT'], access: ['accounting'] },
+  { match: /^\/expense_mapping\/.+$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_mapping\/.+$/, methods: ['PUT'], access: ['accounting'] },
 
   { match: /^\/journal/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/ledger/, access: ['accounting', 'fiscalBrowsing'] },

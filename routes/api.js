@@ -139,6 +139,8 @@ router.post('/expense_report/ocr', expense_report.ocr);
 
 router.get('/expense_mapping', expense_mapping.list);
 router.put('/expense_mapping', expense_mapping.update);
+router.get('/expense_mapping/:kind', expense_mapping.list);
+router.put('/expense_mapping/:kind', expense_mapping.update);
 
 router.get('/trial-balance', trial_balance.get);
 router.get('/trial-balance/:param', trial_balance.get);
