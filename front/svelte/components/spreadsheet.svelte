@@ -36,8 +36,12 @@
           bind:code={line[column.name]}
           bind:sub_code={line[column.sub]}></Account>
         {:else if ( column.type === 'company' )}
-        <CompanySelect
-          bind:companyId={line[column.name]}></CompanySelect>
+        <!-- CompanySelectはform-controlスタイルなので、スプレッドシートの
+             フラットな入力欄（名前など）に合わせてここで上書きする -->
+        <div class="company-cell">
+          <CompanySelect
+            bind:companyId={line[column.name]}></CompanySelect>
+        </div>
         {:else}
         <OmniInput
           style="height:30px;margin:0px;font-size:12pt;{column.width ? `width:${column.width}` : ""}"
@@ -71,6 +75,21 @@
   </tbody>
 </table>
 <style>
+/* company型セル: CompanySelectの入力欄をスプレッドシートのフラットな入力欄
+   （名前等、height:30px・角なし）に合わせる */
+.company-cell :global(.row) {
+  margin: 0;
+}
+.company-cell :global(.row > div) {
+  padding: 0;
+}
+.company-cell :global(.form-control) {
+  height: 30px;
+  margin: 0px;
+  padding: 0 6px;
+  font-size: 12pt;
+  border-radius: 0;
+}
 </style>
 <script>
 import { onMount, beforeUpdate } from "svelte";
