@@ -48,6 +48,8 @@ const RULES = [
   { match: /^\/cross-slip-detail$/, methods: ['PUT'], access: ['accounting'] },
 
   { match: /^\/expense_report\/approve$/, methods: ['PUT'], access: ['approvable'] },
+  { match: /^\/expense_report\/slip\/\d+$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report\/slip$/, methods: ['DELETE'], access: ['approvable'] },
   { match: /^\/expense_reports(\/.*)?$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/ai_available$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/tasks$/, methods: ['GET'], access: ANY },

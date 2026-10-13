@@ -1,7 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import * as taxcalc from './tax-calc.js';
-import {create as createCrossSlip} from './cross_slip.js';
+import {create as createCrossSlip, update as updateCrossSlip} from './cross_slip.js';
 
 // 提出者（立替者）から仮払金の補助科目を解決する。
 // User → Member → 氏名照合（tradingName / legalName）で仮払金の補助科目（SubAccount）を特定する。
@@ -139,6 +139,13 @@ const buildSlipLines = async (report, lines) => {
 // 経費精算書の承認時に仕訳伝票を自動起票する。
 // 伝票は未承認（承認待ち）で作成され、確定は既存の伝票承認フローで行う。
 // 伝票日付は提出日（未入力なら最初の支払日）。
+// 経費精算書の承認時に仕訳伝票を起票する。
+// 伝票は未承認（承認待ち）で作成され、確定は既存の伝票承認フローで行う。
+// 伝票日付は提出日（未入力なら最初の支払日）。
+// 再承認時、crossSlipId 先の伝票が未承認なら伝票番号を変えずに
+// 「更新」として明細を差し替える（reuse: true を返す）。
+// 伝票が既に承認済みなら新規に起票する（旧伝票は放置しないよう、
+// 呼び出し側で紐付伝票の状態を管理すること）。
 export const createSlipForReport = async (report, lines, approver) => {
   if ( !lines || lines.length === 0 ) {
     const err = new Error('明細がありません。');
@@ -170,6 +177,24 @@ export const createSlipForReport = async (report, lines, approver) => {
     err.name = 'ExpenseValidation';
     throw err;
   }
+
+  // 既存の紐付伝票が未承納なら「更新」として再利用する（伝票番号を増やさない）
+  if ( report.crossSlipId ) {
+    const existing = await models.CrossSlip.findByPk(report.crossSlipId);
+    if (( existing ) && ( !existing.approvedAt ) &&
+        ( existing.year === year ) && ( existing.month === month )) {
+      await updateCrossSlip(existing, {
+        year: year,
+        month: month,
+        day: day,
+        lines: slipLines,
+        term: ctx.fy.term
+      }, approver, { keepUnapproved: true });
+      return { slip: existing, reuse: true };
+    }
+    // 既存伝票が承認済み/別月のときは新しい伝票を起票する
+  }
+
   const slip = await createCrossSlip({
     year: year,
     month: month,
@@ -179,9 +204,10 @@ export const createSlipForReport = async (report, lines, approver) => {
   }, approver, { forceUnapproved: true });
   report.crossSlipId = slip.id;
   await report.save();
-  return slip;
+  return { slip: slip, reuse: false };
 };
 
 export default {
+
   createSlipForReport: createSlipForReport
 };

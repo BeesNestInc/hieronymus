@@ -35,6 +35,17 @@
                 }}>
                 <i class="bi bi-journal-text"></i>&nbsp;伝票 {report.crossSlip.year}/{report.crossSlip.month}-{report.crossSlip.no}
               </button>
+              {#if ( report.crossSlip.approvedAt )}
+              <span class="badge bg-success">済</span>
+              {:else}
+              <span class="badge bg-warning text-dark">承認待ち</span>
+              {#if ( editable )}
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                on:click={deleteSlip} title="紐付伝票が未処理のまま残っています。削除できます。">
+                <i class="bi bi-trash"></i>&nbsp;伝票削除
+              </button>
+              {/if}
+              {/if}
             </div>
             {/if}
           </div>
@@ -556,7 +567,11 @@ const approve = async (event) => {
       approvedAt: new Date()
     });
     if ( result.data.code === 0 ) {
-      toast.show('経費精算', '承認しました。仕訳伝票を起票しました。');
+      if ( result.data.reuse ) {
+        toast.show('経費精算', '承認しました。既存の伝票を更新しました。');
+      } else {
+        toast.show('経費精算', '承認しました。仕訳伝票を起票しました。');
+      }
       const reloaded = await axios.get(`/api/expense_report/${report.id}`);
       report = reloaded.data;
     } else {
@@ -576,12 +591,34 @@ const disapprove = async (event) => {
       approvedAt: null
     });
     if ( result.data.code === 0 ) {
-      toast.show('経費精算', '不承認にしました。');
+      if ( result.data.slipApproved ) {
+        toast.show('経費精算', '不承認にしました。ただし紐付伝票は既に確定済みです。伝票の画面で処理してください。', 'warning');
+      } else {
+        toast.show('経費精算', '不承認にしました。紐付伝票も承認待ちに戻しました。');
+      }
       const reloaded = await axios.get(`/api/expense_report/${report.id}`);
       report = reloaded.data;
     } else {
       ok = false;
       errorMessages = [result.data.message || '不承認に失敗しました。'];
+    }
+  } catch (e) {
+    ok = false;
+    errorMessages = [errMsg(e)];
+  }
+};
+
+// 紐付伝票の削除（未処理伝票の掃除用）
+const deleteSlip = async (event) => {
+  try {
+    const result = await axios.delete('/api/expense_report/slip', {data: {id: report.id}});
+    if ( result.data.code === 0 ) {
+      toast.show('経費精算', '紐付伝票を削除しました。');
+      const reloaded = await axios.get(`/api/expense_report/${report.id}`);
+      report = reloaded.data;
+    } else {
+      ok = false;
+      errorMessages = [result.data.message || '伝票の削除に失敗しました。'];
     }
   } catch (e) {
     ok = false;

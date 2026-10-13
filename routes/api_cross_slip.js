@@ -4,6 +4,20 @@ import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cros
 import * as taxcalc from '../libs/tax-calc.js';
 import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 
+// 経費精算書に紐付いた伝票は精算書側から管理する（承認・修正・削除とも）。
+// 伝票側から触れると精算書との乖離や「伝票だけ勝手に承認」が起きるため。
+// accessは「紐付きなし/no access」を区別せずtrue/falseのみ返す。
+const linkedExpenseReport = (slip) => {
+  if ( !slip ) {
+    return null;
+  }
+  return models.ExpenseReport.findOne({
+    where: { crossSlipId: slip.id }
+  });
+};
+
+const LINKED_MESSAGE = 'この伝票は経費精算書に紐付いています。精算書の画面から承認・修正してください。';
+
 const recalcReject = (req, res) => {
   const body = req.body;
   const year = parseInt(body.year);
@@ -149,8 +163,15 @@ export default {
         ['lines', 'lineNo', 'ASC']
       ]
     });
-    //console.log(cross_slip);
-    res.json(cross_slip);
+    // 紐付精算書の逆引き（権限のあるユーザーには精算書へのリンクを表示するため）
+    const linked = await linkedExpenseReport(cross_slip);
+    res.json({
+      ...( cross_slip ? cross_slip.toJSON() : null ),
+      expenseReport: linked ? {
+        id: linked.id,
+        purpose: linked.purpose
+      } : null
+    });
   },
   post: async(req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -199,6 +220,15 @@ export default {
       const oldFy = await findFiscalYearForTerm(slip.term);
       if ( oldFy && isLocked(oldFy) ) {
         res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: oldFy.term });
+        return;
+      }
+      const linked = await linkedExpenseReport(slip);
+      if ( linked ) {
+        res.status(422).json({
+          code: -2,
+          message: LINKED_MESSAGE,
+          expenseReportId: linked.id
+        });
         return;
       }
       if	( !slip.approvedAt )	{
@@ -261,6 +291,15 @@ export default {
       res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
       return;
     }
+    const linked = await linkedExpenseReport(slip);
+    if ( linked ) {
+      res.status(422).json({
+        code: -2,
+        message: LINKED_MESSAGE,
+        expenseReportId: linked.id
+      });
+      return;
+    }
     if	( ( !req.session.user.approvable ) &&
          ( slip.createdBy !== req.session.user.id ) )	{
       res.json({
@@ -297,6 +336,15 @@ export default {
         const slipFy = await findFiscalYearForTerm(slip.term);
         if ( slipFy && isLocked(slipFy) ) {
           res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+          return;
+        }
+        const linked = await linkedExpenseReport(slip);
+        if ( linked ) {
+          res.status(422).json({
+            code: -2,
+            message: LINKED_MESSAGE,
+            expenseReportId: linked.id
+          });
           return;
         }
         slip.approvedAt = body.approvedAt;

@@ -4,7 +4,7 @@
     <div>
       <button type="button" class="btn btn-secondary me-2" id="back-button"
         on:click={back}>もどる</button>
-      {#if !slipLocked}
+      {#if !slipLocked && !linkedExpenseReport}
       {#if (( !slip ) || ( !slip.no ) ||
           (( !slip.approvedAt ) &&
            (( status.user.accounting ) ||
@@ -28,6 +28,13 @@
   {#if loading}
   <p>読み込み中...</p>
   {:else if slip}
+  {#if ( linkedExpenseReport )}
+  <div class="alert alert-info py-2 px-3">
+    <a href={`/expense/entry/${linkedExpenseReport.id}?returnTo=${encodeURIComponent(returnTo || '/home')}`}>
+      この伝票は経費精算書（提出: {linkedExpenseReport.purpose || '（目的未記入）'}）から管理されています
+    </a>
+  </div>
+  {:else}
   <div class="row">
     <div class="col-12 slip-main">
       <CrossSlip
@@ -98,6 +105,8 @@
     <div>
       {#if slipLocked}
       <span class="text-muted">この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。</span>
+      {:else if linkedExpenseReport}
+      <span class="text-muted">変更・承認・削除は経費精算書の画面で行ってください。</span>
       {:else}
       {#if (( !slip ) || ( !slip.no ) ||
           (( !slip.approvedAt ) &&
@@ -109,7 +118,7 @@
       {/if}
     </div>
     <div>
-      {#if !slipLocked}
+      {#if !slipLocked && !linkedExpenseReport}
       {#if ( slip && slip.no > 0) }
       {#if ( status.user.approvable )}
         {#if ( slip.approvedAt )}
@@ -137,6 +146,7 @@
       {/if}
     </div>
   </div>
+  {/if}
   {/if}
 </div>
 <style>
@@ -181,6 +191,8 @@ let slipLocked = false;
 let loading = true;
 let returnTo = null;
 let isNew = false;
+// 経費精算書に紐付いた伝票は精算書側から管理する（修正/承認/削除不可）
+let linkedExpenseReport = null;
 
 $: checkPage($currentPage);
 
@@ -299,6 +311,7 @@ const loadSlip = async (params) => {
       approverName: data.approver ? data.approver.name : '',
       lines: data.lines
     };
+    linkedExpenseReport = data.expenseReport || null;
     await loadFyAndTax(slip.year, slip.month);
   } else {
     let year = params.year || status.fy.startDate.getFullYear();

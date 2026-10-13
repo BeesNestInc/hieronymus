@@ -152,7 +152,10 @@ export const create = async (body, user, options = {}) => {
   throw err;
 }
 
-export const update = async (slip, body, user) => {
+// options.keepUnapproved: 既存の未承認伝票の「更新」に使う（経費精算書の再承認時の
+// 伝票再利用など）。approvedAt/approvedBy をいかなる場合も変更せず、伝票番号も
+// 採番せずに slip.day/updatedBy と明細だけを差し替える
+export const update = async (slip, body, user, options = {}) => {
   const fy = await models.FiscalYear.findOne({
     where: {
       term: slip.term
@@ -167,7 +170,7 @@ export const update = async (slip, body, user) => {
   slip.lineCount = body.lines.length;
   slip.day = body.day;
   slip.updatedBy = user.id;
-  if	( user.approvable )	{
+  if	(( user.approvable ) && ( !options.keepUnapproved ))	{
     slip.approvedAt = new Date();
     slip.approvedBy = user.id;
   }

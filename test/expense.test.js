@@ -126,8 +126,10 @@ describe('expense (test db)', () => {
       where: { expenseReportId: report.id },
       order: [['lineNo', 'ASC']]
     });
-    const slip = await createSlipForReport(report, lines, data.approver);
+    const result = await createSlipForReport(report, lines, data.approver);
     try {
+      const slip = result.slip;
+      assert.equal(result.reuse, false);
       const saved = await models.CrossSlip.findByPk(slip.id);
       assert.ok(saved);
       assert.equal(saved.approvedAt, null);
@@ -166,9 +168,9 @@ describe('expense (test db)', () => {
       where: { expenseReportId: report.id },
       order: [['lineNo', 'ASC']]
     });
-    const slip = await createSlipForReport(report, lines, data.approver);
+    const result = await createSlipForReport(report, lines, data.approver);
     try {
-      const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: slip.id } });
+      const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: result.slip.id } });
       assert.equal(details.length, 1);
       assert.equal(details[0].debitVoucherId, voucher.id);
       assert.equal(details[0].creditVoucherId, null);
@@ -230,24 +232,74 @@ describe('expense (test db)', () => {
     }
   });
 
-  it('承認権限を持つユーザーでもforceUnapprovedなら未承認で登録される', async () => {
-    const slip = await createCrossSlip({
-      year: 2026, month: 3, day: 15, term: 1,
-      lines: [{
-        debitAccount: '7000001', debitAmount: 1000, debitTax: 0,
-        creditAccount: '1000001', creditAmount: 1000, creditTax: 0
-      }]
-    }, data.approver, { forceUnapproved: true });
+  it('再承認時、未承認の紐付伝票は伝票番号を変えずに「更新」として再利用される', async () => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report);
+    let lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const first = await createSlipForReport(report, lines, data.approver);
     try {
-      const saved = await models.CrossSlip.findOne({ where: { year: 2026, month: 3, no: slip.no } });
-      assert.ok(saved);
-      assert.equal(saved.approvedAt, null);
+      const firstSlip = first.slip;
+      assert.equal(first.reuse, false);
+
+      // 不承認を模擬（approvedAtをnullに戻す）
+      const saved = await models.CrossSlip.findByPk(firstSlip.id);
+      saved.approvedAt = null;
+      await saved.save();
+
+      // 精算書の明細を修正して再承認
+      await models.ExpenseReportLine.destroy({ where: { expenseReportId: report.id } });
+      await buildLine(report, { amount: 4500 });
+      lines = await models.ExpenseReportLine.findAll({
+        where: { expenseReportId: report.id },
+        order: [['lineNo', 'ASC']]
+      });
+      const second = await createSlipForReport(report, lines, data.approver);
+      assert.equal(second.reuse, true);
+      const secondSlip = second.slip;
+      assert.equal(secondSlip.id, firstSlip.id);
+      assert.equal(secondSlip.no, firstSlip.no);
+      assert.equal(secondSlip.year, firstSlip.year);
+      assert.equal(secondSlip.month, firstSlip.month);
+      // keepUnapproved により approvedAt は変更されない
+      const reloaded = await models.CrossSlip.findByPk(secondSlip.id);
+      assert.equal(reloaded.approvedAt, null);
+      const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: reloaded.id } });
+      assert.equal(details.length, 1);
+      assert.equal(Number(details[0].debitAmount), 4500);
     } finally {
-      const saved = await models.CrossSlip.findOne({ where: { year: 2026, month: 3, no: slip.no } });
-      if ( saved ) {
-        await models.CrossSlipDetail.destroy({ where: { crossSlipId: saved.id } });
-        await saved.destroy();
+      await cleanup(report);
+    }
+  });
+
+  it('承認済み伝票が紐付いた精算書の再承認では新規伝票が起票される', async () => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report);
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const first = await createSlipForReport(report, lines, data.approver);
+    try {
+      // 紐付伝票を承認済みにする
+      const firstSlip = await models.CrossSlip.findByPk(first.slip.id);
+      firstSlip.approvedAt = new Date();
+      await firstSlip.save();
+
+      const second = await createSlipForReport(report, lines, data.approver);
+      try {
+        assert.equal(second.reuse, false);
+        assert.notEqual(second.slip.id, firstSlip.id);
+      } finally {
+        // 新規伝票の掃除
+        await models.CrossSlipDetail.destroy({ where: { crossSlipId: second.slip.id } });
+        const s = await models.CrossSlip.findByPk(second.slip.id);
+        if ( s ) await s.destroy();
       }
+    } finally {
+      await cleanup(report);
     }
   });
 });

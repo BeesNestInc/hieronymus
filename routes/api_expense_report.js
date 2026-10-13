@@ -4,6 +4,7 @@ import fs from 'fs';
 import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
 import { createSlipForReport } from '../libs/expense.js';
+import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
 
 // 閲覧権限: 会計/承認権限ユーザーは全員の経費精算書を、
@@ -209,6 +210,7 @@ export default {
     }
   },
   // 承認/不承認。承認時は仕訳伝票を自動起票（未承認・承認待ち）して関連付ける。
+  // 再承認時、紐付伝票が未承納なら伝票番号を変えずに明細だけ更新する（reuse: true）。
   approve: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     if ( !req.session.user.approvable ) {
@@ -226,8 +228,14 @@ export default {
         return;
       }
       if ( body.approvedAt ) {
+        // 二重承認ガード: 承認済みの精算書への再承認は拒否する
+        // （createSlipForReportの伝票再利用は「不承認→修正→再承認」の経路用）
+        if ( report.approvedAt ) {
+          res.status(422).json({ code: -2, message: 'this report was already approved' });
+          return;
+        }
         // 仕訳起票に成功してから承認状態を更新する
-        const slip = await createSlipForReport(report, report.lines, req.session.user);
+        const result = await createSlipForReport(report, report.lines, req.session.user);
         report.approvedAt = body.approvedAt;
         report.approvedBy = req.session.user.id;
         report.updatedBy = req.session.user.id;
@@ -235,21 +243,42 @@ export default {
         res.json({
           code: 0,
           id: report.id,
+          reuse: result.reuse,
           slipNo: {
-            year: slip.year,
-            month: slip.month,
-            day: slip.day,
-            no: slip.no
+            year: result.slip.year,
+            month: result.slip.month,
+            day: result.slip.day,
+            no: result.slip.no
           }
         });
       } else {
-        // 不承認時は承認状態のみ解除する。起票済みの伝票は未承認のまま
-        // 既存の伝票承認フロー（仕訳日記帳）で経理が管理する。
+        // 不承認時は精算書の承認状態のみ解除する。
+        // 紐付伝票が未承納なら連動して伝票も不承認にする（伝票承認フローの承認待ちに戻す）。
+        // 伝票が既に承認済み（経理が伝票承認フローで確定済み）の場合は連動せず
+        // slipApproved を返す。crossSlipId は切らない。
+        let slipApproved = false;
+        if ( report.crossSlipId ) {
+          const slip = await models.CrossSlip.findByPk(report.crossSlipId);
+          if ( slip ) {
+            const slipFy = await findFiscalYearForTerm(slip.term);
+            if (( slipFy ) && ( isLocked(slipFy) )) {
+              res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+              return;
+            }
+            if ( slip.approvedAt ) {
+              slipApproved = true;
+            } else {
+              slip.approvedAt = null;
+              slip.approvedBy = null;
+              await slip.save();
+            }
+          }
+        }
         report.approvedAt = null;
         report.approvedBy = null;
         report.updatedBy = req.session.user.id;
         await report.save();
-        res.json({ code: 0, id: report.id });
+        res.json({ code: 0, id: report.id, slipApproved: slipApproved });
       }
     } catch (e) {
       if (( e && (( e.name === 'ExpenseMappingNotFound' ) ||
@@ -258,6 +287,80 @@ export default {
         res.status(422).json({ code: -2, message: e.message });
         return;
       }
+      if (( e ) && ( e.name === 'FiscalYearLocked' )) {
+        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: e.term });
+        return;
+      }
+      next(e);
+    }
+  },
+  // 紐付伝票の削除（未処理伝票の掃除用）。approvableユーザー限定。
+  // 伝票が未承納の場合のみ削除できる。承認済みなら拒否。
+  deleteSlip: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !req.session.user.approvable ) {
+      res.json({ code: -10, message: 'this account can not modify' });
+      return;
+    }
+    try {
+      const body = req.body;
+      const report = await models.ExpenseReport.findByPk(body.id);
+      if ( !report ) {
+        res.json({ code: -1, message: 'record not found' });
+        return;
+      }
+      if ( !report.crossSlipId ) {
+        res.json({ code: -2, message: 'related slip not found' });
+        return;
+      }
+      const slip = await models.CrossSlip.findByPk(report.crossSlipId);
+      if ( !slip ) {
+        // 参照は既に陳腐化（SET NULLは伝票削除時に済んでいるはずだが念のため）
+        report.crossSlipId = null;
+        await report.save();
+        res.json({ code: 0 });
+        return;
+      }
+      if ( slip.approvedAt ) {
+        res.status(422).json({ code: -2, message: 'related slip was approved' });
+        return;
+      }
+      const slipFy = await findFiscalYearForTerm(slip.term);
+      if (( slipFy ) && ( isLocked(slipFy) )) {
+        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+        return;
+      }
+      await models.CrossSlipDetail.destroy({
+        where: { crossSlipId: slip.id }
+      });
+      await slip.destroy();
+      report.crossSlipId = null;
+      report.updatedBy = req.session.user.id;
+      await report.save();
+      res.json({ code: 0 });
+    } catch (e) {
+      next(e);
+    }
+  },
+  // 紐付伝票の取得。slip-page等で連動伝票の精算書を逆引きするためのもの
+  reportForSlip: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    try {
+      const report = await models.ExpenseReport.findOne({
+        where: { crossSlipId: req.params.slipId },
+        include: [
+          { model: models.User, as: 'submitter' },
+          { model: models.Task, as: 'task' }
+        ]
+      });
+      if (( report ) &&
+          (( req.session.user.accounting ) || ( req.session.user.approvable ) ||
+           ( report.createdBy === req.session.user.id ))) {
+        res.json({ id: report.id, purpose: report.purpose, task: report.task ? report.task.name : null });
+      } else {
+        res.json(null);
+      }
+    } catch (e) {
       next(e);
     }
   },

@@ -136,6 +136,8 @@ router.post('/expense_report', expense_report.post);
 router.put('/expense_report', expense_report.update);
 router.put('/expense_report/approve', expense_report.approve);
 router.delete('/expense_report', expense_report.delete);
+router.delete('/expense_report/slip', expense_report.deleteSlip);
+router.get('/expense_report/slip/:slipId', expense_report.reportForSlip);
 router.post('/expense_report/ocr', expense_report.ocr);
 
 router.get('/expense_mapping', expense_mapping.list);
