@@ -208,6 +208,16 @@ export default {
           ]
         };
       }
+      if	( req.query.expenseUnlinked === '1' )	{
+        // 経費精算の証憑候補用: どの精算書の明細にも紐付いていない証憑だけに絞り込む
+        // （伝票への紐付けは details として応答に入るのでクライアント側で除外する）
+        where = {
+          [Op.and]: [
+            where,
+            models.Sequelize.literal(`NOT EXISTS (SELECT 1 FROM "ExpenseReportLines" WHERE "ExpenseReportLines"."voucherId" = "Voucher"."id")`)
+          ]
+        };
+      }
       if	( req.query.upper )	{
         if	( req.query.lower )	{
           where = {

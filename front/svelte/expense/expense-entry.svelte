@@ -267,7 +267,7 @@
         </div>
         {#if ( vouchers )}
         <div class="container-fluid expense-vouchers">
-          <h2 class="fs-5">証憑候補（{panelYear}年{panelMonth}月）</h2>
+          <h2 class="fs-5">証憑候補（{panelYear}年{panelMonth}月・未使用の証憑のみ）</h2>
           <ul class="page-subtitle nav me-auto">
             {#each months as month}
             <li class="nav-item">
@@ -290,7 +290,6 @@
             <table class="table table-striped table-bordered">
               <thead class="table-light">
                 <tr>
-                  <th style="width:20px;"></th>
                   <th>支払先</th>
                   <th>支払日</th>
                   <th class="number">金額</th>
@@ -302,13 +301,8 @@
                 <tr
                   on:dragstart={onDragStart}
                   on:dragend={onDragEnd}
-                  draggable={ ( line.details.length > 0 ) || usedInReport(line.id) ? "false" : "true" }
+                  draggable="true"
                   data-id={line.id}>
-                  <td>
-                    {#if ( line.details.length > 0 )}
-                    <i class="fas fa-link"></i>
-                    {/if}
-                  </td>
                   <td>
                     {line.company ? line.company.name : ''}
                   </td>
@@ -656,10 +650,13 @@ const changePanelMonth = (month) => {
 };
 
 const fetchVouchers = () => {
+  // どこにも紐付いていない証憑だけを候補にする
+  // （expenseUnlinked=1: 精算書の明細に紐付いた証憑をサーバ側で除外。
+  //   伝票に紐付いた証憑は details で判別できるのでクライアント側で除外）
   axios.get('/api/voucher', {
-    params: { month: `${panelYear}-${panelMonth}` }
+    params: { month: `${panelYear}-${panelMonth}`, expenseUnlinked: 1 }
   }).then((result) => {
-    vouchers = result.data.vouchers.filter((v) => !usedInReport(v.id));
+    vouchers = result.data.vouchers.filter((v) => !usedInReport(v.id) && !v.details.length);
   })
 };
 
