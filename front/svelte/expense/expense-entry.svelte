@@ -86,8 +86,9 @@
             </div>
             <label class="col-2 col-form-label">承認日</label>
             <div class="col-sm-3">
-              <input type="text" class="form-control number"
-                value={formatDate(report.approvedAt)} disabled>
+              <!-- 提出日と同じdate入力で表示形式を揃える -->
+              <input type="date" class="form-control"
+                value={approvedDateStr} disabled>
             </div>
           </div>
           {/if}
@@ -418,6 +419,9 @@ $: submitterName = report.submitter ? report.submitter.name : (status.user.name 
 $: if ( report && report.submittedAt && ( String(report.submittedAt).length > 10 ) ) {
   report.submittedAt = String(report.submittedAt).slice(0, 10);
 }
+
+// 承認日もdate入力（提出日と同じ表示形式）に出すための正規化
+$: approvedDateStr = report && report.approvedAt ? String(report.approvedAt).slice(0, 10) : '';
 
 // 空テーブルでも行の「+」が操作できるように、明細バッファには常に空行を1行積んでおく
 $: if ( report && ( !report.lines || report.lines.length === 0 ) ) {
