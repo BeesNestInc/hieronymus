@@ -7,7 +7,8 @@
   ></ExpenseList>
 {:else if ( status.state === 'home' )}
 <ExpenseHome
-  bind:status={status}></ExpenseHome>
+  bind:status={status}
+  {toast}></ExpenseHome>
 {:else if ( (status.state === 'entry' || status.state === 'new') && report )}
 <ExpenseEntry
   bind:status={status}

@@ -265,26 +265,72 @@
           </table>
           </div>
         </div>
+        {#if ( editable || ( report.vouchers && report.vouchers.length > 0 ) )}
+        <div class="container-fluid expense-vouchers">
+          <div class="d-flex align-items-center mb-1">
+            <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
+            <label class="btn btn-sm btn-outline-primary upload-label">
+              まとめてアップロード
+              <input type="file" hidden multiple accept="image/*,application/pdf"
+                disabled={!editable}
+                on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
+            </label>
+          </div>
+          {#if ( pileVouchers.length > 0 )}
+          <div class="voucher-pane" style="overflow:auto;max-height:30vh;">
+            <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+              <thead class="table-light">
+                <tr>
+                  <th>ファイル</th>
+                  <th>説明</th>
+                  <th class="number">金額</th>
+                  <th style="width:30px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each pileVouchers as line}
+                <tr draggable="true" on:dragstart={onDragStart} on:dragend={onDragEnd}
+                  data-id={line.id} title="明細行へドラッグ&ドロップで紐付けできます">
+                  <td>
+                    <div class="d-flex align-items-start">
+                      {#each line.files as file}
+                      <div class="me-1">
+                        <a href="/voucher/file/{file.id}" target="_blank">
+                          {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                          <img src="/voucher/file/{file.id}" class="thumb"/>
+                          {:else}
+                          <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                          {/if}
+                        </a>
+                      </div>
+                      {/each}
+                    </div>
+                  </td>
+                  <td>{line.description || ( line.files[0] ? line.files[0].name : '' )}</td>
+                  <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
+                  <td>
+                    {#if ( editable )}
+                    <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
+                      on:click={() => { deletePileVoucher(line); }}>
+                      <i class="bi bi-x"></i>
+                    </button>
+                    {/if}
+                  </td>
+                </tr>
+                {/each}
+              </tbody>
+            </table>
+            </div>
+          </div>
+          {:else}
+          <p class="text-muted mb-0">領収書などの画像をまとめてアップロードできます。アップロードした証憑は、明細行へドラッグ&ドロップして紐付けてください。</p>
+          {/if}
+        </div>
+        {/if}
         {#if ( vouchers )}
         <div class="container-fluid expense-vouchers">
-          <h2 class="fs-5">証憑候補（{panelYear}年{panelMonth}月・未使用の証憑のみ）</h2>
-          <ul class="page-subtitle nav me-auto">
-            {#each months as month}
-            <li class="nav-item">
-              {#if (( panelYear == month.year ) && ( panelMonth == month.month ))}
-              <button type="button" class="btn btn-primary disabled me-2"
-                on:click={() => { changePanelMonth(month); }}>
-                {month.month}&nbsp;月
-              </button>
-              {:else}
-              <button type="button" class="btn btn-outline-primary me-2"
-                on:click={() => { changePanelMonth(month); }}>
-                {month.month}&nbsp;月
-              </button>
-              {/if}
-            </li>
-            {/each}
-          </ul>
+          <h2 class="fs-5">証憑候補（未使用の証憑のみ）</h2>
           <div class="voucher-pane" style="overflow:auto;max-height:40vh;">
             <div class="table-responsive">
             <table class="table table-striped table-bordered">
@@ -401,9 +447,6 @@ let ok = true;
 let errorMessages = [];
 let submitterName = '';
 let vouchers;
-let months = [];
-let panelYear;
-let panelMonth;
 let dragCounter = [];
 
 $: submitterName = report.submitter ? report.submitter.name : (status.user.name || '');
@@ -470,6 +513,7 @@ const errMsg = (e) => {
 
 const buildBody = () => {
   return {
+    id: report.id,
     submittedAt: report.submittedAt || null,
     companyId: report.companyId || null,
     taskId: report.taskId || null,
@@ -530,16 +574,24 @@ const save = async (event) => {
       return;
     }
     const body = buildBody();
+    let result;
     if ( report.id ) {
-      const result = await axios.put('/api/expense_report', body);
-      report = result.data;
-      toast.show('経費精算', '保存しました');
+      result = await axios.put('/api/expense_report', body);
     } else {
-      const result = await axios.post('/api/expense_report', body);
+      result = await axios.post('/api/expense_report', body);
+    }
+    // エラーは 200 のJSON({code,message})で返ることがあり、そのままreportへ
+    // 代入するとフォームが空になるため、精算書の応答かどうかを確認する
+    if ( result.data && result.data.id ) {
       report = result.data;
       toast.show('経費精算', '保存しました');
-      // 新規保存後はentry画面へ切替（URLはreplaceState相当）
-      link(`/expense/entry/${report.id}`, {replace: true});
+      if ( !body.id ) {
+        // 新規保存後はentry画面へ切替（URLはreplaceState相当）
+        link(`/expense/entry/${report.id}`, {replace: true});
+      }
+    } else {
+      ok = false;
+      errorMessages = [ result.data.message || '保存に失敗しました。' ];
     }
   } catch (e) {
     ok = false;
@@ -629,32 +681,23 @@ const openSlip = (slip) => {
   link(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${returnTo}`);
 };
 
-// 証憑候補パネル（slip-pageと同じ操作: 証憑行を明細へドラッグ&ドロップする）
+// 証憑候補パネル（slip-pageと同じ操作: 証憑行を明細へドラッグ&ドロップする）。
+// 月で絞らず会計年度内の未使用証憑をすべて出す（未整理のまるっとアップロードは
+// どの月の精算にも使い得るため）。
 const openVouchers = (event) => {
   if ( vouchers ) {
     vouchers = undefined;
     return;
   }
-  const base = report.lines.find((l) => l.paymentDate);
-  const baseDate = base ? new Date(base.paymentDate) :
-    ( report.submittedAt ? new Date(report.submittedAt) : new Date() );
-  panelYear = baseDate.getFullYear();
-  panelMonth = baseDate.getMonth() + 1;
-  fetchVouchers();
-};
-
-const changePanelMonth = (month) => {
-  panelYear = month.year;
-  panelMonth = month.month;
   fetchVouchers();
 };
 
 const fetchVouchers = () => {
   // どこにも紐付いていない証憑だけを候補にする
-  // （expenseUnlinked=1: 精算書の明細に紐付いた証憑をサーバ側で除外。
+  // （expenseUnlinked=1: 精算書の明細・パイルに紐付いた証憑をサーバ側で除外。
   //   伝票に紐付いた証憑は details で判別できるのでクライアント側で除外）
   axios.get('/api/voucher', {
-    params: { month: `${panelYear}-${panelMonth}`, expenseUnlinked: 1 }
+    params: { expenseUnlinked: 1 }
   }).then((result) => {
     vouchers = result.data.vouchers.filter((v) => !usedInReport(v.id) && !v.details.length);
   })
@@ -663,6 +706,56 @@ const fetchVouchers = () => {
 // この精算書の他の行で既に使われている証憑は候補から外す
 const usedInReport = (voucherId) => {
   return (report.lines || []).some((l) => ( l.voucherId == voucherId ));
+};
+
+// 未整理の証憑（パイル）。明細から参照されたものは候補から外して表示する
+// （テンプレートの依存追跡のため usedInReport を介さず直に参照する）
+$: pileVouchers = (report.vouchers || [])
+  .filter((v) => !(( report.lines || [] ).some((l) => ( l.voucherId == v.id ))));
+
+// 未整理証憑のまるっとアップロード（複数ファイル可）。
+// 精算書が未保存の場合はどこにも紐付かない浮遊証憑として登録する。
+const uploadVouchers = async (files) => {
+  if ( !files || files.length === 0 ) {
+    return;
+  }
+  try {
+    const fd = new FormData();
+    for ( const f of files ) {
+      fd.append('file', f, f.name);
+    }
+    const url = report.id ?
+      `/api/expense_report/vouchers/${report.id}` : '/api/expense_report/vouchers';
+    await axios.post(url, fd, { 'content-type': 'multipart/form-data' });
+    if ( report.id ) {
+      const reloaded = await axios.get(`/api/expense_report/${report.id}`);
+      report = reloaded.data;
+      toast.show('経費精算', `${files.length}件の証憑をアップロードしました。明細行へドラッグ&ドロップで紐付けてください。`);
+    } else {
+      toast.show('経費精算', `${files.length}件の証憑をアップロードしました。保存後に紐付けられます。`);
+      if ( vouchers ) {
+        fetchVouchers();
+      }
+    }
+  } catch (e) {
+    ok = false;
+    errorMessages = [errMsg(e)];
+  }
+};
+
+// 未整理証憑の削除（自分が登録した証憑は削除できる）
+const deletePileVoucher = async (voucher) => {
+  if ( !window.confirm('この証憑を削除します。よろしいですか？') ) {
+    return;
+  }
+  try {
+    await axios.delete(`/api/voucher/${voucher.id}`);
+    report.vouchers = ( report.vouchers || [] ).filter((v) => ( v.id !== voucher.id ));
+    toast.show('経費精算', '証憑を削除しました');
+  } catch (e) {
+    ok = false;
+    errorMessages = [errMsg(e)];
+  }
 };
 
 // 証憑を明細に結合する。支払先・支払日・金額を証憑から補完する（伝票入力のbindVoucherと同じ）。
@@ -856,18 +949,6 @@ onMount(async () => {
   });
   axios.get('/api/expense_report/ai_available').then((result) => {
     aiAvailable = result.data.available;
-  });
-  axios.get(`/api/term/${status.fy.term}`).then((result) => {
-    const fy = result.data;
-    const list = [];
-    for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {
-      list.push({
-        year: mon.getFullYear(),
-        month: mon.getMonth()+1
-      });
-      mon.setMonth(mon.getMonth() + 1);
-    }
-    months = list;
   });
 })
 </script>

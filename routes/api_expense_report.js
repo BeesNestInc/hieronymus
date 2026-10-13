@@ -23,6 +23,14 @@ const listQuery = {
       model: models.CrossSlip, as: 'crossSlip'
     },
     {
+      // 未整理証憑（まるっとアップロードされた、明細に紐付かない証憑）
+      model: models.Voucher, as: 'vouchers',
+      include: [{
+        model: models.VoucherFile, as: 'files',
+        attributes: [ 'id', 'mimeType', 'name' ]
+      }]
+    },
+    {
       model: models.ExpenseReportLine,
       as: 'lines',
       include: [
@@ -42,12 +50,31 @@ const listQuery = {
   order: [
     [ 'submittedAt', 'DESC' ],
     [ 'id', 'DESC' ],
-    [{ model: models.ExpenseReportLine, as: 'lines' }, 'lineNo', 'ASC' ]
+    [{ model: models.ExpenseReportLine, as: 'lines' }, 'lineNo', 'ASC' ],
+    [{ model: models.Voucher, as: 'vouchers' }, 'id', 'ASC' ]
   ]
 };
 
 const getReport = async (id) => {
   return models.ExpenseReport.findByPk(id, listQuery);
+};
+
+// 未整理証憑の正規化: 精算書のパイルに置かれていた証憑が明細から
+// 参照されるようになったら、パイル紐付け（expenseReportId）を解除する。
+// 明細への紐付け（ExpenseReportLines.voucherId）が正で、パイルは一時置き場。
+export const normalizePileVouchers = async (reportId, lines) => {
+  const boundIds = [ ...new Set(lines
+    .filter((line) => line.voucherId)
+    .map((line) => Number(line.voucherId))) ];
+  if ( boundIds.length > 0 ) {
+    await models.Voucher.update(
+      { expenseReportId: null },
+      { where: {
+        expenseReportId: reportId,
+        id: { [Op.in]: boundIds }
+      } }
+    );
+  }
 };
 
 export default {
@@ -126,6 +153,7 @@ export default {
             taxRuleId: line.taxRuleId || null
           });
         }
+        await normalizePileVouchers(report.id, body.lines);
       }
       const saved = await getReport(report.id);
       res.json(saved);
@@ -176,9 +204,64 @@ export default {
             taxRuleId: line.taxRuleId || null
           });
         }
+        await normalizePileVouchers(report.id, body.lines);
       }
       const saved = await getReport(report.id);
       res.json(saved);
+    } catch (e) {
+      next(e);
+    }
+  },
+  // 未整理証憑のまるっとアップロード（複数ファイル可）。
+  // 会社・金額・種別が不明なままVoucherを作り、指定があれば精算書のパイルに
+  // 紐付ける（指定なし=どこにも紐付かない浮遊証憑）。
+  // 分離・金額の確定などは後続の整理（人またはAI）に任せる。
+  uploadVouchers: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    try {
+      const reportId = req.params.id ? parseInt(req.params.id) : null;
+      if ( reportId ) {
+        const report = await models.ExpenseReport.findByPk(reportId);
+        if ( !report ) {
+          res.status(404).json({ code: -1, message: 'record not found' });
+          return;
+        }
+        if ( report.approvedAt ) {
+          res.status(422).json({ code: -2, message: 'this report was approved' });
+          return;
+        }
+        if (( !canAccessAll(req.session.user) ) &&
+            ( report.createdBy !== req.session.user.id )) {
+          res.status(403).json({ code: -10, message: 'permission denied' });
+          return;
+        }
+      }
+      let files = ( req.files && req.files.file ) ? req.files.file : [];
+      if ( !Array.isArray(files) ) {
+        files = [ files ];
+      }
+      if ( files.length === 0 ) {
+        res.status(422).json({ code: -2, message: 'file is required' });
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const created = [];
+      for ( const f of files ) {
+        const voucher = await models.Voucher.create({
+          issueDate: today,
+          expenseReportId: reportId,
+          createdBy: req.session.user.id,
+          updatedBy: req.session.user.id
+        });
+        await models.VoucherFile.create({
+          voucherId: voucher.id,
+          name: f.name,
+          mimeType: f.type || Mime.getType(f.path),
+          body: fs.readFileSync(f.path)
+        });
+        created.push({ id: voucher.id, name: f.name });
+      }
+      res.json({ code: 0, vouchers: created });
     } catch (e) {
       next(e);
     }

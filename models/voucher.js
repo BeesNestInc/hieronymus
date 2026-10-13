@@ -31,10 +31,15 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'voucherClassId',
         as: 'voucherClass'
 			});
-			this.belongsTo(models.TaxRule, {
-				sourceKey: 'taxRuleId',
-        as: 'taxRule'
-			});
+ 			this.belongsTo(models.TaxRule, {
+ 				sourceKey: 'taxRuleId',
+         as: 'taxRule'
+ 			});
+ 			this.belongsTo(models.ExpenseReport, {
+ 				foreignKey: 'expenseReportId',
+         as: 'expenseReport',
+         onDelete: 'SET NULL'
+ 			});
 			this.hasOne(models.TransactionDocument, {
 				foreignKey: 'voucherId',
 				onDelete: 'SET NULL'
@@ -46,6 +51,7 @@ export default (sequelize, DataTypes) => {
     issueDate: DataTypes.DATEONLY,
     paymentDate: DataTypes.DATEONLY,
     companyId: DataTypes.INTEGER,
+    expenseReportId: DataTypes.INTEGER,
     amount: DataTypes.DECIMAL(12),
     tax: DataTypes.DECIMAL(12),
     taxRuleId: DataTypes.INTEGER,

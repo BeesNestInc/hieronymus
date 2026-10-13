@@ -3,6 +3,7 @@ import models from '../models/index.js';
 import seed from './seed.js';
 import {createSlipForReport} from '../libs/expense.js';
 import {create as createCrossSlip} from '../libs/cross_slip.js';
+import {normalizePileVouchers} from '../routes/api_expense_report.js';
 
 const findOrCreate = async (model, where, values) => {
   const existing = await model.findOne({ where: where });
@@ -298,6 +299,64 @@ describe('expense (test db)', () => {
         const s = await models.CrossSlip.findByPk(second.slip.id);
         if ( s ) await s.destroy();
       }
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('未整理証憑: パイル紐付け（expenseReportId）が明細紐付けに正規化される', async () => {
+    const report = await buildReport(data.creator.id);
+    try {
+      const voucher = await models.Voucher.create({
+        issueDate: '2026-03-10',
+        expenseReportId: report.id,
+        createdBy: data.creator.id,
+        updatedBy: data.creator.id
+      });
+      const line = await buildLine(report, { voucherId: voucher.id });
+      await normalizePileVouchers(report.id, [line]);
+      await voucher.reload();
+      assert.isNull(voucher.expenseReportId);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('未整理証憑: 精算書を削除しても証憑は残り紐付けだけが解除される', async () => {
+    const report = await buildReport(data.creator.id);
+    const voucher = await models.Voucher.create({
+      issueDate: '2026-03-10',
+      expenseReportId: report.id,
+      createdBy: data.creator.id,
+      updatedBy: data.creator.id
+    });
+    await models.ExpenseReportLine.destroy({ where: { expenseReportId: report.id } });
+    await report.destroy();
+    await voucher.reload();
+    assert.isNull(voucher.expenseReportId);
+    const remains = await models.Voucher.findByPk(voucher.id);
+    assert.isNotNull(remains);
+    await remains.destroy();
+  });
+
+  it('未整理証憑: 精算書のvouchers関連に含まれる', async () => {
+    const report = await buildReport(data.creator.id);
+    try {
+      await models.Voucher.create({
+        issueDate: '2026-03-10',
+        expenseReportId: report.id,
+        createdBy: data.creator.id,
+        updatedBy: data.creator.id
+      });
+      await models.Voucher.create({
+        issueDate: '2026-03-11',
+        createdBy: data.creator.id,
+        updatedBy: data.creator.id
+      });
+      const loaded = await models.ExpenseReport.findByPk(report.id, {
+        include: [{ model: models.Voucher, as: 'vouchers' }]
+      });
+      assert.equal(loaded.vouchers.length, 1);
     } finally {
       await cleanup(report);
     }

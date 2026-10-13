@@ -35,11 +35,16 @@ export default (sequelize, DataTypes) => {
 				as: 'crossSlip',
 				onDelete: 'SET NULL'
 			});
-			this.hasMany(models.ExpenseReportLine, {
-				foreignKey: 'expenseReportId',
-				as: 'lines',
-				onDelete: 'CASCADE'
-			});
+ 			this.hasMany(models.ExpenseReportLine, {
+ 				foreignKey: 'expenseReportId',
+ 				as: 'lines',
+ 				onDelete: 'CASCADE'
+ 			});
+ 			this.hasMany(models.Voucher, {
+ 				foreignKey: 'expenseReportId',
+ 				as: 'vouchers',
+ 				onDelete: 'SET NULL'
+ 			});
 		}
 	};
 	ExpenseReport.init({

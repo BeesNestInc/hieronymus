@@ -53,6 +53,8 @@ const RULES = [
   { match: /^\/expense_reports(\/.*)?$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/ai_available$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/tasks$/, methods: ['GET'], access: ANY },
+  // 未整理証憑のまるっとアップロード（精算書単位/浮遊のどちらも一般ユーザーから）
+  { match: /^\/expense_report\/vouchers(\/\d+)?$/, methods: ['POST'], access: ANY },
   { match: /^\/expense_report(\/\d+)?$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report$/, methods: ['POST'], access: ANY },
   { match: /^\/expense_report$/, methods: ['PUT'], access: ANY },
