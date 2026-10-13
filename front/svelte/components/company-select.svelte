@@ -2,14 +2,14 @@
   <div class="row mb-3">
     <div class={(register === 'true' ) ? 'col-10' : 'col-12'}>
       <input type="text" autocomplete="off"
-        class="form-control"
+        class={flat ? 'w-100' : 'form-control'}
         placeholder="検索キー"
         bind:value={inputValue}
         on:input={onUserInput}
         on:keydown={keyCheck}
       />
       {#if ( companys && companys.length > 0 ) }
-        <select id="companyId" class="col-12 form-control" style="margin-top:5px;"
+        <select id="companyId" class="col-12 w-100" style="margin-top:5px;"
           bind:value={_companyId}
           on:change={(e) => {
             companySelect(e);
@@ -100,6 +100,9 @@ export let zip = '';
 export let address1 = '';
 export let address2 = '';
 export let clientOnly;
+// flat: bootstrapのform-controlスタイルを使わない（スプレッドシートの
+// フラットな入力欄に合わせるためのもの。既定はfalseで従来の見た目）
+export let flat = false;
 
 let	original_companies;
 let companyKey;

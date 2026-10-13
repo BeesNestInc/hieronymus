@@ -36,10 +36,10 @@
           bind:code={line[column.name]}
           bind:sub_code={line[column.sub]}></Account>
         {:else if ( column.type === 'company' )}
-        <!-- CompanySelectはform-controlスタイルなので、スプレッドシートの
-             フラットな入力欄（名前など）に合わせてここで上書きする -->
+        <!-- flatでform-controlスタイルを外し、名前等と同じフラットな入力欄にする -->
         <div class="company-cell">
           <CompanySelect
+            flat
             bind:companyId={line[column.name]}></CompanySelect>
         </div>
         {:else}
@@ -75,20 +75,17 @@
   </tbody>
 </table>
 <style>
-/* company型セル: CompanySelectの入力欄をスプレッドシートのフラットな入力欄
-   （名前等、height:30px・角なし）に合わせる */
+/* company型セル: CompanySelectをフラットな入力欄（名前等と同じ）にする */
 .company-cell :global(.row) {
   margin: 0;
 }
 .company-cell :global(.row > div) {
   padding: 0;
 }
-.company-cell :global(.form-control) {
+.company-cell :global(input) {
   height: 30px;
   margin: 0px;
-  padding: 0 6px;
   font-size: 12pt;
-  border-radius: 0;
 }
 </style>
 <script>

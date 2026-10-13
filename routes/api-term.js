@@ -8,6 +8,11 @@ const LOCK_MESSAGE = 'この年度は確定済みのため変更できません�
 export const get = (req, res, next) => {
   if	( req.params.term )	{
     let term = parseInt(req.params.term);
+    if ( Number.isNaN(term) ) {
+      // SPAにtermが渡っていない場合など。レコードが無いものとして返す
+      res.json(null);
+      return;
+    }
     models.FiscalYear.findOne({
       where: {
         term: term
