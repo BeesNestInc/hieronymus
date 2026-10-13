@@ -248,8 +248,9 @@ onMount(() => {
     original_companies = result.data.companies;
     companys = original_companies;
     companyDecide(companyId);
-    // 一覧の取得前に検索キーが入力されていた場合は、取得完了後に再フィルタして候補を反映する。
-    if (inputValue) {
+    // 検索キーの文字があっても取引先が既に確定している場合は候補を開かない
+    // （確定済みの名称が入力欄と候補selectの両方に出て重複して見えるため）
+    if ( inputValue && !companyId ) {
       onUserInput();
     } else {
       companys = [];
