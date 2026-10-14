@@ -266,7 +266,7 @@
           </div>
         </div>
         {#if ( editable || ( report.vouchers && report.vouchers.length > 0 ) )}
-        <div class="container-fluid expense-vouchers pile-dropzone"
+        <div class="container-fluid pile-dropzone"
           class:over={pileDragCount > 0}
           on:dragenter={onPileDragEnter}
           on:dragleave={onPileDragLeave}
@@ -281,9 +281,9 @@
                 on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
             </label>
           </div>
-          {#if ( pileVouchers.length > 0 )}
-          <div class="voucher-pane" style="overflow:auto;max-height:30vh;">
-            <div class="table-responsive">
+          <div class="drop-hint">
+            {#if ( pileVouchers.length > 0 )}
+            <div class="table-responsive pile-table">
             <table class="table table-striped table-bordered">
               <thead class="table-light">
                 <tr>
@@ -326,61 +326,21 @@
                 {/each}
               </tbody>
             </table>
+            <p class="text-muted mb-1 px-1">ファイルをこの枠へドラッグ&ドロップしても追加できます。登録済みの証憑は、明細行へドラッグ&ドロップして紐付けてください<span class="d-inline-flex align-items-center ms-1"><i class="bi bi-link-45deg fs-4"></i></span></p>
             </div>
-          </div>
-          {:else}
-          <p class="text-muted mb-0">領収書などの画像をここへドラッグ&ドロップするか、「まとめてアップロード」で一括登録できます。アップロードした証憑は、明細行へドラッグ&ドロップして紐付けてください。</p>
-          {/if}
-        </div>
-        {/if}
-        {#if ( vouchers )}
-        <div class="container-fluid expense-vouchers">
-          <h2 class="fs-5">証憑候補（未使用の証憑のみ）</h2>
-          <div class="voucher-pane" style="overflow:auto;max-height:40vh;">
-            <div class="table-responsive">
-            <table class="table table-striped table-bordered">
-              <thead class="table-light">
-                <tr>
-                  <th>支払先</th>
-                  <th>支払日</th>
-                  <th class="number">金額</th>
-                  <th>説明</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each vouchers as line}
-                <tr
-                  on:dragstart={onDragStart}
-                  on:dragend={onDragEnd}
-                  draggable="true"
-                  data-id={line.id}>
-                  <td>
-                    {line.company ? line.company.name : ''}
-                  </td>
-                  <td>
-                    {formatDate(line.paymentDate || line.issueDate)}
-                  </td>
-                  <td class="number">
-                    {numeric(line.amount).toLocaleString()}
-                  </td>
-                  <td>
-                    {line.description || ''}
-                  </td>
-                </tr>
-                {/each}
-              </tbody>
-            </table>
+            {:else}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-cloud-arrow-up fs-2 d-block"></i>
+              ここに領収書などの画像・PDFをドラッグ&ドロップするか、
+              「まとめてアップロード」で一括登録してください
             </div>
+            {/if}
           </div>
         </div>
         {/if}
       </div>
   <div class="d-flex justify-content-end mt-3 mb-5">
     <div>
-      {#if ( editable )}
-      <button type="button" class="btn btn-secondary me-2"
-        on:click={openVouchers} id="voucher-panel-button">証憑候補</button>
-      {/if}
       <button type="button" class="btn btn-secondary me-2"
         on:click={close_}>もどる</button>
       {#if ( editable && report.id )}
@@ -433,11 +393,24 @@ tr.over {
   outline: 2px dashed #4d8fd1;
   outline-offset: -6px;
 }
+.drop-hint {
+  border: 2px dashed #a9c6e8;
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 100px;
+}
+.pile-dropzone.over .drop-hint {
+  border-color: #4d8fd1;
+}
+.pile-table {
+  max-height: 30vh;
+  overflow: auto;
+}
 </style>
 
 <script>
 import axios from 'axios';
-import {numeric, formatDate} from '../../../libs/utils';
+import {numeric} from '../../../libs/utils';
 import {onMount, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CompanySelect from '../components/company-select.svelte';
@@ -456,7 +429,9 @@ let aiBusy = false;
 let ok = true;
 let errorMessages = [];
 let submitterName = '';
-let vouchers;
+// 未整理の証憑。精算書のパイル(report.vouchers)と、精算書に紐付いていない
+// 浮遊証憑(floatings: 設定ページや未保存精算書からアップロードされたもの)
+let floatings = [];
 let dragCounter = [];
 
 $: submitterName = report.submitter ? report.submitter.name : (status.user.name || '');
@@ -691,26 +666,15 @@ const openSlip = (slip) => {
   link(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${returnTo}`);
 };
 
-// 証憑候補パネル（slip-pageと同じ操作: 証憑行を明細へドラッグ&ドロップする）。
-// 月で絞らず会計年度内の未使用証憑をすべて出す（未整理のまるっとアップロードは
-// どの月の精算にも使い得るため）。
-const openVouchers = (event) => {
-  if ( vouchers ) {
-    vouchers = undefined;
-    return;
-  }
-  fetchVouchers();
-};
-
-const fetchVouchers = () => {
-  // どこにも紐付いていない証憑だけを候補にする
-  // （expenseUnlinked=1: 精算書の明細・パイルに紐付いた証憑をサーバ側で除外。
-  //   伝票に紐付いた証憑は details で判別できるのでクライアント側で除外）
+// どこにも紐付いていない浮遊証憑を読み込む（expenseUnlinked=1: 精算書の
+// 明細・パイルに紐付いた証憑と、伝票に紐付いた証憑を除外する）。
+// セッションのtermが未選択でも取得できるよう ?term= を渡す
+const fetchFloatings = () => {
   axios.get('/api/voucher', {
-    params: { expenseUnlinked: 1 }
+    params: { expenseUnlinked: 1, term: status.fy ? status.fy.term : undefined }
   }).then((result) => {
-    vouchers = result.data.vouchers.filter((v) => !usedInReport(v.id) && !v.details.length);
-  })
+    floatings = (result.data.vouchers || []).filter((v) => !v.details.length);
+  });
 };
 
 // この精算書の他の行で既に使われている証憑は候補から外す
@@ -718,9 +682,9 @@ const usedInReport = (voucherId) => {
   return (report.lines || []).some((l) => ( l.voucherId == voucherId ));
 };
 
-// 未整理の証憑（パイル）。明細から参照されたものは候補から外して表示する
+// 未整理の証憑（パイル+浮遊）。明細から参照されたものは候補から外して表示する
 // （テンプレートの依存追跡のため usedInReport を介さず直に参照する）
-$: pileVouchers = (report.vouchers || [])
+$: pileVouchers = [ ...( report.vouchers || [] ), ...floatings ]
   .filter((v) => !(( report.lines || [] ).some((l) => ( l.voucherId == v.id ))));
 
 // 未整理証憑のまるっとアップロード（複数ファイル可）。
@@ -743,9 +707,7 @@ const uploadVouchers = async (files) => {
       toast.show('経費精算', `${files.length}件の証憑をアップロードしました。明細行へドラッグ&ドロップで紐付けてください。`);
     } else {
       toast.show('経費精算', `${files.length}件の証憑をアップロードしました。保存後に紐付けられます。`);
-      if ( vouchers ) {
-        fetchVouchers();
-      }
+      fetchFloatings();
     }
   } catch (e) {
     ok = false;
@@ -760,7 +722,10 @@ const deletePileVoucher = async (voucher) => {
   }
   try {
     await axios.delete(`/api/voucher/${voucher.id}`);
-    report.vouchers = ( report.vouchers || [] ).filter((v) => ( v.id !== voucher.id ));
+    if ( report.vouchers ) {
+      report.vouchers = report.vouchers.filter((v) => ( v.id !== voucher.id ));
+    }
+    floatings = floatings.filter((v) => ( v.id !== voucher.id ));
     toast.show('経費精算', '証憑を削除しました');
   } catch (e) {
     ok = false;
@@ -988,5 +953,6 @@ onMount(async () => {
   axios.get('/api/expense_report/ai_available').then((result) => {
     aiAvailable = result.data.available;
   });
+  fetchFloatings();
 })
 </script>

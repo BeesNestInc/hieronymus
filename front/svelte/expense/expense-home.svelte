@@ -21,9 +21,9 @@
               on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
           </label>
         </div>
-        {#if ( unsorted.length > 0 )}
-        <div style="overflow:auto;max-height:30vh;">
-          <div class="table-responsive">
+        <div class="drop-hint">
+          {#if ( unsorted.length > 0 )}
+          <div class="table-responsive pile-table">
           <table class="table table-striped table-bordered">
             <thead class="table-light">
               <tr>
@@ -64,10 +64,14 @@
             </tbody>
           </table>
           </div>
+          {:else}
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-cloud-arrow-up fs-2 d-block"></i>
+            ここに領収書などの画像・PDFをドラッグ&ドロップするか、
+            「まとめてアップロード」で一括登録してください
+          </div>
+          {/if}
         </div>
-        {:else}
-        <p class="text-muted mb-0">領収書などの画像をここへドラッグ&ドロップするか、「まとめてアップロード」で一括登録できます。ここでアップロードした証憑は、経費精算書の入力画面から明細行へ紐付けて整理します。</p>
-        {/if}
       </div>
     </div>
   </div>
@@ -121,9 +125,10 @@ let accounts = [];
 let unsorted = [];
 
 const fetchUnsorted = () => {
-  // どこにも紐付いていない証憑（未整理のまるっとアップロード含む）
+  // どこにも紐付いていない証憑（未整理のまるっとアップロード含む）。
+  // セッションのtermが未選択でも取得できるよう ?term= を渡す
   axios.get('/api/voucher', {
-    params: { expenseUnlinked: 1 }
+    params: { expenseUnlinked: 1, term: status.fy ? status.fy.term : undefined }
   }).then((result) => {
     unsorted = (result.data.vouchers || []).filter((v) => !v.details.length);
   });
@@ -207,6 +212,19 @@ onMount(() => {
 }
 .upload-label {
   white-space: nowrap;
+}
+.drop-hint {
+  border: 2px dashed #a9c6e8;
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 100px;
+}
+.pile-dropzone.over .drop-hint {
+  border-color: #4d8fd1;
+}
+.pile-table {
+  max-height: 30vh;
+  overflow: auto;
 }
 .pile-dropzone.over {
   background-color: #eef6ff;

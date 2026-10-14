@@ -101,6 +101,13 @@ export default {
           [ "issueDate", "ASC" ]
         ]
       }
+      if	( req.query.expenseUnlinked === '1' )	{
+        // 経費精算の証憑候補用: どこにも紐付いていない証憑に絞り込む。
+        // 浮遊証憑はどの期・月の精算にも使い得るため、日付では絞らない。
+        where = {
+          expenseReportId: { [Op.eq]: null }
+        };
+      } else	{
       if	( req.query.date )	{
         // YYYY-M-D / YYYY-MM-DD のどちらも受け付け、DATEONLY列との比較は
         // 文字列(YYYY-MM-DD)で行う。new Date()でDateオブジェクト化すると
@@ -159,15 +166,17 @@ export default {
             }
           ]
         };
-      } else if ( !req.session.term ) {
+      } else if ( !req.query.term && !req.session.term ) {
         return res.status(400).json({
           code: -2,
-          message: '会計年度(term)が未設定です。/api/voucher には ?month=YYYY-MM か ?date=YYYY-MM-DD を指定してください'
+          message: '会計年度(term)が未設定です。/api/voucher には ?month=YYYY-MM か ?date=YYYY-MM-DD か ?term=数値 を指定してください'
         });
       } else {
+        // ?term= での指定を優先する（セッションのtermが未確定でも使えるように）
+        const term = req.query.term ? parseInt(req.query.term) : req.session.term;
         let fy = await models.FiscalYear.findOne({
           where: {
-            term: req.session.term
+            term: term
           }
         });
         where = {
@@ -184,6 +193,7 @@ export default {
               }
             ]
           };
+      }
       }
       if	( req.query.type )	{
         let type = parseInt(req.query.type);
@@ -210,13 +220,12 @@ export default {
       }
       if	( req.query.expenseUnlinked === '1' )	{
         // 経費精算の証憑候補用: どこにも紐付いていない証憑だけに絞り込む
-        // （伝票への紐付けは details として応答に入るのでクライアント側でも除外する。
-        //   精算書の「未整理」パイルに置かれた証憑は expenseReportId で除外する）
+        // （精算書の明細・パイル、伝票の両方を除外する）
         where = {
           [Op.and]: [
             where,
-            { expenseReportId: { [Op.eq]: null } },
-            models.Sequelize.literal(`NOT EXISTS (SELECT 1 FROM "ExpenseReportLines" WHERE "ExpenseReportLines"."voucherId" = "Voucher"."id")`)
+            models.Sequelize.literal(`NOT EXISTS (SELECT 1 FROM "ExpenseReportLines" WHERE "ExpenseReportLines"."voucherId" = "Voucher"."id")`),
+            models.Sequelize.literal(`NOT EXISTS (SELECT 1 FROM "CrossSlipDetails" WHERE "CrossSlipDetails"."debitVoucherId" = "Voucher"."id" OR "CrossSlipDetails"."creditVoucherId" = "Voucher"."id")`)
           ]
         };
       }
