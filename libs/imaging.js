@@ -25,7 +25,7 @@ const BRIDGE_ERODE_RATIO = 0.05;
 // bridge救済で分割を「成立」と認める最小断片面積（画像面積に対する比率）
 const SPLIT_ACK_RATIO = 0.004;
 // この角度以上の傾きなら正立化する（度）
-const STRAIGHTEN_MIN_DEG = 2;
+const STRAIGHTEN_MIN_DEG = 1;
 
 const debug = ( ...args ) => {
   if ( process.env.IMAGING_DEBUG ) {
@@ -376,9 +376,12 @@ const estimateAngle = (region) => {
     points.length = 0;
     points.push(...slim);
   }
-  // Hough変換（角度0-179°、rhoは2px間隔）
+  // Hough変換（角度0-179°、rhoは2px間隔）。
+  // ρの範囲は [-w, hypot(w,h)]（normalがほぼ180°のときに負になる）なので
+  // オフセットをそれに合わせる（さもないと隣の角度の行に溢れる）
   const diag = Math.ceil(Math.hypot(w, h));
-  const R = diag + 2;
+  const rhoMin = -w;
+  const R = Math.ceil(( diag - rhoMin ) / 2) + 2;
   const acc = new Int32Array(180 * R);
   const cosT = new Float64Array(180);
   const sinT = new Float64Array(180);
@@ -386,32 +389,94 @@ const estimateAngle = (region) => {
     cosT[a] = Math.cos(a * Math.PI / 180);
     sinT[a] = Math.sin(a * Math.PI / 180);
   }
-  for ( const p of points ) {
-    for ( let a = 0; a < 180; a += 1 ) {
-      const rho = Math.round(( p[0] * cosT[a] + p[1] * sinT[a] ) / 2) + R;
-      acc[a * R + rho] += 1;
-    }
-  }
-  // 各角度の最有力rhoの得票数を、その角度の直線構造の強さとする
-  let bestA = 0;
-  let bestV = 0;
-  for ( let a = 0; a < 180; a += 1 ) {
-    let v = 0;
-    for ( let r = 0; r < R; r += 1 ) {
-      if ( acc[a * R + r] > v ) {
-        v = acc[a * R + r];
+  // 直線を4本まで検出する（証憑の4辺）。
+  // 各直線のinlier点群で最小二乗（主軸PCA）フィットして角度を1°未満まで精密化する
+  let rest = points;
+  const lines = [];
+  for ( let k = 0; k < 4 && rest.length >= 20; k += 1 ) {
+    acc.fill(0);
+    for ( const p of rest ) {
+      for ( let a = 0; a < 180; a += 1 ) {
+        const rho = Math.round(( p[0] * cosT[a] + p[1] * sinT[a] - rhoMin ) / 2);
+        acc[a * R + rho] += 1;
       }
     }
-    if ( v > bestV ) {
-      bestV = v;
-      bestA = a;
+    let bestA = 0;
+    let bestR = 0;
+    let bestV = 0;
+    for ( let a = 0; a < 180; a += 1 ) {
+      for ( let r = 0; r < R; r += 1 ) {
+        if ( acc[a * R + r] > bestV ) {
+          bestV = acc[a * R + r];
+          bestA = a;
+          bestR = r;
+        }
+      }
     }
+    const rho0 = bestR * 2 + rhoMin;
+    const c = cosT[bestA];
+    const s = sinT[bestA];
+    const inliers = [];
+    const keep = [];
+    for ( const p of rest ) {
+      if ( Math.abs( p[0] * c + p[1] * s - rho0 ) <= 2 ) {
+        inliers.push(p);
+      } else {
+        keep.push(p);
+      }
+    }
+    if ( inliers.length < 20 ) {
+      debug('hough line', k, 'too few inliers', inliers.length, 'normal', bestA, 'rho', rho0);
+      break;
+    }
+    // inlier点群の主軸方向（最小二乗）
+    let mx = 0;
+    let my = 0;
+    for ( const p of inliers ) {
+      mx += p[0];
+      my += p[1];
+    }
+    mx /= inliers.length;
+    my /= inliers.length;
+    let sxx = 0;
+    let syy = 0;
+    let sxy = 0;
+    for ( const p of inliers ) {
+      const dx = p[0] - mx;
+      const dy = p[1] - my;
+      sxx += dx * dx;
+      syy += dy * dy;
+      sxy += dx * dy;
+    }
+    // 主軸の方向角（ラジアン→度、(-90,90]）
+    const dirDeg = Math.atan2(2 * sxy, sxx - syy) * 180 / Math.PI / 2;
+    lines.push({ dir: dirDeg, n: inliers.length });
+    debug('hough line', k, 'dir', dirDeg.toFixed(2), 'inliers', inliers.length);
+    rest = keep;
   }
-  // 検出直線の方向 = normal(bestA) に対して +90°
-  const direction = ( ( bestA + 90 ) % 180 );
+  if ( lines.length === 0 ) {
+    return 0;
+  }
+  // 最有力の直線と10°以内の同ファミリー（平行な長辺など）の角度を
+  // 支持点数で重み付けして平均する
+  lines.sort(( a, b ) => ( b.n - a.n ));
+  const angDiff = ( a, b ) => {
+    let d = ( a - b ) % 180;
+    if ( d > 90 ) d -= 180;
+    if ( d < -90 ) d += 180;
+    return Math.abs(d);
+  };
+  const family = lines.filter(( l ) => ( angDiff(l.dir, lines[0].dir) <= 10 ));
+  let sum = 0;
+  let wsum = 0;
+  for ( const l of family ) {
+    sum += l.dir * l.n;
+    wsum += l.n;
+  }
+  const direction = sum / wsum;
   // 最寄りの90°軸（0°または90°の直線方向）からの偏角
-  const tilt = ( ( direction + 45 ) % 90 ) - 45;
-  debug('hough: best normal', bestA, 'direction', direction, 'tilt', tilt);
+  const tilt = ( ( ( direction + 45 ) % 90 + 90 ) % 90 ) - 45;
+  debug('hough: tilt', tilt.toFixed(2), 'family', family.length);
   return tilt;
 };
 
@@ -455,6 +520,7 @@ const reCrop = (img, bg, thr) => {
 // 傾きが検出できなければそのまま返す
 const straightenCrop = (img) => {
   const { width: w, height: h, data } = img.bitmap;
+  debug('straightenCrop: size', w, h);
   const band = Math.max(2, Math.round(Math.min(w, h) * 0.02));
   const rs = [];
   const gs = [];
@@ -484,19 +550,22 @@ const straightenCrop = (img) => {
   }
   const openRadius = Math.max(1, Math.round(w * 0.004));
   const closeRadius = Math.max(2, Math.round(w * CLOSE_RATIO));
-  const solid = morph(morph(morph(bright, w, h, openRadius, false), w, h, openRadius, true), w, h, closeRadius, true);
+  const solid = morph(morph(morph(morph(bright, w, h, openRadius, false), w, h, openRadius, true), w, h, closeRadius, true), w, h, closeRadius, false);
   const comps = connectedComponents(solid, w, h);
   const biggest = comps.boxes
     .filter(( b ) => ( b.area >= w * h * MIN_AREA_RATIO ))
     .sort(( a, b ) => ( b.area - a.area ))[0];
   if ( !biggest ) {
+    debug('straightenCrop: no biggest component (', comps.boxes.length, 'boxes)');
     return img;
   }
   const region = extractRegionFromMask(comps.labels, w, biggest.label);
   if ( !region ) {
+    debug('straightenCrop: region extraction failed');
     return img;
   }
   const tilt = estimateAngle(region);
+  debug('straightenCrop: tilt', tilt);
   if ( Math.abs(tilt) < STRAIGHTEN_MIN_DEG ) {
     return img;
   }
