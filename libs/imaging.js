@@ -1,10 +1,11 @@
 // 画像の幾何解析（AI不使用）。
 // 黒背景など「程々コントラストのある背景」に置かれた複数の証憑を、
-// 二値化 + 連結成分で検出して矩形ごとに切り出す。
-// chroma.js 等は使わないため decode/encode は jimp に依存する。
+// 二値化 + 連結成分で検出して矩形ごとに切り出す。切り出す際には
+// 段階erodeで接触・重なりの接続部を救済し、Hough変換で傾きを検出して正立させる。
+// decode/encode は jimp に依存する。
 import { Jimp } from 'jimp';
 
-// 解析用の作業画像の最大幅（リンク解析をこの解像度で行う。切り出しは原解像度）
+// 解析用の作業画像の最大幅（連結解析はこの解像度で行う。切り出しは原解像度）
 const WORK_WIDTH = 1200;
 
 // 膨張・収縮の半径（作業画像幅に対する比率。紙の中の文字・破線を埋めるのに必要なだけ）
@@ -16,8 +17,23 @@ const MIN_AREA_RATIO = 0.02;
 // 切り出しに付けるマージン（元画像の短辺に対する比率）
 const MARGIN_RATIO = 0.015;
 
-// 画像全体がカバーされた場合は「分離の余地がない」とみなす閾値（前景比率）
+// 画像全体が前景で覆われた場合は「分離の余地がない」とみなす
 const TOO_FULL_RATIO = 0.9;
+
+// bridge救済のerode最大半径（作業画像幅に対する比率）
+const BRIDGE_ERODE_RATIO = 0.05;
+// bridge救済で分割を「成立」と認める最小断片面積（画像面積に対する比率）
+const SPLIT_ACK_RATIO = 0.004;
+// この角度以上の傾きなら正立化する（度）
+const STRAIGHTEN_MIN_DEG = 2;
+
+const debug = ( ...args ) => {
+  if ( process.env.IMAGING_DEBUG ) {
+    console.log('[imaging]', ...args);
+  }
+};
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 const median = (values) => {
   if ( values.length === 0 ) {
@@ -59,7 +75,7 @@ const otsuThreshold = (array) => {
   return thr;
 };
 
-// 分離可分弁的な maxフィルタ（膨張）/ minフィルタ（収縮）。行・列の2パスで処理する
+// 分離可能な maxフィルタ（膨張）/ minフィルタ（収縮）。行・列の2パスで処理する
 const morph = (mask, w, h, radius, useMax) => {
   const tmp = new Uint8Array(w * h);
   const out = new Uint8Array(w * h);
@@ -90,16 +106,30 @@ const morph = (mask, w, h, radius, useMax) => {
   return out;
 };
 
-// 8近傍連結成分のラベリング（明示スタックで flood fill）。ボックスの配列を返す
+// 4近傍のerode（1回）
+const erode1 = (mask, w, h) => {
+  const out = new Uint8Array(w * h);
+  for ( let y = 1; y < h - 1; y += 1 ) {
+    for ( let x = 1; x < w - 1; x += 1 ) {
+      const i = y * w + x;
+      out[i] = ( mask[i] && mask[i - 1] && mask[i + 1] && mask[i - w] && mask[i + w] ) ? 1 : 0;
+    }
+  }
+  return out;
+};
+
+// 8近傍連結成分のラベリング。ボックス配列とラベルマップ（0=背景）を返す
 const connectedComponents = (mask, w, h) => {
+  const labels = new Int32Array(w * h);
   const boxes = [];
-  const seen = new Uint8Array(w * h);
   const stack = [];
+  let next = 0;
   for ( let i = 0; i < w * h; i += 1 ) {
-    if ( !mask[i] || seen[i] ) continue;
+    if ( !mask[i] || labels[i] ) continue;
+    next += 1;
     stack.length = 0;
     stack.push(i);
-    seen[i] = 1;
+    labels[i] = next;
     let x0 = w;
     let y0 = h;
     let x1 = 0;
@@ -120,16 +150,16 @@ const connectedComponents = (mask, w, h) => {
           const ny = py + dy;
           if ( nx < 0 || ny < 0 || nx >= w || ny >= h ) continue;
           const q = ny * w + nx;
-          if ( mask[q] && !seen[q] ) {
-            seen[q] = 1;
+          if ( mask[q] && !labels[q] ) {
+            labels[q] = next;
             stack.push(q);
           }
         }
       }
     }
-    boxes.push({ x0, y0, x1, y1, area });
+    boxes.push({ x0, y0, x1, y1, area, label: next });
   }
-  return boxes;
+  return { boxes, labels };
 };
 
 // 撕れた紙片の統合。隣接した別の証憑（横に並ぶ等）と区別するため、
@@ -139,7 +169,6 @@ const mergeBoxes = (boxes, gap) => {
   let changed = true;
   while ( changed && current.length > 1 ) {
     changed = false;
-    // 面積の大きい順に統合する（小さいものが大きなものに呑まれて消えるのを防ぐ）
     current.sort((a, b) => ( b.area - a.area ));
     for ( let i = 0; i < current.length && !changed; i += 1 ) {
       for ( let j = i + 1; j < current.length; j += 1 ) {
@@ -171,14 +200,264 @@ const mergeBoxes = (boxes, gap) => {
   return current;
 };
 
-const debug = ( ...args ) => {
-  if ( process.env.IMAGING_DEBUG ) {
-    console.log('[imaging]', ...args);
+// ラベルマップから指定ラベル部分を、矩形に切り出した領域として取り出す
+const extractRegionFromMask = (mask, w, label) => {
+  let x0 = w;
+  let y0 = mask.length;
+  let x1 = -1;
+  let y1 = -1;
+  for ( let i = 0; i < mask.length; i += 1 ) {
+    if ( mask[i] === label ) {
+      const x = i % w;
+      const y = Math.floor(i / w);
+      if ( x < x0 ) x0 = x;
+      if ( x > x1 ) x1 = x;
+      if ( y < y0 ) y0 = y;
+      if ( y > y1 ) y1 = y;
+    }
   }
+  if ( x1 < 0 ) {
+    return null;
+  }
+  const bw = x1 - x0 + 1;
+  const bh = y1 - y0 + 1;
+  const sub = new Uint8Array(bw * bh);
+  for ( let y = 0; y < bh; y += 1 ) {
+    for ( let x = 0; x < bw; x += 1 ) {
+      sub[y * bw + x] = mask[( y0 + y ) * w + ( x0 + x )] === label ? 1 : 0;
+    }
+  }
+  return { x0, y0, w: bw, h: bh, mask: sub };
+};
+
+// 接触・重なりの救済: 領域マスクを段階的にerodeしていき、
+// 分割が発生したらその時点の断片（面積が実質のあるもの）をシードとして
+// マスク内でBFS（測地距離）拡張して元の領域を2つ以上に分ける。
+// 紙の内部に細い腰が無い普通の1枚は分割が成立しない（erodeで消えるまで分割しない）
+const splitBridges = (region, fullArea) => {
+  const ackMin = Math.round(fullArea * SPLIT_ACK_RATIO);
+  const bw = region.w;
+  const bh = region.h;
+  const maxR = Math.max(4, Math.round(bw * BRIDGE_ERODE_RATIO));
+  let work = region.mask;
+  let seeds = null;
+  for ( let r = 0; r <= maxR && !seeds; r += 1 ) {
+    if ( r >= 1 ) {
+      work = erode1(work, bw, bh);
+    }
+    let any = false;
+    for ( let i = 0; i < work.length; i += 1 ) {
+      if ( work[i] ) { any = true; break; }
+    }
+    if ( !any ) {
+      debug('bridge erosion: eroded away without split (r=', r, ')');
+      return null;
+    }
+    const comps = connectedComponents(work, bw, bh);
+    const big = comps.boxes.filter(( c ) => ( c.area >= ackMin ));
+    if ( big.length >= 3 ) {
+      // 3つ以上に分かれるのはX字状の重なり等（真のbridgeではない）。
+      // 正の分割が始まっていればこれ以上は悪化するだけなので諦める
+      debug('bridge erosion: over-split (', big.length, '), give up');
+      return null;
+    }
+    if ( big.length === 2 ) {
+      seeds = comps;
+    }
+  }
+  if ( !seeds ) {
+    debug('bridge erosion: no split found');
+    return null;
+  }
+  // シードをマスク内でBFS拡張して、領域全体を復元する
+  const claimed = new Int32Array(bw * bh);
+  const queue = [];
+  const bigLabels = new Map();
+  for ( const b of seeds.boxes ) {
+    if ( b.area >= ackMin ) {
+      bigLabels.set(b.label, true);
+    }
+  }
+  for ( let i = 0; i < bw * bh; i += 1 ) {
+    if ( region.mask[i] && seeds.labels[i] && bigLabels.has(seeds.labels[i]) ) {
+      claimed[i] = seeds.labels[i];
+      queue.push(i);
+    }
+  }
+  let head = 0;
+  while ( head < queue.length ) {
+    const p = queue[head++];
+    const px = p % bw;
+    const py = Math.floor(p / bw);
+    for ( let dy = -1; dy <= 1; dy += 1 ) {
+      for ( let dx = -1; dx <= 1; dx += 1 ) {
+        const nx = px + dx;
+        const ny = py + dy;
+        if ( nx < 0 || ny < 0 || nx >= bw || ny >= bh ) continue;
+        const q = ny * bw + nx;
+        if ( region.mask[q] && !claimed[q] ) {
+          claimed[q] = claimed[p];
+          queue.push(q);
+        }
+      }
+    }
+  }
+  const out = [];
+  const seen = new Set();
+  for ( let i = 0; i < bw * bh; i += 1 ) {
+    if ( claimed[i] && !seen.has(claimed[i]) ) {
+      seen.add(claimed[i]);
+      const r = extractRegionFromMask(claimed, bw, claimed[i]);
+      if ( r ) {
+        out.push(r);
+        debug('bridge split: box', r.x0 + region.x0, r.y0 + region.y0, r.w, r.h);
+      }
+    }
+  }
+  if ( out.length !== 2 ) {
+    return null;
+  }
+  // 2つの断片の接触幅が広い場合（領収書内部の罫線など全幅で分かれた
+  // 状態が分割されるケース）は真のbridgeではないので救済を取り消す
+  const [ a, b ] = out;
+  let interface_ = 0;
+  for ( let y = 0; y < bh; y += 1 ) {
+    for ( let x = 0; x < bw - 1; x += 1 ) {
+      const i = y * bw + x;
+      if ( claimed[i] && claimed[i + 1] && claimed[i] !== claimed[i + 1] ) {
+        interface_ += 1;
+      }
+    }
+  }
+  for ( let y = 0; y < bh - 1; y += 1 ) {
+    for ( let x = 0; x < bw; x += 1 ) {
+      const i = y * bw + x;
+      if ( claimed[i] && claimed[i + bw] && claimed[i] !== claimed[i + bw] ) {
+        interface_ += 1;
+      }
+    }
+  }
+  const maxInterface = Math.round(Math.min(a.w, b.w, Math.min(a.h, b.h)) * 0.15);
+  if ( interface_ > maxInterface ) {
+    debug('bridge split rejected: interface', interface_, '>', maxInterface);
+    return null;
+  }
+  return out;
+};
+
+// 領域境界点のHough変換で最有力直線を検出し、
+// 最寄りの90°軸からどれだけ傾いているか（±45°内）を返す
+const estimateAngle = (region) => {
+  const w = region.w;
+  const h = region.h;
+  const mask = region.mask;
+  // 境界点（4近傍のどれかが領域外になっている領域画素）
+  const points = [];
+  for ( let y = 0; y < h; y += 1 ) {
+    for ( let x = 0; x < w; x += 1 ) {
+      const i = y * w + x;
+      if ( !mask[i] ) continue;
+      const edge =
+        x === 0 || y === 0 || x === w - 1 || y === h - 1 ||
+        !mask[ i - 1 ] || !mask[ i + 1 ] ||
+        !mask[ i - w ] || !mask[ i + w ];
+      if ( edge ) {
+        points.push([ x, y ]);
+      }
+    }
+  }
+  if ( points.length < 40 ) {
+    debug('hough: too few boundary points (', points.length, ')');
+    return 0;
+  }
+  if ( points.length > 20000 ) {
+    const dec = Math.ceil(points.length / 20000);
+    const slim = [];
+    for ( let i = 0; i < points.length; i += dec ) {
+      slim.push(points[i]);
+    }
+    points.length = 0;
+    points.push(...slim);
+  }
+  // Hough変換（角度0-179°、rhoは2px間隔）
+  const diag = Math.ceil(Math.hypot(w, h));
+  const R = diag + 2;
+  const acc = new Int32Array(180 * R);
+  const cosT = new Float64Array(180);
+  const sinT = new Float64Array(180);
+  for ( let a = 0; a < 180; a += 1 ) {
+    cosT[a] = Math.cos(a * Math.PI / 180);
+    sinT[a] = Math.sin(a * Math.PI / 180);
+  }
+  for ( const p of points ) {
+    for ( let a = 0; a < 180; a += 1 ) {
+      const rho = Math.round(( p[0] * cosT[a] + p[1] * sinT[a] ) / 2) + R;
+      acc[a * R + rho] += 1;
+    }
+  }
+  // 各角度の最有力rhoの得票数を、その角度の直線構造の強さとする
+  let bestA = 0;
+  let bestV = 0;
+  for ( let a = 0; a < 180; a += 1 ) {
+    let v = 0;
+    for ( let r = 0; r < R; r += 1 ) {
+      if ( acc[a * R + r] > v ) {
+        v = acc[a * R + r];
+      }
+    }
+    if ( v > bestV ) {
+      bestV = v;
+      bestA = a;
+    }
+  }
+  // 検出直線の方向 = normal(bestA) に対して +90°
+  const direction = ( ( bestA + 90 ) % 180 );
+  // 最寄りの90°軸（0°または90°の直線方向）からの偏角
+  const tilt = ( ( direction + 45 ) % 90 ) - 45;
+  debug('hough: best normal', bestA, 'direction', direction, 'tilt', tilt);
+  return tilt;
+};
+
+// 回転後に前景bboxを取り直してタイトにクロップする
+const reCrop = (img, bg, thr) => {
+  const { width: w, height: h, data } = img.bitmap;
+  let x0 = w;
+  let y0 = h;
+  let x1 = -1;
+  let y1 = -1;
+  for ( let y = 0; y < h; y += 1 ) {
+    for ( let x = 0; x < w; x += 1 ) {
+      const i = ( y * w + x ) * 4;
+      const dr = data[i] - bg[0];
+      const dg = data[i + 1] - bg[1];
+      const db = data[i + 2] - bg[2];
+      const d = Math.sqrt(dr * dr + dg * dg + db * db) / 442 * 255;
+      if ( d > thr ) {
+        if ( x < x0 ) x0 = x;
+        if ( x > x1 ) x1 = x;
+        if ( y < y0 ) y0 = y;
+        if ( y > y1 ) y1 = y;
+      }
+    }
+  }
+  if ( x1 < 0 ) {
+    return img;
+  }
+  const margin = 2;
+  const x = clamp(x0 - margin, 0, w - 1);
+  const y = clamp(y0 - margin, 0, h - 1);
+  return img.clone().crop({
+    x: x,
+    y: y,
+    w: Math.min(w - x, x1 - x + 1 + margin),
+    h: Math.min(h - y, y1 - y + 1 + margin)
+  });
 };
 
 /**
  * 1枚の画像に写った複数の証憑を検出して切り出す。
+ * 接触・重なって写った証憑はerode救済で分け、
+ * 傾いた証憑はHough変換で傾きを検出して90°単位で正立させる。
  * @param {Buffer} buffer 画像
  * @param {string} mimeType 元のMIME（'image/png' / 'image/jpeg' を保持する）
  * @return {Promise<{mime: string, parts: Buffer[]}|null>}
@@ -226,16 +505,14 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
       bs.push(samples[o + 2]);
     }
   }
-  const br = median(rs);
-  const bg = median(gs);
-  const bb = median(bs);
+  const bg = [ median(rs), median(gs), median(bs) ];
 
   // 背景色からの距離（ hueを問わず背景と違うものが前景）
   const dist255 = new Uint8Array(ww * wh);
   for ( let i = 0; i < ww * wh; i += 1 ) {
-    const dr = samples[i * 3] - br;
-    const dg = samples[i * 3 + 1] - bg;
-    const db = samples[i * 3 + 2] - bb;
+    const dr = samples[i * 3] - bg[0];
+    const dg = samples[i * 3 + 1] - bg[1];
+    const db = samples[i * 3 + 2] - bg[2];
     dist255[i] = Math.min(255, Math.round(Math.sqrt(dr * dr + dg * dg + db * db) / 442 * 255));
   }
 
@@ -244,12 +521,13 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
   for ( let i = 0; i < ww * wh; i += 1 ) {
     bright[i] = dist255[i] > thr ? 1 : 0;
   }
-  // 前景がほぼ全体を覆うなら分割の余地がない
   let count = 0;
   for ( let i = 0; i < bright.length; i += 1 ) {
     count += bright[i];
   }
+  debug('thr:', thr, 'bright ratio:', Math.round(100 * count / bright.length) / 100);
   if ( count >= bright.length * TOO_FULL_RATIO ) {
+    debug('too full, abort');
     return null;
   }
   if ( count === 0 ) {
@@ -264,32 +542,54 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
   const dilated = morph(opened, ww, wh, closeRadius, true);
   const solid = morph(dilated, ww, wh, closeRadius, false);
 
-  let boxes = connectedComponents(solid, ww, wh)
-    .filter((b) => ( b.area >= ww * wh * MIN_AREA_RATIO ));
-  debug('components:', connectedComponents(solid, ww, wh).length, 'filtered:', boxes.length,
-    'thr:', thr, 'bright ratio:', Math.round(100 * count / bright.length) / 100,
-    'boxes:', boxes.map((b) => `(${b.x0},${b.y0})-(${b.x1},${b.y1})`));
+  const comps = connectedComponents(solid, ww, wh);
+  let boxes = comps.boxes.filter(( b ) => ( b.area >= ww * wh * MIN_AREA_RATIO ));
   if ( boxes.length === 0 ) {
+    debug('no components passed area filter');
     return null;
   }
+  debug('components:', comps.boxes.length, 'filtered:', boxes.length,
+        'boxes:', boxes.map((b) => `(${b.x0},${b.y0})-(${b.x1},${b.y1})`));
+
+  // 近接しているボックスを統合する
   boxes = mergeBoxes(boxes, Math.round(ww * MERGE_RATIO));
 
-  // 切り出し（原解像度で行い、短辺基準のマージンを padding する）
-  const margins = Math.max(2, Math.round(Math.min(w, h) * MARGIN_RATIO));
+  // 各領域を取り出し、bridge救済→角度推定→正立化して切り出す
+  const margin = Math.max(2, Math.round(Math.min(w, h) * MARGIN_RATIO));
   const parts = [];
-  for ( const b of boxes ) {
-    const x0 = Math.max(0, Math.floor(b.x0 / scale) - margins);
-    const y0 = Math.max(0, Math.floor(b.y0 / scale) - margins);
-    const x1 = Math.min(w, Math.ceil(( b.x1 + 1 ) / scale) + margins);
-    const y1 = Math.min(h, Math.ceil(( b.y1 + 1 ) / scale) + margins);
-    if ( x1 - x0 < 8 || y1 - y0 < 8 ) continue;
-    const crop = img.clone().crop({
-      x: x0, y: y0,
-      w: x1 - x0, h: y1 - y0
-    });
-    parts.push(await crop.getBuffer(mime));
+  for ( const box of boxes ) {
+    const region = extractRegionFromMask(comps.labels, ww, box.label);
+    if ( !region ) continue;
+    const subRegions = splitBridges(region, ww * wh) || [ region ];
+    debug('region', region.x0, region.y0, `${region.w}x${region.h}`, '→', subRegions.length);
+    for ( const r of subRegions ) {
+      // 作業座標→元座標に変換してクロップ（マージン付き）
+      const cx0 = clamp(Math.floor(r.x0 / scale) - margin, 0, w - 1);
+      const cy0 = clamp(Math.floor(r.y0 / scale) - margin, 0, h - 1);
+      const cx1 = clamp(Math.ceil(( r.x0 + r.w ) / scale) + margin, 1, w);
+      const cy1 = clamp(Math.ceil(( r.y0 + r.h ) / scale) + margin, 1, h);
+      if ( cx1 - cx0 < 8 || cy1 - cy0 < 8 ) continue;
+      const crop = img.clone().crop({
+        x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0
+      });
+      const tilt = estimateAngle(r);
+      if ( Math.abs(tilt) >= STRAIGHTEN_MIN_DEG ) {
+        // 回転時の余白は推定背景色で埋める（再bbox検出で前景から除外するため）。
+        // clone()はbackgroundを引き継がないので回転側に設定する
+        const rot = crop.clone();
+        rot.background = ( bg[0] << 24 ) | ( bg[1] << 16 ) | ( bg[2] << 8 ) | 0xff;
+        // tiltは「時計回りが正」、jimpのrotateは「正で反時計回り」のため符号をそのまま渡す
+        rot.rotate(tilt);
+        const rc = reCrop(rot, bg, thr);
+        parts.push(await rc.getBuffer(mime));
+        debug('straighten: tilt', tilt.toFixed(2));
+      } else {
+        parts.push(await crop.getBuffer(mime));
+      }
+    }
   }
   if ( parts.length < 2 ) {
+    debug('parts < 2, abort');
     return null;
   }
   return { mime, parts };
