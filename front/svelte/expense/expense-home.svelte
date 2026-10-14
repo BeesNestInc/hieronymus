@@ -126,6 +126,7 @@ import TableMaintenance from '../components/table-maintenance.svelte';
 import axios from 'axios';
 import {numeric} from '../../../libs/utils';
 import {setAccounts} from '../../javascripts/cross-slip';
+import eventBus from '../../javascripts/event-bus.js';
 
 export let status;
 export let toast;
@@ -187,10 +188,24 @@ const saveDescription = async (voucher) => {
   }
 };
 
+// 確認ダイアログ。window.confirm はブラウザのダイアログ抑制で
+// 無効化されることがあるため、アプリ内のモーダル（okModal）を使う
+const confirmModal = (title, description, reply) => {
+  return new Promise((resolve) => {
+    eventBus.once(reply, (ok) => {
+      resolve(ok);
+    });
+    eventBus.emit('okModal', { title, description, reply });
+  });
+};
+
 // 未整理証憑の分離: 1枚のスキャンに写った複数の証憑を個別の証憑に切り出す
 // （AI不使用の幾何検出。元の証憑は残り、不採用の切り出しは後から削除できる）
 const splitVoucher = async (voucher) => {
-  if ( !window.confirm('この証憑を分離しますか？複数の証憑が写っている場合、それぞれ個別の証憑として登録します。') ) {
+  const allowed = await confirmModal('経費精算',
+    'この証憑を分離しますか？<br/>複数の証憑が写っている場合、それぞれ個別の証憑として登録します。',
+    'expense-split-voucher-home');
+  if ( !allowed ) {
     return;
   }
   try {
@@ -208,7 +223,8 @@ const splitVoucher = async (voucher) => {
 
 // 未整理証憑の削除（自分が登録した証憑は削除できる）
 const deleteVoucher = async (voucher) => {
-  if ( !window.confirm('この証憑を削除します。よろしいですか？') ) {
+  const allowed = await confirmModal('経費精算', 'この証憑を削除します。<br/>よろしいですか？', 'expense-delete-voucher-home');
+  if ( !allowed ) {
     return;
   }
   try {
