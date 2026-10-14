@@ -7,7 +7,12 @@
   {:else}
   <div class="row">
     <div class="col-8" style="padding:10px;">
-      <div class="container-fluid expense-vouchers">
+      <div class="container-fluid pile-dropzone"
+        class:over={pileDragCount > 0}
+        on:dragenter={onPileDragEnter}
+        on:dragleave={onPileDragLeave}
+        on:dragover={(e) => { if ( e.dataTransfer.types.includes('Files') ) { e.preventDefault(); } }}
+        on:drop={onPileDrop}>
         <div class="d-flex align-items-center mb-1">
           <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
           <label class="btn btn-sm btn-outline-primary upload-label">
@@ -61,7 +66,7 @@
           </div>
         </div>
         {:else}
-        <p class="text-muted mb-0">領収書などの画像をまとめてアップロードできます。ここでアップロードした証憑は、経費精算書の入力画面から明細行へ紐付けて整理します。</p>
+        <p class="text-muted mb-0">領収書などの画像をここへドラッグ&ドロップするか、「まとめてアップロード」で一括登録できます。ここでアップロードした証憑は、経費精算書の入力画面から明細行へ紐付けて整理します。</p>
         {/if}
       </div>
     </div>
@@ -158,6 +163,30 @@ const deleteVoucher = async (voucher) => {
   }
 };
 
+// パイルへのファイルドロップでアップロードする（ ExpenseEntry と同じ挙動）
+let pileDragCount = 0;
+
+const onPileDragEnter = (event) => {
+  if ( event.dataTransfer.types.includes('Files') ) {
+    pileDragCount += 1;
+  }
+};
+
+const onPileDragLeave = (event) => {
+  if ( event.dataTransfer.types.includes('Files') ) {
+    pileDragCount = Math.max(0, pileDragCount - 1);
+  }
+};
+
+const onPileDrop = (event) => {
+  pileDragCount = 0;
+  const files = event.dataTransfer.files;
+  if ( files.length > 0 ) {
+    event.preventDefault();
+    uploadVouchers(files);
+  }
+};
+
 onMount(() => {
   axios.get('/api/accounts').then((result) => {
     accounts = result.data || [];
@@ -178,5 +207,10 @@ onMount(() => {
 }
 .upload-label {
   white-space: nowrap;
+}
+.pile-dropzone.over {
+  background-color: #eef6ff;
+  outline: 2px dashed #4d8fd1;
+  outline-offset: -6px;
 }
 </style>

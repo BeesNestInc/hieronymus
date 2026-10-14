@@ -88,7 +88,15 @@ const checkPage = (pageUrl) => {
       const t = ++pageToken;
       axios.get(`/api/expense_report/${args[3]}`).then((result) => {
         if ( t !== pageToken ) return;
-        report = result.data;
+        if ( result.data && result.data.id ) {
+          report = result.data;
+        } else {
+          // 削除済み等で取得できない精算書を「新規精算書」として
+          // 編集可能に扱わないよう、不在は一覧へ戻す
+          toast.show('経費精算', '精算書が見つかりません。削除された可能性があります。', 'warning');
+          report = undefined;
+          link('/expense');
+        }
       });
     }
     break;

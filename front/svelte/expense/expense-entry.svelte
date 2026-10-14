@@ -266,7 +266,12 @@
           </div>
         </div>
         {#if ( editable || ( report.vouchers && report.vouchers.length > 0 ) )}
-        <div class="container-fluid expense-vouchers">
+        <div class="container-fluid expense-vouchers pile-dropzone"
+          class:over={pileDragCount > 0}
+          on:dragenter={onPileDragEnter}
+          on:dragleave={onPileDragLeave}
+          on:dragover={(e) => { if ( editable && e.dataTransfer.types.includes('Files') ) { e.preventDefault(); } }}
+          on:drop={onPileDrop}>
           <div class="d-flex align-items-center mb-1">
             <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
             <label class="btn btn-sm btn-outline-primary upload-label">
@@ -324,7 +329,7 @@
             </div>
           </div>
           {:else}
-          <p class="text-muted mb-0">領収書などの画像をまとめてアップロードできます。アップロードした証憑は、明細行へドラッグ&ドロップして紐付けてください。</p>
+          <p class="text-muted mb-0">領収書などの画像をここへドラッグ&ドロップするか、「まとめてアップロード」で一括登録できます。アップロードした証憑は、明細行へドラッグ&ドロップして紐付けてください。</p>
           {/if}
         </div>
         {/if}
@@ -422,6 +427,11 @@ tr.over {
 }
 .upload-label {
   white-space: nowrap;
+}
+.pile-dropzone.over {
+  background-color: #eef6ff;
+  outline: 2px dashed #4d8fd1;
+  outline-offset: -6px;
 }
 </style>
 
@@ -755,6 +765,34 @@ const deletePileVoucher = async (voucher) => {
   } catch (e) {
     ok = false;
     errorMessages = [errMsg(e)];
+  }
+};
+
+// 未整理証憑パイルへのファイルドロップでアップロードする
+// （ネストした要素へのenter/leaveを正しく数えるためカウンタ方式。明細行ドロップと同じ）
+let pileDragCount = 0;
+
+const onPileDragEnter = (event) => {
+  if ( editable && event.dataTransfer.types.includes('Files') ) {
+    pileDragCount += 1;
+  }
+};
+
+const onPileDragLeave = (event) => {
+  if ( event.dataTransfer.types.includes('Files') ) {
+    pileDragCount = Math.max(0, pileDragCount - 1);
+  }
+};
+
+const onPileDrop = (event) => {
+  pileDragCount = 0;
+  if ( !editable ) {
+    return;
+  }
+  const files = event.dataTransfer.files;
+  if ( files.length > 0 ) {
+    event.preventDefault();
+    uploadVouchers(files);
   }
 };
 
