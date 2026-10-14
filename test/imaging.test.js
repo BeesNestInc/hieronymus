@@ -1,6 +1,6 @@
 import {assert} from 'chai';
 import {Jimp} from 'jimp';
-import {splitImage} from '../libs/imaging.js';
+import {splitImage, straightenImage, rotateImage} from '../libs/imaging.js';
 
 // 黒地に白/赤の矩形を置いた合成画像で検出を検証する（実画像に依存しない）
 
@@ -129,5 +129,42 @@ describe('imaging (splitImage)', () => {
     const result = await splitImage(buf, 'image/png');
     assert.isNotNull(result);
     assert.equal(result.parts.length, 2);
+  });
+
+  it('rotateImage は90°回転して縦横を入れ替える', async () => {
+    const buf = await makeImage(400, 200, [
+      [ 80, 60, 120, 80, 0xf8f8f8ff ]
+    ]);
+    const result = await rotateImage(buf, 'image/png', 90);
+    assert.equal(result.mime, 'image/png');
+    const rotated = await Jimp.read(result.buffer);
+    assert.equal(rotated.bitmap.width, 200);
+    assert.equal(rotated.bitmap.height, 400);
+    // 180°回転で天地逆になる（大きさは不変）
+    const result180 = await rotateImage(buf, 'image/png', 180);
+    const rotated180 = await Jimp.read(result180.buffer);
+    assert.equal(rotated180.bitmap.width, 400);
+    assert.equal(rotated180.bitmap.height, 200);
+  });
+
+  it('straightenImage は傾いた1枚の証憑を正立させる', async () => {
+    // 25°傾いた単独の縦長矩形（220x500）
+    const buf = await makeSlantedImage(900, 900, [
+      [ 450, 450, 220, 500, 25, 0xfafafaff ]
+    ]);
+    const result = await straightenImage(buf, 'image/png');
+    assert.isNotNull(result);
+    const straightened = await Jimp.read(result.buffer);
+    // 正立化により縦長比がほぼ元の矩形（220/500=0.44）に回復する
+    const ratio = straightened.bitmap.width / straightened.bitmap.height;
+    assert.isBelow(ratio, 0.62);
+  });
+
+  it('straightenImage は直立した画像には何もしない', async () => {
+    const buf = await makeImage(400, 200, [
+      [ 80, 60, 120, 80, 0xf8f8f8ff ]
+    ]);
+    const result = await straightenImage(buf, 'image/png');
+    assert.isNull(result);
   });
 });

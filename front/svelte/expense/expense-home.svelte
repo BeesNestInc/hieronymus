@@ -30,7 +30,7 @@
                 <th>ファイル</th>
                 <th>説明</th>
                 <th class="number">金額</th>
-                <th style="width:52px;"></th>
+                <th style="width:110px;"></th>
               </tr>
             </thead>
             <tbody>
@@ -40,9 +40,9 @@
                   <div class="d-flex align-items-start">
                     {#each line.files as file}
                     <div class="me-1">
-                      <a href="/voucher/file/{file.id}" target="_blank">
+                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                         {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
-                        <img src="/voucher/file/{file.id}" class="thumb"/>
+                        <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
                         {:else}
                         <img src="/public/icons/icon_pdf.png" class="thumb"/>
                         {/if}
@@ -60,6 +60,14 @@
                 </td>
                 <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
                 <td style="white-space:nowrap;">
+                  <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                    title="左90°回転" on:click={() => { rotateVoucher(line, 270); }}>
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                    title="右90°回転" on:click={() => { rotateVoucher(line, 90); }}>
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
                   <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
                     title="複数の証憑が写っている場合に分離します"
                     on:click={() => { splitVoucher(line); }}>
@@ -135,6 +143,8 @@ let payeeMinimize = false;
 let paymentMinimize = false;
 let accounts = [];
 let unsorted = [];
+// 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
+let imageVersion = 0;
 
 const fetchUnsorted = () => {
   // どこにも紐付いていない証憑（未整理のまるっとアップロード含む）。
@@ -188,6 +198,20 @@ const saveDescription = async (voucher) => {
   }
 };
 
+// 証憑画像の90°回転（天地逆などの手動補正）
+const rotateVoucher = async (voucher, deg) => {
+  try {
+    await axios.post('/api/expense_report/voucher_rotate', {
+      voucherId: voucher.id, deg: deg
+    });
+    imageVersion += 1;
+    toast.show('経費精算', '回転しました');
+  } catch (e) {
+    toast.show('経費精算', e.response && e.response.data && e.response.data.message ?
+      e.response.data.message : (e.message || '回転に失敗しました。'), 'warning');
+  }
+};
+
 // 確認ダイアログ。window.confirm はブラウザのダイアログ抑制で
 // 無効化されることがあるため、アプリ内のモーダル（okModal）を使う
 const confirmModal = (title, description, reply) => {
@@ -213,7 +237,12 @@ const splitVoucher = async (voucher) => {
       voucherId: voucher.id
     });
     const count = ( result.data.vouchers || [] ).length;
-    toast.show('経費精算', `${count}枚に分離しました。不採用のものは削除してください。`);
+    if ( result.data.straightened ) {
+      imageVersion += 1;
+      toast.show('経費精算', '1枚の証憑のため分離はしませんでした。傾きを補正しました。');
+    } else {
+      toast.show('経費精算', `${count}枚に分離しました。不採用のものは削除してください。`);
+    }
   } catch (e) {
     toast.show('経費精算', e.response && e.response.data && e.response.data.message ?
       e.response.data.message : (e.message || '分離に失敗しました。'), 'warning');

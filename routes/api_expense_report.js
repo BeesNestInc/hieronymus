@@ -6,7 +6,7 @@ import { numeric } from '../libs/utils.js';
 import { createSlipForReport } from '../libs/expense.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
-import { splitImage } from '../libs/imaging.js';
+import { splitImage, straightenImage, rotateImage } from '../libs/imaging.js';
 
 // 閲覧権限: 会計/承認権限ユーザーは全員の経費精算書を、
 // それ以外は自分が作成したもののみ扱える（既存の伝票承認パターンと同じ）。
@@ -308,10 +308,19 @@ export default {
       }
       const result = await splitImage(file.body, file.mimeType);
       if ( !result ) {
-        res.status(422).json({
-          code: -2,
-          message: '分離できる複数の証憑が見つかりませんでした。'
-        });
+        // 分離できなかった場合、傾いていれば1枚ものとして正立させ
+        // ファイルを差し替える（in-place補正）
+        const st = await straightenImage(file.body, file.mimeType);
+        if ( st ) {
+          file.body = st.buffer;
+          await file.save();
+          res.json({ code: 0, vouchers: [], straightened: true });
+        } else {
+          res.status(422).json({
+            code: -2,
+            message: '分離できる複数の証憑が見つかりませんでした。'
+          });
+        }
         return;
       }
       const stem = ( file.name || 'voucher' ).replace(/\.[^.]*$/, '') || 'voucher';
@@ -335,6 +344,44 @@ export default {
         created.push({ id: part.id });
       }
       res.json({ code: 0, vouchers: created });
+    } catch (e) {
+      next(e);
+    }
+  },
+  // 証憑画像の90°単位の回転（天地逆などの手動補正）。ファイルを差し替える
+  rotateVoucher: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    try {
+      const voucher = await models.Voucher.findByPk(req.body.voucherId);
+      if ( !voucher ) {
+        res.status(404).json({ code: -1, message: 'record not found' });
+        return;
+      }
+      if ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) {
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
+      const deg = parseInt(req.body.deg);
+      if ( ![ 90, 180, 270 ].includes((( deg % 360 ) + 360 ) % 360 ) ) {
+        res.status(422).json({ code: -2, message: 'deg must be 90, 180 or 270' });
+        return;
+      }
+      const files = await models.VoucherFile.findAll({
+        where: { voucherId: voucher.id }
+      });
+      if ( files.length !== 1 || !files[0].mimeType || !files[0].mimeType.match(/^image\//) ) {
+        res.status(422).json({
+          code: -2,
+          message: '回転できるのは画像ファイルが1枚添付された証憑だけです。'
+        });
+        return;
+      }
+      const file = files[0];
+      const result = await rotateImage(file.body, file.mimeType, deg);
+      file.mimeType = result.mime;
+      file.body = result.buffer;
+      await file.save();
+      res.json({ code: 0 });
     } catch (e) {
       next(e);
     }

@@ -178,9 +178,9 @@
                     {#if ( line.voucher && line.voucher.files && line.voucher.files.length > 0 )}
                     {#each line.voucher.files as file}
                     <div class="me-1">
-                      <a href="/voucher/file/{file.id}" target="_blank">
+                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                         {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
-                        <img src="/voucher/file/{file.id}" class="thumb"/>
+                        <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
                         {:else}
                         <img src="/public/icons/icon_pdf.png" class="thumb"/>
                         {/if}
@@ -290,7 +290,7 @@
                   <th>ファイル</th>
                   <th>説明</th>
                   <th class="number">金額</th>
-                  <th style="width:52px;"></th>
+                  <th style="width:110px;"></th>
                 </tr>
               </thead>
               <tbody>
@@ -301,9 +301,9 @@
                     <div class="d-flex align-items-start">
                       {#each line.files as file}
                       <div class="me-1">
-                        <a href="/voucher/file/{file.id}" target="_blank">
+                        <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                           {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
-                          <img src="/voucher/file/{file.id}" class="thumb"/>
+                          <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
                           {:else}
                           <img src="/public/icons/icon_pdf.png" class="thumb"/>
                           {/if}
@@ -323,6 +323,14 @@
                   <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
                   <td style="white-space:nowrap;">
                     {#if ( editable )}
+                    <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                      title="左90°回転" on:click={() => { rotatePileVoucher(line, 270); }}>
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                      title="右90°回転" on:click={() => { rotatePileVoucher(line, 90); }}>
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
                       title="複数の証憑が写っている場合に分離します"
                       on:click={() => { splitPileVoucher(line); }}>
@@ -449,6 +457,8 @@ let submitterName = '';
 // 未整理の証憑。精算書のパイル(report.vouchers)と、精算書に紐付いていない
 // 浮遊証憑(floatings: 設定ページや未保存精算書からアップロードされたもの)
 let floatings = [];
+// 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
+let imageVersion = 0;
 let dragCounter = [];
 
 $: submitterName = report.submitter ? report.submitter.name : (status.user.name || '');
@@ -774,7 +784,12 @@ const splitPileVoucher = async (voucher) => {
       voucherId: voucher.id
     });
     const count = ( result.data.vouchers || [] ).length;
-    toast.show('経費精算', `${count}枚に分離しました。不採用のものは削除してください。`);
+    if ( result.data.straightened ) {
+      imageVersion += 1;
+      toast.show('経費精算', '1枚の証憑のため分離はしませんでした。傾きを補正しました。');
+    } else {
+      toast.show('経費精算', `${count}枚に分離しました。不採用のものは削除してください。`);
+    }
   } catch (e) {
     ok = false;
     errorMessages = [errMsg(e)];
@@ -784,6 +799,20 @@ const splitPileVoucher = async (voucher) => {
     report = reloaded.data;
   }
   fetchFloatings();
+};
+
+// 証憑画像の90°回転（天地逆などの手動補正）
+const rotatePileVoucher = async (voucher, deg) => {
+  try {
+    await axios.post('/api/expense_report/voucher_rotate', {
+      voucherId: voucher.id, deg: deg
+    });
+    imageVersion += 1;
+    toast.show('経費精算', '回転しました');
+  } catch (e) {
+    ok = false;
+    errorMessages = [errMsg(e)];
+  }
 };
 
 const deletePileVoucher = async (voucher) => {

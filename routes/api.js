@@ -136,6 +136,7 @@ router.post('/expense_report', expense_report.post);
 router.post('/expense_report/vouchers', expense_report.uploadVouchers);
 router.post('/expense_report/vouchers/:id', expense_report.uploadVouchers);
 router.post('/expense_report/voucher_split', expense_report.splitVoucher);
+router.post('/expense_report/voucher_rotate', expense_report.rotateVoucher);
 router.put('/expense_report', expense_report.update);
 router.put('/expense_report/approve', expense_report.approve);
 router.delete('/expense_report', expense_report.delete);

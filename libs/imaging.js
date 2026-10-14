@@ -451,8 +451,9 @@ const reCrop = (img, bg, thr) => {
   });
 };
 
-// 周辺帯から背景を推定し、前景bboxでタイトにクロップする
-const tighten = (img) => {
+// 1枚の画像（クロップ物）の前景を解析して傾きを検出し、正立させて返す。
+// 傾きが検出できなければそのまま返す
+const straightenCrop = (img) => {
   const { width: w, height: h, data } = img.bitmap;
   const band = Math.max(2, Math.round(Math.min(w, h) * 0.02));
   const rs = [];
@@ -477,7 +478,59 @@ const tighten = (img) => {
     dist[i] = Math.min(255, Math.round(Math.sqrt(dr * dr + dg * dg + db * db) / 442 * 255));
   }
   const thr = otsuThreshold(dist);
-  return reCrop(img, bg, thr);
+  const bright = new Uint8Array(w * h);
+  for ( let i = 0; i < w * h; i += 1 ) {
+    bright[i] = dist[i] > thr ? 1 : 0;
+  }
+  const openRadius = Math.max(1, Math.round(w * 0.004));
+  const closeRadius = Math.max(2, Math.round(w * CLOSE_RATIO));
+  const solid = morph(morph(morph(bright, w, h, openRadius, false), w, h, openRadius, true), w, h, closeRadius, true);
+  const comps = connectedComponents(solid, w, h);
+  const biggest = comps.boxes
+    .filter(( b ) => ( b.area >= w * h * MIN_AREA_RATIO ))
+    .sort(( a, b ) => ( b.area - a.area ))[0];
+  if ( !biggest ) {
+    return img;
+  }
+  const region = extractRegionFromMask(comps.labels, w, biggest.label);
+  if ( !region ) {
+    return img;
+  }
+  const tilt = estimateAngle(region);
+  if ( Math.abs(tilt) < STRAIGHTEN_MIN_DEG ) {
+    return img;
+  }
+  const rot = img.clone();
+  rot.background = ( bg[0] << 24 ) | ( bg[1] << 16 ) | ( bg[2] << 8 ) | 0xff;
+  rot.rotate(tilt);
+  return reCrop(rot, bg, thr);
+};
+
+// 1枚だけ写った証憑を正立させる（in-place補正用）。
+// 傾きが検出できた場合だけ {mime, buffer, tilt} を、それ以外は null を返す
+export const straightenImage = async (buffer, mimeType = 'image/png') => {
+  const img = await Jimp.read(buffer);
+  const mime = ( /^image\/jpe?g$/i.test(mimeType || '') ) ? 'image/jpeg' : 'image/png';
+  const straightened = straightenCrop(img);
+  if ( straightened === img ) {
+    return null;
+  }
+  return { mime, buffer: await straightened.getBuffer(mime) };
+};
+
+// 90°単位の回転（天地逆などの手動補正用）。deg は正で時計回りとする
+export const rotateImage = async (buffer, mimeType = 'image/png', deg) => {
+  const d = (( deg % 360 ) + 360 ) % 360;
+  if ( d % 90 !== 0 ) {
+    throw new Error('rotation must be a multiple of 90');
+  }
+  const img = await Jimp.read(buffer);
+  const mime = ( /^image\/jpe?g$/i.test(mimeType || '') ) ? 'image/jpeg' : 'image/png';
+  // jimp の rotate は正で反時計回りなので、時計回りの指定は符号を反転する
+  const rot = img.clone();
+  rot.background = 0x000000ff;
+  rot.rotate(-d);
+  return { mime, buffer: await rot.getBuffer(mime) };
 };
 
 // 列ごとの前景画素数の谷（区切り線・隙間）を検出し、縦の全高で分ける。
@@ -562,7 +615,7 @@ const gapLineSplits = async (img, mime, scale, w, h, bright, ww, wh) => {
     const cx1 = clamp(Math.ceil(x1 / scale) + margin, 1, w);
     if ( cx1 - cx0 < 8 ) continue;
     let crop = img.clone().crop({ x: cx0, y: 0, w: cx1 - cx0, h: h });
-    crop = tighten(crop);
+    crop = straightenCrop(crop);
     parts.push(await crop.getBuffer(mime));
   }
   debug('gapLineSplits: parts', parts.length);
