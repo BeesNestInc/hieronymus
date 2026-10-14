@@ -365,8 +365,13 @@ export default {
     body.updatedBy = req.session.user.id;
     let id = req.params.id ? req.params.id : body.id;
 
-    const ok = await prepareVoucher(body, res);
-    if ( !ok ) return;
+    // 説明だけの部分更新（未整理証憑の説明入力等）も許すため、
+    // 取引先が指定された場合だけ通常の検証（相手先・消費税）を行う。
+    // 年度のロックは後段の rejectIfVoucherLocked で見る
+    if ( body.companyId ) {
+      const ok = await prepareVoucher(body, res);
+      if ( !ok ) return;
+    }
 
     let voucher = await models.Voucher.findByPk(id)
     if	( voucher )	{

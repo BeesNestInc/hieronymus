@@ -51,7 +51,13 @@
                     {/each}
                   </div>
                 </td>
-                <td>{line.description || ( line.files[0] ? line.files[0].name : '' )}</td>
+                <td class="pile-desc">
+                  <input type="text" class="form-control form-control-sm"
+                    placeholder={ line.files[0] ? line.files[0].name : '説明' }
+                    title="説明を入力できます（省略時はファイル名で表示）"
+                    bind:value={line.description}
+                    on:change={() => { saveDescription(line); }}>
+                </td>
                 <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
                 <td>
                   <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
@@ -154,6 +160,28 @@ const uploadVouchers = async (files) => {
   }
 };
 
+// 未整理証憑の説明をインライン保存する（bind:valueでローカルは更新済み）
+const errText = (e) => {
+  if ( e.response && e.response.data && e.response.data.message ) {
+    return e.response.data.message;
+  }
+  return e.message || 'エラーが発生しました。';
+};
+
+const saveDescription = async (voucher) => {
+  const prev = voucher.description;
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      description: voucher.description || null
+    });
+  } catch (e) {
+    voucher.description = prev;
+    unsorted = unsorted;
+    toast.show('経費精算', errText(e), 'warning');
+  }
+};
+
 // 未整理証憑の削除（自分が登録した証憑は削除できる）
 const deleteVoucher = async (voucher) => {
   if ( !window.confirm('この証憑を削除します。よろしいですか？') ) {
@@ -225,6 +253,10 @@ onMount(() => {
 .pile-table {
   max-height: 30vh;
   overflow: auto;
+}
+.pile-desc {
+  width: 40%;
+  min-width: 160px;
 }
 .pile-dropzone.over {
   background-color: #eef6ff;

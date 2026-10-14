@@ -312,7 +312,14 @@
                       {/each}
                     </div>
                   </td>
-                  <td>{line.description || ( line.files[0] ? line.files[0].name : '' )}</td>
+                  <td class="pile-desc">
+                    <input type="text" class="form-control form-control-sm"
+                      placeholder={ line.files[0] ? line.files[0].name : '説明' }
+                      title="説明を入力できます（省略時はファイル名で表示）"
+                      bind:value={line.description}
+                      disabled={!editable}
+                      on:change={() => { savePileDescription(line); }}>
+                  </td>
                   <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
                   <td>
                     {#if ( editable )}
@@ -405,6 +412,10 @@ tr.over {
 .pile-table {
   max-height: 30vh;
   overflow: auto;
+}
+.pile-desc {
+  width: 40%;
+  min-width: 160px;
 }
 </style>
 
@@ -710,6 +721,23 @@ const uploadVouchers = async (files) => {
       fetchFloatings();
     }
   } catch (e) {
+    ok = false;
+    errorMessages = [errMsg(e)];
+  }
+};
+
+// 未整理証憑の説明をインライン保存する（bind:valueでローカルは更新済み）
+const savePileDescription = async (voucher) => {
+  const prev = voucher.description;
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      description: voucher.description || null
+    });
+  } catch (e) {
+    voucher.description = prev;
+    floatings = floatings;
+    if ( report.vouchers ) { report.vouchers = report.vouchers; }
     ok = false;
     errorMessages = [errMsg(e)];
   }
