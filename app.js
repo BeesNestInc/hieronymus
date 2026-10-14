@@ -100,6 +100,11 @@ const voucherFile = (req, res, next) => {
         id: req.params.id
       }
     }).then((content) => {
+      if ( !content ) {
+        // 存在しない/削除済みのファイルIDでのクラッシュを防ぐ
+        res.status(404).send('file not found');
+        return;
+      }
       res.set('Content-Type', content.mimeType);
       res.send(content.body);
     })

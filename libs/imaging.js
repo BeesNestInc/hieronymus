@@ -255,13 +255,10 @@ const splitBridges = (region, fullArea) => {
     }
     const comps = connectedComponents(work, bw, bh);
     const big = comps.boxes.filter(( c ) => ( c.area >= ackMin ));
-    if ( big.length >= 3 ) {
-      // 3つ以上に分かれるのはX字状の重なり等（真のbridgeではない）。
-      // 正の分割が始まっていればこれ以上は悪化するだけなので諦める
-      debug('bridge erosion: over-split (', big.length, '), give up');
-      return null;
-    }
     if ( big.length === 2 ) {
+      // ちょうど2つに分かれた時点が真のbridge断ち切り。
+      // （3つ以上に分かれるのはX字状の重なり断片の可能性があるため、
+      //   さらにerodeして2分割に噛み合う半径を探す）
       seeds = comps;
     }
   }
@@ -454,6 +451,124 @@ const reCrop = (img, bg, thr) => {
   });
 };
 
+// 周辺帯から背景を推定し、前景bboxでタイトにクロップする
+const tighten = (img) => {
+  const { width: w, height: h, data } = img.bitmap;
+  const band = Math.max(2, Math.round(Math.min(w, h) * 0.02));
+  const rs = [];
+  const gs = [];
+  const bs = [];
+  for ( let y = 0; y < h; y += 1 ) {
+    const edge = ( y < band ) || ( y >= h - band );
+    for ( let x = 0; x < w; x += 1 ) {
+      if ( !edge && ( x >= band ) && ( x < w - band ) ) continue;
+      const i = ( y * w + x ) * 4;
+      rs.push(data[i]);
+      gs.push(data[i + 1]);
+      bs.push(data[i + 2]);
+    }
+  }
+  const bg = [ median(rs), median(gs), median(bs) ];
+  const dist = new Uint8Array(w * h);
+  for ( let i = 0; i < w * h; i += 1 ) {
+    const dr = data[i * 4] - bg[0];
+    const dg = data[i * 4 + 1] - bg[1];
+    const db = data[i * 4 + 2] - bg[2];
+    dist[i] = Math.min(255, Math.round(Math.sqrt(dr * dr + dg * dg + db * db) / 442 * 255));
+  }
+  const thr = otsuThreshold(dist);
+  return reCrop(img, bg, thr);
+};
+
+// 列ごとの前景画素数の谷（区切り線・隙間）を検出し、縦の全高で分ける。
+// 白いシートに連結して印刷された帳票や、隙間がわずかな並びの救済用
+const gapLineSplits = async (img, mime, scale, w, h, bright, ww, wh) => {
+  // 列ごとの前景画素数
+  const colCounts = new Int32Array(ww);
+  for ( let x = 0; x < ww; x += 1 ) {
+    let n = 0;
+    for ( let y = 0; y < wh; y += 1 ) {
+      if ( bright[y * ww + x] ) {
+        n += 1;
+      }
+    }
+    colCounts[x] = n;
+  }
+  // minフィルタ（窓は幅の2.5%）で谷を伸ばして拾いやすくする
+  const win = Math.max(5, Math.round(ww * 0.025));
+  const valleys = [];
+  for ( let x = 0; x < ww; x += 1 ) {
+    let m = colCounts[x];
+    const x0 = Math.max(0, x - Math.floor(win / 2));
+    const x1 = Math.min(ww - 1, x + Math.floor(win / 2));
+    for ( let i = x0; i <= x1; i += 1 ) {
+      if ( colCounts[i] < m ) {
+        m = colCounts[i];
+      }
+    }
+    valleys.push(m);
+  }
+  const need = Math.round(wh * 0.06);
+  const cols = [];
+  for ( let x = 0; x < ww; x += 1 ) {
+    if ( valleys[x] <= need ) {
+      cols.push(x);
+    }
+  }
+  if ( cols.length === 0 ) {
+    debug('gapLineSplits: no valley columns');
+    return null;
+  }
+  // 近い列をクラスタ化して、幅の狭い（線らしい）クラスタだけを切り出し位置にする
+  const clusters = [];
+  let cur = [ cols[0] ];
+  for ( let i = 1; i < cols.length; i += 1 ) {
+    if ( cols[i] - cur[cur.length - 1] <= 4 ) {
+      cur.push(cols[i]);
+    } else {
+      clusters.push(cur);
+      cur = [ cols[i] ];
+    }
+  }
+  clusters.push(cur);
+  const maxWidth = Math.round(ww * 0.05);
+  const cuts = clusters
+    .filter(( c ) => ( c.length <= maxWidth ))
+    .map(( c ) => Math.round(( c[0] + c[c.length - 1] ) / 2 ));
+  debug('gapLineSplits: clusters', clusters.length, 'cuts', cuts);
+  if ( cuts.length === 0 ) {
+    return null;
+  }
+  // 切り出し（元解像度。縦は全高、横は谷で分ける）
+  const minWidth = Math.max(8, Math.round(ww * 0.08));
+  const margin = Math.max(2, Math.round(Math.min(w, h) * MARGIN_RATIO));
+  const segs = [];
+  let prev = 0;
+  for ( const cut of cuts ) {
+    if ( cut - prev >= minWidth ) {
+      segs.push([ prev, cut ]);
+      prev = cut;
+    }
+  }
+  if ( ww - prev >= minWidth ) {
+    segs.push([ prev, ww ]);
+  }
+  if ( segs.length < 2 ) {
+    return null;
+  }
+  const parts = [];
+  for ( const [ x0, x1 ] of segs ) {
+    const cx0 = clamp(Math.floor(x0 / scale) - margin, 0, w - 1);
+    const cx1 = clamp(Math.ceil(x1 / scale) + margin, 1, w);
+    if ( cx1 - cx0 < 8 ) continue;
+    let crop = img.clone().crop({ x: cx0, y: 0, w: cx1 - cx0, h: h });
+    crop = tighten(crop);
+    parts.push(await crop.getBuffer(mime));
+  }
+  debug('gapLineSplits: parts', parts.length);
+  return parts.length >= 2 ? parts : null;
+};
+
 /**
  * 1枚の画像に写った複数の証憑を検出して切り出す。
  * 接触・重なって写った証憑はerode救済で分け、
@@ -551,6 +666,26 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
   debug('components:', comps.boxes.length, 'filtered:', boxes.length,
         'boxes:', boxes.map((b) => `(${b.x0},${b.y0})-(${b.x1},${b.y1})`));
 
+  // (1) blobパイプライン: 近接ボックスの統合 → bridge救済 → 正立化して切り出す
+  const parts = await blobParts(img, mime, comps, boxes, ww, wh, scale, w, h, bg, thr);
+  if ( parts ) {
+    return { mime, parts };
+  }
+
+  // (2) フォールバック: 白いシートに青の区切り線で連結して印刷された
+  //     帳票（電気料金の収納票など）を、区切り線の位置で分ける。
+  //     blobパイプラインで分けられなかった（1塊になる）ときだけ試す
+  const blueParts = await gapLineSplits(img, mime, scale, w, h, bright, ww, wh);
+  if ( blueParts ) {
+    return { mime, parts: blueParts };
+  }
+  debug('no split found');
+  return null;
+};
+
+// blobパイプライン: 連結成分ごとに領域を取り出し、bridge救済→角度推定→正立化して切り出す。
+// 2枚以上切り出せたら配列を、それ以外は null を返す
+const blobParts = async (img, mime, comps, boxes, ww, wh, scale, w, h, bg, thr) => {
   // 近接しているボックスを統合する
   boxes = mergeBoxes(boxes, Math.round(ww * MERGE_RATIO));
 
@@ -592,7 +727,7 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
     debug('parts < 2, abort');
     return null;
   }
-  return { mime, parts };
+  return parts;
 };
 
 export default splitImage;
