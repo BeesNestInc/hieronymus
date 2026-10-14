@@ -6,6 +6,7 @@ import { numeric } from '../libs/utils.js';
 import { createSlipForReport } from '../libs/expense.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
+import { splitImage } from '../libs/imaging.js';
 
 // 閲覧権限: 会計/承認権限ユーザーは全員の経費精算書を、
 // それ以外は自分が作成したもののみ扱える（既存の伝票承認パターンと同じ）。
@@ -260,6 +261,78 @@ export default {
           body: fs.readFileSync(f.path)
         });
         created.push({ id: voucher.id, name: f.name });
+      }
+      res.json({ code: 0, vouchers: created });
+    } catch (e) {
+      next(e);
+    }
+  },
+  // 未整理証憑の分離: 1枚の画像に写った複数の証憑を幾何検出（AI不使用）して
+  // 個別のVoucherに切り出す。元の証憑は残る。対象は画像ファイルが1枚添付された証憑
+  splitVoucher: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    try {
+      const voucher = await models.Voucher.findByPk(req.body.voucherId);
+      if ( !voucher ) {
+        res.status(404).json({ code: -1, message: 'record not found' });
+        return;
+      }
+      if ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) {
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
+      if ( voucher.expenseReportId ) {
+        const report = await models.ExpenseReport.findByPk(voucher.expenseReportId);
+        if (( report ) && ( report.approvedAt )) {
+          res.status(422).json({ code: -2, message: 'this report was approved' });
+          return;
+        }
+      }
+      const files = await models.VoucherFile.findAll({
+        where: { voucherId: voucher.id }
+      });
+      if ( files.length !== 1 ) {
+        res.status(422).json({
+          code: -2,
+          message: '分離できるのはファイルが1枚添付された証憑だけです。'
+        });
+        return;
+      }
+      const file = files[0];
+      if ( !file.mimeType || !file.mimeType.match(/^image\//) ) {
+        res.status(422).json({
+          code: -2,
+          message: '分離できるのは画像ファイルだけです（PDFは対象外）。'
+        });
+        return;
+      }
+      const result = await splitImage(file.body, file.mimeType);
+      if ( !result ) {
+        res.status(422).json({
+          code: -2,
+          message: '分離できる複数の証憑が見つかりませんでした。'
+        });
+        return;
+      }
+      const stem = ( file.name || 'voucher' ).replace(/\.[^.]*$/, '') || 'voucher';
+      const ext = ( result.mime === 'image/jpeg' ) ? '.jpg' : '.png';
+      const created = [];
+      for ( let i = 0; i < result.parts.length; i += 1 ) {
+        const part = await models.Voucher.create({
+          issueDate: voucher.issueDate,
+          expenseReportId: voucher.expenseReportId || null,
+          description: ( voucher.description ?
+              `${voucher.description}(${i + 1})` : `${stem}(${i + 1})` ),
+          createdBy: req.session.user.id,
+          updatedBy: req.session.user.id
+        });
+        await models.VoucherFile.create({
+          voucherId: part.id,
+          name: `${stem}(${i + 1})${ext}`,
+          mimeType: result.mime,
+          body: result.parts[i]
+        });
+        created.push({ id: part.id });
       }
       res.json({ code: 0, vouchers: created });
     } catch (e) {

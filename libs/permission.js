@@ -55,6 +55,8 @@ const RULES = [
   { match: /^\/expense_report\/tasks$/, methods: ['GET'], access: ANY },
   // 未整理証憑のまるっとアップロード（精算書単位/浮遊のどちらも一般ユーザーから）
   { match: /^\/expense_report\/vouchers(\/\d+)?$/, methods: ['POST'], access: ANY },
+  // 未整理証憑の分離（AI不使用の幾何検出。証憑作成者か会計が対象者なら誰でも）
+  { match: /^\/expense_report\/voucher_split$/, methods: ['POST'], access: ANY },
   { match: /^\/expense_report(\/\d+)?$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report$/, methods: ['POST'], access: ANY },
   { match: /^\/expense_report$/, methods: ['PUT'], access: ANY },

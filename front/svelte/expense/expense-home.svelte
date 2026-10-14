@@ -30,7 +30,7 @@
                 <th>ファイル</th>
                 <th>説明</th>
                 <th class="number">金額</th>
-                <th style="width:30px;"></th>
+                <th style="width:52px;"></th>
               </tr>
             </thead>
             <tbody>
@@ -59,7 +59,12 @@
                     on:change={() => { saveDescription(line); }}>
                 </td>
                 <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
-                <td>
+                <td style="white-space:nowrap;">
+                  <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
+                    title="複数の証憑が写っている場合に分離します"
+                    on:click={() => { splitVoucher(line); }}>
+                    <i class="bi bi-scissors"></i>
+                  </button>
                   <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
                     on:click={() => { deleteVoucher(line); }}>
                     <i class="bi bi-x"></i>
@@ -180,6 +185,25 @@ const saveDescription = async (voucher) => {
     unsorted = unsorted;
     toast.show('経費精算', errText(e), 'warning');
   }
+};
+
+// 未整理証憑の分離: 1枚のスキャンに写った複数の証憑を個別の証憑に切り出す
+// （AI不使用の幾何検出。元の証憑は残り、不採用の切り出しは後から削除できる）
+const splitVoucher = async (voucher) => {
+  if ( !window.confirm('この証憑を分離しますか？複数の証憑が写っている場合、それぞれ個別の証憑として登録します。') ) {
+    return;
+  }
+  try {
+    const result = await axios.post('/api/expense_report/voucher_split', {
+      voucherId: voucher.id
+    });
+    const count = ( result.data.vouchers || [] ).length;
+    toast.show('経費精算', `${count}枚に分離しました。不採用のものは削除してください。`);
+  } catch (e) {
+    toast.show('経費精算', e.response && e.response.data && e.response.data.message ?
+      e.response.data.message : (e.message || '分離に失敗しました。'), 'warning');
+  }
+  fetchUnsorted();
 };
 
 // 未整理証憑の削除（自分が登録した証憑は削除できる）
