@@ -251,3 +251,76 @@ describe('vision.extract with companies', () => {
     }
   });
 });
+
+describe('vision config yaml', () => {
+  let origConfig;
+  beforeEach(() => {
+    origConfig = process.env.LLM_CONFIG_PATH;
+  });
+  afterEach(() => {
+    if ( origConfig === undefined ) {
+      delete process.env.LLM_CONFIG_PATH;
+    } else {
+      process.env.LLM_CONFIG_PATH = origConfig;
+    }
+  });
+
+  it('llms.yamlを読める', async () => {
+    const { server, port, requests } = await startStub(() => {
+      return [200, chatCompletion('{"company":null,"companyId":null,"amount":null}')];
+    });
+    // fixtureのbaseURLは空なので環境変数で上書きする
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
+    process.env.LLM_PROVIDER = 'openai-compatible';
+    process.env.LLM_MODEL = 'test-vision';
+    process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+    try {
+      assert.isTrue(vision.isAvailable());
+      const values = await vision.extract(PNG, 'image/png');
+      assert.strictEqual(requests.length, 1);
+      assert.isNull(values.company);
+    } finally {
+      delete process.env.LLM_PROVIDER;
+      delete process.env.LLM_MODEL;
+      delete process.env.LLM_BASE_URL;
+      server.close();
+    }
+  });
+});
+
+describe('vision shrink', () => {
+  it('大きい画像は1600px以下に縮小して送る', async () => {
+    const { server, port, requests } = await startStub(() => {
+      return [200, chatCompletion('{"company":null,"companyId":null,"amount":null}')];
+    });
+    const orig = {
+      LLM_PROVIDER: process.env.LLM_PROVIDER,
+      LLM_MODEL: process.env.LLM_MODEL,
+      LLM_BASE_URL: process.env.LLM_BASE_URL,
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
+    };
+    try {
+      process.env.LLM_PROVIDER = 'openai-compatible';
+      process.env.LLM_MODEL = 'test-vision';
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+      const { Jimp } = await import('jimp');
+      const big = new Jimp({ width: 400, height: 2400, color: 0xfafafaff });
+      const buf = await big.getBuffer('image/png');
+      await vision.extract(buf, 'image/png');
+      const imgPart = requests[0].body.messages[0].content.find((p) => p.type === 'image_url');
+      const b64 = imgPart.image_url.url.split(',')[1];
+      const sent = await Jimp.read(Buffer.from(b64, 'base64'));
+      assert.isAtMost(Math.max(sent.bitmap.width, sent.bitmap.height), 1600);
+    } finally {
+      for ( const k of Object.keys(orig) ) {
+        if ( orig[k] === undefined ) {
+          delete process.env[k];
+        } else {
+          process.env[k] = orig[k];
+        }
+      }
+      server.close();
+    }
+  });
+});

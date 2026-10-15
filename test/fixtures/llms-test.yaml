@@ -1,0 +1,5 @@
+provider: openai-compatible
+model: test-vision
+apiKey: ""
+baseURL: ""
+headers: {}

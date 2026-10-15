@@ -1,4 +1,6 @@
 import fs from 'fs';
+import { load as yamlLoad } from 'js-yaml';
+import { Jimp } from 'jimp';
 import { generateObject, generateText, jsonSchema } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -6,14 +8,13 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 // AI（LLM）による証憑OCR。Vercel AI SDKを使う。
 // vision用途に固定した単一モデルを使う（自動切替はしない）。
-// 設定は config/llms.json（Sequelize用の config.json とは別ファイル）:
-//   {
-//     "provider": "gemini",          // gemini / openai / openai-compatible
-//     "model": "gemini-2.0-flash",
-//     "apiKey": "...",
-//     "baseURL": "https://api.openai.com/v1",  // openai系のみ。ローカルは http://localhost:1234/v1 等
-//     "headers": {}                  // 任意。openai系のリクエストに付与する追加ヘッダ
-//   }
+// 設定は config/llms.yaml（なければ config/llms.json。Sequelize用の
+// config.json とは別ファイル）:
+//   provider: gemini          # gemini / openai / openai-compatible
+//   model: gemini-2.0-flash
+//   apiKey: "..."
+//   baseURL: https://api.openai.com/v1   # openai系のみ
+//   headers: {}               # 任意。openai系のリクエストに付与する追加ヘッダ
 // gemini以外はOpenAI互換API（/chat/completions）。`openai` は厳密な構造化出力に
 // 対応したモデル用（muse-spark等。Legionも同様に使い分けている）。
 // 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL でも指定できる（ファイルより優先）。
@@ -22,13 +23,22 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 // ただし openai-compatible で baseURL があればキーなしでも利用可（ローカルLLM想定）。
 
 const loadConfig = () => {
-  // テスト時は LLM_CONFIG_PATH でfixtureを指せる
-  const path = process.env.LLM_CONFIG_PATH || 'config/llms.json';
-  try {
-    return JSON.parse(fs.readFileSync(path, 'utf-8'));
-  } catch (e) {
-    return {};
+  // テスト時は LLM_CONFIG_PATH でfixtureを指せる（拡張子でyaml/jsonを判別）
+  const paths = process.env.LLM_CONFIG_PATH ?
+    [ process.env.LLM_CONFIG_PATH ] :
+    [ 'config/llms.yaml', 'config/llms.json' ];
+  for ( const path of paths ) {
+    try {
+      const text = fs.readFileSync(path, 'utf-8');
+      if ( /\.ya?ml$/i.test(path) ) {
+        return yamlLoad(text) || {};
+      }
+      return JSON.parse(text);
+    } catch (e) {
+      continue;
+    }
   }
+  return {};
 };
 
 const settings = () => {
@@ -158,7 +168,7 @@ const aiApiError = (e) => {
   return err;
 };
 
-// openai-compatible用の追加ヘッダ。config/llms.json の headers を素通しし、
+// openai-compatible用の追加ヘッダ。config/llms.yaml の headers を素通しし、
 // opencode.aiゲートウェイ向けに x-opencode-session を自動付与する
 // （ゲートウェイのルーティングに必須。Legionも同様に付与している）。
 const openaiHeaders = (setting) => {
@@ -183,7 +193,7 @@ const makeModel = (setting) => {
     case 'openai':
     case 'openai-compatible': {
       if ( !setting.baseURL ) {
-        const err = new Error('接続先がありません（config/llms.json の baseURL）。');
+        const err = new Error('接続先がありません（config/llms.yaml の baseURL）。');
         err.name = 'AiNotConfigured';
         throw err;
       }
@@ -211,7 +221,7 @@ const makeModel = (setting) => {
 export const extract = async (buffer, mimeType, options = {}) => {
   const setting = settings();
   if ( !isAvailable() ) {
-    const err = new Error('AIの設定がありません（config/llms.json）。');
+    const err = new Error('AIの設定がありません（config/llms.yaml）。');
     err.name = 'AiNotConfigured';
     throw err;
   }
@@ -220,6 +230,22 @@ export const extract = async (buffer, mimeType, options = {}) => {
   if ( type === 'application/pdf' ) {
     data = await pdfToPng(buffer);
     type = 'image/png';
+  }
+  // 大きい画像は縮小して送る（送信量・トークンの削減。領収書の可読性は保たれる）。
+  // 失敗時は元のまま送る
+  try {
+    const img = await Jimp.read(data);
+    const w = img.bitmap.width;
+    const h = img.bitmap.height;
+    const m = Math.max(w, h);
+    const OCR_MAX_DIM = 1600;
+    if ( m > OCR_MAX_DIM ) {
+      const s = OCR_MAX_DIM / m;
+      img.resize({ w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) });
+      type = ( /^image\/jpe?g$/i.test(type) ) ? 'image/jpeg' : 'image/png';
+      data = await img.getBuffer(type);
+    }
+  } catch (e) {
   }
   const model = makeModel(setting);
   const prompt = await buildPrompt(options.companies);

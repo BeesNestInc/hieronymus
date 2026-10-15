@@ -72,6 +72,7 @@ typings/
 docker-histoy/
 config/config.json
 config/llms.json
+config/llms.yaml
 accounts.json
 *.map
 

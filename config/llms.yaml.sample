@@ -1,0 +1,7 @@
+# AI（LLM）証憑OCRの設定。config/llms.json より優先される。
+# 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL が最優先。
+provider: gemini          # gemini / openai / openai-compatible
+model: gemini-2.0-flash
+apiKey: ""
+baseURL: ""               # openai系のみ。例: https://api.openai.com/v1
+headers: {}               # 任意。openai系のリクエストに付与する追加ヘッダ
