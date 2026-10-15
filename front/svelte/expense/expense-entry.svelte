@@ -937,6 +937,7 @@ const onPileDragLeave = (event) => {
 const onPileDrop = (event) => {
   pileDragCount = 0;
   if ( !editable ) {
+    toast.show('経費精算', '承認済みのため編集できません。不承認にしてから追加してください。', 'warning');
     return;
   }
   const files = event.dataTransfer.files;
@@ -1000,6 +1001,7 @@ const onDrop = (event) => {
   const index = event.currentTarget.dataset.index;
   const line = report.lines[index];
   if ( !editable ) {
+    toast.show('経費精算', '承認済みのため編集できません。不承認にしてから紐付けてください。', 'warning');
     return;
   }
   if (( event.dataTransfer.files ) && ( event.dataTransfer.files.length > 0 )) {
