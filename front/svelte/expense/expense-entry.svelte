@@ -142,6 +142,21 @@
                       <i class="bi bi-exclamation-triangle-fill"></i>&nbsp;マッピング未登録
                     </div>
                     {/if}
+                  {:else if ( line._unmatched )}
+                    <div class="alert alert-warning py-1 px-2 mt-1 mb-0" style="font-size:0.75rem;">
+                      <i class="bi bi-exclamation-triangle-fill"></i>
+                      支払先「{line._unmatched.company}」は未登録です。
+                      {#if ( !line._unmatched.companyId )}
+                      <a href="/company/new?name={encodeURIComponent(line._unmatched.company)}" target="_blank">取引先登録</a>
+                      {''}
+                      {/if}
+                      <a href="/expense/home?{[
+                        line._unmatched.companyId ? `payeeCompany=${line._unmatched.companyId}` : '',
+                        `payeeName=${encodeURIComponent(line._unmatched.companyName || line._unmatched.company)}`,
+                        `payeeKey=${encodeURIComponent(line._unmatched.company)}`
+                      ].filter((p) => p).join('&')}" target="_blank">支払先登録</a>
+                      （別タブで登録後、この行の「AI読み取り」で再認識）
+                    </div>
                   {/if}
                 </td>
                 <td class="number input">
@@ -1099,6 +1114,7 @@ const aiRead = async (line) => {
   if ( line._aiBusy ) return;
   line._aiBusy = true;
   line._aiSecs = 0;
+  line._unmatched = null;
   report.lines = [...report.lines];
   // 経過秒数を表示する（進んでいるか固まっているかの切り分け用）
   const startedAt = Date.now();
@@ -1168,10 +1184,15 @@ const aiRead = async (line) => {
     if ( values.company ) {
       if ( payee ) {
         line.payeeMappingId = payee.id;
-      } else if ( matched ) {
-        toast.show('経費精算', `取引先「${values.company}」の支払先マッピングが未登録です。経理担当者に連絡してください。`, 'warning');
       } else {
-        toast.show('経費精算', `支払先「${values.company}」が取引先に見つかりません。手動で選択してください。`, 'warning');
+        // 未登録は行内に残す（トーストは消えるので読めない）。
+        // 登録画面へは別タブ遷移（未保存の明細を失わないため）＋初期値付き
+        line._unmatched = {
+          company: values.company,
+          companyId: ( values.companyId != null ) ? values.companyId :
+            ( matched ? matched.id : null ),
+          companyName: matched ? matched.name : null
+        };
       }
     }
     report.lines = [...report.lines];

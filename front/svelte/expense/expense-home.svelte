@@ -105,6 +105,7 @@
         endpoint={'/api/expense_mapping/payee'}
         accounts={accounts}
         bind:minimize={payeeMinimize}
+        initialRow={payeeInitial}
         columns={[
           { type: "id", name: 'id'},
           { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
@@ -163,6 +164,22 @@ let accounts = [];
 let unsorted = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
+
+// 支払先マッピングの初期値付き遷移用（?payeeCompany=&payeeName=&payeeKey=）。
+// 精算書のAI読み取りで未登録だった支払先を、その場で登録できるようにする
+let payeeInitial = null;
+{
+  const params = new URLSearchParams(location.search);
+  const company = params.get('payeeCompany');
+  const name = params.get('payeeName');
+  const key = params.get('payeeKey');
+  if ( company || name || key ) {
+    payeeInitial = {};
+    if ( company ) payeeInitial.companyId = parseInt(company);
+    if ( name ) payeeInitial.name = name;
+    if ( key ) payeeInitial.key = key;
+  }
+}
 
 // 画像プレビュー（モーダル）。PDFは別タブ表示のまま
 let preview = null;

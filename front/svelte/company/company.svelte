@@ -67,6 +67,10 @@ const checkPage = (page) => {
         } else {
           let params = new URLSearchParams(location.search);
           company.companyClassId = params.get('kind') ? parseInt(params.get('kind')) : undefined;
+          // 証憑OCR等からの遷移用に名前の初期値を受ける（?name=）
+          if ( params.get('name') ) {
+            company.name = params.get('name');
+          }
           currentCompany.set(company);
         }
       }

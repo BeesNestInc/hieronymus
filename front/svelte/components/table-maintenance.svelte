@@ -47,6 +47,8 @@ export let endpoint = '';
 export let columns = [];
 export let accounts = [];
 export let minimize;
+// 新規行の初期値（例: 別画面からの遷移で1行だけ埋めた状態にする）
+export let initialRow = null;
 
 let table = [];
 let kinds = [];
@@ -100,6 +102,21 @@ onMount(() => {
   axios.get(endpoint).then((result) => {
     kinds = result.data.values;
     table = buffered(structuredClone(kinds));
+    // 初期値付き遷移: 同内容の行がなければ空行に埋める（保存はユーザーが行う）
+    if ( initialRow ) {
+      const exists = table.some((row) => {
+        return Object.keys(initialRow).every((k) => ( row[k] == initialRow[k] ));
+      });
+      if ( !exists ) {
+        const blank = table.find((row) => ( !row.id ));
+        if ( blank ) {
+          Object.assign(blank, structuredClone(initialRow));
+        } else {
+          table = [ ...table, structuredClone(initialRow) ];
+        }
+        table = table;
+      }
+    }
   })
   columnsUpdate();
   eventBus.on('update', async () => {
