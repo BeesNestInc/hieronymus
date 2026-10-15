@@ -206,9 +206,15 @@
                     <div class="d-flex align-items-start">
                       <div class="me-1">
                         {#if ( pf.url )}
-                        <img src={pf.url} class="thumb"/>
+                        <button type="button" class="thumb-button" title="クリックで拡大表示"
+                          on:click={() => { openPreviewRaw(pf.url, pf.name); }}>
+                          <img src={pf.url} class="thumb"/>
+                        </button>
                         {:else}
-                        <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                        <button type="button" class="thumb-button" title="クリックで別タブ表示"
+                          on:click={() => { window.open(pf.blobUrl, '_blank'); }}>
+                          <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                        </button>
                         {/if}
                       </div>
                       <div class="pending-name">
@@ -788,6 +794,10 @@ const openPreview = (voucher, file) => {
     title: fileTitle(voucher, file)
   };
 };
+// 未保存のペンディングファイル用（object URLを直接表示）
+const openPreviewRaw = (src, title) => {
+  preview = { src: src, title: title || '証憑' };
+};
 
 // 未整理証憑のまるっとアップロード（複数ファイル可）。
 // 精算書が未保存の場合はどこにも紐付かない浮遊証憑として登録する。
@@ -1026,14 +1036,22 @@ const onDragLeave = (event) => {
 };
 
 const addPendingFiles = (line, files) => {
+  if ( line.voucherId ) {
+    // 1行1証憑のため、紐付け済みの行への追加は拒否する
+    // （黙って受け取ると保存時に捨てられて「消えた」に見える）
+    toast.show('経費精算', 'この行には既に証憑が紐付いています。別の行にドロップするか、紐付けを解除してください。', 'warning');
+    return;
+  }
   if ( !line.pendingFiles ) {
     line.pendingFiles = [];
   }
   for ( let i = 0; i < files.length; i ++ ) {
+    const blobUrl = URL.createObjectURL(files[i]);
     line.pendingFiles.push({
       name: files[i].name,
       blob: files[i],
-      url: ( files[i].type && files[i].type.match(/^image\//) ) ? URL.createObjectURL(files[i]) : null
+      url: ( files[i].type && files[i].type.match(/^image\//) ) ? blobUrl : null,
+      blobUrl: blobUrl
     });
   }
   report.lines = report.lines;
@@ -1045,6 +1063,9 @@ const removePendingFile = (line, index) => {
     if ( pf.url ) {
       URL.revokeObjectURL(pf.url);
     }
+    if ( pf.blobUrl && pf.blobUrl !== pf.url ) {
+      URL.revokeObjectURL(pf.blobUrl);
+    }
   }
   report.lines = report.lines;
 };
@@ -1055,6 +1076,9 @@ const clearPending = (line) => {
   for ( const pf of line.pendingFiles ) {
     if ( pf.url ) {
       URL.revokeObjectURL(pf.url);
+    }
+    if ( pf.blobUrl && pf.blobUrl !== pf.url ) {
+      URL.revokeObjectURL(pf.blobUrl);
     }
   }
   delete line.pendingFiles;
