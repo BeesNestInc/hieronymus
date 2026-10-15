@@ -39,12 +39,15 @@
               <span class="badge bg-success">済</span>
               {:else}
               <span class="badge bg-warning text-dark">承認待ち</span>
+              {/if}
               {#if ( editable )}
               <button type="button" class="btn btn-sm btn-outline-danger"
-                on:click={deleteSlip} title="紐付伝票が未処理のまま残っています。削除できます。">
+                on:click={deleteSlip}
+                title={report.crossSlip.approvedAt ?
+                  '承認を取り消して紐付伝票を削除します（会計権限が必要）。' :
+                  '紐付伝票が未処理のまま残っています。削除できます。'}>
                 <i class="bi bi-trash"></i>&nbsp;伝票削除
               </button>
-              {/if}
               {/if}
             </div>
             {/if}
