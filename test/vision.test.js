@@ -92,7 +92,7 @@ describe('vision', () => {
       seenBody = JSON.parse(opts.body);
       const payload = {
         candidates: [{
-          content: { role: 'model', parts: [{ text: '{"company":"テスト商事","amount":1100,"tax":100}' }] },
+          content: { role: 'model', parts: [{ text: '{"company":"テスト商事","companyId":2,"amount":1100,"tax":100}' }] },
           finishReason: 'STOP'
         }],
         usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
@@ -113,7 +113,7 @@ describe('vision', () => {
 
   it('openai-compatible: /chat/completionsに問い合わせる（キーなし可）', async () => {
     const { server, port, requests } = await startStub(() => {
-      return [200, chatCompletion('{"company":"テスト商事","amount":1100}')];
+      return [200, chatCompletion('{"company":"テスト商事","companyId":2,"amount":1100}')];
     });
     try {
       process.env.LLM_PROVIDER = 'openai-compatible';
@@ -194,76 +194,59 @@ describe('vision', () => {
   });
 });
 
-describe('vision.resolveCompany', () => {
-  const companies = [
-    { id: 3, name: '中国電力' },
-    { id: 47, name: '大田市水道局' }
-  ];
-
-  it('完全一致で解決する（LLM不要）', async () => {
-    const r = await vision.resolveCompany('中国電力', companies);
-    assert.deepEqual([r.company.id, r.method], [3, 'exact']);
-  });
-
-  it('部分一致で解決する（LLM不要）', async () => {
-    const r = await vision.resolveCompany('中国電力株式会社', companies);
-    assert.deepEqual([r.company.id, r.method], [3, 'includes']);
-  });
-
-  it('不一致はLLM判定に回す', async () => {
-    const { server, port } = await startStub(() => {
-      return [200, chatCompletion('{"companyId":47}')];
-    });
-    const orig = {
+describe('vision.extract with companies', () => {
+  let origEnv;
+  beforeEach(() => {
+    origEnv = {
       LLM_PROVIDER: process.env.LLM_PROVIDER,
       LLM_MODEL: process.env.LLM_MODEL,
       LLM_BASE_URL: process.env.LLM_BASE_URL,
       LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
     };
-    try {
-      process.env.LLM_PROVIDER = 'openai-compatible';
-      process.env.LLM_MODEL = 'test-vision';
-      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
-      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
-      const r = await vision.resolveCompany('大田市水道事業', companies);
-      assert.deepEqual([r.company.id, r.method], [47, 'ai']);
-    } finally {
-      for ( const k of Object.keys(orig) ) {
-        if ( orig[k] === undefined ) {
-          delete process.env[k];
-        } else {
-          process.env[k] = orig[k];
-        }
+    process.env.LLM_PROVIDER = 'openai-compatible';
+    process.env.LLM_MODEL = 'test-vision';
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    delete process.env.LLM_API_KEY;
+  });
+  afterEach(() => {
+    for ( const k of Object.keys(origEnv) ) {
+      if ( origEnv[k] === undefined ) {
+        delete process.env[k];
+      } else {
+        process.env[k] = origEnv[k];
       }
+    }
+  });
+
+  it('候補をプロンプトに載せてcompanyIdまで一発で取る', async () => {
+    const { server, port, requests } = await startStub(() => {
+      return [200, chatCompletion('{"company":"大田市水道事業","companyId":47,"amount":7195}')];
+    });
+    try {
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      const values = await vision.extract(PNG, 'image/png', {
+        companies: [{ id: 3, name: '中国電力' }, { id: 47, name: '大田市水道局' }]
+      });
+      assert.strictEqual(requests.length, 1);
+      const text = requests[0].body.messages[0].content.find((p) => p.type === 'text').text;
+      assert.include(text, '47: 大田市水道局');
+      assert.strictEqual(values.company, '大田市水道事業');
+      assert.strictEqual(values.companyId, 47);
+    } finally {
       server.close();
     }
   });
 
-  it('LLMが該当なしならnull', async () => {
+  it('候補なしでも従来通り抽出できる', async () => {
     const { server, port } = await startStub(() => {
-      return [200, chatCompletion('{"companyId":null}')];
+      return [200, chatCompletion('{"company":"テスト商事","companyId":null,"amount":1100}')];
     });
-    const orig = {
-      LLM_PROVIDER: process.env.LLM_PROVIDER,
-      LLM_MODEL: process.env.LLM_MODEL,
-      LLM_BASE_URL: process.env.LLM_BASE_URL,
-      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
-    };
     try {
-      process.env.LLM_PROVIDER = 'openai-compatible';
-      process.env.LLM_MODEL = 'test-vision';
       process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
-      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
-      const r = await vision.resolveCompany('どこにもない会社', companies);
-      assert.isNull(r);
+      const values = await vision.extract(PNG, 'image/png');
+      assert.strictEqual(values.company, 'テスト商事');
+      assert.isNull(values.companyId);
     } finally {
-      for ( const k of Object.keys(orig) ) {
-        if ( orig[k] === undefined ) {
-          delete process.env[k];
-        } else {
-          process.env[k] = orig[k];
-        }
-      }
       server.close();
     }
   });

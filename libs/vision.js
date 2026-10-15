@@ -57,7 +57,7 @@ export const isAvailable = () => {
 const PROMPT_BASE = [
   'この帳票から 会社名/発行日/支払日/金額/消費税/税率/請求番号/取引内容 を読み取り、',
   '以下のJSON形式で出力してください:',
-  '{"company":"...","issueDate":"...","paymentDate":"...","amount":...,"tax":...,"taxRate":...,"invoiceNo":"...","description":"..."}',
+  '{"company":"...","companyId":...,"issueDate":"...","paymentDate":"...","amount":...,"tax":...,"taxRate":...,"invoiceNo":"...","description":"..."}',
   '不明な項目は null。金額は数値（金額は税込の合計額、その内訳が消費税）。日付は YYYY-MM-DD 形式。JSON以外の出力はしないこと。',
   '会社名は請求元・帳票の発行者（お金を支払う相手）とする。',
   '「お支払者名」「お客様名」「ご契約者」「お名前」欄に書かれた名前（支払う側）は会社名にしないこと。'
@@ -65,16 +65,30 @@ const PROMPT_BASE = [
 
 // 自社名を取得してプロンプトに除外指定を足す（読取失敗時は付けない）。
 // 例: 電気料金受領証の「お支払者名 BeesNest合同会社」を会社名にしない。
-const buildPrompt = async () => {
+// companies（[{id, name}]）があれば候補一覧を載せ、companyIdまで一発で
+// 選ばせる（表記ゆれはモデルに吸収させる。2ステップに分けない）。
+const buildPrompt = async (companies) => {
+  const lines = [ PROMPT_BASE ];
   try {
     const { default: myCompany } = await import('./my-company.js');
     const self = await myCompany();
     if ( self && self.name ) {
-      return PROMPT_BASE + `\n「${self.name}」は自社（支払う側）なので会社名にしないこと。`;
+      lines.push(`「${self.name}」は自社（支払う側）なので会社名にしないこと。`);
     }
   } catch (e) {
   }
-  return PROMPT_BASE;
+  const list = ( companies || [] ).filter((c) => ( c && c.name ));
+  if ( list.length > 0 ) {
+    lines.push(
+      '以下の取引先候補の中から、この帳票の支払先（請求元）に該当するものを選び、',
+      'companyId にそのIDを入れること。表記ゆれ（株式会社/㈱、事業/局、',
+      '略称、英語表記など）は同一とみなす。該当がなければ companyId は null とし、',
+      'company には帳票に書かれた表記をそのまま入れること。',
+      '候補:',
+      ...list.map((c) => `${c.id}: ${c.name}`)
+    );
+  }
+  return lines.join('\n');
 };
 
 // 抽出スキーマ（構造化出力用。読めない項目はnullを許す）
@@ -82,6 +96,7 @@ const VOUCHER_SCHEMA = jsonSchema({
   type: 'object',
   properties: {
     company: { type: ['string', 'null'] },
+    companyId: { type: ['number', 'null'] },
     issueDate: { type: ['string', 'null'] },
     paymentDate: { type: ['string', 'null'] },
     amount: { type: ['number', 'null'] },
@@ -90,7 +105,7 @@ const VOUCHER_SCHEMA = jsonSchema({
     invoiceNo: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] }
   },
-  required: ['company', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
+  required: ['company', 'companyId', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
   additionalProperties: false
 });
 
@@ -192,7 +207,8 @@ const makeModel = (setting) => {
 };
 
 // 証憑ファイル（Buffer + mimeType）から帳票情報を抽出する。
-export const extract = async (buffer, mimeType) => {
+// options.companies（[{id, name}]）を渡すと、候補からcompanyIdまで一発で選ぶ。
+export const extract = async (buffer, mimeType, options = {}) => {
   const setting = settings();
   if ( !isAvailable() ) {
     const err = new Error('AIの設定がありません（config/llms.json）。');
@@ -206,7 +222,7 @@ export const extract = async (buffer, mimeType) => {
     type = 'image/png';
   }
   const model = makeModel(setting);
-  const prompt = await buildPrompt();
+  const prompt = await buildPrompt(options.companies);
   const messages = [{
     role: 'user',
     content: [
@@ -233,72 +249,7 @@ export const extract = async (buffer, mimeType) => {
   }
 };
 
-// OCRで読んだ会社名を取引先マスタに突き合わせる。
-// 完全一致→部分一致で決まらなければLLMに判定させる（表記ゆれの吸収）。
-// companies: [{id, name}]。返すのは {company, method}（見つからなければnull）。
-// method: 'exact' / 'includes' / 'ai'
-export const resolveCompany = async (ocrName, companies) => {
-  const norm = (s) => ( ( s || '' ).trim() );
-  const name = norm(ocrName);
-  if ( !name ) {
-    return null;
-  }
-  const list = companies || [];
-  const exact = list.find((c) => ( norm(c.name) === name ));
-  if ( exact ) {
-    return { company: exact, method: 'exact' };
-  }
-  const partial = list.find((c) => ( norm(c.name) &&
-    ( norm(c.name).includes(name) || name.includes(norm(c.name)) ) ));
-  if ( partial ) {
-    return { company: partial, method: 'includes' };
-  }
-  // LLM判定（常識的な表記ゆれ吸収）。失敗時はnull（呼び出し側で警告に落とす）
-  try {
-    const setting = settings();
-    if ( !isAvailable() ) {
-      return null;
-    }
-    const model = makeModel(setting);
-    const candidates = list
-      .filter((c) => norm(c.name))
-      .map((c) => `${c.id}: ${norm(c.name)}`)
-      .join('\n');
-    if ( !candidates ) {
-      return null;
-    }
-    const prompt = [
-      '以下の取引先候補の中から、「' + name + '」に該当するものを1つ選んでください。',
-      '表記ゆれ（株式会社/㈱、事業/局、略称、英語表記など）は同一とみなしてかまいません。',
-      '該当がなければ companyId を null にしてください。',
-      '候補:',
-      candidates
-    ].join('\n');
-    const schema = jsonSchema({
-      type: 'object',
-      properties: { companyId: { type: ['number', 'null'] } },
-      required: ['companyId'],
-      additionalProperties: false
-    });
-    const result = await generateObject({
-      model: model,
-      schema: schema,
-      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
-      maxRetries: 1
-    });
-    const id = result.object && result.object.companyId;
-    if ( id == null ) {
-      return null;
-    }
-    const company = list.find((c) => ( c.id === id ));
-    return company ? { company: company, method: 'ai' } : null;
-  } catch (e) {
-    return null;
-  }
-};
-
 export default {
   isAvailable: isAvailable,
-  extract: extract,
-  resolveCompany: resolveCompany
+  extract: extract
 };

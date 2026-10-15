@@ -628,28 +628,33 @@ export default {
         buffer = voucher.files[0].body;
         mimeType = voucher.files[0].mimeType;
       }
-      const data = await vision.extract(buffer, mimeType);
+      // 取引先候補を渡してOCRと同時にcompanyIdまで選ばせる（一発抽出）。
+      // companyIdが候補外・nullの場合は、LLMなしの完全一致・部分一致で補完する
+      const companies = await models.Company.findAll({
+        attributes: [ 'id', 'name' ]
+      });
+      const data = await vision.extract(buffer, mimeType, {
+        companies: companies.map((c) => ({ id: c.id, name: c.name }))
+      });
       if ( !data ) {
         res.status(422).json({ code: -2, message: '帳票情報を読み取れませんでした。' });
         return;
       }
-      // OCR会社名を取引先マスタに突き合わせる（完全一致→部分一致→LLM判定）。
-      // 解決できたら companyId を付けて返す（フロントは支払先解決に使う）
       let companyId = null;
       let matchMethod = null;
-      if ( data.company ) {
-        try {
-          const companies = await models.Company.findAll({
-            attributes: [ 'id', 'name' ]
-          });
-          const resolved = await vision.resolveCompany(data.company,
-            companies.map((c) => ({ id: c.id, name: c.name })));
-          if ( resolved ) {
-            companyId = resolved.company.id;
-            matchMethod = resolved.method;
-          }
-        } catch (e) {
-          console.log('resolveCompany failed:', e.message);
+      const validIds = new Set(companies.map((c) => c.id));
+      if (( data.companyId != null ) && validIds.has(data.companyId)) {
+        companyId = data.companyId;
+        matchMethod = 'ai';
+      } else if ( data.company ) {
+        const norm = (s) => ( ( s || '' ).trim() );
+        const exact = companies.find((c) => ( norm(c.name) === norm(data.company) ));
+        const partial = exact || companies.find((c) => ( norm(c.name) &&
+          ( norm(c.name).includes(norm(data.company)) ||
+            norm(data.company).includes(norm(c.name)) ) ));
+        if ( partial ) {
+          companyId = partial.id;
+          matchMethod = partial === exact ? 'exact' : 'includes';
         }
       }
       res.json({ values: { ...data, companyId: companyId, matchMethod: matchMethod } });
