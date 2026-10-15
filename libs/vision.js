@@ -1,6 +1,9 @@
 import fs from 'fs';
+import { generateObject, generateText, jsonSchema } from 'ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
-// AI（LLM）による証憑OCR。
+// AI（LLM）による証憑OCR。Vercel AI SDKを使う。
 // vision用途に固定した単一モデルを使う（自動切替はしない）。
 // 設定は config/llms.json（Sequelize用の config.json とは別ファイル）:
 //   {
@@ -49,6 +52,21 @@ const PROMPT = [
   '不明な項目は null。金額は数値。日付は YYYY-MM-DD 形式。JSON以外の出力はしないこと。'
 ].join('\n');
 
+// 抽出スキーマ（構造化出力用。読めない項目はnullを許す）
+const VOUCHER_SCHEMA = jsonSchema({
+  type: 'object',
+  properties: {
+    company: { type: ['string', 'null'] },
+    issueDate: { type: ['string', 'null'] },
+    paymentDate: { type: ['string', 'null'] },
+    amount: { type: ['number', 'null'] },
+    tax: { type: ['number', 'null'] },
+    taxRate: { type: ['number', 'null'] },
+    invoiceNo: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'] }
+  }
+});
+
 // JSON部分の抽出（コードフェンスや前後の説明文の混入対策）
 const extractJson = (text) => {
   if ( !text ) return null;
@@ -90,72 +108,39 @@ const pdfToPng = async (buffer) => {
   }
 };
 
-// Gemini API (generativelanguage) による画像/PDF読み取り
-const geminiExtract = async (buffer, mimeType, setting) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${setting.model}:generateContent`;
-  const body = {
-    contents: [{
-      parts: [
-        { text: PROMPT },
-        { inlineData: { mimeType: mimeType, data: buffer.toString('base64') } }
-      ]
-    }]
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': setting.apiKey
-    },
-    body: JSON.stringify(body)
-  });
-  if ( !res.ok ) {
-    const err = new Error(`AI API error: ${res.status}`);
-    err.name = 'AiApiError';
-    throw err;
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('') || '';
-  return extractJson(text);
+const aiApiError = (e) => {
+  const status = e && ( e.statusCode || e.status );
+  const err = new Error(`AI API error${status ? `: ${status}` : ''}`);
+  err.name = 'AiApiError';
+  err.cause = e;
+  return err;
 };
 
-// OpenAI互換API（/chat/completions）による画像読み取り。
-// OpenAI本家・LM Studio等のローカルLLM・各種ゲートウェイが対象。
-const openaiCompatibleExtract = async (buffer, mimeType, setting) => {
-  if ( !setting.baseURL ) {
-    const err = new Error('openai-compatible の接続先がありません（config.llms.baseURL）。');
-    err.name = 'AiNotConfigured';
-    throw err;
+// 設定からAI SDKのモデルを作る。固定の単一モデル（切替なし）
+const makeModel = (setting) => {
+  switch ( setting.provider ) {
+    case 'gemini':
+      // isAvailable() がキーを保証する。キーはプロバイダ生成時に渡す
+      return createGoogleGenerativeAI({ apiKey: setting.apiKey })(setting.model);
+    case 'openai-compatible': {
+      if ( !setting.baseURL ) {
+        const err = new Error('openai-compatible の接続先がありません（config/llms.json の baseURL）。');
+        err.name = 'AiNotConfigured';
+        throw err;
+      }
+      const provider = createOpenAICompatible({
+        baseURL: setting.baseURL,
+        ...(setting.apiKey ? { apiKey: setting.apiKey } : {}),
+        name: 'hieronymus'
+      });
+      return provider(setting.model);
+    }
+    default: {
+      const err = new Error(`未対応のAIプロバイダ: ${setting.provider}`);
+      err.name = 'AiApiError';
+      throw err;
+    }
   }
-  const url = `${setting.baseURL.replace(/\/+$/, '')}/chat/completions`;
-  const body = {
-    model: setting.model,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'text', text: PROMPT },
-        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${buffer.toString('base64')}` } }
-      ]
-    }],
-    response_format: { type: 'json_object' }
-  };
-  const headers = { 'Content-Type': 'application/json' };
-  if ( setting.apiKey ) {
-    headers['Authorization'] = `Bearer ${setting.apiKey}`;
-  }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify(body)
-  });
-  if ( !res.ok ) {
-    const err = new Error(`AI API error: ${res.status}`);
-    err.name = 'AiApiError';
-    throw err;
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content || '';
-  return extractJson(text);
 };
 
 // 証憑ファイル（Buffer + mimeType）から帳票情報を抽出する。
@@ -172,15 +157,30 @@ export const extract = async (buffer, mimeType) => {
     data = await pdfToPng(buffer);
     type = 'image/png';
   }
-  switch ( setting.provider ) {
-    case 'gemini':
-      return geminiExtract(data, type, setting);
-    case 'openai-compatible':
-      return openaiCompatibleExtract(data, type, setting);
-    default:
-      const err = new Error(`未対応のAIプロバイダ: ${setting.provider}`);
-      err.name = 'AiApiError';
-      throw err;
+  const model = makeModel(setting);
+  const messages = [{
+    role: 'user',
+    content: [
+      { type: 'text', text: PROMPT },
+      { type: 'image', image: `data:${type};base64,${data.toString('base64')}` }
+    ]
+  }];
+  // 第一経路: 構造化出力。失敗したらテキスト+サルベージに落とす。
+  // リトライは1回まで（プロバイダ切替はしない。失敗時は再認識ボタンで再実行）
+  try {
+    const result = await generateObject({ model: model, schema: VOUCHER_SCHEMA, messages: messages, maxRetries: 1 });
+    return result.object;
+  } catch (e) {
+    // API呼び出し自体の失敗は即時送出（リトライ・切替はしない）
+    if ( e && (( e.name === 'AI_APICallError' ) || e.statusCode || e.status )) {
+      throw aiApiError(e);
+    }
+    try {
+      const result = await generateText({ model: model, messages: messages, maxRetries: 1 });
+      return extractJson(result.text);
+    } catch (e2) {
+      throw aiApiError(e2);
+    }
   }
 };
 

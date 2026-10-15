@@ -16,6 +16,8 @@
 	"author": "ogochan@beesnest-inc.com",
 	"license": "AGPL-3.0-or-later",
 	"dependencies": {
+		"@ai-sdk/google": "^3.0.133",
+		"@ai-sdk/openai-compatible": "^2.0.83",
 		"@codemirror/lang-javascript": "^6.2.4",
 		"@codemirror/lang-markdown": "^6.3.2",
 		"@formkit/tempo": "^0.1.2",
@@ -25,6 +27,7 @@
 		"@roxi/routify": "^2.18.18",
 		"@sveltejs/vite-plugin-svelte": "^3.1.2",
 		"@tinymce/tinymce-svelte": "^3.0.0",
+		"ai": "^6.0.307",
 		"axios": "^1.7.7",
 		"bcrypt": "^5.0.1",
 		"bootstrap": "^5.0.1",
