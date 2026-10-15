@@ -635,7 +635,9 @@ const approve = async (event) => {
       approvedAt: new Date()
     });
     if ( result.data.code === 0 ) {
-      if ( result.data.reuse ) {
+      if ( result.data.slipApproved ) {
+        toast.show('経費精算', '承認しました。伝票も確定しました。');
+      } else if ( result.data.reuse ) {
         toast.show('経費精算', '承認しました。既存の伝票を更新しました。');
       } else {
         toast.show('経費精算', '承認しました。仕訳伝票を起票しました。');

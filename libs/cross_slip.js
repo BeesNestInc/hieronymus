@@ -174,7 +174,7 @@ export const update = async (slip, body, user, options = {}) => {
     slip.approvedAt = new Date();
     slip.approvedBy = user.id;
   }
-  slip.save();
+  await slip.save();
   await models.CrossSlipDetail.destroy({
     where: {
       crossSlipId: slip.id

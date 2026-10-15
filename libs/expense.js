@@ -179,6 +179,10 @@ export const createSlipForReport = async (report, lines, approver) => {
   }
 
   // 既存の紐付伝票が未承納なら「更新」として再利用する（伝票番号を増やさない）
+  // 承認者が会計権限を持つ場合は伝票も同時承認する（精算書の承認＝伝票の承認）。
+  // 会計権限なしの承認者（上長等）の場合は従来通り未承認のまま残す。
+  // approvableも条件にする（伝票の承認自体がapprovable前提のため）。
+  const simultaneous = Boolean(approver.accounting && approver.approvable);
   if ( report.crossSlipId ) {
     const existing = await models.CrossSlip.findByPk(report.crossSlipId);
     if (( existing ) && ( !existing.approvedAt ) &&
@@ -189,8 +193,8 @@ export const createSlipForReport = async (report, lines, approver) => {
         day: day,
         lines: slipLines,
         term: ctx.fy.term
-      }, approver, { keepUnapproved: true });
-      return { slip: existing, reuse: true };
+      }, approver, { keepUnapproved: !simultaneous });
+      return { slip: existing, reuse: true, slipApproved: simultaneous };
     }
     // 既存伝票が承認済み/別月のときは新しい伝票を起票する
   }
@@ -201,10 +205,10 @@ export const createSlipForReport = async (report, lines, approver) => {
     day: day,
     lines: slipLines,
     term: ctx.fy.term
-  }, approver, { forceUnapproved: true });
+  }, approver, { forceUnapproved: !simultaneous });
   report.crossSlipId = slip.id;
   await report.save();
-  return { slip: slip, reuse: false };
+  return { slip: slip, reuse: false, slipApproved: simultaneous };
 };
 
 export default {

@@ -1,4 +1,5 @@
 import {assert} from 'chai';
+import bcrypt from 'bcrypt';
 import models from '../models/index.js';
 import seed from './seed.js';
 import {createSlipForReport} from '../libs/expense.js';
@@ -19,6 +20,7 @@ describe('expense (test db)', () => {
   let expenseAccount;
   let payeeMapping;
   let paymentMapping;
+  let approverNoAcct;
 
   before(async () => {
     // e2e.test.js が先に走ると接続プールがclose済みのため、必要なら再初期化する
@@ -76,6 +78,20 @@ describe('expense (test db)', () => {
       account: '1130000',
       advance: true,
     });
+    // 会計権限なしの承認者（上長想定。伝票は未承認のまま残す）
+    approverNoAcct = await findOrCreate(models.User, {
+      name: 'approver-noacct'
+    }, {
+      name: 'approver-noacct',
+      hashPassword: bcrypt.hashSync('secret', 10),
+      accounting: false,
+      approvable: true,
+      fiscalBrowsing: false,
+      administrable: false,
+      companyManagement: false,
+      inventoryManagement: false,
+      personnelManagement: false
+    });
   });
 
   after(async () => {
@@ -120,7 +136,7 @@ describe('expense (test db)', () => {
     }
   };
 
-  it('承認時の自動起票: 未承認伝票が作られ仮払金の補助科目（立替者）が解決される', async () => {
+  it('承認時の自動起票: 会計権限の承認者は伝票も同時承認される', async () => {
     const report = await buildReport(data.creator.id);
     const line = await buildLine(report);
     const lines = await models.ExpenseReportLine.findAll({
@@ -131,9 +147,11 @@ describe('expense (test db)', () => {
     try {
       const slip = result.slip;
       assert.equal(result.reuse, false);
+      assert.equal(result.slipApproved, true);
       const saved = await models.CrossSlip.findByPk(slip.id);
       assert.ok(saved);
-      assert.equal(saved.approvedAt, null);
+      assert.ok(saved.approvedAt);
+      assert.equal(saved.approvedBy, data.approver.id);
       assert.equal(saved.createdBy, data.approver.id);
       assert.equal(report.crossSlipId, slip.id);
 
@@ -149,6 +167,26 @@ describe('expense (test db)', () => {
       const debitTotal = details.reduce((s, d) => s + Number(d.debitAmount), 0);
       const creditTotal = details.reduce((s, d) => s + Number(d.creditAmount), 0);
       assert.equal(debitTotal, creditTotal);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('承認時の自動起票: 会計権限なしの承認者は従来通り未承認伝票が作られる', async () => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report);
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const result = await createSlipForReport(report, lines, approverNoAcct);
+    try {
+      assert.equal(result.reuse, false);
+      assert.equal(result.slipApproved, false);
+      const saved = await models.CrossSlip.findByPk(result.slip.id);
+      assert.ok(saved);
+      assert.equal(saved.approvedAt, null);
+      assert.equal(saved.createdBy, approverNoAcct.id);
     } finally {
       await cleanup(report);
     }
@@ -240,17 +278,49 @@ describe('expense (test db)', () => {
       where: { expenseReportId: report.id },
       order: [['lineNo', 'ASC']]
     });
-    const first = await createSlipForReport(report, lines, data.approver);
+    // 会計権限なしの承認者で未承認伝票を作る（再利用の条件）
+    const first = await createSlipForReport(report, lines, approverNoAcct);
     try {
       const firstSlip = first.slip;
       assert.equal(first.reuse, false);
 
-      // 不承認を模擬（approvedAtをnullに戻す）
-      const saved = await models.CrossSlip.findByPk(firstSlip.id);
-      saved.approvedAt = null;
-      await saved.save();
+      // 精算書の明細を修正して再承認（会計権限なし→未承認のまま再利用）
+      await models.ExpenseReportLine.destroy({ where: { expenseReportId: report.id } });
+      await buildLine(report, { amount: 4500 });
+      lines = await models.ExpenseReportLine.findAll({
+        where: { expenseReportId: report.id },
+        order: [['lineNo', 'ASC']]
+      });
+      const second = await createSlipForReport(report, lines, approverNoAcct);
+      assert.equal(second.reuse, true);
+      const secondSlip = second.slip;
+      assert.equal(secondSlip.id, firstSlip.id);
+      assert.equal(secondSlip.no, firstSlip.no);
+      assert.equal(secondSlip.year, firstSlip.year);
+      assert.equal(secondSlip.month, firstSlip.month);
+      // keepUnapproved（会計権限なし）により approvedAt は変更されない
+      const reloaded = await models.CrossSlip.findByPk(secondSlip.id);
+      assert.equal(reloaded.approvedAt, null);
+      const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: reloaded.id } });
+      assert.equal(details.length, 1);
+      assert.equal(Number(details[0].debitAmount), 4500);
+    } finally {
+      await cleanup(report);
+    }
+  });
 
-      // 精算書の明細を修正して再承認
+  it('再承認時、会計権限の承認者は再利用伝票も同時承認する', async () => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report);
+    let lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    // 会計権限なしで未承認伝票を作っておく
+    const first = await createSlipForReport(report, lines, approverNoAcct);
+    try {
+      assert.equal(first.reuse, false);
+      // 会計権限ありで明細修正＋再承認→同じ伝票番号のまま承認される
       await models.ExpenseReportLine.destroy({ where: { expenseReportId: report.id } });
       await buildLine(report, { amount: 4500 });
       lines = await models.ExpenseReportLine.findAll({
@@ -259,17 +329,11 @@ describe('expense (test db)', () => {
       });
       const second = await createSlipForReport(report, lines, data.approver);
       assert.equal(second.reuse, true);
-      const secondSlip = second.slip;
-      assert.equal(secondSlip.id, firstSlip.id);
-      assert.equal(secondSlip.no, firstSlip.no);
-      assert.equal(secondSlip.year, firstSlip.year);
-      assert.equal(secondSlip.month, firstSlip.month);
-      // keepUnapproved により approvedAt は変更されない
-      const reloaded = await models.CrossSlip.findByPk(secondSlip.id);
-      assert.equal(reloaded.approvedAt, null);
-      const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: reloaded.id } });
-      assert.equal(details.length, 1);
-      assert.equal(Number(details[0].debitAmount), 4500);
+      assert.equal(second.slip.id, first.slip.id);
+      assert.equal(second.slipApproved, true);
+      const reloaded = await models.CrossSlip.findByPk(second.slip.id);
+      assert.ok(reloaded.approvedAt);
+      assert.equal(reloaded.approvedBy, data.approver.id);
     } finally {
       await cleanup(report);
     }

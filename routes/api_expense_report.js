@@ -412,7 +412,9 @@ export default {
       next(e);
     }
   },
-  // 承認/不承認。承認時は仕訳伝票を自動起票（未承認・承認待ち）して関連付ける。
+  // 承認/不承認。承認時は仕訳伝票を自動起票して関連付ける。
+  // 承認者が会計権限を持つ場合は伝票も同時承認する（slipApproved: true）。
+  // そうでなければ伝票は未承認（承認待ち）のまま残る。
   // 再承認時、紐付伝票が未承納なら伝票番号を変えずに明細だけ更新する（reuse: true）。
   approve: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -447,6 +449,7 @@ export default {
           code: 0,
           id: report.id,
           reuse: result.reuse,
+          slipApproved: result.slipApproved,
           slipNo: {
             year: result.slip.year,
             month: result.slip.month,
