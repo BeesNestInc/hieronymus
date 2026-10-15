@@ -702,6 +702,32 @@ const gapLineSplits = async (img, mime, scale, w, h, bright, ww, wh) => {
  */
 export const splitImage = async (buffer, mimeType = 'image/png') => {
   const img = await Jimp.read(buffer);
+  const det = detectRegions(img, mimeType);
+  if ( !det ) {
+    return null;
+  }
+  const { mime, boxes, comps, ww, wh, scale, w, h, bg, thr, bright } = det;
+
+  // (1) blobパイプライン: 近接ボックスの統合 → bridge救済 → 正立化して切り出す
+  const parts = await blobParts(img, mime, comps, boxes, ww, wh, scale, w, h, bg, thr);
+  if ( parts ) {
+    return { mime, parts };
+  }
+
+  // (2) フォールバック: 白いシートに青の区切り線で連結して印刷された
+  //     帳票（電気料金の収納票など）を、区切り線の位置で分ける。
+  //     blobパイプラインで分けられなかった（1塊になる）ときだけ試す
+  const blueParts = await gapLineSplits(img, mime, scale, w, h, bright, ww, wh);
+  if ( blueParts ) {
+    return { mime, parts: blueParts };
+  }
+  debug('no split found');
+  return null;
+};
+
+// 前景領域の検出（split/trim共通）。背景色推定→Otsu→morphology→連結成分→
+// 面積フィルタまでを行い、ボックス一覧を返す。検出不可時は null
+const detectRegions = (img, mimeType = 'image/png') => {
   const mime = ( /^image\/jpe?g$/i.test(mimeType || '') ) ? 'image/jpeg' : 'image/png';
   const w = img.bitmap.width;
   const h = img.bitmap.height;
@@ -787,22 +813,62 @@ export const splitImage = async (buffer, mimeType = 'image/png') => {
   }
   debug('components:', comps.boxes.length, 'filtered:', boxes.length,
         'boxes:', boxes.map((b) => `(${b.x0},${b.y0})-(${b.x1},${b.y1})`));
+  return { mime, boxes, comps, ww, wh, scale, w, h, bg, thr, bright };
+};
 
-  // (1) blobパイプライン: 近接ボックスの統合 → bridge救済 → 正立化して切り出す
-  const parts = await blobParts(img, mime, comps, boxes, ww, wh, scale, w, h, bg, thr);
-  if ( parts ) {
-    return { mime, parts };
+// 1枚だけ写った証憑の背景を除去する（トリミング）。
+// 前景領域がちょうど1つに定まった場合だけ、タイトに切り出して正立させた
+// 画像を返す。0個・2個以上・切り出し失敗のときは null（分離・正立化に任せる）
+export const trimImage = async (buffer, mimeType = 'image/png') => {
+  const img = await Jimp.read(buffer);
+  const det = detectRegions(img, mimeType);
+  if ( !det ) {
+    return null;
   }
-
-  // (2) フォールバック: 白いシートに青の区切り線で連結して印刷された
-  //     帳票（電気料金の収納票など）を、区切り線の位置で分ける。
-  //     blobパイプラインで分けられなかった（1塊になる）ときだけ試す
-  const blueParts = await gapLineSplits(img, mime, scale, w, h, bright, ww, wh);
-  if ( blueParts ) {
-    return { mime, parts: blueParts };
+  const { mime, boxes, comps, ww, wh, scale, w, h, bg, thr } = det;
+  const merged = mergeBoxes(boxes, Math.round(ww * MERGE_RATIO));
+  if ( merged.length !== 1 ) {
+    debug('trim: regions', merged.length, '(need exactly 1)');
+    return null;
   }
-  debug('no split found');
-  return null;
+  const region = extractRegionFromMask(comps.labels, ww, merged[0].label);
+  if ( !region ) {
+    return null;
+  }
+  // bridgeで割れるものは分離案件なのでトリミング対象外
+  const subRegions = splitBridges(region, ww * wh);
+  if ( subRegions ) {
+    debug('trim: bridge splits, leave to split');
+    return null;
+  }
+  // 元画像全体がほぼ証憑（背景がほぼない）なら何もしない
+  if ( region.w * region.h >= ww * wh * TOO_FULL_RATIO ) {
+    debug('trim: almost full frame, nothing to do');
+    return null;
+  }
+  const margin = Math.max(2, Math.round(Math.min(w, h) * MARGIN_RATIO));
+  const cx0 = clamp(Math.floor(region.x0 / scale) - margin, 0, w - 1);
+  const cy0 = clamp(Math.floor(region.y0 / scale) - margin, 0, h - 1);
+  const cx1 = clamp(Math.ceil(( region.x0 + region.w ) / scale) + margin, 1, w);
+  const cy1 = clamp(Math.ceil(( region.y0 + region.h ) / scale) + margin, 1, h);
+  if ( cx1 - cx0 < 8 || cy1 - cy0 < 8 ) {
+    return null;
+  }
+  // 切り出し前とほぼ同じ大きさなら意味がない
+  if (( cx1 - cx0 >= w * 0.98 ) && ( cy1 - cy0 >= h * 0.98 )) {
+    debug('trim: crop almost equals original, nothing to do');
+    return null;
+  }
+  const crop = img.clone().crop({ x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 });
+  const tilt = estimateAngle(region);
+  if ( Math.abs(tilt) >= STRAIGHTEN_MIN_DEG ) {
+    const rot = crop.clone();
+    rot.background = ( bg[0] << 24 ) | ( bg[1] << 16 ) | ( bg[2] << 8 ) | 0xff;
+    rot.rotate(tilt);
+    const rc = reCrop(rot, bg, thr);
+    return { mime, buffer: await rc.getBuffer(mime) };
+  }
+  return { mime, buffer: await crop.getBuffer(mime) };
 };
 
 // blobパイプライン: 連結成分ごとに領域を取り出し、bridge救済→角度推定→正立化して切り出す。

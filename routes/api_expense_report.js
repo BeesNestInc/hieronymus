@@ -6,7 +6,7 @@ import { numeric } from '../libs/utils.js';
 import { createSlipForReport } from '../libs/expense.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
-import { splitImage, straightenImage, rotateImage } from '../libs/imaging.js';
+import { splitImage, straightenImage, trimImage, rotateImage } from '../libs/imaging.js';
 
 // 閲覧権限: 会計/承認権限ユーザーは全員の経費精算書を、
 // それ以外は自分が作成したもののみ扱える（既存の伝票承認パターンと同じ）。
@@ -308,7 +308,15 @@ export default {
       }
       const result = await splitImage(file.body, file.mimeType);
       if ( !result ) {
-        // 分離できなかった場合、傾いていれば1枚ものとして正立させ
+        // 1枚だけ写っている場合は背景を除去して切り出す（in-place差し替え）
+        const trimmed = await trimImage(file.body, file.mimeType);
+        if ( trimmed ) {
+          file.body = trimmed.buffer;
+          await file.save();
+          res.json({ code: 0, vouchers: [], trimmed: true });
+          return;
+        }
+        // 分離・切り出しができなかった場合、傾いていれば1枚ものとして正立させ
         // ファイルを差し替える（in-place補正）
         const st = await straightenImage(file.body, file.mimeType);
         if ( st ) {

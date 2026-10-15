@@ -355,7 +355,7 @@
                       <i class="bi bi-arrow-clockwise"></i>
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
-                      title="複数の証憑が写っている場合に分離します"
+                      title="複数の証憑が写っている場合は分離、1枚の場合は背景を除いて切り出します"
                       on:click={() => { splitPileVoucher(line); }}>
                       <i class="bi bi-scissors"></i>
                     </button>
@@ -854,7 +854,7 @@ const confirmModal = (title, description, reply) => {
 // （AI不使用の幾何検出。元の証憑は残り、不採用の切り出しは後から削除できる）
 const splitPileVoucher = async (voucher) => {
   const allowed = await confirmModal('経費精算',
-    'この証憑を分離しますか？<br/>複数の証憑が写っている場合、それぞれ個別の証憑として登録します。',
+    'この証憑を分離・切り出しますか？<br/>複数の証憑が写っている場合は個別の証憑に分け、1枚の場合は背景を除いて切り出します。',
     'expense-split-voucher');
   if ( !allowed ) {
     return;
@@ -864,7 +864,10 @@ const splitPileVoucher = async (voucher) => {
       voucherId: voucher.id
     });
     const count = ( result.data.vouchers || [] ).length;
-    if ( result.data.straightened ) {
+    if ( result.data.trimmed ) {
+      imageVersion += 1;
+      toast.show('経費精算', '背景を除いて証憑だけに切り出しました。');
+    } else if ( result.data.straightened ) {
       imageVersion += 1;
       toast.show('経費精算', '1枚の証憑のため分離はしませんでした。傾きを補正しました。');
     } else {

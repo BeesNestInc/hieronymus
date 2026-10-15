@@ -1,6 +1,6 @@
 import {assert} from 'chai';
 import {Jimp} from 'jimp';
-import {splitImage, straightenImage, rotateImage} from '../libs/imaging.js';
+import {splitImage, straightenImage, rotateImage, trimImage} from '../libs/imaging.js';
 
 // 黒地に白/赤の矩形を置いた合成画像で検出を検証する（実画像に依存しない）
 
@@ -165,6 +165,41 @@ describe('imaging (splitImage)', () => {
       [ 80, 60, 120, 80, 0xf8f8f8ff ]
     ]);
     const result = await straightenImage(buf, 'image/png');
+    assert.isNull(result);
+  });
+});
+
+describe('imaging (trimImage)', () => {
+  it('1枚だけ写った証憑の背景を除いて切り出す', async () => {
+    // 800x600の黒背景に白い矩形（300x400を中央に）
+    const buf = await makeImage(800, 600, [
+      [ 250, 100, 300, 400, 0xfafafaff ]
+    ]);
+    const result = await trimImage(buf, 'image/png');
+    assert.isNotNull(result);
+    const trimmed = await Jimp.read(result.buffer);
+    // 元より小さく、矩形＋マージン程度の大きさになる
+    assert.isBelow(trimmed.bitmap.width, 800);
+    assert.isBelow(trimmed.bitmap.height, 600);
+    assert.isAbove(trimmed.bitmap.width, 200);
+    assert.isAbove(trimmed.bitmap.height, 300);
+  });
+
+  it('2枚写っている場合は分離に任せて何もしない', async () => {
+    const buf = await makeImage(800, 600, [
+      [ 100, 100, 200, 300, 0xfafafaff ],
+      [ 500, 100, 200, 300, 0xfafafaff ]
+    ]);
+    const result = await trimImage(buf, 'image/png');
+    assert.isNull(result);
+  });
+
+  it('背景がほぼない画像には何もしない', async () => {
+    // ほぼ全面が前景
+    const buf = await makeImage(400, 300, [
+      [ 0, 0, 400, 300, 0xfafafaff ]
+    ]);
+    const result = await trimImage(buf, 'image/png');
     assert.isNull(result);
   });
 });
