@@ -48,11 +48,14 @@ describe('vision', () => {
   beforeEach(() => {
     origFetch = global.fetch;
     origEnv = {
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH,
       LLM_PROVIDER: process.env.LLM_PROVIDER,
       LLM_MODEL: process.env.LLM_MODEL,
       LLM_API_KEY: process.env.LLM_API_KEY,
       LLM_BASE_URL: process.env.LLM_BASE_URL
     };
+    // 実config/llms.jsonの影響を排除する（空設定のfixtureを使用）
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
     delete process.env.LLM_PROVIDER;
     delete process.env.LLM_MODEL;
     delete process.env.LLM_API_KEY;

@@ -17,6 +17,7 @@
 	"license": "AGPL-3.0-or-later",
 	"dependencies": {
 		"@ai-sdk/google": "^3.0.133",
+		"@ai-sdk/openai": "^3.0.128",
 		"@ai-sdk/openai-compatible": "^2.0.83",
 		"@codemirror/lang-javascript": "^6.2.4",
 		"@codemirror/lang-markdown": "^6.3.2",

@@ -1,25 +1,31 @@
 import fs from 'fs';
 import { generateObject, generateText, jsonSchema } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 // AI（LLM）による証憑OCR。Vercel AI SDKを使う。
 // vision用途に固定した単一モデルを使う（自動切替はしない）。
 // 設定は config/llms.json（Sequelize用の config.json とは別ファイル）:
 //   {
-//     "provider": "gemini",          // gemini / openai-compatible
+//     "provider": "gemini",          // gemini / openai / openai-compatible
 //     "model": "gemini-2.0-flash",
 //     "apiKey": "...",
-//     "baseURL": "https://api.openai.com/v1"   // openai-compatible のみ。ローカルは http://localhost:1234/v1 等
+//     "baseURL": "https://api.openai.com/v1",  // openai系のみ。ローカルは http://localhost:1234/v1 等
+//     "headers": {}                  // 任意。openai系のリクエストに付与する追加ヘッダ
 //   }
+// gemini以外はOpenAI互換API（/chat/completions）。`openai` は厳密な構造化出力に
+// 対応したモデル用（muse-spark等。Legionも同様に使い分けている）。
 // 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL でも指定できる（ファイルより優先）。
 // APIキーが未設定の場合 isAvailable() が false となり、AI機能は無効化される
 // （AIを利用しない運用の環境でも成立させるため、AI前提の処理にはしない）。
 // ただし openai-compatible で baseURL があればキーなしでも利用可（ローカルLLM想定）。
 
 const loadConfig = () => {
+  // テスト時は LLM_CONFIG_PATH でfixtureを指せる
+  const path = process.env.LLM_CONFIG_PATH || 'config/llms.json';
   try {
-    return JSON.parse(fs.readFileSync('config/llms.json', 'utf-8'));
+    return JSON.parse(fs.readFileSync(path, 'utf-8'));
   } catch (e) {
     return {};
   }
@@ -31,13 +37,14 @@ const settings = () => {
     provider: process.env.LLM_PROVIDER || llms.provider || 'gemini',
     model: process.env.LLM_MODEL || llms.model || 'gemini-2.0-flash',
     apiKey: process.env.LLM_API_KEY || llms.apiKey || '',
-    baseURL: process.env.LLM_BASE_URL || llms.baseURL || ''
+    baseURL: process.env.LLM_BASE_URL || llms.baseURL || '',
+    headers: llms.headers || {}
   };
 };
 
 export const isAvailable = () => {
   const setting = settings();
-  if ( setting.provider === 'openai-compatible' ) {
+  if (( setting.provider === 'openai-compatible' ) || ( setting.provider === 'openai' )) {
     // ローカルLLM等、キーなし運用を許す。接続先がなければ無効
     return Boolean(setting.baseURL);
   }
@@ -64,7 +71,9 @@ const VOUCHER_SCHEMA = jsonSchema({
     taxRate: { type: ['number', 'null'] },
     invoiceNo: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] }
-  }
+  },
+  required: ['company', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
+  additionalProperties: false
 });
 
 // JSON部分の抽出（コードフェンスや前後の説明文の混入対策）
@@ -116,21 +125,42 @@ const aiApiError = (e) => {
   return err;
 };
 
+// openai-compatible用の追加ヘッダ。config/llms.json の headers を素通しし、
+// opencode.aiゲートウェイ向けに x-opencode-session を自動付与する
+// （ゲートウェイのルーティングに必須。Legionも同様に付与している）。
+const openaiHeaders = (setting) => {
+  const headers = { ...(setting.headers || {}) };
+  try {
+    if ( new URL(setting.baseURL).hostname.includes('opencode.ai') &&
+      !headers['x-opencode-session'] ) {
+      headers['x-opencode-session'] = `hieronymus-${process.pid}-${Date.now().toString(36)}`;
+    }
+  } catch (e) {
+    // baseURL不正は接続時にエラーになるためここでは無視
+  }
+  return headers;
+};
+
 // 設定からAI SDKのモデルを作る。固定の単一モデル（切替なし）
 const makeModel = (setting) => {
   switch ( setting.provider ) {
     case 'gemini':
       // isAvailable() がキーを保証する。キーはプロバイダ生成時に渡す
       return createGoogleGenerativeAI({ apiKey: setting.apiKey })(setting.model);
+    case 'openai':
     case 'openai-compatible': {
       if ( !setting.baseURL ) {
-        const err = new Error('openai-compatible の接続先がありません（config/llms.json の baseURL）。');
+        const err = new Error('接続先がありません（config/llms.json の baseURL）。');
         err.name = 'AiNotConfigured';
         throw err;
       }
-      const provider = createOpenAICompatible({
+      // muse-spark系は互換プロトコルでは動かないため完全なOpenAIプロバイダを使う
+      const strict = ( setting.provider === 'openai' ) || String(setting.model).includes('muse-spark');
+      const build = strict ? createOpenAI : createOpenAICompatible;
+      const provider = build({
         baseURL: setting.baseURL,
         ...(setting.apiKey ? { apiKey: setting.apiKey } : {}),
+        headers: openaiHeaders(setting),
         name: 'hieronymus'
       });
       return provider(setting.model);
