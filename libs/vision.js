@@ -52,12 +52,30 @@ export const isAvailable = () => {
 };
 
 // AIに渡すプロンプト。抽出結果はJSON（不明項目はnull）。
-const PROMPT = [
+// 会社名は請求元・領収書の発行者（支払先）。「お支払者名」「お客様名」
+// 「ご契約者」欄の名前（支払う側・自社）は会社名にしない。
+const PROMPT_BASE = [
   'この帳票から 会社名/発行日/支払日/金額/消費税/税率/請求番号/取引内容 を読み取り、',
   '以下のJSON形式で出力してください:',
   '{"company":"...","issueDate":"...","paymentDate":"...","amount":...,"tax":...,"taxRate":...,"invoiceNo":"...","description":"..."}',
-  '不明な項目は null。金額は数値。日付は YYYY-MM-DD 形式。JSON以外の出力はしないこと。'
+  '不明な項目は null。金額は数値（金額は税込の合計額、その内訳が消費税）。日付は YYYY-MM-DD 形式。JSON以外の出力はしないこと。',
+  '会社名は請求元・帳票の発行者（お金を支払う相手）とする。',
+  '「お支払者名」「お客様名」「ご契約者」「お名前」欄に書かれた名前（支払う側）は会社名にしないこと。'
 ].join('\n');
+
+// 自社名を取得してプロンプトに除外指定を足す（読取失敗時は付けない）。
+// 例: 電気料金受領証の「お支払者名 BeesNest合同会社」を会社名にしない。
+const buildPrompt = async () => {
+  try {
+    const { default: myCompany } = await import('./my-company.js');
+    const self = await myCompany();
+    if ( self && self.name ) {
+      return PROMPT_BASE + `\n「${self.name}」は自社（支払う側）なので会社名にしないこと。`;
+    }
+  } catch (e) {
+  }
+  return PROMPT_BASE;
+};
 
 // 抽出スキーマ（構造化出力用。読めない項目はnullを許す）
 const VOUCHER_SCHEMA = jsonSchema({
@@ -188,10 +206,11 @@ export const extract = async (buffer, mimeType) => {
     type = 'image/png';
   }
   const model = makeModel(setting);
+  const prompt = await buildPrompt();
   const messages = [{
     role: 'user',
     content: [
-      { type: 'text', text: PROMPT },
+      { type: 'text', text: prompt },
       { type: 'image', image: `data:${type};base64,${data.toString('base64')}` }
     ]
   }];
