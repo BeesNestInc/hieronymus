@@ -1143,17 +1143,25 @@ const aiRead = async (line) => {
       line.description = values.description;
     }
     if ( values.company ) {
+      // 支払先の解決順: 取引先の完全一致→部分一致→マッピングの検索キー（OCR別名）。
+      // 検索キーには「大田市水道事業」のような表記ゆれを入れておく。
+      const payeeByKey = ((name) => {
+        const norm = (s) => ( ( s || '' ).trim() );
+        if ( !norm(name) ) return null;
+        return payeeMappings.find((m) => ( norm(m.key) === norm(name) )) ||
+          payeeMappings.find((m) => ( norm(m.key) &&
+            ( norm(m.key).includes(norm(name)) || norm(name).includes(norm(m.key)) ) )) || null;
+      })(values.company);
       const matched = companies.find((c) => ( c.name === values.company )) ||
         companies.find((c) => ( c.name && ( c.name.includes(values.company) ||
           values.company.includes(c.name) ) ));
-      if ( matched ) {
+      const payee = payeeByKey ||
+        ( matched ? payeeMappings.find((m) => ( m.companyId == matched.id )) : null );
+      if ( payee ) {
+        line.payeeMappingId = payee.id;
+      } else if ( matched ) {
         // 取引先から支払先マッピングを逆引きする
-        const payee = payeeMappings.find((m) => ( m.companyId == matched.id ));
-        if ( payee ) {
-          line.payeeMappingId = payee.id;
-        } else {
-          toast.show('経費精算', `取引先「${values.company}」の支払先マッピングが未登録です。経理担当者に連絡してください。`, 'warning');
-        }
+        toast.show('経費精算', `取引先「${values.company}」の支払先マッピングが未登録です。経理担当者に連絡してください。`, 'warning');
       } else {
         toast.show('経費精算', `支払先「${values.company}」が取引先に見つかりません。手動で選択してください。`, 'warning');
       }
