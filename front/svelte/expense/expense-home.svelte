@@ -15,7 +15,8 @@
         on:drop={onPileDrop}>
         <div class="d-flex align-items-center mb-1">
           <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
-          <label class="btn btn-sm btn-outline-primary upload-label">
+          <span class="badge bg-secondary" title="どこにも紐付いていない証憑">残り {unsorted.length}件</span>
+          <label class="btn btn-sm btn-outline-primary upload-label ms-2">
             まとめてアップロード
             <input type="file" hidden multiple accept="image/*,application/pdf"
               on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
@@ -40,13 +41,16 @@
                   <div class="d-flex align-items-start">
                     {#each line.files as file}
                     <div class="me-1">
-                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
-                        {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                      {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                      <button type="button" class="thumb-button" title="クリックで拡大表示"
+                        on:click={() => { openPreview(line, file); }}>
                         <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
-                        {:else}
+                      </button>
+                      {:else}
+                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                         <img src="/public/icons/icon_pdf.png" class="thumb"/>
-                        {/if}
                       </a>
+                      {/if}
                     </div>
                     {/each}
                   </div>
@@ -128,6 +132,20 @@
   </div>
   {/if}
 </div>
+{#if ( preview )}
+<div class="preview-overlay" on:click|self={() => { preview = null; }}>
+  <div class="preview-box">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>{preview.title}</strong>
+      <div>
+        <a href={preview.src} target="_blank" class="btn btn-sm btn-outline-secondary me-2">別タブで開く</a>
+        <button type="button" class="btn btn-sm btn-secondary" on:click={() => { preview = null; }}>閉じる</button>
+      </div>
+    </div>
+    <img src={preview.src} class="preview-img" alt={preview.title}/>
+  </div>
+</div>
+{/if}
 <script>
 import {onMount} from 'svelte';
 import TableMaintenance from '../components/table-maintenance.svelte';
@@ -145,6 +163,15 @@ let accounts = [];
 let unsorted = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
+
+// 画像プレビュー（モーダル）。PDFは別タブ表示のまま
+let preview = null;
+const openPreview = (voucher, file) => {
+  preview = {
+    src: `/voucher/file/${file.id}?v=${imageVersion}`,
+    title: voucher.description || ( file ? file.name : '' ) || '証憑'
+  };
+};
 
 const fetchUnsorted = () => {
   // どこにも紐付いていない証憑（未整理のまるっとアップロード含む）。
@@ -299,6 +326,32 @@ onMount(() => {
 </script>
 
 <style>
+.thumb-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 92vw;
+}
+.preview-img {
+  max-width: 88vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
 .thumb {
   width: 48px;
   height: 48px;

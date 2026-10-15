@@ -178,13 +178,16 @@
                     {#if ( line.voucher && line.voucher.files && line.voucher.files.length > 0 )}
                     {#each line.voucher.files as file}
                     <div class="me-1">
-                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
-                        {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                      {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                      <button type="button" class="thumb-button" title="クリックで拡大表示"
+                        on:click={() => { openPreview(line.voucher, file); }}>
                         <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
-                        {:else}
+                      </button>
+                      {:else}
+                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                         <img src="/public/icons/icon_pdf.png" class="thumb"/>
-                        {/if}
                       </a>
+                      {/if}
                     </div>
                     {/each}
                     {:else}
@@ -281,7 +284,11 @@
           on:drop={onPileDrop}>
           <div class="d-flex align-items-center mb-1">
             <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
-            <label class="btn btn-sm btn-outline-primary upload-label">
+            <span class="badge bg-secondary me-2" title="明細にまだ紐付けていない証憑">残り {pileVouchers.length}件</span>
+            {#if ( linkedVouchers.length > 0 )}
+            <span class="badge bg-success" title="明細行に紐付け済み">処理済み {linkedVouchers.length}行（{linkedSum.toLocaleString()}円）</span>
+            {/if}
+            <label class="btn btn-sm btn-outline-primary upload-label ms-2">
               まとめてアップロード
               <input type="file" hidden multiple accept="image/*,application/pdf"
                 disabled={!editable}
@@ -306,15 +313,18 @@
                   data-id={line.id} title="明細行へドラッグ&ドロップで紐付けできます">
                   <td>
                     <div class="d-flex align-items-start">
-                      {#each line.files as file}
+                    {#each line.files as file}
                       <div class="me-1">
-                        <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
-                          {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                        {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                        <button type="button" class="thumb-button" title="クリックで拡大表示"
+                          on:click={() => { openPreview(line, file); }}>
                           <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
-                          {:else}
+                        </button>
+                        {:else}
+                        <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
                           <img src="/public/icons/icon_pdf.png" class="thumb"/>
-                          {/if}
                         </a>
+                        {/if}
                       </div>
                       {/each}
                     </div>
@@ -394,7 +404,48 @@
   </div>
 </div>
 
+{#if ( preview )}
+<div class="preview-overlay" on:click|self={() => { preview = null; }}>
+  <div class="preview-box">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>{preview.title}</strong>
+      <div>
+        <a href={preview.src} target="_blank" class="btn btn-sm btn-outline-secondary me-2">別タブで開く</a>
+        <button type="button" class="btn btn-sm btn-secondary" on:click={() => { preview = null; }}>閉じる</button>
+      </div>
+    </div>
+    <img src={preview.src} class="preview-img" alt={preview.title}/>
+  </div>
+</div>
+{/if}
+
 <style>
+.thumb-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 92vw;
+}
+.preview-img {
+  max-width: 88vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
 .thumb {
   width: 48px;
   height: 48px;
@@ -721,6 +772,22 @@ const usedInReport = (voucherId) => {
 // （テンプレートの依存追跡のため usedInReport を介さず直に参照する）
 $: pileVouchers = [ ...( report.vouchers || [] ), ...floatings ]
   .filter((v) => !(( report.lines || [] ).some((l) => ( l.voucherId == v.id ))));
+
+// 進捗（どこまでやったか）: 明細に紐付け済みの証憑行と合計金額
+$: linkedVouchers = ( report.lines || [] ).filter((l) => ( l.voucherId ));
+$: linkedSum = linkedVouchers.reduce((s, l) => ( s + ( Number(l.amount) || 0 )), 0);
+
+// 画像プレビュー（モーダル）。PDFは別タブ表示のまま
+let preview = null;
+const fileTitle = (voucher, file) => {
+  return voucher.description || ( file ? file.name : '' ) || '証憑';
+};
+const openPreview = (voucher, file) => {
+  preview = {
+    src: `/voucher/file/${file.id}?v=${imageVersion}`,
+    title: fileTitle(voucher, file)
+  };
+};
 
 // 未整理証憑のまるっとアップロード（複数ファイル可）。
 // 精算書が未保存の場合はどこにも紐付かない浮遊証憑として登録する。
