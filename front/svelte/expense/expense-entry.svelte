@@ -235,7 +235,7 @@
                     on:click={() => aiRead(line)}>
                     {#if ( line._aiBusy )}
                     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    読み取り中…
+                    読み取り中…{line._aiSecs || 0}秒
                     {:else}
                     AI読み取り
                     {/if}
@@ -1001,7 +1001,14 @@ const clearPending = (line) => {
 const aiRead = async (line) => {
   if ( line._aiBusy ) return;
   line._aiBusy = true;
-  report.lines = report.lines;
+  line._aiSecs = 0;
+  report.lines = [...report.lines];
+  // 経過秒数を表示する（進んでいるか固まっているかの切り分け用）
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    line._aiSecs = Math.floor(( Date.now() - startedAt ) / 1000);
+    report.lines = [...report.lines];
+  }, 1000);
   try {
     let result;
     if ( line.voucherId ) {
@@ -1039,14 +1046,17 @@ const aiRead = async (line) => {
         toast.show('経費精算', `支払先「${values.company}」が取引先に見つかりません。手動で選択してください。`, 'warning');
       }
     }
-    report.lines = report.lines;
+    report.lines = [...report.lines];
     toast.show('AI読み取り', '証憑を読み取りました。内容を確認してください。');
   } catch (e) {
+    console.error(e);
     ok = false;
     errorMessages = [errMsg(e)];
   } finally {
+    clearInterval(timer);
     line._aiBusy = false;
-    report.lines = report.lines;
+    line._aiSecs = 0;
+    report.lines = [...report.lines];
   }
 };
 
