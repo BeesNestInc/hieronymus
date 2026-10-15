@@ -24,6 +24,7 @@
 	"llms": {
 		"provider": "gemini",
 		"model": "gemini-2.0-flash",
-		"apiKey": ""
+		"apiKey": "",
+		"baseURL": ""
 	}
 }

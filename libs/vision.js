@@ -1,15 +1,19 @@
 import fs from 'fs';
 
 // AI（LLM）による証憑OCR。
+// vision用途に固定した単一モデルを使う（自動切替はしない）。
 // config.llms（config/config.json）で設定する:
 //   "llms": {
-//     "provider": "gemini",
+//     "provider": "gemini",          // gemini / openai-compatible
 //     "model": "gemini-2.0-flash",
-//     "apiKey": "..."
+//     "apiKey": "...",
+//     "baseURL": "https://api.openai.com/v1"   // openai-compatible のみ。ローカルは http://localhost:1234/v1 等
 //   }
 // apiKey は環境変数 LLM_API_KEY でも指定できる（config より優先）。
+// 同様に LLM_PROVIDER / LLM_MODEL / LLM_BASE_URL が使える。
 // APIキーが未設定の場合 isAvailable() が false となり、AI機能は無効化される
 // （AIを利用しない運用の環境でも成立させるため、AI前提の処理にはしない）。
+// ただし openai-compatible で baseURL があればキーなしでも利用可（ローカルLLM想定）。
 
 const loadConfig = () => {
   const env = process.env.NODE_ENV || 'development';
@@ -27,12 +31,18 @@ const settings = () => {
   return {
     provider: process.env.LLM_PROVIDER || llms.provider || 'gemini',
     model: process.env.LLM_MODEL || llms.model || 'gemini-2.0-flash',
-    apiKey: process.env.LLM_API_KEY || llms.apiKey || ''
+    apiKey: process.env.LLM_API_KEY || llms.apiKey || '',
+    baseURL: process.env.LLM_BASE_URL || llms.baseURL || ''
   };
 };
 
 export const isAvailable = () => {
-  return Boolean(settings().apiKey);
+  const setting = settings();
+  if ( setting.provider === 'openai-compatible' ) {
+    // ローカルLLM等、キーなし運用を許す。接続先がなければ無効
+    return Boolean(setting.baseURL);
+  }
+  return Boolean(setting.apiKey);
 };
 
 // AIに渡すプロンプト。抽出結果はJSON（不明項目はnull）。
@@ -113,10 +123,49 @@ const geminiExtract = async (buffer, mimeType, setting) => {
   return extractJson(text);
 };
 
+// OpenAI互換API（/chat/completions）による画像読み取り。
+// OpenAI本家・LM Studio等のローカルLLM・各種ゲートウェイが対象。
+const openaiCompatibleExtract = async (buffer, mimeType, setting) => {
+  if ( !setting.baseURL ) {
+    const err = new Error('openai-compatible の接続先がありません（config.llms.baseURL）。');
+    err.name = 'AiNotConfigured';
+    throw err;
+  }
+  const url = `${setting.baseURL.replace(/\/+$/, '')}/chat/completions`;
+  const body = {
+    model: setting.model,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: PROMPT },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${buffer.toString('base64')}` } }
+      ]
+    }],
+    response_format: { type: 'json_object' }
+  };
+  const headers = { 'Content-Type': 'application/json' };
+  if ( setting.apiKey ) {
+    headers['Authorization'] = `Bearer ${setting.apiKey}`;
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+  if ( !res.ok ) {
+    const err = new Error(`AI API error: ${res.status}`);
+    err.name = 'AiApiError';
+    throw err;
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content || '';
+  return extractJson(text);
+};
+
 // 証憑ファイル（Buffer + mimeType）から帳票情報を抽出する。
 export const extract = async (buffer, mimeType) => {
   const setting = settings();
-  if ( !setting.apiKey ) {
+  if ( !isAvailable() ) {
     const err = new Error('AIの設定がありません（config.llms）。');
     err.name = 'AiNotConfigured';
     throw err;
@@ -130,6 +179,8 @@ export const extract = async (buffer, mimeType) => {
   switch ( setting.provider ) {
     case 'gemini':
       return geminiExtract(data, type, setting);
+    case 'openai-compatible':
+      return openaiCompatibleExtract(data, type, setting);
     default:
       const err = new Error(`未対応のAIプロバイダ: ${setting.provider}`);
       err.name = 'AiApiError';
