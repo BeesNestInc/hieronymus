@@ -396,6 +396,10 @@ onMount(() => {
   max-height: 30vh;
   overflow: auto;
 }
+/* 行ピッチを揃える: セル中央揃え */
+.pile-table th, .pile-table td {
+  vertical-align: middle;
+}
 .pile-desc {
   width: 40%;
   min-width: 160px;

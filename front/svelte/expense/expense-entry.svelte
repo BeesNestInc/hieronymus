@@ -508,6 +508,11 @@ tr.over {
   max-height: 30vh;
   overflow: auto;
 }
+/* 行ピッチを揃える: 明細表・未整理表ともセル中央揃え */
+.expense-table th, .expense-table td,
+.pile-table th, .pile-table td {
+  vertical-align: middle;
+}
 .pile-desc {
   width: 40%;
   min-width: 160px;
