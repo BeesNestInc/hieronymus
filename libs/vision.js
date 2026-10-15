@@ -2,32 +2,28 @@ import fs from 'fs';
 
 // AI（LLM）による証憑OCR。
 // vision用途に固定した単一モデルを使う（自動切替はしない）。
-// config.llms（config/config.json）で設定する:
-//   "llms": {
+// 設定は config/llms.json（Sequelize用の config.json とは別ファイル）:
+//   {
 //     "provider": "gemini",          // gemini / openai-compatible
 //     "model": "gemini-2.0-flash",
 //     "apiKey": "...",
 //     "baseURL": "https://api.openai.com/v1"   // openai-compatible のみ。ローカルは http://localhost:1234/v1 等
 //   }
-// apiKey は環境変数 LLM_API_KEY でも指定できる（config より優先）。
-// 同様に LLM_PROVIDER / LLM_MODEL / LLM_BASE_URL が使える。
+// 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL でも指定できる（ファイルより優先）。
 // APIキーが未設定の場合 isAvailable() が false となり、AI機能は無効化される
 // （AIを利用しない運用の環境でも成立させるため、AI前提の処理にはしない）。
 // ただし openai-compatible で baseURL があればキーなしでも利用可（ローカルLLM想定）。
 
 const loadConfig = () => {
-  const env = process.env.NODE_ENV || 'development';
   try {
-    const jsonData = JSON.parse(fs.readFileSync('config/config.json', 'utf-8'));
-    return jsonData[env] || {};
+    return JSON.parse(fs.readFileSync('config/llms.json', 'utf-8'));
   } catch (e) {
     return {};
   }
 };
 
 const settings = () => {
-  const config = loadConfig();
-  const llms = config.llms || {};
+  const llms = loadConfig();
   return {
     provider: process.env.LLM_PROVIDER || llms.provider || 'gemini',
     model: process.env.LLM_MODEL || llms.model || 'gemini-2.0-flash',
@@ -166,7 +162,7 @@ const openaiCompatibleExtract = async (buffer, mimeType, setting) => {
 export const extract = async (buffer, mimeType) => {
   const setting = settings();
   if ( !isAvailable() ) {
-    const err = new Error('AIの設定がありません（config.llms）。');
+    const err = new Error('AIの設定がありません（config/llms.json）。');
     err.name = 'AiNotConfigured';
     throw err;
   }

@@ -71,6 +71,7 @@ typings/
 /backups
 docker-histoy/
 config/config.json
+config/llms.json
 accounts.json
 *.map
 
