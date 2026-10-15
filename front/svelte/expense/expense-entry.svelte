@@ -231,8 +231,15 @@
                   {#if ( ( line.voucherId || ( line.pendingFiles && line.pendingFiles.length > 0 ) ) &&
                         aiAvailable && editable )}
                   <button type="button" class="btn btn-sm btn-outline-info"
-                    disabled={aiBusy}
-                    on:click={() => aiRead(line)}>AI読み取り</button>
+                    disabled={line._aiBusy}
+                    on:click={() => aiRead(line)}>
+                    {#if ( line._aiBusy )}
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    読み取り中…
+                    {:else}
+                    AI読み取り
+                    {/if}
+                  </button>
                   {/if}
                 </td>
                 <td style="text-align:center;">
@@ -450,7 +457,6 @@ let tasks = [];
 let mappings = [];
 let accounts = [];
 let aiAvailable = false;
-let aiBusy = false;
 let ok = true;
 let errorMessages = [];
 let submitterName = '';
@@ -988,18 +994,22 @@ const clearPending = (line) => {
 // 証憑をAIで読み取り、明細に入力する。
 // 結合済み証憑はvoucherIdで、ペンディングファイルはファイルを直接OCRにかける。
 // 抽出結果は必ずユーザーが確認できる（承認フローで経理が確認する）。
+// LLM応答は十数秒かかるため行単位のbusy表示にし、axiosにtimeoutを付ける
+// （応答なしの固着でボタンが押せなくなるのを防ぐ）。
 const aiRead = async (line) => {
-  if ( aiBusy ) return;
-  aiBusy = true;
+  if ( line._aiBusy ) return;
+  line._aiBusy = true;
+  report.lines = report.lines;
   try {
     let result;
     if ( line.voucherId ) {
-      result = await axios.post('/api/expense_report/ocr', {voucherId: line.voucherId});
+      result = await axios.post('/api/expense_report/ocr', {voucherId: line.voucherId},
+        { timeout: 180000 });
     } else {
       const fd = new FormData();
       fd.append('file', line.pendingFiles[0].blob, line.pendingFiles[0].name);
       result = await axios.post('/api/expense_report/ocr', fd,
-        { 'content-type': 'multipart/form-data' });
+        { 'content-type': 'multipart/form-data', timeout: 180000 });
     }
     const values = result.data.values;
     if ( values.issueDate || values.paymentDate ) {
@@ -1033,7 +1043,8 @@ const aiRead = async (line) => {
     ok = false;
     errorMessages = [errMsg(e)];
   } finally {
-    aiBusy = false;
+    line._aiBusy = false;
+    report.lines = report.lines;
   }
 };
 
