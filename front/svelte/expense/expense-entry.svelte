@@ -769,11 +769,6 @@ const fetchFloatings = () => {
   });
 };
 
-// この精算書の他の行で既に使われている証憑は候補から外す
-const usedInReport = (voucherId) => {
-  return (report.lines || []).some((l) => ( l.voucherId == voucherId ));
-};
-
 // 未整理の証憑（パイル+浮遊）。明細から参照されたものは候補から外して表示する
 // （テンプレートの依存追跡のため usedInReport を介さず直に参照する）
 $: pileVouchers = [ ...( report.vouchers || [] ), ...floatings ]
@@ -949,7 +944,9 @@ const onPileDrop = (event) => {
 
 // 証憑を明細に結合する。支払先・支払日・金額を証憑から補完する（伝票入力のbindVoucherと同じ）。
 const bindVoucher = async (line, voucherId) => {
-  if ( usedInReport(voucherId) ) {
+  const usedIndex = ( report.lines || [] ).findIndex((l) => ( l.voucherId == voucherId ));
+  if ( usedIndex >= 0 ) {
+    toast.show('経費精算', `この証憑は既に${usedIndex + 1}行目で使われています。`, 'warning');
     return;
   }
   try {
@@ -1010,6 +1007,10 @@ const onDrop = (event) => {
     const voucherId = event.dataTransfer.getData('id');
     if ( voucherId ) {
       bindVoucher(line, voucherId);
+    } else {
+      // ファイルでも証憑DnDでもないドロップ（フォルダ等）は受け付けられない
+      console.log('expense-entry onDrop: no files nor voucher id', event.dataTransfer.types);
+      toast.show('経費精算', 'ドロップを受け付けられませんでした。画像・PDFファイルか、未整理の証憑をドロップしてください。', 'warning');
     }
   }
   dragCounter[index] = 0;
