@@ -193,3 +193,78 @@ describe('vision', () => {
     }
   });
 });
+
+describe('vision.resolveCompany', () => {
+  const companies = [
+    { id: 3, name: '中国電力' },
+    { id: 47, name: '大田市水道局' }
+  ];
+
+  it('完全一致で解決する（LLM不要）', async () => {
+    const r = await vision.resolveCompany('中国電力', companies);
+    assert.deepEqual([r.company.id, r.method], [3, 'exact']);
+  });
+
+  it('部分一致で解決する（LLM不要）', async () => {
+    const r = await vision.resolveCompany('中国電力株式会社', companies);
+    assert.deepEqual([r.company.id, r.method], [3, 'includes']);
+  });
+
+  it('不一致はLLM判定に回す', async () => {
+    const { server, port } = await startStub(() => {
+      return [200, chatCompletion('{"companyId":47}')];
+    });
+    const orig = {
+      LLM_PROVIDER: process.env.LLM_PROVIDER,
+      LLM_MODEL: process.env.LLM_MODEL,
+      LLM_BASE_URL: process.env.LLM_BASE_URL,
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
+    };
+    try {
+      process.env.LLM_PROVIDER = 'openai-compatible';
+      process.env.LLM_MODEL = 'test-vision';
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+      const r = await vision.resolveCompany('大田市水道事業', companies);
+      assert.deepEqual([r.company.id, r.method], [47, 'ai']);
+    } finally {
+      for ( const k of Object.keys(orig) ) {
+        if ( orig[k] === undefined ) {
+          delete process.env[k];
+        } else {
+          process.env[k] = orig[k];
+        }
+      }
+      server.close();
+    }
+  });
+
+  it('LLMが該当なしならnull', async () => {
+    const { server, port } = await startStub(() => {
+      return [200, chatCompletion('{"companyId":null}')];
+    });
+    const orig = {
+      LLM_PROVIDER: process.env.LLM_PROVIDER,
+      LLM_MODEL: process.env.LLM_MODEL,
+      LLM_BASE_URL: process.env.LLM_BASE_URL,
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
+    };
+    try {
+      process.env.LLM_PROVIDER = 'openai-compatible';
+      process.env.LLM_MODEL = 'test-vision';
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+      const r = await vision.resolveCompany('どこにもない会社', companies);
+      assert.isNull(r);
+    } finally {
+      for ( const k of Object.keys(orig) ) {
+        if ( orig[k] === undefined ) {
+          delete process.env[k];
+        } else {
+          process.env[k] = orig[k];
+        }
+      }
+      server.close();
+    }
+  });
+});

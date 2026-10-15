@@ -633,7 +633,26 @@ export default {
         res.status(422).json({ code: -2, message: '帳票情報を読み取れませんでした。' });
         return;
       }
-      res.json({ values: data });
+      // OCR会社名を取引先マスタに突き合わせる（完全一致→部分一致→LLM判定）。
+      // 解決できたら companyId を付けて返す（フロントは支払先解決に使う）
+      let companyId = null;
+      let matchMethod = null;
+      if ( data.company ) {
+        try {
+          const companies = await models.Company.findAll({
+            attributes: [ 'id', 'name' ]
+          });
+          const resolved = await vision.resolveCompany(data.company,
+            companies.map((c) => ({ id: c.id, name: c.name })));
+          if ( resolved ) {
+            companyId = resolved.company.id;
+            matchMethod = resolved.method;
+          }
+        } catch (e) {
+          console.log('resolveCompany failed:', e.message);
+        }
+      }
+      res.json({ values: { ...data, companyId: companyId, matchMethod: matchMethod } });
     } catch (e) {
       if (( e && (( e.name === 'AiNotConfigured' ) || ( e.name === 'AiApiError' ))) ) {
         res.status(422).json({ code: -2, message: e.message });

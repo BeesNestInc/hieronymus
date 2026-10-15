@@ -233,7 +233,72 @@ export const extract = async (buffer, mimeType) => {
   }
 };
 
+// OCRで読んだ会社名を取引先マスタに突き合わせる。
+// 完全一致→部分一致で決まらなければLLMに判定させる（表記ゆれの吸収）。
+// companies: [{id, name}]。返すのは {company, method}（見つからなければnull）。
+// method: 'exact' / 'includes' / 'ai'
+export const resolveCompany = async (ocrName, companies) => {
+  const norm = (s) => ( ( s || '' ).trim() );
+  const name = norm(ocrName);
+  if ( !name ) {
+    return null;
+  }
+  const list = companies || [];
+  const exact = list.find((c) => ( norm(c.name) === name ));
+  if ( exact ) {
+    return { company: exact, method: 'exact' };
+  }
+  const partial = list.find((c) => ( norm(c.name) &&
+    ( norm(c.name).includes(name) || name.includes(norm(c.name)) ) ));
+  if ( partial ) {
+    return { company: partial, method: 'includes' };
+  }
+  // LLM判定（常識的な表記ゆれ吸収）。失敗時はnull（呼び出し側で警告に落とす）
+  try {
+    const setting = settings();
+    if ( !isAvailable() ) {
+      return null;
+    }
+    const model = makeModel(setting);
+    const candidates = list
+      .filter((c) => norm(c.name))
+      .map((c) => `${c.id}: ${norm(c.name)}`)
+      .join('\n');
+    if ( !candidates ) {
+      return null;
+    }
+    const prompt = [
+      '以下の取引先候補の中から、「' + name + '」に該当するものを1つ選んでください。',
+      '表記ゆれ（株式会社/㈱、事業/局、略称、英語表記など）は同一とみなしてかまいません。',
+      '該当がなければ companyId を null にしてください。',
+      '候補:',
+      candidates
+    ].join('\n');
+    const schema = jsonSchema({
+      type: 'object',
+      properties: { companyId: { type: ['number', 'null'] } },
+      required: ['companyId'],
+      additionalProperties: false
+    });
+    const result = await generateObject({
+      model: model,
+      schema: schema,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+      maxRetries: 1
+    });
+    const id = result.object && result.object.companyId;
+    if ( id == null ) {
+      return null;
+    }
+    const company = list.find((c) => ( c.id === id ));
+    return company ? { company: company, method: 'ai' } : null;
+  } catch (e) {
+    return null;
+  }
+};
+
 export default {
   isAvailable: isAvailable,
-  extract: extract
+  extract: extract,
+  resolveCompany: resolveCompany
 };
