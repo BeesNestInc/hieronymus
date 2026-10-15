@@ -5,6 +5,7 @@ import seed from './seed.js';
 import {createSlipForReport} from '../libs/expense.js';
 import {create as createCrossSlip} from '../libs/cross_slip.js';
 import {normalizePileVouchers} from '../routes/api_expense_report.js';
+import apiExpenseReport from '../routes/api_expense_report.js';
 
 const findOrCreate = async (model, where, values) => {
   const existing = await model.findOne({ where: where });
@@ -421,6 +422,89 @@ describe('expense (test db)', () => {
         include: [{ model: models.Voucher, as: 'vouchers' }]
       });
       assert.equal(loaded.vouchers.length, 1);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  // deleteSlipハンドラを直接呼ぶ（API層のテスト用モック）
+  const callDeleteSlip = async (reportId, user) => {
+    const req = { body: { id: reportId }, session: { user: user } };
+    let status = 200;
+    let body = null;
+    const res = {
+      set: () => {},
+      status: (c) => { status = c; return res; },
+      json: (o) => { body = o; return res; }
+    };
+    let nextErr = null;
+    await apiExpenseReport.deleteSlip(req, res, (e) => { nextErr = e; });
+    return { status: status, body: body, nextErr: nextErr };
+  };
+
+  const buildApprovedReport = async (approver) => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report);
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    await createSlipForReport(report, lines, approver);
+    return report;
+  };
+
+  it('紐付伝票の削除: 未承認伝票は消せる', async () => {
+    const report = await buildApprovedReport(approverNoAcct);
+    const slipId = report.crossSlipId;
+    assert.ok(slipId);
+    try {
+      const result = await callDeleteSlip(report.id, approverNoAcct);
+      assert.equal(result.body.code, 0);
+      assert.equal(result.body.slipWasApproved, false);
+      assert.isNull(await models.CrossSlip.findByPk(slipId));
+      const reloaded = await models.ExpenseReport.findByPk(report.id);
+      assert.isNull(reloaded.crossSlipId);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('紐付伝票の削除: 承認済み伝票は会計権限で取消＋削除できる', async () => {
+    const report = await buildApprovedReport(data.approver);
+    const slipId = report.crossSlipId;
+    const saved = await models.CrossSlip.findByPk(slipId);
+    assert.ok(saved.approvedAt);
+    try {
+      const result = await callDeleteSlip(report.id, data.approver);
+      assert.equal(result.body.code, 0);
+      assert.equal(result.body.slipWasApproved, true);
+      assert.isNull(await models.CrossSlip.findByPk(slipId));
+      const reloaded = await models.ExpenseReport.findByPk(report.id);
+      assert.isNull(reloaded.crossSlipId);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('紐付伝票の削除: 承認済み伝票は非会計では消せない', async () => {
+    const report = await buildApprovedReport(data.approver);
+    try {
+      const result = await callDeleteSlip(report.id, approverNoAcct);
+      assert.equal(result.status, 422);
+      assert.ok(await models.CrossSlip.findByPk(report.crossSlipId));
+    } finally {
+      await cleanup(report);
+    }
+  });
+
+  it('紐付伝票の削除: 精算書が承認済みの場合は消せない', async () => {
+    const report = await buildApprovedReport(approverNoAcct);
+    report.approvedAt = new Date();
+    await report.save();
+    try {
+      const result = await callDeleteSlip(report.id, data.approver);
+      assert.equal(result.status, 422);
+      assert.ok(await models.CrossSlip.findByPk(report.crossSlipId));
     } finally {
       await cleanup(report);
     }

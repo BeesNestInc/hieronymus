@@ -752,10 +752,20 @@ const disapprove = async (event) => {
 
 // 紐付伝票の削除（未処理伝票の掃除用）
 const deleteSlip = async (event) => {
+  const approved = report.crossSlip && report.crossSlip.approvedAt;
+  const allowed = await confirmModal('経費精算',
+    approved ?
+      '承認済みの紐付伝票の承認を取り消して削除します。<br/>よろしいですか？' :
+      '紐付伝票を削除します。<br/>よろしいですか？',
+    'expense-delete-slip');
+  if ( !allowed ) {
+    return;
+  }
   try {
     const result = await axios.delete('/api/expense_report/slip', {data: {id: report.id}});
     if ( result.data.code === 0 ) {
-      toast.show('経費精算', '紐付伝票を削除しました。');
+      toast.show('経費精算', result.data.slipWasApproved ?
+        '紐付伝票の承認を取り消して削除しました。' : '紐付伝票を削除しました。');
       const reloaded = await axios.get(`/api/expense_report/${report.id}`);
       report = reloaded.data;
     } else {

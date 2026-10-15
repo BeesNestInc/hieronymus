@@ -509,7 +509,9 @@ export default {
     }
   },
   // 紐付伝票の削除（未処理伝票の掃除用）。approvableユーザー限定。
-  // 伝票が未承納の場合のみ削除できる。承認済みなら拒否。
+  // 精算書が承認済みの場合は先に不承認にすること（承認済み精算書の伝票は消せない）。
+  // 伝票が承認済み（同時承認分を含む）の場合は会計権限に限り、
+  // 承認を取り消してから削除する。
   deleteSlip: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     if ( !req.session.user.approvable ) {
@@ -527,6 +529,10 @@ export default {
         res.json({ code: -2, message: 'related slip not found' });
         return;
       }
+      if ( report.approvedAt ) {
+        res.status(422).json({ code: -2, message: '先に精算書を不承認にしてください。' });
+        return;
+      }
       const slip = await models.CrossSlip.findByPk(report.crossSlipId);
       if ( !slip ) {
         // 参照は既に陳腐化（SET NULLは伝票削除時に済んでいるはずだが念のため）
@@ -535,14 +541,21 @@ export default {
         res.json({ code: 0 });
         return;
       }
-      if ( slip.approvedAt ) {
-        res.status(422).json({ code: -2, message: 'related slip was approved' });
-        return;
-      }
       const slipFy = await findFiscalYearForTerm(slip.term);
       if (( slipFy ) && ( isLocked(slipFy) )) {
         res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
         return;
+      }
+      let slipWasApproved = false;
+      if ( slip.approvedAt ) {
+        if ( !req.session.user.accounting ) {
+          res.status(422).json({ code: -2, message: '承認済みの伝票は会計権限でなければ削除できません。' });
+          return;
+        }
+        slip.approvedAt = null;
+        slip.approvedBy = null;
+        await slip.save();
+        slipWasApproved = true;
       }
       await models.CrossSlipDetail.destroy({
         where: { crossSlipId: slip.id }
@@ -551,7 +564,7 @@ export default {
       report.crossSlipId = null;
       report.updatedBy = req.session.user.id;
       await report.save();
-      res.json({ code: 0 });
+      res.json({ code: 0, slipWasApproved: slipWasApproved });
     } catch (e) {
       next(e);
     }
