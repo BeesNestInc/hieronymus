@@ -1103,6 +1103,20 @@ const aiRead = async (line) => {
     line._aiSecs = Math.floor(( Date.now() - startedAt ) / 1000);
     report.lines = [...report.lines];
   }, 1000);
+  // 番犬: 応答が全く返らない場合の強制復旧（通常はaxiosの180秒が先に発火する）。
+  // responded=true（応答受信済み）の場合は誤爆しない。
+  let responded = false;
+  const watchdog = setTimeout(() => {
+    if (( line._aiBusy ) && ( !responded )) {
+      console.error('aiRead watchdog: no response, force reset');
+      clearInterval(timer);
+      line._aiBusy = false;
+      line._aiSecs = 0;
+      report.lines = [...report.lines];
+      ok = false;
+      errorMessages = ['AI読み取りがタイムアウトしました（200秒）。再実行するか、時間をおいて試してください。'];
+    }
+  }, 200000);
   try {
     let result;
     if ( line.voucherId ) {
@@ -1114,6 +1128,7 @@ const aiRead = async (line) => {
       result = await axios.post('/api/expense_report/ocr', fd,
         { 'content-type': 'multipart/form-data', timeout: 180000 });
     }
+    responded = true;
     const values = result.data.values;
     if ( values.issueDate || values.paymentDate ) {
       line.paymentDate = values.paymentDate || values.issueDate;
@@ -1147,10 +1162,12 @@ const aiRead = async (line) => {
     ok = false;
     errorMessages = [errMsg(e)];
   } finally {
+    clearTimeout(watchdog);
     clearInterval(timer);
     line._aiBusy = false;
     line._aiSecs = 0;
     report.lines = [...report.lines];
+    console.log('aiRead done');
   }
 };
 
