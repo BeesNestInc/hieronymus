@@ -318,6 +318,8 @@ export default {
         include: include
       }).then(async(_voucher) => {
         let voucher = _voucher.dataValues;
+        let files = await getFiles(voucher.id);
+        voucher.files = files;
         let details = await models.CrossSlipDetail.findAll({
           where: {
             [Op.or]: [

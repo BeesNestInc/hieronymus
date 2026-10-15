@@ -196,7 +196,7 @@
                     {#if ( editable )}
                     <button type="button" class="btn btn-warning btn-sm p-0 px-1 me-1"
                       on:click={() => { unbindVoucher(line); }} title="証憑の紐付けを解除">
-                      <i class="bi bi-link-slash"></i>
+                      <i class="bi bi-x-circle"></i>
                     </button>
                     {/if}
                   </div>
