@@ -21,7 +21,7 @@ const listQuery = {
     { model: models.Company, as: 'company' },
     { model: models.Task, as: 'task' },
     {
-      model: models.CrossSlip, as: 'crossSlip'
+      model: models.CrossSlip, as: 'crossSlips'
     },
     {
       // 未整理証憑（まるっとアップロードされた、明細に紐付かない証憑）
@@ -51,6 +51,10 @@ const listQuery = {
   order: [
     [ 'submittedAt', 'DESC' ],
     [ 'id', 'DESC' ],
+    [{ model: models.CrossSlip, as: 'crossSlips' }, 'year', 'ASC' ],
+    [{ model: models.CrossSlip, as: 'crossSlips' }, 'month', 'ASC' ],
+    [{ model: models.CrossSlip, as: 'crossSlips' }, 'day', 'ASC' ],
+    [{ model: models.CrossSlip, as: 'crossSlips' }, 'no', 'ASC' ],
     [{ model: models.ExpenseReportLine, as: 'lines' }, 'lineNo', 'ASC' ],
     [{ model: models.Voucher, as: 'vouchers' }, 'id', 'ASC' ]
   ]
@@ -469,23 +473,23 @@ export default {
         // 不承認時は精算書の承認状態のみ解除する。
         // 紐付伝票が未承納なら連動して伝票も不承認にする（伝票承認フローの承認待ちに戻す）。
         // 伝票が既に承認済み（経理が伝票承認フローで確定済み）の場合は連動せず
-        // slipApproved を返す。crossSlipId は切らない。
+        // slipApproved を返す。紐付けは切らない。
         let slipApproved = false;
-        if ( report.crossSlipId ) {
-          const slip = await models.CrossSlip.findByPk(report.crossSlipId);
-          if ( slip ) {
-            const slipFy = await findFiscalYearForTerm(slip.term);
-            if (( slipFy ) && ( isLocked(slipFy) )) {
-              res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
-              return;
-            }
-            if ( slip.approvedAt ) {
-              slipApproved = true;
-            } else {
-              slip.approvedAt = null;
-              slip.approvedBy = null;
-              await slip.save();
-            }
+        const slips = await models.CrossSlip.findAll({
+          where: { expenseReportId: report.id }
+        });
+        for ( const slip of slips ) {
+          const slipFy = await findFiscalYearForTerm(slip.term);
+          if (( slipFy ) && ( isLocked(slipFy) )) {
+            res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+            return;
+          }
+          if ( slip.approvedAt ) {
+            slipApproved = true;
+          } else {
+            slip.approvedAt = null;
+            slip.approvedBy = null;
+            await slip.save();
           }
         }
         report.approvedAt = null;
@@ -525,46 +529,37 @@ export default {
         res.json({ code: -1, message: 'record not found' });
         return;
       }
-      if ( !report.crossSlipId ) {
-        res.json({ code: -2, message: 'related slip not found' });
-        return;
-      }
       if ( report.approvedAt ) {
         res.status(422).json({ code: -2, message: '先に精算書を不承認にしてください。' });
         return;
       }
-      const slip = await models.CrossSlip.findByPk(report.crossSlipId);
-      if ( !slip ) {
-        // 参照は既に陳腐化（SET NULLは伝票削除時に済んでいるはずだが念のため）
-        report.crossSlipId = null;
-        await report.save();
-        res.json({ code: 0 });
+      const findWhere = body.slipId ?
+        { expenseReportId: report.id, id: body.slipId } :
+        { expenseReportId: report.id };
+      const slips = await models.CrossSlip.findAll({ where: findWhere });
+      if ( slips.length === 0 ) {
+        res.json({ code: -2, message: 'related slip not found' });
         return;
       }
-      const slipFy = await findFiscalYearForTerm(slip.term);
-      if (( slipFy ) && ( isLocked(slipFy) )) {
-        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
+      const anyApproved = slips.some((s) => ( s.approvedAt ));
+      if (( anyApproved ) && ( !req.session.user.accounting )) {
+        res.status(422).json({ code: -2, message: '承認済みの伝票は会計権限でなければ削除できません。' });
         return;
       }
-      let slipWasApproved = false;
-      if ( slip.approvedAt ) {
-        if ( !req.session.user.accounting ) {
-          res.status(422).json({ code: -2, message: '承認済みの伝票は会計権限でなければ削除できません。' });
+      for ( const slip of slips ) {
+        const slipFy = await findFiscalYearForTerm(slip.term);
+        if (( slipFy ) && ( isLocked(slipFy) )) {
+          res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
           return;
         }
-        slip.approvedAt = null;
-        slip.approvedBy = null;
-        await slip.save();
-        slipWasApproved = true;
+        await models.CrossSlipDetail.destroy({
+          where: { crossSlipId: slip.id }
+        });
+        await slip.destroy();
       }
-      await models.CrossSlipDetail.destroy({
-        where: { crossSlipId: slip.id }
-      });
-      await slip.destroy();
-      report.crossSlipId = null;
       report.updatedBy = req.session.user.id;
       await report.save();
-      res.json({ code: 0, slipWasApproved: slipWasApproved });
+      res.json({ code: 0, slipWasApproved: anyApproved });
     } catch (e) {
       next(e);
     }
@@ -573,13 +568,14 @@ export default {
   reportForSlip: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     try {
-      const report = await models.ExpenseReport.findOne({
-        where: { crossSlipId: req.params.slipId },
-        include: [
-          { model: models.User, as: 'submitter' },
-          { model: models.Task, as: 'task' }
-        ]
-      });
+      const slip = await models.CrossSlip.findByPk(req.params.slipId);
+      const report = ( slip && slip.expenseReportId ) ?
+        await models.ExpenseReport.findByPk(slip.expenseReportId, {
+          include: [
+            { model: models.User, as: 'submitter' },
+            { model: models.Task, as: 'task' }
+          ]
+        }) : null;
       if (( report ) &&
           (( req.session.user.accounting ) || ( req.session.user.approvable ) ||
            ( report.createdBy === req.session.user.id ))) {

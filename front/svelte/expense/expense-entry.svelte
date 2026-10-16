@@ -28,17 +28,17 @@
                 value={submitterName} disabled>
             </div>
           </div>
-          {#if ( report.crossSlip )}
+          {#if ( crossSlip0 )}
           <div class="row mt-2">
             <label class="col-2 col-form-label">伝票</label>
             <div class="col-sm-10 d-flex align-items-center gap-2">
               <button type="button" class="btn btn-link p-0"
                 on:click|preventDefault={() => {
-                  openSlip(report.crossSlip);
+                  openSlip(crossSlip0);
                 }}>
-                <i class="bi bi-journal-text"></i>&nbsp;伝票 {report.crossSlip.year}/{report.crossSlip.month}-{report.crossSlip.no}
+                <i class="bi bi-journal-text"></i>&nbsp;伝票 {crossSlip0.year}/{crossSlip0.month}-{crossSlip0.no}
               </button>
-              {#if ( report.crossSlip.approvedAt )}
+              {#if ( crossSlip0.approvedAt )}
               <span class="badge bg-success">済</span>
               {:else}
               <span class="badge bg-warning text-dark">承認待ち</span>
@@ -46,7 +46,7 @@
               {#if ( editable )}
               <button type="button" class="btn btn-sm btn-outline-danger"
                 on:click={deleteSlip}
-                title={report.crossSlip.approvedAt ?
+                title={crossSlip0.approvedAt ?
                   '承認を取り消して紐付伝票を削除します（会計権限が必要）。' :
                   '紐付伝票が未処理のまま残っています。削除できます。'}>
                 <i class="bi bi-trash"></i>&nbsp;伝票削除
@@ -543,6 +543,8 @@ let aiAvailable = false;
 let ok = true;
 let errorMessages = [];
 let submitterName = '';
+// 紐付伝票（現在は先頭を表示。1:n化の完全対応は後続フェーズ）
+$: crossSlip0 = (( report && report.crossSlips ) || [])[0] || null;
 // 未整理の証憑。精算書のパイル(report.vouchers)と、精算書に紐付いていない
 // 浮遊証憑(floatings: 設定ページや未保存精算書からアップロードされたもの)
 let floatings = [];
@@ -763,7 +765,7 @@ const disapprove = async (event) => {
 
 // 紐付伝票の削除（未処理伝票の掃除用）
 const deleteSlip = async (event) => {
-  const approved = report.crossSlip && report.crossSlip.approvedAt;
+  const approved = crossSlip0 && crossSlip0.approvedAt;
   const allowed = await confirmModal('経費精算',
     approved ?
       '承認済みの紐付伝票の承認を取り消して削除します。<br/>よろしいですか？' :

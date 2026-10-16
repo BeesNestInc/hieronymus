@@ -123,7 +123,8 @@ describe('expense (test db)', () => {
   };
 
   const cleanup = async (report) => {
-    const slipId = report ? report.crossSlipId : null;
+    const slipId = report ?
+      ( await models.CrossSlip.findOne({ where: { expenseReportId: report.id } }) )?.id : null;
     if ( report ) {
       await models.ExpenseReportLine.destroy({ where: { expenseReportId: report.id } });
       await report.destroy();
@@ -154,7 +155,9 @@ describe('expense (test db)', () => {
       assert.ok(saved.approvedAt);
       assert.equal(saved.approvedBy, data.approver.id);
       assert.equal(saved.createdBy, data.approver.id);
-      assert.equal(report.crossSlipId, slip.id);
+      // 1:n紐付け: 伝票側のexpenseReportIdで紐付く
+      const linked = await models.CrossSlip.findByPk(slip.id);
+      assert.equal(linked.expenseReportId, report.id);
 
       const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: slip.id } });
       assert.equal(details.length, 1);
@@ -455,7 +458,7 @@ describe('expense (test db)', () => {
 
   it('紐付伝票の削除: 未承認伝票は消せる', async () => {
     const report = await buildApprovedReport(approverNoAcct);
-    const slipId = report.crossSlipId;
+    const slipId = ( await models.CrossSlip.findOne({ where: { expenseReportId: report.id } }) ).id;
     assert.ok(slipId);
     try {
       const result = await callDeleteSlip(report.id, approverNoAcct);
@@ -463,7 +466,8 @@ describe('expense (test db)', () => {
       assert.equal(result.body.slipWasApproved, false);
       assert.isNull(await models.CrossSlip.findByPk(slipId));
       const reloaded = await models.ExpenseReport.findByPk(report.id);
-      assert.isNull(reloaded.crossSlipId);
+      const remaining = await models.CrossSlip.findAll({ where: { expenseReportId: report.id } });
+      assert.equal(remaining.length, 0);
     } finally {
       await cleanup(report);
     }
@@ -471,7 +475,7 @@ describe('expense (test db)', () => {
 
   it('紐付伝票の削除: 承認済み伝票は会計権限で取消＋削除できる', async () => {
     const report = await buildApprovedReport(data.approver);
-    const slipId = report.crossSlipId;
+    const slipId = ( await models.CrossSlip.findOne({ where: { expenseReportId: report.id } }) ).id;
     const saved = await models.CrossSlip.findByPk(slipId);
     assert.ok(saved.approvedAt);
     try {
@@ -480,7 +484,8 @@ describe('expense (test db)', () => {
       assert.equal(result.body.slipWasApproved, true);
       assert.isNull(await models.CrossSlip.findByPk(slipId));
       const reloaded = await models.ExpenseReport.findByPk(report.id);
-      assert.isNull(reloaded.crossSlipId);
+      const remaining = await models.CrossSlip.findAll({ where: { expenseReportId: report.id } });
+      assert.equal(remaining.length, 0);
     } finally {
       await cleanup(report);
     }
@@ -491,7 +496,7 @@ describe('expense (test db)', () => {
     try {
       const result = await callDeleteSlip(report.id, approverNoAcct);
       assert.equal(result.status, 422);
-      assert.ok(await models.CrossSlip.findByPk(report.crossSlipId));
+      assert.ok(await models.CrossSlip.findOne({ where: { expenseReportId: report.id } }));
     } finally {
       await cleanup(report);
     }
@@ -504,7 +509,7 @@ describe('expense (test db)', () => {
     try {
       const result = await callDeleteSlip(report.id, data.approver);
       assert.equal(result.status, 422);
-      assert.ok(await models.CrossSlip.findByPk(report.crossSlipId));
+      assert.ok(await models.CrossSlip.findOne({ where: { expenseReportId: report.id } }));
     } finally {
       await cleanup(report);
     }

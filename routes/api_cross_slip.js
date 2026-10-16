@@ -8,12 +8,10 @@ import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 // 伝票側から触れると精算書との乖離や「伝票だけ勝手に承認」が起きるため。
 // accessは「紐付きなし/no access」を区別せずtrue/falseのみ返す。
 const linkedExpenseReport = (slip) => {
-  if ( !slip ) {
-    return null;
+  if (( !slip ) || ( !slip.expenseReportId )) {
+    return Promise.resolve(null);
   }
-  return models.ExpenseReport.findOne({
-    where: { crossSlipId: slip.id }
-  });
+  return models.ExpenseReport.findByPk(slip.expenseReportId);
 };
 
 const LINKED_MESSAGE = 'この伝票は経費精算書に紐付いています。精算書の画面から承認・修正してください。';

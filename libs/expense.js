@@ -139,13 +139,11 @@ const buildSlipLines = async (report, lines) => {
 // 経費精算書の承認時に仕訳伝票を自動起票する。
 // 伝票は未承認（承認待ち）で作成され、確定は既存の伝票承認フローで行う。
 // 伝票日付は提出日（未入力なら最初の支払日）。
-// 経費精算書の承認時に仕訳伝票を起票する。
-// 伝票は未承認（承認待ち）で作成され、確定は既存の伝票承認フローで行う。
-// 伝票日付は提出日（未入力なら最初の支払日）。
-// 再承認時、crossSlipId 先の伝票が未承認なら伝票番号を変えずに
+// 再承認時、紐付伝票が未承認・同年月なら伝票番号を変えずに
 // 「更新」として明細を差し替える（reuse: true を返す）。
 // 伝票が既に承認済みなら新規に起票する（旧伝票は放置しないよう、
 // 呼び出し側で紐付伝票の状態を管理すること）。
+// 紐付けは伝票側の expenseReportId（1:n前提の逆FK）で表現する。
 export const createSlipForReport = async (report, lines, approver) => {
   if ( !lines || lines.length === 0 ) {
     const err = new Error('明細がありません。');
@@ -178,36 +176,35 @@ export const createSlipForReport = async (report, lines, approver) => {
     throw err;
   }
 
-  // 既存の紐付伝票が未承納なら「更新」として再利用する（伝票番号を増やさない）
+  // 既存の紐付伝票がただ1つで未承認・同年月なら「更新」として再利用する（伝票番号を増やさない）
   // 承認者が会計権限を持つ場合は伝票も同時承認する（精算書の承認＝伝票の承認）。
   // 会計権限なしの承認者（上長等）の場合は従来通り未承認のまま残す。
   // approvableも条件にする（伝票の承認自体がapprovable前提のため）。
   const simultaneous = Boolean(approver.accounting && approver.approvable);
-  if ( report.crossSlipId ) {
-    const existing = await models.CrossSlip.findByPk(report.crossSlipId);
-    if (( existing ) && ( !existing.approvedAt ) &&
-        ( existing.year === year ) && ( existing.month === month )) {
-      await updateCrossSlip(existing, {
-        year: year,
-        month: month,
-        day: day,
-        lines: slipLines,
-        term: ctx.fy.term
-      }, approver, { keepUnapproved: !simultaneous });
-      return { slip: existing, reuse: true, slipApproved: simultaneous };
-    }
-    // 既存伝票が承認済み/別月のときは新しい伝票を起票する
+  const existingSlips = await models.CrossSlip.findAll({
+    where: { expenseReportId: report.id }
+  });
+  const existing = existingSlips.find((s) => ( !s.approvedAt &&
+    ( s.year === year ) && ( s.month === month ) ));
+  if ( existing && existingSlips.length === 1 ) {
+    await updateCrossSlip(existing, {
+      year: year,
+      month: month,
+      day: day,
+      lines: slipLines,
+      term: ctx.fy.term
+    }, approver, { keepUnapproved: !simultaneous });
+    return { slip: existing, reuse: true, slipApproved: simultaneous };
   }
-
+  // 既存伝票なし・承認済み/別月/複数のときは新しい伝票を起票する
   const slip = await createCrossSlip({
     year: year,
     month: month,
     day: day,
     lines: slipLines,
-    term: ctx.fy.term
+    term: ctx.fy.term,
+    expenseReportId: report.id
   }, approver, { forceUnapproved: !simultaneous });
-  report.crossSlipId = slip.id;
-  await report.save();
   return { slip: slip, reuse: false, slipApproved: simultaneous };
 };
 

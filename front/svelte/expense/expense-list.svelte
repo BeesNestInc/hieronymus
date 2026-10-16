@@ -76,14 +76,14 @@
             {/if}
           </td>
           <td>
-            {#if ( report.crossSlip )}
+            {#each ( report.crossSlips || [] ) as slip}
             <button type="button" class="btn btn-link"
               on:click|preventDefault={() => {
-                openSlip(report.crossSlip);
+                openSlip(slip);
               }}>
-              {report.crossSlip.month}-{report.crossSlip.no}
+              {slip.month}-{slip.no}
             </button>
-            {/if}
+            {/each}
           </td>
         </tr>
         {/each}

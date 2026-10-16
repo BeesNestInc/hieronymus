@@ -96,10 +96,11 @@ export const create = async (body, user, options = {}) => {
         day: body.day,
         no: ml.slipCount,
         lineCount: body.lines.length,
+        term: body.term,
+        expenseReportId: body.expenseReportId || null,
         createdBy: user.id,
         approvedAt: approvedAt,
-        approvedBy: approvedBy,
-        term: body.term
+        approvedBy: approvedBy
       }, { transaction: t });
       await ml.save({ transaction: t });
 
