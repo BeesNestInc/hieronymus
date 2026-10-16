@@ -55,6 +55,8 @@
             <tr>
             <th style="width:20px;">
             </th>
+            <th style="width:60px;">
+            </th>
             <th>
               種別
             </th>
@@ -80,6 +82,20 @@
                 {#if (line.details.length > 0 )}
                 <i class="fas fa-link"></i>
                 {/if}
+              </td>
+              <td>
+                {#each ( line.files || [] ) as file}
+                {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                <button type="button" class="thumb-button" title="クリックで拡大表示"
+                  on:click={() => { openPreview(line, file); }}>
+                  <img src="/voucher/file/{file.id}" class="thumb"/>
+                </button>
+                {:else}
+                <a href="/voucher/file/{file.id}" target="_blank" title="クリックで別タブ表示">
+                  <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                </a>
+                {/if}
+                {/each}
               </td>
               <td>
                 {line.voucherClass ? line.voucherClass.name : '__'}
@@ -149,6 +165,20 @@
   </div>
   {/if}
 </div>
+{#if ( preview )}
+<div class="preview-overlay" on:click|self={() => { preview = null; }}>
+  <div class="preview-box">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>{preview.title}</strong>
+      <div>
+        <a href={preview.src} target="_blank" class="btn btn-sm btn-outline-secondary me-2">別タブで開く</a>
+        <button type="button" class="btn btn-sm btn-secondary" on:click={() => { preview = null; }}>閉じる</button>
+      </div>
+    </div>
+    <img src={preview.src} class="preview-img" alt={preview.title}/>
+  </div>
+</div>
+{/if}
 <style>
 .slip-page {
   width: 100%;
@@ -168,6 +198,40 @@
   white-space: normal;
   word-break: break-word;
 }
+.thumb-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+.thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 92vw;
+}
+.preview-img {
+  max-width: 88vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
 </style>
 
 <script>
@@ -183,6 +247,14 @@ export let status;
 let slip = null;
 let accounts = [];
 let fy = { taxIncluded: true };
+// 証憑候補の画像プレビュー（モーダル）。PDFは別タブ表示のまま
+let preview = null;
+const openPreview = (voucher, file) => {
+  preview = {
+    src: `/voucher/file/${file.id}`,
+    title: voucher.description || ( file ? file.name : '' ) || '証憑'
+  };
+};
 let taxRules = [];
 let vouchers;
 let ok = true;

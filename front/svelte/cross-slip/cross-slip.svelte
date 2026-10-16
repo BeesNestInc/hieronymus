@@ -187,6 +187,22 @@
             {/if}
           </td>
           <td style="width:130px;">
+            {#each [ line.debitVoucher, line.creditVoucher ] as v}
+            {#if ( v && v.files )}
+            {#each v.files as file}
+            {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+            <button type="button" class="thumb-button" title="クリックで拡大表示"
+              on:click={() => { openPreview(file); }}>
+              <img src="/voucher/file/{file.id}" class="thumb"/>
+            </button>
+            {:else}
+            <a href="/voucher/file/{file.id}" target="_blank" title="クリックで別タブ表示">
+              <img src="/public/icons/icon_pdf.png" class="thumb"/>
+            </a>
+            {/if}
+            {/each}
+            {/if}
+            {/each}
             {#if (slip.approvedAt) }
             {#if ( ( line.debitVoucherId !== null ) || ( line.creditVoucherId !== null ))}
             <Icon icon="fa:file"></Icon>
@@ -237,6 +253,8 @@
           </td>
           <td>
           </td>
+          <td>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -270,7 +288,56 @@
 #cross-slip th, #cross-slip td {
   vertical-align: middle;
 }
+.thumb-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+.thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 92vw;
+}
+.preview-img {
+  max-width: 88vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
 </style>
+
+{#if ( preview )}
+<div class="preview-overlay" on:click|self={() => { preview = null; }}>
+  <div class="preview-box">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>{preview.title}</strong>
+      <div>
+        <a href={preview.src} target="_blank" class="btn btn-sm btn-outline-secondary me-2">別タブで開く</a>
+        <button type="button" class="btn btn-sm btn-secondary" on:click={() => { preview = null; }}>閉じる</button>
+      </div>
+    </div>
+    <img src={preview.src} class="preview-img" alt={preview.title}/>
+  </div>
+</div>
+{/if}
 
 <script>
 import axios from 'axios';
@@ -294,6 +361,11 @@ let sums;
 let projects = [];
 let showProject = false;
 let sortable = null;
+// 証憑サムネイルの拡大プレビュー（モーダル）。PDFは別タブ表示のまま
+let preview = null;
+const openPreview = (file) => {
+  preview = { src: `/voucher/file/${file.id}`, title: ( file && file.name ) || '証憑' };
+};
 
 $: slip.year = slip.month < ( fy.startDate.getMonth() + 1 ) ? fy.endDate.getFullYear() : fy.startDate.getFullYear();
 
