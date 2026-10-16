@@ -1,6 +1,6 @@
-<div class="card">
-  <div class="card-header d-flex">
-    <h5 class="card-title">{title}</h5>
+<div class={card ? 'card' : 'tablem-plain'}>
+  <div class={card ? 'card-header d-flex' : 'd-flex tablem-title-row'}>
+    <h5 class={card ? 'card-title' : 'fs-5 me-3 mb-0'}>{title}</h5>
     <div class="d-flex ms-auto">
       <button type="button" class="btn"
         on:click={() => {
@@ -15,7 +15,7 @@
     </div>
   </div>
   {#if ( !minimize )}
-  <div class="card-body">
+  <div class={card ? 'card-body' : ''}>
     <SpreadSheet
       bind:this={spreadsheet}
       columns={columns}
@@ -24,7 +24,7 @@
       bind:values={table}
       />
   </div>
-  <div class="card-footer">
+  <div class={card ? 'card-footer' : 'd-flex gap-2 py-2'}>
     <button type="button" class="btn btn-primary"
       on:click|preventDefault={update}>
       保存
@@ -47,6 +47,8 @@ export let endpoint = '';
 export let columns = [];
 export let accounts = [];
 export let minimize;
+// card=falseでBootstrapのcardではなく平たいテーブルとして表示する
+export let card = true;
 // 新規行の初期値（例: 別画面からの遷移で1行だけ埋めた状態にする）
 export let initialRow = null;
 
@@ -125,4 +127,18 @@ onMount(() => {
     columns = columns;
   })
 })
-</script>
+</script><style>
+.tablem-plain .tablem-title-row {
+  padding: 6px 2px;
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 4px;
+}
+.tablem-plain .table-responsive {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+.tablem-plain .btn {
+  padding: 2px 10px;
+  font-size: 0.875rem;
+}
+</style>

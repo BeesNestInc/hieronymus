@@ -14,7 +14,7 @@
     bind:mainCount={mainCount}
     bind:status={status}></SideBar>
 </aside>
-<main class="content-wrapper">
+<main class="content-wrapper" class:wide-content={isWide}>
   <div class="container-fluid">
     {#key mainCount}
     <div class="content">
@@ -180,6 +180,8 @@ let status = {
 }
 
 let mainCount = 0;
+// 全幅で使いたいページ（マッピング等の表がある設定画面）。他は従来の1200px固定
+$: isWide = /^\/expense\/home/.test($currentPage || '');
 
 let reply;
 const doReply = (event) => {
@@ -232,3 +234,12 @@ afterUpdate(() => {
 })
 
 </script>
+<style>
+/* 全幅ページ（設定画面等）。サイドバー分を除いた残りをすべて使う */
+.content-wrapper.wide-content {
+  width: auto;
+}
+.content-wrapper.wide-content :global(.content) {
+  min-width: 0;
+}
+</style>

@@ -5,14 +5,13 @@
   {#if ( accounts.length === 0 )}
   <p>読み込み中...</p>
   {:else}
-  <div class="row">
-    <div class="col-8" style="padding:10px;">
-      <div class="container-fluid pile-dropzone"
-        class:over={pileDragCount > 0}
-        on:dragenter={onPileDragEnter}
-        on:dragleave={onPileDragLeave}
-        on:dragover={(e) => { if ( e.dataTransfer.types.includes('Files') ) { e.preventDefault(); } }}
-        on:drop={onPileDrop}>
+  <div style="padding:10px;">
+    <div class="container-fluid pile-dropzone"
+      class:over={pileDragCount > 0}
+      on:dragenter={onPileDragEnter}
+      on:dragleave={onPileDragLeave}
+      on:dragover={(e) => { if ( e.dataTransfer.types.includes('Files') ) { e.preventDefault(); } }}
+      on:drop={onPileDrop}>
         <div class="d-flex align-items-center mb-1">
           <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
           <span class="badge bg-secondary" title="どこにも紐付いていない証憑">残り {unsorted.length}件</span>
@@ -96,43 +95,40 @@
           {/if}
         </div>
       </div>
-    </div>
   </div>
-  <div class="row">
-    <div class="col-8" style="padding:10px;">
-      <TableMaintenance
-        title={'支払先マッピング'}
-        endpoint={'/api/expense_mapping/payee'}
-        accounts={accounts}
-        bind:minimize={payeeMinimize}
-        initialRow={payeeInitial}
-        columns={[
-          { type: "id", name: 'id'},
-          { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
-          { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
-          { type: "company", name: 'companyId', title: "取引先"},
-          { type: "text", name: 'description', title: "説明", width: "180px", align: "left"},
-          { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
-          { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
-      ]}></TableMaintenance>
-    </div>
+  <div style="padding:10px;">
+    <TableMaintenance
+      card={false}
+      title={'支払先マッピング'}
+      endpoint={'/api/expense_mapping/payee'}
+      accounts={accounts}
+      bind:minimize={payeeMinimize}
+      initialRow={payeeInitial}
+      columns={[
+        { type: "id", name: 'id'},
+        { type: "text", name: 'key', title: "検索キー", width: "110px", align: "left"},
+        { type: "text", name: 'name', title: "名前", width: "180px", align: "left"},
+        { type: "company", name: 'companyId', title: "取引先"},
+        { type: "text", name: 'description', title: "説明", width: "260px", align: "left"},
+        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
+        { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
+    ]}></TableMaintenance>
   </div>
-  <div class="row">
-    <div class="col-8" style="padding:10px;">
-      <TableMaintenance
-        title={'出金元マッピング'}
-        endpoint={'/api/expense_mapping/payment'}
-        accounts={accounts}
-        bind:minimize={paymentMinimize}
-        columns={[
-          { type: "id", name: 'id'},
-          { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
-          { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
-          { type: "text", name: 'description', title: "説明", width: "180px", align: "left"},
-          { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
-          { type: "checkbox", name: 'advance', title: "立替", width: "50px"}
-      ]}></TableMaintenance>
-    </div>
+  <div style="padding:10px;">
+    <TableMaintenance
+      card={false}
+      title={'出金元マッピング'}
+      endpoint={'/api/expense_mapping/payment'}
+      accounts={accounts}
+      bind:minimize={paymentMinimize}
+      columns={[
+        { type: "id", name: 'id'},
+        { type: "text", name: 'key', title: "検索キー", width: "110px", align: "left"},
+        { type: "text", name: 'name', title: "名前", width: "180px", align: "left"},
+        { type: "text", name: 'description', title: "説明", width: "260px", align: "left"},
+        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
+        { type: "checkbox", name: 'advance', title: "立替", width: "70px"}
+    ]}></TableMaintenance>
   </div>
   {/if}
 </div>
