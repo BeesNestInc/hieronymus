@@ -3,6 +3,45 @@ const Op = models.Sequelize.Op;
 import * as taxcalc from './tax-calc.js';
 import {create as createCrossSlip} from './cross_slip.js';
 
+// 支払先マッピングの選択（OCRの取引内容とマッピングの説明で振り分ける）。
+// 同じ会社に説明違いの複数マッピング（Amazonの書籍/事務用品等）が
+// あっても曖昧にしないための共通照合。優先順:
+//   1) 同一companyIdの候補が1件だけ → それ
+//   2) 複数なら、OCR説明文とマッピング説明のキーワード包含一致
+//      （説明はカンマ/読点等で分割したキーワードのいずれかが一致すればOK）
+//   3) 合致がなければ説明が空のマッピング＝デフォルト
+//   4) それもなければ先頭
+// descriptionがnull/空のocrDescriptionの場合は2)を飛ばす。
+export const pickPayeeMapping = (payees, companyId, ocrDescription) => {
+  const norm = (s) => ( ( s || '' ).trim() );
+  const candidates = companyId ?
+    payees.filter((m) => ( m.companyId == companyId )) : [];
+  if ( candidates.length === 1 ) {
+    return candidates[0];
+  }
+  if ( candidates.length > 1 ) {
+    const text = norm(ocrDescription);
+    if ( text ) {
+      const keywordsOf = (mapping) => {
+        return norm(mapping.description)
+          .split(/[,、，;；\s]+/)
+          .filter((k) => k);
+      };
+      const hit = candidates.find((m) => {
+        return keywordsOf(m).some((k) => ( text.includes(k) || k.includes(text) ));
+      });
+      if ( hit ) {
+        return hit;
+      }
+    }
+    const blank = candidates.find((m) => ( !norm(m.description) ));
+    if ( blank ) {
+      return blank;
+    }
+  }
+  return candidates[0] || null;
+};
+
 // 仮払金の補助科目（立替者）を解決する。
 // 1) 出金元マッピング名から照合する（「椋立替」→補助「椋」。提出者と立替者が
 //    異なるケース＝他人の立て替えを代行提出するケースに対応）。
@@ -270,5 +309,6 @@ export const createSlipForReport = async (report, lines, approver) => {
 };
 
 export default {
-  createSlipForReport: createSlipForReport
+  createSlipForReport: createSlipForReport,
+  pickPayeeMapping: pickPayeeMapping
 };

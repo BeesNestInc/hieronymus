@@ -2,7 +2,7 @@ import {assert} from 'chai';
 import bcrypt from 'bcrypt';
 import models from '../models/index.js';
 import seed from './seed.js';
-import {createSlipForReport} from '../libs/expense.js';
+import {createSlipForReport, pickPayeeMapping} from '../libs/expense.js';
 import {create as createCrossSlip} from '../libs/cross_slip.js';
 import {normalizePileVouchers} from '../routes/api_expense_report.js';
 import apiExpenseReport from '../routes/api_expense_report.js';
@@ -612,5 +612,42 @@ describe('expense (test db)', () => {
     } finally {
       await cleanup(report);
     }
+  });
+});
+
+describe('expense (pickPayeeMapping)', () => {
+  // 同一会社に説明違いのマッピングが複数あるケースの照合
+  const amazonBooks = { id: 1, name: 'Amazon書籍', companyId: 2, description: '書籍,本,コミック' };
+  const amazonGoods = { id: 2, name: 'Amazon事務用品', companyId: 2, description: '事務用品,文具' };
+  const amazonDefault = { id: 3, name: 'Amazon', companyId: 2, description: null };
+  const other = { id: 4, name: 'よそ', companyId: 99, description: 'その他' };
+
+  it('候補が1件だけなら説明に関係なくそれを使う', () => {
+    assert.equal(pickPayeeMapping([ other ], 99, '何でも'), other);
+  });
+
+  it('OCR説明文がキーワードを含むマッピングに振り分ける', () => {
+    const payees = [ amazonBooks, amazonGoods, amazonDefault ];
+    assert.equal(pickPayeeMapping(payees, 2, '書籍 「テスト駆動開発」').id, 1);
+    assert.equal(pickPayeeMapping(payees, 2, '事務用品 レジ妙紙 A4').id, 2);
+  });
+
+  it('どのキーワードにも合わなければ説明が空のマッピング（デフォルト）を使う', () => {
+    const payees = [ amazonBooks, amazonGoods, amazonDefault ];
+    assert.equal(pickPayeeMapping(payees, 2, 'ケーブルタイ').id, 3);
+  });
+
+  it('デフォルトがなければ先頭を使う', () => {
+    const payees = [ amazonBooks, amazonGoods ];
+    assert.equal(pickPayeeMapping(payees, 2, 'ケーブルタイ').id, 1);
+  });
+
+  it('OCR説明文が空ならキーワード照合を飛ばしてデフォルト', () => {
+    const payees = [ amazonBooks, amazonGoods, amazonDefault ];
+    assert.equal(pickPayeeMapping(payees, 2, null).id, 3);
+  });
+
+  it('候補がなければnull', () => {
+    assert.isNull(pickPayeeMapping([ other ], 2, '書籍'));
   });
 });

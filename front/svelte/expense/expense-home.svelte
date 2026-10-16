@@ -111,6 +111,7 @@
           { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
           { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
           { type: "company", name: 'companyId', title: "取引先"},
+          { type: "text", name: 'description', title: "説明", width: "180px", align: "left"},
           { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
           { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
       ]}></TableMaintenance>
@@ -127,6 +128,7 @@
           { type: "id", name: 'id'},
           { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
           { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
+          { type: "text", name: 'description', title: "説明", width: "180px", align: "left"},
           { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
           { type: "checkbox", name: 'advance', title: "立替", width: "50px"}
       ]}></TableMaintenance>

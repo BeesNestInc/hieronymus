@@ -77,7 +77,11 @@ const PROMPT_BASE = [
 // 例: 電気料金受領証の「お支払者名 BeesNest合同会社」を会社名にしない。
 // companies（[{id, name}]）があれば候補一覧を載せ、companyIdまで一発で
 // 選ばせる（表記ゆれはモデルに吸収させる。2ステップに分けない）。
-const buildPrompt = async (companies) => {
+// payeeMappings（[{id, name, companyName, description}]）があれば、
+// 取引内容に合う支払先マッピング（=仕訳の科目）も同時に選ばせる。
+// 説明は「書籍/事務用品」等のヒントで、同一会社に複数のマッピングが
+// ある場合の振り分けに使う。空の説明はデフォルト扱い。
+const buildPrompt = async (companies, payeeMappings) => {
   const lines = [ PROMPT_BASE ];
   try {
     const { default: myCompany } = await import('./my-company.js');
@@ -98,6 +102,17 @@ const buildPrompt = async (companies) => {
       ...list.map((c) => `${c.id}: ${c.name}`)
     );
   }
+  const mappings = ( payeeMappings || [] ).filter((m) => ( m && m.name ));
+  if ( mappings.length > 0 ) {
+    lines.push(
+      'さらに、この帳票の内容（取引内容・品目）に最も合う支払先マッピングを選び、',
+      'payeeMappingId にそのIDを入れること。マッピングの説明は仕訳の振り分け',
+      'ヒントであり、説明の内容に合わせて選ぶこと。どれも合わなければ',
+      '説明が空のものを選び、それもなければ null とすること。',
+      'マッピング候補:',
+      ...mappings.map((m) => `${m.id}: ${m.name}${m.companyName ? `（${m.companyName}）` : ''}${m.description ? ` — ${m.description}` : ''}`)
+    );
+  }
   return lines.join('\n');
 };
 
@@ -107,6 +122,7 @@ const VOUCHER_SCHEMA = jsonSchema({
   properties: {
     company: { type: ['string', 'null'] },
     companyId: { type: ['number', 'null'] },
+    payeeMappingId: { type: ['number', 'null'] },
     issueDate: { type: ['string', 'null'] },
     paymentDate: { type: ['string', 'null'] },
     amount: { type: ['number', 'null'] },
@@ -115,7 +131,7 @@ const VOUCHER_SCHEMA = jsonSchema({
     invoiceNo: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] }
   },
-  required: ['company', 'companyId', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
+  required: ['company', 'companyId', 'payeeMappingId', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
   additionalProperties: false
 });
 
@@ -217,7 +233,9 @@ const makeModel = (setting) => {
 };
 
 // 証憑ファイル（Buffer + mimeType）から帳票情報を抽出する。
-// options.companies（[{id, name}]）を渡すと、候補からcompanyIdまで一発で選ぶ。
+// options.companies（[{id, name}]）と options.payeeMappings
+// （[{id, name, companyName, description}]）を渡すと、候補から
+// companyId・payeeMappingId まで一発で選ぶ。
 export const extract = async (buffer, mimeType, options = {}) => {
   const setting = settings();
   if ( !isAvailable() ) {
@@ -248,7 +266,7 @@ export const extract = async (buffer, mimeType, options = {}) => {
   } catch (e) {
   }
   const model = makeModel(setting);
-  const prompt = await buildPrompt(options.companies);
+  const prompt = await buildPrompt(options.companies, options.payeeMappings);
   const messages = [{
     role: 'user',
     content: [

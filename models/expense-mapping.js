@@ -23,7 +23,9 @@ export default (sequelize, DataTypes) => {
 		subAccount: DataTypes.INTEGER,
 		advance: DataTypes.BOOLEAN,
 		// 同日でもまとめない（1行1伝票に分離する）フラグ
-		noBundle: DataTypes.BOOLEAN
+		noBundle: DataTypes.BOOLEAN,
+		// 仕訳の振り分けヒント（自由文＋キーワード。空欄はデフォルト扱い）
+		description: DataTypes.STRING
 	}, {
 		sequelize,
 		modelName: 'ExpenseMapping',

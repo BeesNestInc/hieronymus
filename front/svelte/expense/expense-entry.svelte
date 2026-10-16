@@ -114,7 +114,7 @@
                       bind:value={line.payeeMappingId} disabled={!editable}>
                       <option value={null}></option>
                       {#each payeeMappings as mapping}
-                      <option value={mapping.id}>{mapping.name}</option>
+                      <option value={mapping.id}>{mappingLabel(mapping)}</option>
                       {/each}
                     </select>
                     {/key}
@@ -618,6 +618,11 @@ $: editable = !report.approvedAt &&
 
 $: totalAmount = (report.lines || []).reduce((sum, line) => sum + numeric(line.amount), 0);
 
+// 支払先selectの表示ラベル（同一会社で複数マッピングがあるとき説明で区別する）
+const mappingLabel = (mapping) => {
+  return ( mapping && mapping.description ) ? `${mapping.name}（${mapping.description}）` : ( mapping ? mapping.name : '' );
+};
+
 const payeeMappingFor = (line) => {
   return mappings.find((m) => ( m.id == line.payeeMappingId ));
 };
@@ -1052,8 +1057,31 @@ const bindVoucher = async (line, voucherId) => {
     line.voucherId = voucher.id;
     line.voucher = voucher;
     if ( voucher.companyId ) {
-      // 証憑の取引先から支払先マッピングを逆引きする
-      const payee = payeeMappings.find((m) => ( m.companyId == voucher.companyId ));
+      // 証憑の取引先から支払先マッピングを逆引きする。
+      // 同一会社に説明違いのマッピングが複数ある場合は、証憑の説明と
+      // マッピングの説明のキーワード一致で振り分ける（サーバの
+      // pickPayeeMappingと同じ優先順。説明が空のものはデフォルト）
+      const candidates = payeeMappings.filter((m) => ( m.companyId == voucher.companyId ));
+      let payee = null;
+      if ( candidates.length === 1 ) {
+        payee = candidates[0];
+      } else if ( candidates.length > 1 ) {
+        const text = ( voucher.description || '' ).trim();
+        if ( text ) {
+          payee = candidates.find((m) => (
+            ( m.description || '' ).trim()
+              .split(/[,、，;；\s]+/)
+              .filter((k) => k)
+              .some((k) => ( text.includes(k) || k.includes(text) ))
+          ));
+        }
+        if ( !payee ) {
+          payee = candidates.find((m) => ( !( m.description || '' ).trim() ));
+        }
+        if ( !payee ) {
+          payee = candidates[0];
+        }
+      }
       if ( payee ) {
         line.payeeMappingId = payee.id;
       } else {

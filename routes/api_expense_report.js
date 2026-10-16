@@ -3,7 +3,7 @@ const Op = models.Sequelize.Op;
 import fs from 'fs';
 import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
-import { createSlipForReport } from '../libs/expense.js';
+import { createSlipForReport, pickPayeeMapping } from '../libs/expense.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
 import { splitImage, straightenImage, trimImage, rotateImage } from '../libs/imaging.js';
@@ -663,13 +663,23 @@ export default {
         buffer = voucher.files[0].body;
         mimeType = voucher.files[0].mimeType;
       }
-      // 取引先候補を渡してOCRと同時にcompanyIdまで選ばせる（一発抽出）。
-      // companyIdが候補外・nullの場合は、LLMなしの完全一致・部分一致で補完する
+      // 取引先候補と支払先マッピング候補を渡して、OCRと同時に
+      // companyId・payeeMappingId まで一発で選ばせる。
+      // マッピングの説明は仕訳の振り分けヒント（同一会社で複数ある場合の判別）
       const companies = await models.Company.findAll({
         attributes: [ 'id', 'name' ]
       });
+      const payees = await models.ExpenseMapping.findAll({
+        where: { kind: 'payee' }
+      });
       const data = await vision.extract(buffer, mimeType, {
-        companies: companies.map((c) => ({ id: c.id, name: c.name }))
+        companies: companies.map((c) => ({ id: c.id, name: c.name })),
+        payeeMappings: payees.map((m) => ({
+          id: m.id,
+          name: m.name,
+          companyName: ( companies.find((c) => ( c.id == m.companyId )) || {} ).name || null,
+          description: m.description || null
+        }))
       });
       if ( !data ) {
         res.status(422).json({ code: -2, message: '帳票情報を読み取れませんでした。' });
@@ -697,19 +707,15 @@ export default {
         const c = companies.find((x) => ( x.id == companyId ));
         if ( c ) companyName = c.name;
       }
-      // 支払先マッピングもサーバ側で解決する（毎回DBから取るので常時最新）。
-      // 1) companyId版 2) 検索キー（OCR別名）とOCR会社名の照合
+      // 支払先マッピング: モデルが選んだIDを検証し、妥当なら採用。
+      // 妥当でなければ（null/候補外）フォールバック照合に任せる
       let payeeMappingId = null;
-      const payees = await models.ExpenseMapping.findAll({
-        where: { kind: 'payee' }
-      });
-      if ( companyId ) {
-        const byCompany = payees.find((m) => ( m.companyId == companyId ));
-        if ( byCompany ) {
-          payeeMappingId = byCompany.id;
-        }
-      }
-      if (( !payeeMappingId ) && ( data.company )) {
+      let matchMethod2 = null;
+      const validMappingIds = new Set(payees.map((m) => m.id));
+      if (( data.payeeMappingId != null ) && validMappingIds.has(data.payeeMappingId)) {
+        payeeMappingId = data.payeeMappingId;
+        matchMethod2 = 'ai';
+      } else {
         const norm = (s) => ( ( s || '' ).trim() );
         const byKey = payees.find((m) => ( norm(m.key) === norm(data.company) )) ||
           payees.find((m) => ( norm(m.key) &&
@@ -717,6 +723,24 @@ export default {
               norm(data.company).includes(norm(m.key)) ) ));
         if ( byKey ) {
           payeeMappingId = byKey.id;
+          matchMethod2 = 'key';
+        } else {
+          // 会社名→会社→pickPayeeMapping（説明キーワード/デフォルト）
+          let cid = companyId;
+          if ( !cid && data.company ) {
+            const exact = companies.find((c) => ( norm(c.name) === norm(data.company) ));
+            const partial = exact || companies.find((c) => ( norm(c.name) &&
+              ( norm(c.name).includes(norm(data.company)) ||
+                norm(data.company).includes(norm(c.name)) ) ));
+            if ( partial ) {
+              cid = partial.id;
+            }
+          }
+          const picked = pickPayeeMapping(payees, cid, data.description);
+          if ( picked ) {
+            payeeMappingId = picked.id;
+            matchMethod2 = 'fallback';
+          }
         }
       }
       res.json({
@@ -725,7 +749,8 @@ export default {
           companyId: companyId,
           companyName: companyName,
           matchMethod: matchMethod,
-          payeeMappingId: payeeMappingId
+          payeeMappingId: payeeMappingId,
+          payeeMatchMethod: matchMethod2
         }
       });
     } catch (e) {
