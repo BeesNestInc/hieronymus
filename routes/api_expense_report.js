@@ -446,7 +446,6 @@ export default {
       }
       if ( body.approvedAt ) {
         // 二重承認ガード: 承認済みの精算書への再承認は拒否する
-        // （createSlipForReportの伝票再利用は「不承認→修正→再承認」の経路用）
         if ( report.approvedAt ) {
           res.status(422).json({ code: -2, message: 'this report was already approved' });
           return;
@@ -460,14 +459,14 @@ export default {
         res.json({
           code: 0,
           id: report.id,
-          reuse: result.reuse,
           slipApproved: result.slipApproved,
-          slipNo: {
-            year: result.slip.year,
-            month: result.slip.month,
-            day: result.slip.day,
-            no: result.slip.no
-          }
+          slips: result.slips.map((s) => ({
+            id: s.id,
+            year: s.year,
+            month: s.month,
+            day: s.day,
+            no: s.no
+          }))
         });
       } else {
         // 不承認時は精算書の承認状態のみ解除する。

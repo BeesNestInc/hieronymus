@@ -720,12 +720,11 @@ const approve = async (event) => {
       approvedAt: new Date()
     });
     if ( result.data.code === 0 ) {
+      const n = ( result.data.slips || [] ).length;
       if ( result.data.slipApproved ) {
-        toast.show('経費精算', '承認しました。伝票も確定しました。');
-      } else if ( result.data.reuse ) {
-        toast.show('経費精算', '承認しました。既存の伝票を更新しました。');
+        toast.show('経費精算', n > 1 ? `承認しました。伝票を${n}件確定しました。` : '承認しました。伝票も確定しました。');
       } else {
-        toast.show('経費精算', '承認しました。仕訳伝票を起票しました。');
+        toast.show('経費精算', n > 1 ? `承認しました。仕訳伝票を${n}件起票しました。` : '承認しました。仕訳伝票を起票しました。');
       }
       const reloaded = await axios.get(`/api/expense_report/${report.id}`);
       report = reloaded.data;

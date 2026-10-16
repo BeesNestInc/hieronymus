@@ -1,7 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import * as taxcalc from './tax-calc.js';
-import {create as createCrossSlip, update as updateCrossSlip} from './cross_slip.js';
+import {create as createCrossSlip} from './cross_slip.js';
 
 // 提出者（立替者）から仮払金の補助科目を解決する。
 // User → Member → 氏名照合（tradingName / legalName）で仮払金の補助科目（SubAccount）を特定する。
@@ -66,6 +66,8 @@ const deriveTaxRuleId = async (accountCode, date) => {
 // 経費精算の明細から仕訳伝票の明細行を組み立てる。
 // 借方 = 支払先マッピングの経費科目（+補助科目）、貸方 = 出金元マッピングの科目。
 // 出金元が「個人立て替え」（advance=true）の場合、貸方補助科目は提出者から動的に解決する。
+// 戻り値は伝票行に元明細の情報を添えたもの（分割に使う）:
+// { ...slipLine, key: {paymentDate, paymentMappingId}, payeeMappingId, noBundle }
 const buildSlipLines = async (report, lines) => {
   const mappingIds = [...new Set(
     lines.map((l) => l.payeeMappingId).filter((id) => id)
@@ -116,6 +118,7 @@ const buildSlipLines = async (report, lines) => {
     const toCredit = Boolean(voucher && voucher.voucherClass && voucher.voucherClass.send);
     const taxDate = line.paymentDate || report.submittedAt || new Date();
     const taxRuleId = line.taxRuleId || await deriveTaxRuleId(payee.account, taxDate);
+    // 分割用の属性を付けて伝票行を返す
     slipLines.push({
       debitAccount: payee.account,
       debitSubAccount: payee.subAccount,
@@ -130,19 +133,45 @@ const buildSlipLines = async (report, lines) => {
       creditVoucherId: toCredit ? line.voucherId : null,
       creditTaxRuleId: null,
       application1: line.description,
-      application2: line.note
+      application2: line.note,
+      // 分割キー（支払日＋出金元）と例外指定
+      _paymentDate: line.paymentDate || null,
+      _paymentMappingId: line.paymentMappingId,
+      _payeeMappingId: line.payeeMappingId,
+      _noBundle: Boolean(payee.noBundle)
     });
   }
   return slipLines;
 };
 
-// 経費精算書の承認時に仕訳伝票を自動起票する。
+// 明細を伝票の組に分割する。
+// 基本キー =（支払日, 出金元マッピング）。noBundle の支払先の行は1行1伝票に分離する。
+//支払日が未入力の行は null キーで1つの組にまとめる（伝票日付は提出日を使う）。
+const groupLines = (slipLines) => {
+  const groups = [];
+  const byKey = new Map();
+  for ( const line of slipLines ) {
+    if ( line._noBundle ) {
+      groups.push({ lines: [ line ] });
+      continue;
+    }
+    const key = `${line._paymentDate || ''}|${line._paymentMappingId || ''}`;
+    if ( byKey.has(key) ) {
+      byKey.get(key).lines.push(line);
+    } else {
+      const group = { lines: [ line ] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+};
+
+// 経費精算書の承認時に仕訳伝票を自動起票する（明細を支払日×出金元で分割）。
 // 伝票は未承認（承認待ち）で作成され、確定は既存の伝票承認フローで行う。
-// 伝票日付は提出日（未入力なら最初の支払日）。
-// 再承認時、紐付伝票が未承認・同年月なら伝票番号を変えずに
-// 「更新」として明細を差し替える（reuse: true を返す）。
-// 伝票が既に承認済みなら新規に起票する（旧伝票は放置しないよう、
-// 呼び出し側で紐付伝票の状態を管理すること）。
+// 伝票日付は組の支払日（未入力なら提出日）。
+// 再承認時、未承認の紐付伝票は全て削除して作り直す（伝票番号は変わる）。
+// 承認済みの伝票はそのまま残す（削除・再作成はしない）。
 // 紐付けは伝票側の expenseReportId（1:n前提の逆FK）で表現する。
 export const createSlipForReport = async (report, lines, approver) => {
   if ( !lines || lines.length === 0 ) {
@@ -156,59 +185,66 @@ export const createSlipForReport = async (report, lines, approver) => {
     err.name = 'ExpenseValidation';
     throw err;
   }
-  const date = report.submittedAt ?
-    new Date(report.submittedAt) :
-    ( lines[0].paymentDate ? new Date(lines[0].paymentDate) : new Date() );
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const ctx = await taxcalc.loadTaxContext(year, month);
-  if ( !ctx.fy ) {
-    const err = new Error('提出日の属する会計年度がありません。');
-    err.name = 'ExpenseValidation';
-    throw err;
-  }
-  slipLines = taxcalc.recalcSlipLines(slipLines, ctx);
-  const validateErr = taxcalc.validateLines(slipLines, ctx) || taxcalc.validateBalanced(slipLines);
-  if ( validateErr ) {
-    const err = new Error(validateErr);
-    err.name = 'ExpenseValidation';
-    throw err;
-  }
+  const groups = groupLines(slipLines);
+  const submittedDate = report.submittedAt ? new Date(report.submittedAt) : new Date();
 
-  // 既存の紐付伝票がただ1つで未承認・同年月なら「更新」として再利用する（伝票番号を増やさない）
+  // 会計年度・税コンテキスト（各伝票日付で検証するが、参照は提出日付近で共通にする）。
+  // 月をまたぐ場合は伝票ごとにctxを作る
+  const prepareAndCreate = async (group) => {
+    const first = group.lines.find((l) => ( l._paymentDate ));
+    const date = first ? new Date(first._paymentDate) : submittedDate;
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const ctx = await taxcalc.loadTaxContext(year, month);
+    if ( !ctx.fy ) {
+      const err = new Error(`${year}/${month} の属する会計年度がありません。`);
+      err.name = 'ExpenseValidation';
+      throw err;
+    }
+    const recalc = taxcalc.recalcSlipLines(group.lines.map((l) => {
+      const { _paymentDate, _paymentMappingId, _payeeMappingId, _noBundle, ...rest } = l;
+      return rest;
+    }), ctx);
+    const validateErr = taxcalc.validateLines(recalc, ctx) || taxcalc.validateBalanced(recalc);
+    if ( validateErr ) {
+      const err = new Error(validateErr);
+      err.name = 'ExpenseValidation';
+      throw err;
+    }
+    return { year: year, month: month, day: day, lines: recalc, term: ctx.fy.term };
+  };
+
   // 承認者が会計権限を持つ場合は伝票も同時承認する（精算書の承認＝伝票の承認）。
   // 会計権限なしの承認者（上長等）の場合は従来通り未承認のまま残す。
-  // approvableも条件にする（伝票の承認自体がapprovable前提のため）。
   const simultaneous = Boolean(approver.accounting && approver.approvable);
+
+  // 未承認の紐付伝票は作り直す（削除）。承認済みはそのまま残す
   const existingSlips = await models.CrossSlip.findAll({
     where: { expenseReportId: report.id }
   });
-  const existing = existingSlips.find((s) => ( !s.approvedAt &&
-    ( s.year === year ) && ( s.month === month ) ));
-  if ( existing && existingSlips.length === 1 ) {
-    await updateCrossSlip(existing, {
-      year: year,
-      month: month,
-      day: day,
-      lines: slipLines,
-      term: ctx.fy.term
-    }, approver, { keepUnapproved: !simultaneous });
-    return { slip: existing, reuse: true, slipApproved: simultaneous };
+  for ( const slip of existingSlips ) {
+    if ( slip.approvedAt ) {
+      continue;
+    }
+    await models.CrossSlipDetail.destroy({
+      where: { crossSlipId: slip.id }
+    });
+    await slip.destroy();
   }
-  // 既存伝票なし・承認済み/別月/複数のときは新しい伝票を起票する
-  const slip = await createCrossSlip({
-    year: year,
-    month: month,
-    day: day,
-    lines: slipLines,
-    term: ctx.fy.term,
-    expenseReportId: report.id
-  }, approver, { forceUnapproved: !simultaneous });
-  return { slip: slip, reuse: false, slipApproved: simultaneous };
+
+  const created = [];
+  for ( const group of groups ) {
+    const body = await prepareAndCreate(group);
+    const slip = await createCrossSlip({
+      ...body,
+      expenseReportId: report.id
+    }, approver, { forceUnapproved: !simultaneous });
+    created.push(slip);
+  }
+  return { slips: created, slipApproved: simultaneous, reuse: false };
 };
 
 export default {
-
   createSlipForReport: createSlipForReport
 };
