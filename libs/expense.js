@@ -138,7 +138,9 @@ const buildSlipLines = async (report, lines) => {
       _paymentDate: line.paymentDate || null,
       _paymentMappingId: line.paymentMappingId,
       _payeeMappingId: line.payeeMappingId,
-      _noBundle: Boolean(payee.noBundle)
+      _noBundle: Boolean(payee.noBundle),
+      // 分割後に「この行がどの伝票に載ったか」を記録するための元明細参照
+      _lineId: line.id
     });
   }
   return slipLines;
@@ -235,11 +237,20 @@ export const createSlipForReport = async (report, lines, approver) => {
 
   const created = [];
   for ( const group of groups ) {
+    const sourceLineIds = group.lines.map((l) => ( l._lineId )).filter((id) => ( id ));
     const body = await prepareAndCreate(group);
     const slip = await createCrossSlip({
       ...body,
       expenseReportId: report.id
     }, approver, { forceUnapproved: !simultaneous });
+    // 明細行に「どの伝票に載ったか」を記録する（伝票単位のグループ表示用）
+    if ( sourceLineIds.length > 0 ) {
+      await models.ExpenseReportLine.update({
+        crossSlipId: slip.id
+      }, {
+        where: { id: { [Op.in]: sourceLineIds } }
+      });
+    }
     created.push(slip);
   }
   return { slips: created, slipApproved: simultaneous, reuse: false };

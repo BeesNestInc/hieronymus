@@ -35,6 +35,8 @@ const listQuery = {
       model: models.ExpenseReportLine,
       as: 'lines',
       include: [
+        { model: models.CrossSlip, as: 'crossSlip',
+          attributes: [ 'id', 'year', 'month', 'day', 'no', 'approvedAt' ] },
         { model: models.ExpenseMapping, as: 'payeeMapping' },
         { model: models.ExpenseMapping, as: 'paymentMapping' },
         {

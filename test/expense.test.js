@@ -366,6 +366,13 @@ describe('expense (test db)', () => {
       assert.equal(d1.length, 1);
       // 借方合計＝通帳突合の想定（同日の合算）
       assert.equal(Number(d0[0].debitAmount) + Number(d0[1].debitAmount), 3000);
+      // 行に「どの伝票に載ったか」が記録される（伝票単位のグループ表示用）
+      const grouped = await models.ExpenseReportLine.findAll({
+        where: { expenseReportId: report.id },
+        order: [['lineNo', 'ASC']]
+      });
+      const ids = grouped.map((l) => l.crossSlipId);
+      assert.deepEqual([...ids].sort((a, b) => ( a - b )), [slips[0].id, slips[0].id, slips[1].id].sort((a, b) => ( a - b )));
     } finally {
       await cleanup(report);
     }

@@ -28,37 +28,6 @@
                 value={submitterName} disabled>
             </div>
           </div>
-          {#if ( ( report.crossSlips || [] ).length > 0 )}
-          <div class="row mt-2">
-            <label class="col-2 col-form-label">伝票</label>
-            <div class="col-sm-10">
-              {#each report.crossSlips as slip0}
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <button type="button" class="btn btn-link p-0"
-                  on:click|preventDefault={() => {
-                    openSlip(slip0);
-                  }}>
-                  <i class="bi bi-journal-text"></i>&nbsp;伝票 {slip0.year}/{slip0.month}/{slip0.day}-{slip0.no}
-                </button>
-                {#if ( slip0.approvedAt )}
-                <span class="badge bg-success">済</span>
-                {:else}
-                <span class="badge bg-warning text-dark">承認待ち</span>
-                {/if}
-                {#if ( editable )}
-                <button type="button" class="btn btn-sm btn-outline-danger"
-                  on:click={() => { deleteSlip(slip0.id); }}
-                  title={slip0.approvedAt ?
-                    '承認を取り消してこの伝票を削除します（会計権限が必要）。' :
-                    'この伝票が未処理のまま残っています。削除できます。'}>
-                  <i class="bi bi-trash"></i>&nbsp;伝票削除
-                </button>
-                {/if}
-              </div>
-              {/each}
-            </div>
-          </div>
-          {/if}
           <div class="row mt-3">
             <label for="company" class="col-2 col-form-label">取引先</label>
             <div class="col-10">
@@ -285,6 +254,31 @@
                   {/if}
                 </td>
                 <td style="text-align:center;">
+                  {#if ( lineMeta[i] && lineMeta[i].slip )}
+                  <div class="slip-chip">
+                    {#if ( lineMeta[i].first )}
+                    <button type="button" class="btn btn-link p-0"
+                      title="この明細の載っている伝票を表示します"
+                      on:click|preventDefault={() => { openSlip(lineMeta[i].slip); }}>
+                      {lineMeta[i].slip.month}/{lineMeta[i].slip.day}-{lineMeta[i].slip.no}
+                    </button>
+                    {#if ( lineMeta[i].slip.approvedAt )}
+                    <span class="badge bg-success" title="承認済み">済</span>
+                    {:else}
+                    <span class="badge bg-warning text-dark" title="承認待ち">待</span>
+                    {/if}
+                    {#if ( editable )}
+                    <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
+                      on:click={() => { deleteSlip(lineMeta[i].slip.id); }}
+                      title="この伝票を削除します（承認済みなら会計権限で承認取消＋削除）">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                    {/if}
+                    {:else}
+                    <i class="bi bi-arrow-return-right text-muted" title="上と同じ伝票"></i>
+                    {/if}
+                  </div>
+                  {/if}
                   {#if ( editable )}
                   <button type="button" class="btn btn-primary btn-sm"
                     on:click={() => { report.lines.splice(i + 1, 0, {}); report.lines = report.lines; }}>
@@ -801,7 +795,7 @@ const disapprove = async (event) => {
 
 // 紐付伝票の削除（未処理伝票の掃除用）。対象を指定できる（省略時は全部）
 const deleteSlip = async (slipId, event) => {
-  const target = ( report.crossSlips || [] ).find((s) => ( s.id === slipId ));
+  const target = ( report.lines || [] ).map((l) => ( l.crossSlip )).find((s) => ( s && ( s.id === slipId ) ));
   const approved = target ? target.approvedAt : false;
   const allowed = await confirmModal('経費精算',
     approved ?
@@ -853,6 +847,21 @@ $: pileVouchers = [ ...( report.vouchers || [] ), ...floatings ]
 // 進捗（どこまでやったか）: 明細に紐付け済みの証憑行と合計金額
 $: linkedVouchers = ( report.lines || [] ).filter((l) => ( l.voucherId ));
 $: linkedSum = linkedVouchers.reduce((s, l) => ( s + ( Number(l.amount) || 0 )), 0);
+
+// 明細を伝票単位でグループ化する（承認時に記録された行の crossSlipId。未承認はnull）。
+// lineMeta[i] = { slip, first }: i行目の伝pinと「グループの先頭行か」
+$: lineMeta = (() => {
+  const lines = report.lines || [];
+  const meta = [];
+  let prev = undefined;
+  for ( const line of lines ) {
+    const slip = line.crossSlip || null;
+    const first = ( slip === null ) ? true : ( prev !== slip.id );
+    meta.push({ slip: slip, first: first });
+    prev = slip ? slip.id : undefined;
+  }
+  return meta;
+})();
 
 // 画像プレビュー（モーダル）。PDFは別タブ表示のまま
 let preview = null;

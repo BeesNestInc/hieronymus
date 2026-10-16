@@ -31,6 +31,12 @@ export default (sequelize, DataTypes) => {
 				foreignKey: 'taxRuleId',
 				as: 'taxRule'
 			});
+			// この明細行が載った仕訳伝票（承認時の分割起票で記録される）
+			this.belongsTo(models.CrossSlip, {
+				foreignKey: 'crossSlipId',
+				as: 'crossSlip',
+				onDelete: 'SET NULL'
+			});
 		}
 	};
 	ExpenseReportLine.init({
@@ -43,7 +49,8 @@ export default (sequelize, DataTypes) => {
 		paymentMappingId: DataTypes.INTEGER,
 		note: DataTypes.STRING,
 		voucherId: DataTypes.INTEGER,
-		taxRuleId: DataTypes.INTEGER
+		taxRuleId: DataTypes.INTEGER,
+		crossSlipId: DataTypes.INTEGER
 	}, {
 		sequelize,
 		modelName: 'ExpenseReportLine',
