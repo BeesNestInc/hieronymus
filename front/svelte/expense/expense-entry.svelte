@@ -251,6 +251,12 @@
                     AI読み取り
                     {/if}
                   </button>
+                  {#if ( line._aiError )}
+                  <div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size:0.75rem;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    {line._aiError}
+                  </div>
+                  {/if}
                   {/if}
                 </td>
                 <td style="text-align:center;">
@@ -1185,6 +1191,7 @@ const aiRead = async (line) => {
   line._aiBusy = true;
   line._aiSecs = 0;
   line._unmatched = null;
+  line._aiError = null;
   report.lines = [...report.lines];
   // 経過秒数を表示する（進んでいるか固まっているかの切り分け用）
   const startedAt = Date.now();
@@ -1270,6 +1277,8 @@ const aiRead = async (line) => {
     console.error(e);
     ok = false;
     errorMessages = [errMsg(e)];
+    // 上部のエラーボックスだけでなく行のそばにも残す（読み逃し防止）
+    line._aiError = errMsg(e);
   } finally {
     clearTimeout(watchdog);
     clearInterval(timer);

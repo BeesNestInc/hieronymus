@@ -223,6 +223,47 @@ describe('expense (test db)', () => {
     }
   });
 
+  it('仮払金の補助科目: 出金元マッピング名（椋立替等）を優先して解決する', async () => {
+    // 仮払金に補助「テスト椋」を追加し、「テスト椋立替」マッピングを作る。
+    // 提出者はテスト立替太郎（creator）だが、マッピング名が立替者を示すため
+    // 貸方補助は「テスト椋」になるべき
+    await findOrCreate(models.SubAccount, {
+      accountId: karibarai.id,
+      name: 'テスト椋'
+    }, {
+      name: 'テスト椋',
+      key: 'test-muku',
+      accountId: karibarai.id,
+      subAccountCode: 2,
+      taxClass: 0
+    });
+    const mukuMapping = await models.ExpenseMapping.create({
+      kind: 'payment',
+      name: 'テスト椋立替',
+      account: '1130000',
+      advance: true
+    });
+    const report = await buildReport(data.creator.id);
+    await buildLine(report, { paymentMappingId: mukuMapping.id });
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const result = await createSlipForReport(report, lines, approverNoAcct);
+    try {
+      const details = await models.CrossSlipDetail.findAll({
+        where: { crossSlipId: result.slips[0].id }
+      });
+      assert.equal(details.length, 1);
+      // 貸方補助はテスト椋（マッピング名由来。提出者のテスト立替太郎ではない）
+      const muku = await models.SubAccount.findOne({ where: { accountId: karibarai.id, name: 'テスト椋' } });
+      assert.equal(Number(details[0].creditSubAccount), muku.subAccountCode);
+    } finally {
+      await cleanup(report);
+      await mukuMapping.destroy();
+    }
+  });
+
   it('仮払金の補助科目（立替者）が解決できない場合は起票がブロックされる', async () => {
     // Memberを持たないユーザー（approver）が提出者の場合
     const report = await buildReport(data.approver.id);

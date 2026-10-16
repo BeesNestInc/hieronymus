@@ -3,10 +3,32 @@ const Op = models.Sequelize.Op;
 import * as taxcalc from './tax-calc.js';
 import {create as createCrossSlip} from './cross_slip.js';
 
-// 提出者（立替者）から仮払金の補助科目を解決する。
+// 仮払金の補助科目（立替者）を解決する。
+// 1) 出金元マッピング名から照合する（「椋立替」→補助「椋」。提出者と立替者が
+//    異なるケース＝他人の立て替えを代行提出するケースに対応）。
+// 2) 解決できなければ提出者（従来動作）で照合する。
 // User → Member → 氏名照合（tradingName / legalName）で仮払金の補助科目（SubAccount）を特定する。
 // 仕訳パターン上、仮払金の補助科目は立替者ごとに存在する（例: 1130000/1=生越, 1130000/2=椋）。
-const resolveAdvanceSubAccount = async (report, accountCode) => {
+const resolveAdvanceSubAccount = async (report, payment, accountCode) => {
+  const account = await models.Account.findOne({
+    where: { accountCode: accountCode }
+  });
+  if ( !account ) {
+    return null;
+  }
+  const subs = await models.SubAccount.findAll({
+    where: { accountId: account.id }
+  });
+  // マッピング名からの照合（「椋立替」「生越立替」等の立替者別マッピング）
+  if ( payment && payment.name ) {
+    const mappingName = payment.name.replace(/立替|立て替え/g, '').trim();
+    const direct = subs.find((s) => ( s.name === mappingName )) ||
+      subs.find((s) => ( s.name && ( mappingName.includes(s.name) || s.name.includes(mappingName) ) ));
+    if ( direct ) {
+      return direct;
+    }
+  }
+  // 提出者からの照合（従来動作: 個人立て替えの自分精算）
   const user = await models.User.findByPk(report.submittedBy, {
     include: [{ model: models.Member, as: 'member' }]
   });
@@ -17,15 +39,6 @@ const resolveAdvanceSubAccount = async (report, accountCode) => {
   if ( names.length === 0 ) {
     return null;
   }
-  const account = await models.Account.findOne({
-    where: { accountCode: accountCode }
-  });
-  if ( !account ) {
-    return null;
-  }
-  const subs = await models.SubAccount.findAll({
-    where: { accountId: account.id }
-  });
   for ( const name of names ) {
     // 完全一致（「生越」「生越氏」）の後、氏名の部分一致（補助「生越」⊂ 氏名「生越昌己」等）で照合する
     const sub = subs.find((s) => ( s.name === name ) || ( s.name === `${name}氏` )) ||
@@ -104,7 +117,7 @@ const buildSlipLines = async (report, lines) => {
     }
     let creditSubAccount = payment.subAccount;
     if ( payment.advance ) {
-      const sub = await resolveAdvanceSubAccount(report, payment.account);
+      const sub = await resolveAdvanceSubAccount(report, payment, payment.account);
       if ( !sub ) {
         const err = new Error('仮払金の補助科目（立替者）を解決できませんでした。提出者に対応する補助科目が登録されているか確認してください。');
         err.name = 'ExpenseSubAccountNotFound';
