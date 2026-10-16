@@ -143,8 +143,20 @@ export default {
         updatedBy: req.session.user.id
       });
       if ( body.lines && body.lines.length > 0 ) {
-        for ( let i = 0; i < body.lines.length; i ++ ) {
-          const line = body.lines[i];
+        // 支払日 ASC（未入力は後ろ）で安定ソート（同日内は送信順）
+        const dated = body.lines
+          .map((line, i) => ({ line: line, i: i }))
+          .sort((a, b) => {
+            if (( a.line.paymentDate ) && ( b.line.paymentDate ) &&
+                ( a.line.paymentDate !== b.line.paymentDate )) {
+              return a.line.paymentDate < b.line.paymentDate ? -1 : 1;
+            }
+            if ( a.line.paymentDate && !b.line.paymentDate ) return -1;
+            if ( !a.line.paymentDate && b.line.paymentDate ) return 1;
+            return a.i - b.i;
+          });
+        for ( let i = 0; i < dated.length; i ++ ) {
+          const line = dated[i].line;
           await models.ExpenseReportLine.create({
             expenseReportId: report.id,
             lineNo: i,
@@ -158,7 +170,7 @@ export default {
             taxRuleId: line.taxRuleId || null
           });
         }
-        await normalizePileVouchers(report.id, body.lines);
+        await normalizePileVouchers(report.id, dated.map((d) => d.line));
       }
       const saved = await getReport(report.id);
       res.json(saved);
@@ -191,11 +203,24 @@ export default {
       report.updatedBy = req.session.user.id;
       await report.save();
       if ( body.lines ) {
+        // 支払日 ASC（未入力は後ろ）で安定ソートする。
+        // 同日内の相対順序は送信順を保持（DnDでの並べ替え結果が反映される）
+        const dated = body.lines
+          .map((line, i) => ({ line: line, i: i }))
+          .sort((a, b) => {
+            if (( a.line.paymentDate ) && ( b.line.paymentDate ) &&
+                ( a.line.paymentDate !== b.line.paymentDate )) {
+              return a.line.paymentDate < b.line.paymentDate ? -1 : 1;
+            }
+            if ( a.line.paymentDate && !b.line.paymentDate ) return -1;
+            if ( !a.line.paymentDate && b.line.paymentDate ) return 1;
+            return a.i - b.i;
+          });
         await models.ExpenseReportLine.destroy({
           where: { expenseReportId: report.id }
         });
-        for ( let i = 0; i < body.lines.length; i ++ ) {
-          const line = body.lines[i];
+        for ( let i = 0; i < dated.length; i ++ ) {
+          const line = dated[i].line;
           await models.ExpenseReportLine.create({
             expenseReportId: report.id,
             lineNo: i,
@@ -209,7 +234,7 @@ export default {
             taxRuleId: line.taxRuleId || null
           });
         }
-        await normalizePileVouchers(report.id, body.lines);
+        await normalizePileVouchers(report.id, dated.map((d) => d.line));
       }
       const saved = await getReport(report.id);
       res.json(saved);

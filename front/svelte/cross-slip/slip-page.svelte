@@ -42,6 +42,7 @@
         fy={fy}
         accounts={accounts}
         {taxRules}
+        reorderable={!slipLocked && !linkedExpenseReport && ( status.user.accounting || status.user.approvable )}
         ></CrossSlip>
     </div>
     {#if vouchers}

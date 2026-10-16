@@ -109,7 +109,7 @@
                 <th scope="col">内容</th>
                 <th scope="col" style="width: 150px;">出金元</th>
                 <th scope="col" style="width: 170px;">証憑</th>
-                <th scope="col" style="width: 74px;"></th>
+                <th scope="col" style="width: 92px;"></th>
               </tr>
             </thead>
             <tbody>
@@ -120,6 +120,13 @@
                 on:dragleave|preventDefault={onDragLeave}
                 on:dragover|preventDefault
                 data-index={i}>
+                <td class="drag-cell">
+                  <button type="button" class="drag-handle" title="ドラッグで行を並べ替えます（保存時、支払日順に整列します）"
+                    disabled={!editable}
+                    aria-label="行の並べ替え">
+                    <i class="bi bi-grip-vertical"></i>
+                  </button>
+                </td>
                 <td class="input">
                   <div>
                     <input type="date" class="form-control form-control-sm"
@@ -516,6 +523,27 @@ tr.over {
 .pile-table th, .pile-table td {
   vertical-align: middle;
 }
+.drag-cell {
+  width: 18px;
+  padding: 4px 0 4px 4px;
+}
+.drag-handle {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: grab;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle:disabled {
+  cursor: default;
+  color: #ddd;
+}
+.sortable-ghost {
+  opacity: 0.4;
+}
 .pile-desc {
   width: 40%;
   min-width: 160px;
@@ -524,6 +552,7 @@ tr.over {
 
 <script>
 import axios from 'axios';
+import Sortable from 'sortablejs';
 import {numeric} from '../../../libs/utils';
 import {onMount, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
@@ -545,6 +574,11 @@ let errorMessages = [];
 let submitterName = '';
 // 紐付伝票（現在は先頭を表示。1:n化の完全対応は後続フェーズ）
 $: crossSlip0 = (( report && report.crossSlips ) || [])[0] || null;
+// 明細行DnD（Sortable）。editableの変化に追従させる
+let sortable = null;
+$: if ( sortable ) {
+  sortable.option('disabled', !editable);
+}
 // 未整理の証憑。精算書のパイル(report.vouchers)と、精算書に紐付いていない
 // 浮遊証憑(floatings: 設定ページや未保存精算書からアップロードされたもの)
 let floatings = [];
@@ -1234,6 +1268,24 @@ const aiRead = async (line) => {
 };
 
 onMount(async () => {
+  // 明細行の並べ替え（ハンドル掴みのみ。行全体は証憑DnDのドロップ先のため）。
+  // 入れ替えた結果は配列順に反映され、保存時に支払日順へ安定ソートされる
+  const tbody = document.querySelector('.expense-table tbody');
+  if ( tbody ) {
+    sortable = new Sortable(tbody, {
+      animation: 150,
+      handle: '.drag-handle',
+      disabled: !editable,
+      onEnd: (evt) => {
+        const { oldIndex, newIndex } = evt;
+        if ( oldIndex !== newIndex ) {
+          const moved = report.lines.splice(oldIndex, 1)[0];
+          report.lines.splice(newIndex, 0, moved);
+          report.lines = [...report.lines];
+        }
+      }
+    });
+  }
   axios.get('/api/company').then((result) => {
     companies = result.data.companies || [];
   });

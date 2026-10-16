@@ -42,6 +42,8 @@
     <table class="table table-striped table-bordered">
       <thead class="table-light">
         <tr>
+        <th style="width:24px;">
+        </th>
         <th>
           借方科目
         </th>
@@ -71,6 +73,12 @@
           on:dragover|preventDefault
           data-index={i}
           data-id={line.id}>
+          <td class="drag-cell">
+            <button type="button" class="drag-handle" title="ドラッグで明細を並べ替えます"
+              disabled={!reorderable} aria-label="明細の並べ替え">
+              <i class="bi bi-grip-vertical"></i>
+            </button>
+          </td>
           <td class="input">
             <Account
               accounts={accounts}
@@ -238,11 +246,36 @@
 </div>
 
 <style>
+.drag-cell {
+  padding: 4px 0 4px 2px;
+  vertical-align: middle;
+}
+.drag-handle {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: grab;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle:disabled {
+  cursor: default;
+  color: #ddd;
+}
+.sortable-ghost {
+  opacity: 0.4;
+}
+#cross-slip th, #cross-slip td {
+  vertical-align: middle;
+}
 </style>
 
 <script>
 import axios from 'axios';
 import Icon from '@iconify/svelte';
+import Sortable from 'sortablejs';
 
 import {findTaxClass} from '../../javascripts/cross-slip';
 import {numeric, getCompanyInfo} from '../../../libs/utils';
@@ -255,13 +288,34 @@ export let accounts;
 export let slip;
 export let fy;
 export let taxRules;
+// 明細の並べ替え（ハンドルDnD。未確定伝票のみ。既定は無効）
+export let reorderable = false;
 let sums;
 let projects = [];
 let showProject = false;
+let sortable = null;
 
 $: slip.year = slip.month < ( fy.startDate.getMonth() + 1 ) ? fy.endDate.getFullYear() : fy.startDate.getFullYear();
 
 onMount(async () => {
+  // 明細行の並べ替え（ハンドル掴みのみ。行全体は証憑DnDのドロップ先のため）。
+  // 並べ替え順は保存時にlineNoとして採番される
+  const tbody = document.querySelector('#cross-slip');
+  if ( tbody && reorderable ) {
+    sortable = new Sortable(tbody, {
+      animation: 150,
+      handle: '.drag-handle',
+      onEnd: (evt) => {
+        const { oldIndex, newIndex } = evt;
+        if ( oldIndex !== newIndex ) {
+          const moved = slip.lines.splice(oldIndex, 1)[0];
+          slip.lines.splice(newIndex, 0, moved);
+          slip.lines = [...slip.lines];
+          computeSum();
+        }
+      }
+    });
+  }
   try {
     const companyInfo = await getCompanyInfo();
     if (companyInfo && companyInfo.useProjectAccounting) {
