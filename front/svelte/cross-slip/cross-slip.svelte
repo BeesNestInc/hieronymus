@@ -200,38 +200,34 @@
               <img src="/public/icons/icon_pdf.png" class="thumb"/>
             </a>
             {/if}
-            {/each}
-            {/if}
-            {/each}
-            {#if (slip.approvedAt) }
-            {#if ( ( line.debitVoucherId !== null ) || ( line.creditVoucherId !== null ))}
-            <Icon icon="fa:file"></Icon>
-            {/if}
-            {:else}
-            <button type="button" class="btn btn-primary btn-sm"
-              on:click={() => {
-                computeSumAndNext(i);
-              }}>
-              <i class="fas fa-plus"></i>
-            </button>
-            {#if ( slip.lines.length > 1 )}
-            <button type="button" class="btn btn-danger btn-sm"
-              on:click={() => {
-                computeSumAndDelete(i);
-              }}>
-              <i class="fas fa-minus"></i>
-            </button>
-            {/if}
-            {#if ( ( line.debitVoucherId ) || ( line.creditVoucherId ))}
-            <button type="button" class="btn btn-warning btn-sm"
-              on:click={() => {
-                unbindVoucher(i);
-              }}>
-              <i class="fas fa-link-slash"></i>
-            </button>
-            {/if}
-            {/if}
-          </td>
+             {/each}
+             {/if}
+             {/each}
+             {#if ( !slip.approvedAt )}
+             <button type="button" class="btn btn-primary btn-sm"
+               on:click={() => {
+                 computeSumAndNext(i);
+               }}>
+               <i class="fas fa-plus"></i>
+             </button>
+             {#if ( slip.lines.length > 1 )}
+             <button type="button" class="btn btn-danger btn-sm"
+               on:click={() => {
+                 computeSumAndDelete(i);
+               }}>
+               <i class="fas fa-minus"></i>
+             </button>
+             {/if}
+             {#if ( ( line.debitVoucherId ) || ( line.creditVoucherId ))}
+             <button type="button" class="btn btn-warning btn-sm"
+               on:click={() => {
+                 unbindVoucher(i);
+               }}>
+               <i class="fas fa-link-slash"></i>
+             </button>
+             {/if}
+             {/if}
+           </td>
         </tr>
         {/each}
         {/if}
@@ -341,7 +337,6 @@
 
 <script>
 import axios from 'axios';
-import Icon from '@iconify/svelte';
 import Sortable from 'sortablejs';
 
 import {findTaxClass} from '../../javascripts/cross-slip';
