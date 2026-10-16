@@ -400,6 +400,29 @@ describe('expense (test db)', () => {
     }
   });
 
+  it('紐付伝票の削除: 対象指定（slipId）で1件だけ消せる', async () => {
+    const report = await buildReport(data.creator.id);
+    await buildLine(report, { amount: 1000, paymentDate: '2026-03-10' });
+    await buildLine(report, { amount: 2000, paymentDate: '2026-03-12' });
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const result = await createSlipForReport(report, lines, approverNoAcct);
+    try {
+      assert.equal(result.slips.length, 2);
+      const target = result.slips.sort((a, b) => ( a.day - b.day ))[0];
+      const r = await callDeleteSlip(report.id, approverNoAcct, target.id);
+      assert.equal(r.body.code, 0);
+      // 残るのは1件
+      const remaining = await models.CrossSlip.findAll({ where: { expenseReportId: report.id } });
+      assert.equal(remaining.length, 1);
+      assert.notEqual(remaining[0].id, target.id);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
   it('未整理証憑: パイル紐付け（expenseReportId）が明細紐付けに正規化される', async () => {
     const report = await buildReport(data.creator.id);
     try {
@@ -459,8 +482,8 @@ describe('expense (test db)', () => {
   });
 
   // deleteSlipハンドラを直接呼ぶ（API層のテスト用モック）
-  const callDeleteSlip = async (reportId, user) => {
-    const req = { body: { id: reportId }, session: { user: user } };
+  const callDeleteSlip = async (reportId, user, slipId) => {
+    const req = { body: { id: reportId, slipId: slipId }, session: { user: user } };
     let status = 200;
     let body = null;
     const res = {

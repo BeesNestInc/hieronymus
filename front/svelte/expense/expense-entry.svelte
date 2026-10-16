@@ -28,30 +28,34 @@
                 value={submitterName} disabled>
             </div>
           </div>
-          {#if ( crossSlip0 )}
+          {#if ( ( report.crossSlips || [] ).length > 0 )}
           <div class="row mt-2">
             <label class="col-2 col-form-label">伝票</label>
-            <div class="col-sm-10 d-flex align-items-center gap-2">
-              <button type="button" class="btn btn-link p-0"
-                on:click|preventDefault={() => {
-                  openSlip(crossSlip0);
-                }}>
-                <i class="bi bi-journal-text"></i>&nbsp;伝票 {crossSlip0.year}/{crossSlip0.month}-{crossSlip0.no}
-              </button>
-              {#if ( crossSlip0.approvedAt )}
-              <span class="badge bg-success">済</span>
-              {:else}
-              <span class="badge bg-warning text-dark">承認待ち</span>
-              {/if}
-              {#if ( editable )}
-              <button type="button" class="btn btn-sm btn-outline-danger"
-                on:click={deleteSlip}
-                title={crossSlip0.approvedAt ?
-                  '承認を取り消して紐付伝票を削除します（会計権限が必要）。' :
-                  '紐付伝票が未処理のまま残っています。削除できます。'}>
-                <i class="bi bi-trash"></i>&nbsp;伝票削除
-              </button>
-              {/if}
+            <div class="col-sm-10">
+              {#each report.crossSlips as slip0}
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <button type="button" class="btn btn-link p-0"
+                  on:click|preventDefault={() => {
+                    openSlip(slip0);
+                  }}>
+                  <i class="bi bi-journal-text"></i>&nbsp;伝票 {slip0.year}/{slip0.month}/{slip0.day}-{slip0.no}
+                </button>
+                {#if ( slip0.approvedAt )}
+                <span class="badge bg-success">済</span>
+                {:else}
+                <span class="badge bg-warning text-dark">承認待ち</span>
+                {/if}
+                {#if ( editable )}
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                  on:click={() => { deleteSlip(slip0.id); }}
+                  title={slip0.approvedAt ?
+                    '承認を取り消してこの伝票を削除します（会計権限が必要）。' :
+                    'この伝票が未処理のまま残っています。削除できます。'}>
+                  <i class="bi bi-trash"></i>&nbsp;伝票削除
+                </button>
+                {/if}
+              </div>
+              {/each}
             </div>
           </div>
           {/if}
@@ -572,8 +576,6 @@ let aiAvailable = false;
 let ok = true;
 let errorMessages = [];
 let submitterName = '';
-// 紐付伝票（現在は先頭を表示。1:n化の完全対応は後続フェーズ）
-$: crossSlip0 = (( report && report.crossSlips ) || [])[0] || null;
 // 明細行DnD（Sortable）。editableの変化に追従させる
 let sortable = null;
 $: if ( sortable ) {
@@ -796,9 +798,10 @@ const disapprove = async (event) => {
   }
 };
 
-// 紐付伝票の削除（未処理伝票の掃除用）
-const deleteSlip = async (event) => {
-  const approved = crossSlip0 && crossSlip0.approvedAt;
+// 紐付伝票の削除（未処理伝票の掃除用）。対象を指定できる（省略時は全部）
+const deleteSlip = async (slipId, event) => {
+  const target = ( report.crossSlips || [] ).find((s) => ( s.id === slipId ));
+  const approved = target ? target.approvedAt : false;
   const allowed = await confirmModal('経費精算',
     approved ?
       '承認済みの紐付伝票の承認を取り消して削除します。<br/>よろしいですか？' :
@@ -808,7 +811,8 @@ const deleteSlip = async (event) => {
     return;
   }
   try {
-    const result = await axios.delete('/api/expense_report/slip', {data: {id: report.id}});
+    const result = await axios.delete('/api/expense_report/slip',
+      {data: slipId ? {id: report.id, slipId: slipId} : {id: report.id}});
     if ( result.data.code === 0 ) {
       toast.show('経費精算', result.data.slipWasApproved ?
         '紐付伝票の承認を取り消して削除しました。' : '紐付伝票を削除しました。');
