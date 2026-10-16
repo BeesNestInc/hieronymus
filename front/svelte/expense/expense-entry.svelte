@@ -108,6 +108,7 @@
           <table class="table table-striped table-bordered expense-table">
             <thead class="table-light">
               <tr>
+                <th scope="col" style="width: 24px;"></th>
                 <th scope="col" style="width: 260px;">支払日 / 支払先</th>
                 <th scope="col" style="width: 110px;">支払金額</th>
                 <th scope="col">内容</th>
