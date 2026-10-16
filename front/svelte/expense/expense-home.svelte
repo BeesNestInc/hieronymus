@@ -116,7 +116,6 @@
       ]}></TableMaintenance>
     </div>
   </div>
-  </div>
   <div class="row">
     <div class="col-8" style="padding:10px;">
       <TableMaintenance
