@@ -27,9 +27,12 @@
               <input type="text" class="form-control"
                 value={submitterName} disabled>
             </div>
-            {#if ( report.crossSlip )}
-            <div class="col-sm-4">
-              <button type="button" class="btn btn-link"
+          </div>
+          {#if ( report.crossSlip )}
+          <div class="row mt-2">
+            <label class="col-2 col-form-label">伝票</label>
+            <div class="col-sm-10 d-flex align-items-center gap-2">
+              <button type="button" class="btn btn-link p-0"
                 on:click|preventDefault={() => {
                   openSlip(report.crossSlip);
                 }}>
@@ -50,8 +53,8 @@
               </button>
               {/if}
             </div>
-            {/if}
           </div>
+          {/if}
           <div class="row mt-3">
             <label for="company" class="col-2 col-form-label">取引先</label>
             <div class="col-10">
