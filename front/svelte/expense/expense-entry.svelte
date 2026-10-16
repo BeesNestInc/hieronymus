@@ -1231,42 +1231,29 @@ const aiRead = async (line) => {
     if ( values.description ) {
       line.description = values.description;
     }
-    // 支払先の解決順: サーバ解決のcompanyId→取引先の完全一致→部分一致→
-    // マッピングの検索キー（OCR別名）。サーバはLLM判定まで行う。
-    let payee = null;
-    let matched = null;
-    if ( values.companyId ) {
-      payee = payeeMappings.find((m) => ( m.companyId == values.companyId )) || null;
+    // 支払先の解決はサーバ側で完結する（companyId＋支払先マッピングを
+    // サーバが毎回DBから引いて payeeMappingId を返す）。
+    // フロントはマスタを再取得して（新規登録の表示用に）結果をそのまま使う
+    try {
+      const [companiesRes, mappingsRes] = await Promise.all([
+        axios.get('/api/company'),
+        axios.get('/api/expense_mapping')
+      ]);
+      companies = companiesRes.data.companies || [];
+      mappings = mappingsRes.data.values || [];
+    } catch (e) {
+      // 再取得に失敗しても受け取ったIDの使用は続行する
     }
-    if ( !payee && values.company ) {
-      const norm = (s) => ( ( s || '' ).trim() );
-      payee = payeeMappings.find((m) => ( norm(m.key) === norm(values.company) )) ||
-        payeeMappings.find((m) => ( norm(m.key) &&
-          ( norm(m.key).includes(norm(values.company)) ||
-            norm(values.company).includes(norm(m.key)) ) )) || null;
-      if ( !payee ) {
-        matched = companies.find((c) => ( c.name === values.company )) ||
-          companies.find((c) => ( c.name && ( c.name.includes(values.company) ||
-            values.company.includes(c.name) ) )) || null;
-        if ( matched ) {
-          // 取引先から支払先マッピングを逆引きする
-          payee = payeeMappings.find((m) => ( m.companyId == matched.id )) || null;
-        }
-      }
-    }
-    if ( values.company ) {
-      if ( payee ) {
-        line.payeeMappingId = payee.id;
-      } else {
-        // 未登録は行内に残す（トーストは消えるので読めない）。
-        // 登録画面へは別タブ遷移（未保存の明細を失わないため）＋初期値付き
-        line._unmatched = {
-          company: values.company,
-          companyId: ( values.companyId != null ) ? values.companyId :
-            ( matched ? matched.id : null ),
-          companyName: matched ? matched.name : null
-        };
-      }
+    if ( values.payeeMappingId ) {
+      line.payeeMappingId = values.payeeMappingId;
+    } else if ( values.company ) {
+      // 未登録は行内に残す（トーストは消えるので読めない）。
+      // 登録画面へは別タブ遷移（未保存の明細を失わないため）＋初期値付き
+      line._unmatched = {
+        company: values.company,
+        companyId: ( values.companyId != null ) ? values.companyId : null,
+        companyName: values.companyName || null
+      };
     }
     report.lines = [...report.lines];
     toast.show('AI読み取り', '証憑を読み取りました。内容を確認してください。');

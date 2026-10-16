@@ -674,6 +674,7 @@ export default {
         return;
       }
       let companyId = null;
+      let companyName = null;
       let matchMethod = null;
       const validIds = new Set(companies.map((c) => c.id));
       if (( data.companyId != null ) && validIds.has(data.companyId)) {
@@ -690,7 +691,41 @@ export default {
           matchMethod = partial === exact ? 'exact' : 'includes';
         }
       }
-      res.json({ values: { ...data, companyId: companyId, matchMethod: matchMethod } });
+      if ( companyId ) {
+        const c = companies.find((x) => ( x.id == companyId ));
+        if ( c ) companyName = c.name;
+      }
+      // 支払先マッピングもサーバ側で解決する（毎回DBから取るので常時最新）。
+      // 1) companyId版 2) 検索キー（OCR別名）とOCR会社名の照合
+      let payeeMappingId = null;
+      const payees = await models.ExpenseMapping.findAll({
+        where: { kind: 'payee' }
+      });
+      if ( companyId ) {
+        const byCompany = payees.find((m) => ( m.companyId == companyId ));
+        if ( byCompany ) {
+          payeeMappingId = byCompany.id;
+        }
+      }
+      if (( !payeeMappingId ) && ( data.company )) {
+        const norm = (s) => ( ( s || '' ).trim() );
+        const byKey = payees.find((m) => ( norm(m.key) === norm(data.company) )) ||
+          payees.find((m) => ( norm(m.key) &&
+            ( norm(m.key).includes(norm(data.company)) ||
+              norm(data.company).includes(norm(m.key)) ) ));
+        if ( byKey ) {
+          payeeMappingId = byKey.id;
+        }
+      }
+      res.json({
+        values: {
+          ...data,
+          companyId: companyId,
+          companyName: companyName,
+          matchMethod: matchMethod,
+          payeeMappingId: payeeMappingId
+        }
+      });
     } catch (e) {
       if (( e && (( e.name === 'AiNotConfigured' ) || ( e.name === 'AiApiError' ))) ) {
         res.status(422).json({ code: -2, message: e.message });
