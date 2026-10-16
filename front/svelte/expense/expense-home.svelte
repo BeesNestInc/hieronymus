@@ -111,9 +111,11 @@
           { type: "text", name: 'key', title: "検索キー", width: "90px", align: "left"},
           { type: "text", name: 'name', title: "名前", width: "150px", align: "left"},
           { type: "company", name: 'companyId', title: "取引先"},
-          { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"}
+          { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
+          { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
       ]}></TableMaintenance>
     </div>
+  </div>
   </div>
   <div class="row">
     <div class="col-8" style="padding:10px;">

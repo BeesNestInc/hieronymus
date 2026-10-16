@@ -371,6 +371,35 @@ describe('expense (test db)', () => {
     }
   });
 
+  it('noBundleの支払先は同日でも1行1伝票に分離される', async () => {
+    const report = await buildReport(data.creator.id);
+    // 同日・同出金元×2（1件はnoBundle支払先）
+    await buildLine(report, { amount: 1000, paymentDate: '2026-03-10' });
+    const isolatedMapping = await models.ExpenseMapping.create({
+      kind: 'payee',
+      name: 'テスト分離先',
+      companyId: data.company.id,
+      account: '7000001',
+      noBundle: true
+    });
+    await buildLine(report, { amount: 2000, paymentDate: '2026-03-10', payeeMappingId: isolatedMapping.id });
+    const lines = await models.ExpenseReportLine.findAll({
+      where: { expenseReportId: report.id },
+      order: [['lineNo', 'ASC']]
+    });
+    const result = await createSlipForReport(report, lines, approverNoAcct);
+    try {
+      // 通常行1伝票 + noBundle行1伝票 = 2伝票
+      assert.equal(result.slips.length, 2);
+      const samples = await models.CrossSlipDetail.findAll({
+        where: { crossSlipId: { [models.Sequelize.Op.in]: result.slips.map((s) => s.id) } }
+      });
+      assert.equal(samples.length, 2);
+    } finally {
+      await cleanup(report);
+    }
+  });
+
   it('未整理証憑: パイル紐付け（expenseReportId）が明細紐付けに正規化される', async () => {
     const report = await buildReport(data.creator.id);
     try {
