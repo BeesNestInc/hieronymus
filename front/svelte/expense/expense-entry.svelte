@@ -1210,6 +1210,18 @@ const aiRead = async (line) => {
     }
     responded = true;
     const values = result.data.values;
+    // 取引先・マッピングは別タブで登録される可能性があるため、
+    // 解決の前に必ず再取得する（最新マスタで支払先を解決する）
+    try {
+      const [companiesRes, mappingsRes] = await Promise.all([
+        axios.get('/api/company'),
+        axios.get('/api/expense_mapping')
+      ]);
+      companies = companiesRes.data.companies || [];
+      mappings = mappingsRes.data.values || [];
+    } catch (e) {
+      // 再取得に失敗したら現状のマスタで解決する
+    }
     if ( values.issueDate || values.paymentDate ) {
       line.paymentDate = values.paymentDate || values.issueDate;
     }
