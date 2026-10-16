@@ -524,10 +524,12 @@ tr.over {
   max-height: 30vh;
   overflow: auto;
 }
-/* 行ピッチを揃える: 明細表・未整理表ともセル中央揃え */
-.expense-table th, .expense-table td,
+/* 行ピッチ: 未整理表はセル中央揃え、明細表は上揃え（行内の段数が違っても揃って見える） */
 .pile-table th, .pile-table td {
   vertical-align: middle;
+}
+.expense-table th, .expense-table td {
+  vertical-align: top;
 }
 .drag-cell {
   width: 18px;

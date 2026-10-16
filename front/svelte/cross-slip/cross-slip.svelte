@@ -281,8 +281,9 @@
 .sortable-ghost {
   opacity: 0.4;
 }
+/* 明細は上揃え（行内の段数が違っても揃って見える） */
 #cross-slip th, #cross-slip td {
-  vertical-align: middle;
+  vertical-align: top;
 }
 .thumb-button {
   padding: 0;
