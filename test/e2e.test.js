@@ -8,6 +8,19 @@ describe('e2e (test db)', () => {
   let data;
 
   before(async () => {
+    // 実DB（development等）へのテスト実行は実データを破壊するので禁止
+    const dbName = models.sequelize.getDatabaseName();
+    if ( !/_test$/.test(dbName) ) {
+      throw new Error(`このテストは *_test データベースでのみ実行できます（現在: ${dbName}）。NODE_ENV=test を確認してください`);
+    }
+    // 別スイートで接続プールがclose済みの場合は再初期化する
+    try {
+      await models.sequelize.authenticate();
+    } catch (e) {
+      delete models.sequelize.connectionManager.getConnection;
+      models.sequelize.connectionManager.initPools();
+      await models.sequelize.authenticate();
+    }
     data = await seed();
   });
 

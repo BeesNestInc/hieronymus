@@ -44,6 +44,10 @@ const env = process.env.NODE_ENV || 'development';
 
 const jsonData = JSON.parse(fs.readFileSync('config/config.json', 'utf-8'));
 const config = jsonData[env];
+// logging未指定のセクション（test等）ではSQLログを黙らせる
+if ( config.logging === undefined ) {
+  config.logging = false;
+}
 
 let sequelize;
 if (config.use_env_variable) {

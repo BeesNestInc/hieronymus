@@ -24,6 +24,11 @@ describe('expense (test db)', () => {
   let approverNoAcct;
 
   before(async () => {
+    // 実DB（development等）へのテスト実行は実データを破壊するので禁止
+    const dbName = models.sequelize.getDatabaseName();
+    if ( !/_test$/.test(dbName) ) {
+      throw new Error(`このテストは *_test データベースでのみ実行できます（現在: ${dbName}）。NODE_ENV=test を確認してください`);
+    }
     // e2e.test.js が先に走ると接続プールがclose済みのため、必要なら再初期化する
     try {
       await models.sequelize.authenticate();
