@@ -112,6 +112,7 @@
                   {#if ( payeeFor(line).description )}
                   <div class="text-muted" style="font-size:0.7rem;">{payeeFor(line).description}</div>
                   {/if}
+                  <div class="text-muted" style="font-size:0.7rem;">{accountLabel(payeeFor(line))}</div>
                   {:else}
                   <a class="text-danger" style="font-size:0.75rem;"
                     href="/expense/payee?payeeCompany={line.companyId}&payeeName={encodeURIComponent(line.company ? line.company.name : '')}"
@@ -223,6 +224,8 @@ let imageVersion = 0;
 // 会社セレクト用マスタと支払先マッピング（支払先列の表示に使う）
 let companies = [];
 let payeeMappings = [];
+// 勘定科目名の表示用（/api/accounts。code→名前・補助名の照合に使う）
+let accounts = [];
 
 // 支払先の表示（明細へドロップしたときに選ばれるものと同じ照合）。
 // 同一会社に説明違いのマッピングが複数ある場合は、証憑の説明と
@@ -251,6 +254,21 @@ const payeeFor = (line) => {
     }
   }
   return candidates.find((m) => ( !( m.description || '' ).trim() )) || candidates[0];
+};
+
+// マッピングの勘定科目表示（「消耗品費/事務一般」形式。entryのlineHintsと同型）
+const accountLabel = (mapping) => {
+  if ( !mapping || !mapping.account ) {
+    return null;
+  }
+  const account = accounts.find((a) => ( a.code == mapping.account ));
+  const name = account ? account.name : mapping.account;
+  let sub = null;
+  if ( mapping.subAccount && account && account.subAccounts ) {
+    const found = account.subAccounts.find((s) => ( String(s.code) === String(mapping.subAccount) ));
+    sub = found ? found.name : String(mapping.subAccount);
+  }
+  return sub ? `${name}/${sub}` : name;
 };
 
 // OK済み前だけ編集できる（自分の証憑 or 会計権限）
@@ -567,6 +585,9 @@ onMount(() => {
   });
   axios.get('/api/expense_mapping?kind=payee').then((result) => {
     payeeMappings = result.data.values || [];
+  });
+  axios.get('/api/accounts').then((result) => {
+    accounts = result.data || [];
   });
   fetchUnsorted();
 });

@@ -2,6 +2,9 @@
   <h1>{kind === 'payee' ? '設定（支払先マッピング）' : '設定（出金元マッピング）'}</h1>
 </div>
 <div class="full-height-1">
+  {#if ( accounts.length === 0 )}
+  <p style="padding:10px;">読み込み中...</p>
+  {:else}
   <div style="padding:10px;">
     <TableMaintenance
       card={false}
@@ -24,6 +27,7 @@
     </p>
     {/if}
   </div>
+  {/if}
 </div>
 <script>
 import {onMount} from 'svelte';
