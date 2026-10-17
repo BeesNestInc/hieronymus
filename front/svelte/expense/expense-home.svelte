@@ -27,16 +27,16 @@
           <table class="table table-striped table-bordered">
             <thead class="table-light">
               <tr>
-                <th>ファイル</th>
+                <th style="width:200px;">ファイル</th>
                 <th>説明</th>
-                <th class="number">金額</th>
+                <th class="number" style="width:120px;">金額</th>
                 <th style="width:110px;"></th>
               </tr>
             </thead>
             <tbody>
               {#each unsorted as line}
               <tr>
-                <td>
+                <td style="width:200px;">
                   <div class="d-flex align-items-start">
                     {#each line.files as file}
                     <div class="me-1">
@@ -106,11 +106,11 @@
       initialRow={payeeInitial}
       columns={[
         { type: "id", name: 'id'},
-        { type: "text", name: 'key', title: "検索キー", width: "110px", align: "left"},
-        { type: "text", name: 'name', title: "名前", width: "180px", align: "left"},
+        { type: "text", name: 'key', title: "検索キー", width: "120px", align: "left"},
+        { type: "text", name: 'name', title: "名前", width: "200px", align: "left"},
         { type: "company", name: 'companyId', title: "取引先"},
-        { type: "text", name: 'description', title: "説明", width: "260px", align: "left"},
-        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
+        { type: "text", name: 'description', title: "説明", align: "left"},
+        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目", width: "200px"},
         { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
     ]}></TableMaintenance>
   </div>
@@ -123,10 +123,10 @@
       bind:minimize={paymentMinimize}
       columns={[
         { type: "id", name: 'id'},
-        { type: "text", name: 'key', title: "検索キー", width: "110px", align: "left"},
-        { type: "text", name: 'name', title: "名前", width: "180px", align: "left"},
-        { type: "text", name: 'description', title: "説明", width: "260px", align: "left"},
-        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目"},
+        { type: "text", name: 'key', title: "検索キー", width: "120px", align: "left"},
+        { type: "text", name: 'name', title: "名前", width: "200px", align: "left"},
+        { type: "text", name: 'description', title: "説明", align: "left"},
+        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目", width: "200px"},
         { type: "checkbox", name: 'advance', title: "立替", width: "70px"}
     ]}></TableMaintenance>
   </div>
@@ -400,7 +400,7 @@ onMount(() => {
   vertical-align: middle;
 }
 .pile-desc {
-  width: 40%;
+  /* 説明は残り幅いっぱい（theadの意図に従う。固定幅はファイル/金額/ボタン列） */
   min-width: 160px;
 }
 .pile-dropzone.over {

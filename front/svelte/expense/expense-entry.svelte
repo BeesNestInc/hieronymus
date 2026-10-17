@@ -341,9 +341,9 @@
             <table class="table table-striped table-bordered">
               <thead class="table-light">
                 <tr>
-                  <th>ファイル</th>
+                  <th style="width:200px;">ファイル</th>
                   <th>説明</th>
-                  <th class="number">金額</th>
+                  <th class="number" style="width:120px;">金額</th>
                   <th style="width:110px;"></th>
                 </tr>
               </thead>
@@ -351,7 +351,7 @@
                 {#each pileVouchers as line}
                 <tr draggable="true" on:dragstart={onDragStart} on:dragend={onDragEnd}
                   data-id={line.id} title="明細行へドラッグ&ドロップで紐付けできます">
-                  <td>
+                  <td style="width:200px;">
                     <div class="d-flex align-items-start">
                     {#each line.files as file}
                       <div class="me-1">
@@ -553,7 +553,7 @@ tr.over {
   opacity: 0.4;
 }
 .pile-desc {
-  width: 40%;
+  /* 説明は残り幅いっぱい（theadの意図に従う。固定幅はファイル/金額/ボタン列） */
   min-width: 160px;
 }
 </style>
