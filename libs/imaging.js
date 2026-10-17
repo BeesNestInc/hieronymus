@@ -27,6 +27,10 @@ const SPLIT_ACK_RATIO = 0.004;
 // この角度以上の傾きなら正立化する（度）
 const STRAIGHTEN_MIN_DEG = 1;
 
+// 画像の端に接する細長い明部（スキャナの光漏れ等）を背景とみなす厚みの上限
+// （作業画像幅に対する比率。これより厚ければ証憑として扱う）
+const BORDER_SLIVER_RATIO = 0.03;
+
 const debug = ( ...args ) => {
   if ( process.env.IMAGING_DEBUG ) {
     console.log('[imaging]', ...args);
@@ -795,6 +799,28 @@ const detectRegions = (img, mimeType = 'image/png') => {
   }
   if ( count === 0 ) {
     return null;
+  }
+
+  // スキャナの光漏れ等で画像の端に細長い明部が載っていると、
+  // closingで端付近の証憑と連結して複数の証憑が1塊になり分離できなくなる。
+  // 端に接し幅の狭い成分を解析前に除去しておく
+  const preComps = connectedComponents(bright, ww, wh);
+  const dropLabels = new Set();
+  for ( const b of preComps.boxes ) {
+    const touchesBorder =
+      b.x0 === 0 || b.y0 === 0 || b.x1 === ww - 1 || b.y1 === wh - 1;
+    const thickness = Math.min(b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
+    if ( touchesBorder && thickness <= ww * BORDER_SLIVER_RATIO ) {
+      dropLabels.add(b.label);
+    }
+  }
+  if ( dropLabels.size > 0 ) {
+    for ( let i = 0; i < bright.length; i += 1 ) {
+      if ( dropLabels.has(preComps.labels[i]) ) {
+        bright[i] = 0;
+      }
+    }
+    debug('border slivers removed:', dropLabels.size);
   }
 
   // ノイズ除去（opening）と、紙の中の暗い線を埋める（closing）

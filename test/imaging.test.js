@@ -131,6 +131,26 @@ describe('imaging (splitImage)', () => {
     assert.equal(result.parts.length, 2);
   });
 
+  it('画像端の光漏れ（細長い明部）があっても証憑を分離できる', async () => {
+    // 左端の光漏れ帯（右端がギザギザ）がclosingで近接の証憑と連結して1塊になり、
+    // 残りの証憑もbbox統合で飲み込まれて分離できなくなるケースの再現
+    const strip = [ 0, 0, 12, 960, 0xd0d0d0ff ];
+    const bumps = [];
+    for ( let i = 0; i < 15; i += 1 ) {
+      bumps.push([ 0, i * 63, 8, 57, 0xd0d0d0ff ]);
+    }
+    const buf = await makeImage(800, 960, [
+      strip,
+      ...bumps,
+      [ 300, 80, 380, 300, 0xf8f8f8ff ],
+      [ 22, 520, 380, 260, 0xf5f5f5ff ],
+      [ 22, 850, 300, 100, 0xf0f0f0ff ]
+    ]);
+    const result = await splitImage(buf, 'image/png');
+    assert.isNotNull(result);
+    assert.equal(result.parts.length, 3);
+  });
+
   it('rotateImage は90°回転して縦横を入れ替える', async () => {
     const buf = await makeImage(400, 200, [
       [ 80, 60, 120, 80, 0xf8f8f8ff ]
