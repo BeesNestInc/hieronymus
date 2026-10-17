@@ -21,7 +21,7 @@
           <th scope="col" style="width: 180px;">
             取引先
           </th>
-          <th scope="col" style="width: 180px;">
+          <th scope="col">
             案件
           </th>
           <th scope="col">
