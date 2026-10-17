@@ -11,11 +11,28 @@
       on:drop={onPileDrop}>
       <div class="d-flex align-items-center mb-1">
         <span class="badge bg-secondary" title="どこにも紐付いていない証憑">残り {unsorted.length}件</span>
+        {#if ( settledCount > 0 )}
+        <span class="badge bg-success ms-1" title="OK済み（もう処理しません）">済 {settledCount}件</span>
+        {/if}
         <label class="btn btn-sm btn-outline-primary upload-label ms-2">
           まとめてアップロード
           <input type="file" hidden multiple accept="image/*,application/pdf"
             on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
         </label>
+        {#if ( bulkBusy )}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2"
+          on:click={() => { bulkStop = true; }}>
+          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          認識中 {bulkDone}/{bulkTotal}　中断
+        </button>
+        {:else}
+        <button type="button" class="btn btn-sm btn-outline-info ms-2"
+          disabled={ pending.length === 0 }
+          title="未認識の証憑を順次AIで読み取り、結果を証憑に保存します（OK済みの行は除外）"
+          on:click={() => { recognizeAll(); }}>
+          <i class="bi bi-stars"></i>&nbsp;一括認識（{pending.length}）
+        </button>
+        {/if}
       </div>
       <div class="drop-hint">
         {#if ( unsorted.length > 0 )}
@@ -31,7 +48,7 @@
           </thead>
           <tbody>
             {#each unsorted as line}
-            <tr>
+            <tr class:done={ line.settledAt }>
               <td style="width:200px;">
                 <div class="d-flex align-items-start">
                   {#each line.files as file}
@@ -56,9 +73,29 @@
                   title="説明を入力できます（省略時はファイル名で表示）"
                   bind:value={line.description}
                   on:change={() => { saveDescription(line); }}>
+                {#if ( line._aiError )}
+                <div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size:0.75rem;">
+                  <i class="bi bi-exclamation-triangle-fill"></i>
+                  {line._aiError}
+                </div>
+                {/if}
+                {#if ( line.settleUser )}
+                <div class="text-success" style="font-size:0.75rem;">
+                  <i class="bi bi-check2-circle"></i>&nbsp;済 {line.settleUser.name} {line.settledAt ? String(line.settledAt).slice(0, 10) : ''}
+                </div>
+                {/if}
               </td>
               <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
               <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-sm p-0 px-1 me-1"
+                  class:btn-success={ !line.settledAt }
+                  class:btn-outline-secondary={ !!line.settledAt }
+                  title={ line.settledAt ?
+                    `OK済みを解除します（${line.settleUser ? line.settleUser.name : ''}）` :
+                    'OK済みにします（AI認識・見直しの対象から外れます）' }
+                  on:click={() => { toggleSettled(line); }}>
+                  <i class="bi { line.settledAt ? 'bi-slash-circle' : 'bi-check2-circle' }"></i>
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
                   title="左90°回転" on:click={() => { rotateVoucher(line, 270); }}>
                   <i class="bi bi-arrow-counterclockwise"></i>
@@ -67,11 +104,24 @@
                   title="右90°回転" on:click={() => { rotateVoucher(line, 90); }}>
                   <i class="bi bi-arrow-clockwise"></i>
                 </button>
+                {#if ( !line.settledAt )}
+                <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
+                  title="AIで読み取ります（企業・金額・日付を証憑に保存します）"
+                  disabled={ line._aiBusy }
+                  on:click={() => { recognizeVoucher(line); }}>
+                  {#if ( line._aiBusy )}
+                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  {:else}
+                  <i class="bi bi-stars"></i>
+                  {/if}
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
                   title="複数の証憑が写っている場合は分離、1枚の場合は背景を除いて切り出します"
+                  disabled={ line._aiBusy }
                   on:click={() => { splitVoucher(line); }}>
                   <i class="bi bi-scissors"></i>
                 </button>
+                {/if}
                 <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
                   on:click={() => { deleteVoucher(line); }}>
                   <i class="bi bi-x"></i>
@@ -252,6 +302,107 @@ const deleteVoucher = async (voucher) => {
   }
 };
 
+// OK済みのトグル。誰が・いつはサーバ側で記録される
+const toggleSettled = async (voucher) => {
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      settled: !voucher.settledAt
+    });
+    fetchUnsorted();
+  } catch (e) {
+    toast.show('経費精算', errText(e), 'warning');
+  }
+};
+
+// 認識結果の保存。/ocr応答を証憑に反映する
+// （taxは証憑側参考値のため保存しない。伝票は明細から計算する設計）
+const applyOcrToVoucher = async (voucher, values) => {
+  const body = { id: voucher.id };
+  if ( values.description ) body.description = values.description;
+  if ( values.amount != null ) body.amount = values.amount;
+  if ( values.companyId != null ) body.companyId = values.companyId;
+  const date = values.paymentDate || values.issueDate;
+  if ( date ) {
+    body.paymentDate = values.paymentDate || null;
+    body.issueDate = date;
+  }
+  if ( values.invoiceNo ) body.invoiceNo = values.invoiceNo;
+  await axios.put('/api/voucher', body);
+};
+
+// 個別認識: この証憑をAIで読み、結果を証憑に保存する（いつでも実行可）
+const recognizeVoucher = async (line) => {
+  if ( line._aiBusy ) return;
+  line._aiBusy = true;
+  line._aiSecs = 0;
+  line._aiError = null;
+  unsorted = [...unsorted];
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    line._aiSecs = Math.floor(( Date.now() - startedAt ) / 1000);
+    unsorted = [...unsorted];
+  }, 1000);
+  try {
+    const result = await axios.post('/api/expense_report/ocr', {voucherId: line.id},
+      { timeout: 180000 });
+    const values = result.data.values;
+    await applyOcrToVoucher(line, values);
+    const bits = [];
+    if ( values.amount == null ) bits.push('金額が読めませんでした');
+    const msg = ( values.description || values.company || `金額 ${values.amount ?? '-'}` ) +
+      ( bits.length ? `（${bits.join('、')}。手入力で補ってください）` : '' );
+    toast.show('AI認識', msg);
+    fetchUnsorted();
+  } catch (e) {
+    line._aiError = ( e.response && e.response.data && e.response.data.message ) ?
+      e.response.data.message : ( e.message || '認識に失敗しました。' );
+    unsorted = [...unsorted];
+  } finally {
+    clearInterval(timer);
+    line._aiBusy = false;
+    line._aiSecs = 0;
+  }
+};
+
+// 一括認識: 未認識の行を順次処理する（逐次。中断可）。
+// スキップ: OK済み（settledAt）OR すでに会社と金額が揃っている行
+let bulkBusy = false;
+let bulkStop = false;
+let bulkDone = 0;
+let bulkTotal = 0;
+
+const isDone = (line) => {
+  return Boolean( line.settledAt || ( line.companyId != null && line.amount != null ) );
+};
+
+// テンプレート用の状態（unsortedの再代入に連動して更新される）
+$: pending = unsorted.filter((line) => ( !isDone(line) ));
+$: settledCount = unsorted.filter((line) => ( line.settledAt )).length;
+
+const recognizeAll = async () => {
+  const targets = unsorted.filter((line) => ( !isDone(line) ));
+  if ( targets.length === 0 ) {
+    return;
+  }
+  bulkBusy = true;
+  bulkStop = false;
+  bulkDone = 0;
+  bulkTotal = targets.length;
+  try {
+    for ( const line of targets ) {
+      if ( bulkStop ) {
+        toast.show('AI認識', '中断しました。');
+        break;
+      }
+      await recognizeVoucher(line);
+      bulkDone += 1;
+    }
+  } finally {
+    bulkBusy = false;
+  }
+};
+
 // パイルへのファイルドロップでアップロードする（ ExpenseEntry と同じ挙動）
 let pileDragCount = 0;
 
@@ -344,5 +495,9 @@ onMount(() => {
   background-color: #eef6ff;
   outline: 2px dashed #4d8fd1;
   outline-offset: -6px;
+}
+/* OK済みの行は少し薄くして「もう触らない」感を出す */
+tr.done {
+  opacity: 0.55;
 }
 </style>

@@ -613,6 +613,81 @@ describe('expense (test db)', () => {
       await cleanup(report);
     }
   });
+describe('expense (voucher settled)', () => {
+  const callUpdate = async (user, body, paramsId) => {
+    const apiVoucher = ( await import('../routes/api_voucher.js') ).default;
+    const req = { body: { ...body, id: paramsId || body.id }, params: paramsId ? { id: paramsId } : {}, session: { user: user } };
+    let status = 200;
+    let bodyOut = null;
+    const res = {
+      set: () => {},
+      status: (c) => { status = c; return res; },
+      json: (o) => { bodyOut = o; return res; }
+    };
+    let nextErr = null;
+    await apiVoucher.update(req, res, (e) => { nextErr = e; });
+    return { status: status, body: bodyOut, nextErr: nextErr };
+  };
+
+  it('settled: trueでOK済みになり、監査列（誰・いつ）がサーバ側で入る', async () => {
+    const voucher = await models.Voucher.create({
+      issueDate: '2026-03-10',
+      createdBy: data.creator.id,
+      updatedBy: data.creator.id
+    });
+    try {
+      const r = await callUpdate(data.creator, { settled: true }, voucher.id);
+      assert.equal(r.body.code, undefined); // 成功は voucher を返す
+      const saved = await models.Voucher.findByPk(voucher.id, {
+        include: [{ model: models.User, as: 'settleUser' }]
+      });
+      assert.ok(saved.settledAt);
+      assert.equal(saved.settledBy, data.creator.id);
+      assert.equal(saved.settleUser.name, data.creator.name);
+    } finally {
+      await voucher.destroy();
+    }
+  });
+
+  it('settled: falseで解除される（両列がnull）', async () => {
+    const voucher = await models.Voucher.create({
+      issueDate: '2026-03-10',
+      settledAt: new Date(),
+      settledBy: data.creator.id,
+      createdBy: data.creator.id,
+      updatedBy: data.creator.id
+    });
+    try {
+      await callUpdate(data.creator, { settled: false }, voucher.id);
+      const saved = await models.Voucher.findByPk(voucher.id);
+      assert.isNull(saved.settledAt);
+      assert.isNull(saved.settledBy);
+    } finally {
+      await voucher.destroy();
+    }
+  });
+
+  it('settledなしの部分更新は監査列に触れない', async () => {
+    const at = new Date(Date.now() - 86400000);
+    const voucher = await models.Voucher.create({
+      issueDate: '2026-03-10',
+      settledAt: at,
+      settledBy: data.creator.id,
+      createdBy: data.creator.id,
+      updatedBy: data.creator.id
+    });
+    try {
+      await callUpdate(data.creator, { description: 'メモ' }, voucher.id);
+      const saved = await models.Voucher.findByPk(voucher.id);
+      assert.equal(saved.description, 'メモ');
+      // updatedAtの精度差を許容して比較
+      assert.ok(Math.abs(saved.settledAt.getTime() - at.getTime()) < 2000);
+      assert.equal(saved.settledBy, data.creator.id);
+    } finally {
+      await voucher.destroy();
+    }
+  });
+});
 });
 
 describe('expense (pickPayeeMapping)', () => {
@@ -651,3 +726,4 @@ describe('expense (pickPayeeMapping)', () => {
     assert.isNull(pickPayeeMapping([ other ], 2, '書籍'));
   });
 });
+

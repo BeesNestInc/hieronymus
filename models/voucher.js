@@ -23,6 +23,13 @@ export default (sequelize, DataTypes) => {
 				sourceKey: 'updatedBy',
         as: 'updateUser'
 			});
+			// OK済み（「この証憑は問題ないので誰ももう処理しない」の意思表示）の
+			// 監査付き状態。承認と同じsettledAt/settledByパターン
+			this.hasOne(models.User, {
+				foreignKey: 'id',
+				sourceKey: 'settledBy',
+        as: 'settleUser'
+			});
       this.hasMany(models.VoucherFile, {
         foreignKey: 'voucherId',
         as: 'files'
@@ -57,6 +64,8 @@ export default (sequelize, DataTypes) => {
     taxRuleId: DataTypes.INTEGER,
     description: DataTypes.TEXT,
     invoiceNo: DataTypes.TEXT,
+    settledAt: DataTypes.DATE,
+    settledBy: DataTypes.INTEGER,
     createdBy: DataTypes.INTEGER,
     updatedBy: DataTypes.INTEGER
   }, {
