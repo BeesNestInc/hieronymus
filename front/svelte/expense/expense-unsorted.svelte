@@ -43,6 +43,7 @@
               <th style="width:160px;">ファイル</th>
               <th>説明</th>
               <th>会社</th>
+              <th style="width:180px;">支払先</th>
               <th style="width:130px;">日付</th>
               <th class="number" style="width:120px;">金額</th>
               <th style="width:118px;"></th>
@@ -76,6 +77,9 @@
                   bind:value={line.description}
                   disabled={ !canEdit(line) }
                   on:change={() => { saveDescription(line); }}>
+                {#if ( line.invoiceNo )}
+                <div class="text-muted" style="font-size:0.7rem;">請求 {line.invoiceNo}</div>
+                {/if}
                 {#if ( line._aiError )}
                 <div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size:0.75rem;">
                   <i class="bi bi-exclamation-triangle-fill"></i>
@@ -100,6 +104,22 @@
                   {/each}
                 </select>
                 {/key}
+              </td>
+              <td>
+                {#if ( line.companyId )}
+                  {#if ( payeeFor(line) )}
+                  <div class="fw-bold" style="font-size:0.8rem;">{payeeFor(line).name}</div>
+                  {#if ( payeeFor(line).description )}
+                  <div class="text-muted" style="font-size:0.7rem;">{payeeFor(line).description}</div>
+                  {/if}
+                  {:else}
+                  <a class="text-danger" style="font-size:0.75rem;"
+                    href="/expense/payee?payeeCompany={line.companyId}&payeeName={encodeURIComponent(line.company ? line.company.name : '')}"
+                    target="_blank" title="支払先マッピングを登録します（別タブ）">
+                    <i class="bi bi-exclamation-triangle-fill"></i>&nbsp;未登録
+                  </a>
+                  {/if}
+                {/if}
               </td>
               <td>
                 <input type="date" class="form-control form-control-sm"
@@ -200,8 +220,38 @@ export let toast;
 let unsorted = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
-// 会社セレクト用マスタ
+// 会社セレクト用マスタと支払先マッピング（支払先列の表示に使う）
 let companies = [];
+let payeeMappings = [];
+
+// 支払先の表示（明細へドロップしたときに選ばれるものと同じ照合）。
+// 同一会社に説明違いのマッピングが複数ある場合は、証憑の説明と
+// マッピングの説明のキーワード一致で振り分ける。空の説明はデフォルト
+const payeeFor = (line) => {
+  if ( !line.companyId ) {
+    return null;
+  }
+  const candidates = payeeMappings.filter((m) => ( m.companyId == line.companyId ));
+  if ( candidates.length === 0 ) {
+    return null;
+  }
+  if ( candidates.length === 1 ) {
+    return candidates[0];
+  }
+  const text = ( line.description || '' ).trim();
+  if ( text ) {
+    const hit = candidates.find((m) => (
+      ( m.description || '' ).trim()
+        .split(/[,、，;；\s]+/)
+        .filter((k) => k)
+        .some((k) => ( text.includes(k) || k.includes(text) ))
+    ));
+    if ( hit ) {
+      return hit;
+    }
+  }
+  return candidates.find((m) => ( !( m.description || '' ).trim() )) || candidates[0];
+};
 
 // OK済み前だけ編集できる（自分の証憑 or 会計権限）
 const canEdit = (line) => {
@@ -514,6 +564,9 @@ const onPileDrop = (event) => {
 onMount(() => {
   axios.get('/api/company').then((result) => {
     companies = result.data.companies || [];
+  });
+  axios.get('/api/expense_mapping?kind=payee').then((result) => {
+    payeeMappings = result.data.values || [];
   });
   fetchUnsorted();
 });
