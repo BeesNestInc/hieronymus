@@ -40,16 +40,18 @@
         <table class="table table-striped table-bordered">
           <thead class="table-light">
             <tr>
-              <th style="width:200px;">ファイル</th>
+              <th style="width:160px;">ファイル</th>
               <th>説明</th>
+              <th>会社</th>
+              <th style="width:130px;">日付</th>
               <th class="number" style="width:120px;">金額</th>
-              <th style="width:110px;"></th>
+              <th style="width:118px;"></th>
             </tr>
           </thead>
           <tbody>
             {#each unsorted as line}
             <tr class:done={ line.settledAt }>
-              <td style="width:200px;">
+              <td style="width:160px;">
                 <div class="d-flex align-items-start">
                   {#each line.files as file}
                   <div class="me-1">
@@ -72,6 +74,7 @@
                   placeholder={ line.files[0] ? line.files[0].name : '説明' }
                   title="説明を入力できます（省略時はファイル名で表示）"
                   bind:value={line.description}
+                  disabled={ !canEdit(line) }
                   on:change={() => { saveDescription(line); }}>
                 {#if ( line._aiError )}
                 <div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size:0.75rem;">
@@ -85,7 +88,34 @@
                 </div>
                 {/if}
               </td>
-              <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
+              <td>
+                {#key line.companyId}
+                <select class="form-select form-select-sm"
+                  bind:value={line.companyId}
+                  disabled={ !canEdit(line) }
+                  on:change={() => { saveCompany(line); }}>
+                  <option value={null}></option>
+                  {#each companies as c}
+                  <option value={c.id}>{c.name}</option>
+                  {/each}
+                </select>
+                {/key}
+              </td>
+              <td>
+                <input type="date" class="form-control form-control-sm"
+                  value={ line.paymentDate || line.issueDate || '' }
+                  disabled={ !canEdit(line) }
+                  on:change={(e) => { savePaymentDate(line, e.target.value); }}>
+                {#if ( line.paymentDate && line.issueDate && ( line.paymentDate !== line.issueDate ) )}
+                <div class="text-muted" style="font-size:0.7rem;">発行 {String(line.issueDate).slice(5)}</div>
+                {/if}
+              </td>
+              <td class="number">
+                <input type="text" class="form-control form-control-sm number" autocomplete="off"
+                  value={ line.amount != null ? numeric(line.amount).toLocaleString() : '' }
+                  disabled={ !canEdit(line) }
+                  on:change={(e) => { saveAmount(line, e.target.value); }}>
+              </td>
               <td style="white-space:nowrap;">
                 <button type="button" class="btn btn-sm p-0 px-1 me-1"
                   class:btn-success={ !line.settledAt }
@@ -170,6 +200,14 @@ export let toast;
 let unsorted = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
+// 会社セレクト用マスタ
+let companies = [];
+
+// OK済み前だけ編集できる（自分の証憑 or 会計権限）
+const canEdit = (line) => {
+  return ( !line.settledAt ) &&
+    ( status.user.accounting || ( line.createdBy === status.user.id ) );
+};
 
 // 画像プレビュー（モーダル）。PDFは別タブ表示のまま
 let preview = null;
@@ -228,6 +266,52 @@ const saveDescription = async (voucher) => {
   } catch (e) {
     voucher.description = prev;
     unsorted = unsorted;
+    toast.show('経費精算', errText(e), 'warning');
+  }
+};
+
+// 会社・日付・金額の編集（OK済み前のみ。失敗時は再取得で元に戻す）
+const saveCompany = async (voucher) => {
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      companyId: voucher.companyId || null
+    });
+  } catch (e) {
+    fetchUnsorted();
+    toast.show('経費精算', errText(e), 'warning');
+  }
+};
+
+const savePaymentDate = async (voucher, value) => {
+  const prev = voucher.paymentDate;
+  voucher.paymentDate = value || null;
+  unsorted = [...unsorted];
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      paymentDate: value || null
+    });
+  } catch (e) {
+    voucher.paymentDate = prev;
+    unsorted = [...unsorted];
+    toast.show('経費精算', errText(e), 'warning');
+  }
+};
+
+const saveAmount = async (voucher, value) => {
+  const prev = voucher.amount;
+  const next = ( value && value.replace(/[,\s]/g, '') ) || null;
+  voucher.amount = next;
+  unsorted = [...unsorted];
+  try {
+    await axios.put('/api/voucher', {
+      id: voucher.id,
+      amount: next
+    });
+  } catch (e) {
+    voucher.amount = prev;
+    unsorted = [...unsorted];
     toast.show('経費精算', errText(e), 'warning');
   }
 };
@@ -428,6 +512,9 @@ const onPileDrop = (event) => {
 };
 
 onMount(() => {
+  axios.get('/api/company').then((result) => {
+    companies = result.data.companies || [];
+  });
   fetchUnsorted();
 });
 </script>

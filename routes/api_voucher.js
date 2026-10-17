@@ -386,6 +386,10 @@ export default {
     // 説明だけの部分更新（未整理証憑の説明入力等）も許すため、
     // 取引先が指定された場合だけ通常の検証（相手先・消費税）を行う。
     // 年度のロックは後段の rejectIfVoucherLocked で見る
+    // 金額は部分更新でも数値に正規化する（文字列の素通しはDBでNumericErrorになる）
+    if ( body.amount !== undefined ) {
+      body.amount = ( body.amount === null || body.amount === '' ) ? null : numeric(body.amount);
+    }
     if ( body.companyId ) {
       const ok = await prepareVoucher(body, res);
       if ( !ok ) return;
