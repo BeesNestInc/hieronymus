@@ -1,10 +1,7 @@
 <div class="page-title d-flex justify-content-between">
-  <h1>設定</h1>
+  <h1>未整理の証憑</h1>
 </div>
 <div class="full-height-1">
-  {#if ( accounts.length === 0 )}
-  <p>読み込み中...</p>
-  {:else}
   <div style="padding:10px;">
     <div class="container-fluid pile-dropzone"
       class:over={pileDragCount > 0}
@@ -12,125 +9,90 @@
       on:dragleave={onPileDragLeave}
       on:dragover={(e) => { if ( e.dataTransfer.types.includes('Files') ) { e.preventDefault(); } }}
       on:drop={onPileDrop}>
-        <div class="d-flex align-items-center mb-1">
-          <h2 class="fs-5 me-3 mb-0">未整理の証憑</h2>
-          <span class="badge bg-secondary" title="どこにも紐付いていない証憑">残り {unsorted.length}件</span>
-          <label class="btn btn-sm btn-outline-primary upload-label ms-2">
-            まとめてアップロード
-            <input type="file" hidden multiple accept="image/*,application/pdf"
-              on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
-          </label>
-        </div>
-        <div class="drop-hint">
-          {#if ( unsorted.length > 0 )}
-          <div class="table-responsive pile-table">
-          <table class="table table-striped table-bordered">
-            <thead class="table-light">
-              <tr>
-                <th style="width:200px;">ファイル</th>
-                <th>説明</th>
-                <th class="number" style="width:120px;">金額</th>
-                <th style="width:110px;"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each unsorted as line}
-              <tr>
-                <td style="width:200px;">
-                  <div class="d-flex align-items-start">
-                    {#each line.files as file}
-                    <div class="me-1">
-                      {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
-                      <button type="button" class="thumb-button" title="クリックで拡大表示"
-                        on:click={() => { openPreview(line, file); }}>
-                        <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
-                      </button>
-                      {:else}
-                      <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
-                        <img src="/public/icons/icon_pdf.png" class="thumb"/>
-                      </a>
-                      {/if}
-                    </div>
-                    {/each}
-                  </div>
-                </td>
-                <td class="pile-desc">
-                  <input type="text" class="form-control form-control-sm"
-                    placeholder={ line.files[0] ? line.files[0].name : '説明' }
-                    title="説明を入力できます（省略時はファイル名で表示）"
-                    bind:value={line.description}
-                    on:change={() => { saveDescription(line); }}>
-                </td>
-                <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
-                <td style="white-space:nowrap;">
-                  <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
-                    title="左90°回転" on:click={() => { rotateVoucher(line, 270); }}>
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
-                    title="右90°回転" on:click={() => { rotateVoucher(line, 90); }}>
-                    <i class="bi bi-arrow-clockwise"></i>
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
-                    title="複数の証憑が写っている場合は分離、1枚の場合は背景を除いて切り出します"
-                    on:click={() => { splitVoucher(line); }}>
-                    <i class="bi bi-scissors"></i>
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
-                    on:click={() => { deleteVoucher(line); }}>
-                    <i class="bi bi-x"></i>
-                  </button>
-                </td>
-              </tr>
-              {/each}
-            </tbody>
-          </table>
-          </div>
-          {:else}
-          <div class="text-center text-muted py-4">
-            <i class="bi bi-cloud-arrow-up fs-2 d-block"></i>
-            ここに領収書などの画像・PDFをドラッグ&ドロップするか、
-            「まとめてアップロード」で一括登録してください
-          </div>
-          {/if}
-        </div>
+      <div class="d-flex align-items-center mb-1">
+        <span class="badge bg-secondary" title="どこにも紐付いていない証憑">残り {unsorted.length}件</span>
+        <label class="btn btn-sm btn-outline-primary upload-label ms-2">
+          まとめてアップロード
+          <input type="file" hidden multiple accept="image/*,application/pdf"
+            on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
+        </label>
       </div>
+      <div class="drop-hint">
+        {#if ( unsorted.length > 0 )}
+        <div class="table-responsive pile-table">
+        <table class="table table-striped table-bordered">
+          <thead class="table-light">
+            <tr>
+              <th style="width:200px;">ファイル</th>
+              <th>説明</th>
+              <th class="number" style="width:120px;">金額</th>
+              <th style="width:110px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each unsorted as line}
+            <tr>
+              <td style="width:200px;">
+                <div class="d-flex align-items-start">
+                  {#each line.files as file}
+                  <div class="me-1">
+                    {#if ( file.mimeType && file.mimeType.match(/^image\//) )}
+                    <button type="button" class="thumb-button" title="クリックで拡大表示"
+                      on:click={() => { openPreview(line, file); }}>
+                      <img src="/voucher/file/{file.id}?v={imageVersion}" class="thumb"/>
+                    </button>
+                    {:else}
+                    <a href="/voucher/file/{file.id}?v={imageVersion}" target="_blank">
+                      <img src="/public/icons/icon_pdf.png" class="thumb"/>
+                    </a>
+                    {/if}
+                  </div>
+                  {/each}
+                </div>
+              </td>
+              <td class="pile-desc">
+                <input type="text" class="form-control form-control-sm"
+                  placeholder={ line.files[0] ? line.files[0].name : '説明' }
+                  title="説明を入力できます（省略時はファイル名で表示）"
+                  bind:value={line.description}
+                  on:change={() => { saveDescription(line); }}>
+              </td>
+              <td class="number">{line.amount != null ? numeric(line.amount).toLocaleString() : ''}</td>
+              <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                  title="左90°回転" on:click={() => { rotateVoucher(line, 270); }}>
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-1 me-1"
+                  title="右90°回転" on:click={() => { rotateVoucher(line, 90); }}>
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-info p-0 px-1 me-1"
+                  title="複数の証憑が写っている場合は分離、1枚の場合は背景を除いて切り出します"
+                  on:click={() => { splitVoucher(line); }}>
+                  <i class="bi bi-scissors"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
+                  on:click={() => { deleteVoucher(line); }}>
+                  <i class="bi bi-x"></i>
+                </button>
+              </td>
+            </tr>
+            {/each}
+          </tbody>
+        </table>
+        </div>
+        {:else}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-cloud-arrow-up fs-2 d-block"></i>
+          ここに領収書などの画像・PDFをドラッグ&ドロップするか、
+          「まとめてアップロード」で一括登録してください
+        </div>
+        {/if}
+      </div>
+      <p class="text-muted mb-1 px-1">アップロードした証憑は、経費精算書の明細行へドラッグ&ドロップして紐付けてください。</p>
+    </div>
   </div>
-  <div style="padding:10px;">
-    <TableMaintenance
-      card={false}
-      title={'支払先マッピング'}
-      endpoint={'/api/expense_mapping/payee'}
-      accounts={accounts}
-      bind:minimize={payeeMinimize}
-      initialRow={payeeInitial}
-      columns={[
-        { type: "id", name: 'id'},
-        { type: "text", name: 'key', title: "検索キー", width: "120px", align: "left"},
-        { type: "text", name: 'name', title: "名前", width: "200px", align: "left"},
-        { type: "company", name: 'companyId', title: "取引先"},
-        { type: "text", name: 'description', title: "説明", align: "left"},
-        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目", width: "200px"},
-        { type: "checkbox", name: 'noBundle', title: "同日まとめない", width: "90px", align: "center"},
-    ]}></TableMaintenance>
-  </div>
-  <div style="padding:10px;">
-    <TableMaintenance
-      card={false}
-      title={'出金元マッピング'}
-      endpoint={'/api/expense_mapping/payment'}
-      accounts={accounts}
-      bind:minimize={paymentMinimize}
-      columns={[
-        { type: "id", name: 'id'},
-        { type: "text", name: 'key', title: "検索キー", width: "120px", align: "left"},
-        { type: "text", name: 'name', title: "名前", width: "200px", align: "left"},
-        { type: "text", name: 'description', title: "説明", align: "left"},
-        { type: "account", name: 'account', sub: 'subAccount', title: "勘定科目", width: "200px"},
-        { type: "checkbox", name: 'advance', title: "立替", width: "70px"}
-    ]}></TableMaintenance>
-  </div>
-  {/if}
 </div>
 {#if ( preview )}
 <div class="preview-overlay" on:click|self={() => { preview = null; }}>
@@ -148,37 +110,16 @@
 {/if}
 <script>
 import {onMount} from 'svelte';
-import TableMaintenance from '../components/table-maintenance.svelte';
 import axios from 'axios';
 import {numeric} from '../../../libs/utils';
-import {setAccounts} from '../../javascripts/cross-slip';
 import eventBus from '../../javascripts/event-bus.js';
 
 export let status;
 export let toast;
 
-let payeeMinimize = false;
-let paymentMinimize = false;
-let accounts = [];
 let unsorted = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
-
-// 支払先マッピングの初期値付き遷移用（?payeeCompany=&payeeName=&payeeKey=）。
-// 精算書のAI読み取りで未登録だった支払先を、その場で登録できるようにする
-let payeeInitial = null;
-{
-  const params = new URLSearchParams(location.search);
-  const company = params.get('payeeCompany');
-  const name = params.get('payeeName');
-  const key = params.get('payeeKey');
-  if ( company || name || key ) {
-    payeeInitial = {};
-    if ( company ) payeeInitial.companyId = parseInt(company);
-    if ( name ) payeeInitial.name = name;
-    if ( key ) payeeInitial.key = key;
-  }
-}
 
 // 画像プレビュー（モーダル）。PDFは別タブ表示のまま
 let preview = null;
@@ -271,7 +212,7 @@ const confirmModal = (title, description, reply) => {
 const splitVoucher = async (voucher) => {
   const allowed = await confirmModal('経費精算',
     'この証憑を分離・切り出しますか？<br/>複数の証憑が写っている場合は個別の証憑に分け、1枚の場合は背景を除いて切り出します。',
-    'expense-split-voucher-home');
+    'expense-split-voucher-unsorted');
   if ( !allowed ) {
     return;
   }
@@ -298,7 +239,7 @@ const splitVoucher = async (voucher) => {
 
 // 未整理証憑の削除（自分が登録した証憑は削除できる）
 const deleteVoucher = async (voucher) => {
-  const allowed = await confirmModal('経費精算', 'この証憑を削除します。<br/>よろしいですか？', 'expense-delete-voucher-home');
+  const allowed = await confirmModal('経費精算', 'この証憑を削除します。<br/>よろしいですか？', 'expense-delete-voucher-unsorted');
   if ( !allowed ) {
     return;
   }
@@ -336,10 +277,6 @@ const onPileDrop = (event) => {
 };
 
 onMount(() => {
-  axios.get('/api/accounts').then((result) => {
-    accounts = result.data || [];
-    setAccounts(accounts);
-  });
   fetchUnsorted();
 });
 </script>
@@ -392,7 +329,7 @@ onMount(() => {
   border-color: #4d8fd1;
 }
 .pile-table {
-  max-height: 30vh;
+  max-height: 60vh;
   overflow: auto;
 }
 /* 行ピッチを揃える: セル中央揃え */

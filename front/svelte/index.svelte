@@ -181,7 +181,7 @@ let status = {
 
 let mainCount = 0;
 // 全幅で使いたいページ（マッピング等の表がある設定画面）。他は従来の1200px固定
-$: isWide = /^\/expense\/home/.test($currentPage || '');
+$: isWide = /^\/expense\/(home|unsorted|payee|payment)/.test($currentPage || '');
 
 let reply;
 const doReply = (event) => {

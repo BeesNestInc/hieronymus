@@ -137,7 +137,7 @@
                       <a href="/company/new?name={encodeURIComponent(line._unmatched.company)}" target="_blank">取引先登録</a>
                       {''}
                       {/if}
-                      <a href="/expense/home?{[
+                      <a href="/expense/payee?{[
                         line._unmatched.companyId ? `payeeCompany=${line._unmatched.companyId}` : '',
                         `payeeName=${encodeURIComponent(line._unmatched.companyName || line._unmatched.company)}`,
                         `payeeKey=${encodeURIComponent(line._unmatched.company)}`

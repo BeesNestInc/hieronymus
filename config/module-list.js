@@ -247,11 +247,23 @@ export default [
         },
         match: /^\/expense\/($|entry|new)/,
       }, {
-        title: '設定',
-        match: /^\/expense\/home/,
+        title: '未整理の証憑',
         href: (status) => {
-          return	(`/expense/home`);
-        }
+          return	(`/expense/unsorted`);
+        },
+        match: /^\/expense\/unsorted/,
+      }, {
+        title: '支払先マッピング',
+        href: (status) => {
+          return	(`/expense/payee`);
+        },
+        match: /^\/expense\/payee/,
+      }, {
+        title: '出金元マッピング',
+        href: (status) => {
+          return	(`/expense/payment`);
+        },
+        match: /^\/expense\/payment/,
       }
     ]
   }, {

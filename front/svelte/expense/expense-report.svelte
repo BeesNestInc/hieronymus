@@ -5,10 +5,15 @@
   on:open={openEntry}
   on:update={refreshReports}
   ></ExpenseList>
-{:else if ( status.state === 'home' )}
-<ExpenseHome
+{:else if ( status.state === 'unsorted' )}
+<ExpenseUnsorted
   bind:status={status}
-  {toast}></ExpenseHome>
+  {toast}></ExpenseUnsorted>
+{:else if ( status.state === 'payee' || status.state === 'payment' )}
+<ExpenseMapping
+  bind:status={status}
+  kind={status.state}
+  {toast}></ExpenseMapping>
 {:else if ( (status.state === 'entry' || status.state === 'new') && report )}
 <ExpenseEntry
   bind:status={status}
@@ -26,7 +31,8 @@ import axios from 'axios';
 import {onMount} from 'svelte';
 import ExpenseEntry from './expense-entry.svelte';
 import ExpenseList from './expense-list.svelte';
-import ExpenseHome from './expense-home.svelte';
+import ExpenseUnsorted from './expense-unsorted.svelte';
+import ExpenseMapping from './expense-mapping.svelte';
 import {formatDate} from '../../../libs/utils.js';
 import {parseParams, buildParam} from '../../javascripts/params.js';
 import {currentPage, link} from '../../javascripts/router.js';
@@ -81,6 +87,10 @@ const checkPage = (pageUrl) => {
   const args = url.pathname.split('/');
 
   status.state = args[2] || 'list';
+  // 旧URL（/expense/home=設定ページ）は支払先マッピングへ誘導する
+  if ( status.state === 'home' ) {
+    status.state = 'payee';
+  }
   // list時のみparamsを更新する（entry/newに遷移した時に絞り込み条件を消さないため）
   switch  (status.state)  {
   case  'entry':
