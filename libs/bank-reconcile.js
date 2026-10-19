@@ -360,6 +360,50 @@ export const releaseStatementLines = async (detailIds) => {
   });
 };
 
+// 未照合行の支払先マッピングを摘要から提案する。
+// 優先順: ①プロファイルのbookRules（摘要パターン→マッピングkey/id）
+//         ②マッピングのkeyが摘要に含まれる  ③マッピング名が摘要に含まれる
+export const suggestPayees = async (statement, profiles = null) => {
+  const {loadProfiles} = await import('./bank-statement.js');
+  const allProfiles = profiles || loadProfiles();
+  const profile = allProfiles.find((p) => ( p.name === statement.profileName ));
+  const rules = ( profile && profile.bookRules ) || [];
+  const payees = await models.ExpenseMapping.findAll({
+    where: { kind: 'payee' }
+  });
+  const lines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id, status: 'unmatched' }
+  });
+  const suggestions = [];
+  for ( const line of lines ) {
+    const desc = normalizeDescription(line.rawDescription);
+    if ( !desc ) continue;
+    let hit = null;
+    for ( const rule of rules ) {
+      try {
+        if ( !new RegExp(rule.pattern).test(desc) ) continue;
+      } catch (e) {
+        continue;
+      }
+      const mapping = payees.find((p) => ( p.key === rule.mappingKey ) ||
+        ( String(p.id) === String(rule.mappingKey) ));
+      if ( mapping ) {
+        hit = mapping;
+        break;
+      }
+    }
+    if ( !hit ) {
+      hit = payees.find((p) => ( ( p.key && normalizeDescription(p.key) &&
+          desc.includes(normalizeDescription(p.key)) ) ||
+        ( p.name && desc.includes(normalizeDescription(p.name)) ) )) || null;
+    }
+    if ( hit ) {
+      suggestions.push({ lineId: line.id, payeeMappingId: hit.id });
+    }
+  }
+  return suggestions;
+};
+
 export default {
   autoMatch: autoMatch,
   suggestCardPayments: suggestCardPayments,

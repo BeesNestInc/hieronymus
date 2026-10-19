@@ -32,6 +32,8 @@ export default (sequelize, DataTypes) => {
 		fileName: DataTypes.STRING,
 		mimeType: DataTypes.STRING,
 		fileBody: DataTypes.BLOB,
+		// 取込時に判定した形式プロファイル名（bookRules等の適用に使う）
+		profileName: DataTypes.STRING,
 		periodFrom: DataTypes.DATEONLY,
 		periodTo: DataTypes.DATEONLY,
 		lineCount: DataTypes.INTEGER,

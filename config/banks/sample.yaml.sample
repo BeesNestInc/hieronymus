@@ -27,6 +27,12 @@ columns:
 categoryRules:
   - { pattern: '^利息', category: interest }
 
+# 摘要パターン → 支払先マッピング（type: bank。一括起票時の支払先候補の自動提案）
+# mappingKey は 支払先マッピングの key（またはid）。ルール未命中なら
+# マッピングの key/name が摘要に含まれる場合にも提案する
+# bookRules:
+#   - { pattern: '手数料$', mappingKey: 'tesuuryou' }
+
 # 利息の仕訳テンプレ（type: bank のみ。省略時は既定値を使う）
 # interest:
 #   incomeAccount: '8000000'   # 受取利息

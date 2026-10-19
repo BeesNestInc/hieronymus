@@ -65,6 +65,8 @@ columns:                    # 列名 → 項目（省略時は既定の名寄せ
   date: 取引日
 categoryRules:              # 摘要パターン → 区分（省略時は既定ルール）
   - { pattern: '^利息', category: interest }
+bookRules:                  # 摘要パターン → 支払先マッピング（keyまたはid）。
+  - { pattern: '手数料$', mappingKey: tesuuryou }   # 突合時に支払先候補を自動提案する
 cardPatterns:               # カードPDF用の正規表現（省略時は既定パターン）
   total: '支払い合計額([\d,]+)円'
 paymentAccount: '2030000'   # 引落決済の借方科目（未払金）

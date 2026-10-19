@@ -2,7 +2,7 @@ import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
 import {create as createCrossSlip} from '../libs/cross_slip.js';
-import {autoMatch, bookLines, selectForExpense} from '../libs/bank-reconcile.js';
+import {autoMatch, bookLines, selectForExpense, suggestPayees} from '../libs/bank-reconcile.js';
 
 // 取り込んだ明細の突合・起票のテスト（DB使用。*_test のみで実行可）
 
@@ -94,12 +94,13 @@ describe('bank-reconcile (test db)', () => {
     approver = data.approver;
   });
 
-  const createStatement = async (kind, lines) => {
+  const createStatement = async (kind, lines, profileName = null) => {
     const statement = await models.BankStatement.create({
       kind: kind,
       account: ( kind === 'bank' ) ? '1010010' : null,
       subAccount: null,
       cardName: ( kind === 'bank' ) ? null : 'テストカード',
+      profileName: profileName,
       lineCount: lines.length
     });
     const created = [];
@@ -198,6 +199,36 @@ describe('bank-reconcile (test db)', () => {
     assert.lengthOf(details, 1);
     assert.equal(Number(details[0].debitAmount), 1);
     assert.equal(Number(details[0].creditAmount), 1);
+  });
+
+  it('suggestPayees: bookRulesとマッピングkey/nameの一致で支払先を提案する', async () => {
+    // key付きマッピング（手数料用）
+    const feeMapping = await models.ExpenseMapping.create({
+      kind: 'payee',
+      key: 'tesuuryou',
+      name: '送金手数料',
+      account: '7000001'
+    });
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-08-06', rawDescription: '振込手数料', amountOut: 140 },
+      { date: '2026-08-06', rawDescription: '振込＊テスト取引先', amountOut: 20000 },
+      { date: '2026-08-07', rawDescription: '謎の入金', amountIn: 500 }
+    ], 'テスト銀行');
+    // bookRules（プロファイル）あり: 摘要パターン→マッピングkey
+    const ruleProfiles = [ { name: 'テスト銀行', bookRules: [
+      { pattern: '手数料$', mappingKey: 'tesuuryou' }
+    ] } ];
+    const ruled = await suggestPayees(statement, ruleProfiles);
+    // ルール命中（振込手数料→送金手数料マッピング）+ name包含（テスト取引先）
+    assert.lengthOf(ruled, 2);
+    assert.deepEqual(ruled.map((s) => ( s.lineId )).sort((a, b) => a - b),
+      [ lines[0].id, lines[1].id ].sort((a, b) => a - b));
+    const fee = ruled.find((s) => ( s.lineId === lines[0].id ));
+    assert.equal(fee.payeeMappingId, feeMapping.id);
+    // プロファイルなしでも key/name 包含で提案する
+    const plain = await suggestPayees(statement, [ { name: 'テスト銀行' } ]);
+    assert.lengthOf(plain, 1);
+    assert.equal(plain[0].lineId, lines[1].id);
   });
 
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {

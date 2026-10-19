@@ -53,7 +53,7 @@
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
       on:click={runMatch}>既存仕訳と突合</button>
     <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || bookTargets.length === 0}
-      on:click={runBook}>一括起票（{bookTargets.length}行）</button>
+      on:click={runBook}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
     {/if}
   </div>
   <div class="table-responsive">
@@ -340,6 +340,10 @@ $: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) |
 $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
   ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
+// 未照合行数（起票対象の内訳表示用）
+$: unmatchedCount = ( statement && statement.lines ) ?
+  statement.lines.filter((line) => ( line.status === 'unmatched' )).length : 0;
+
 // 一括起票の対象行（未照合、または伝票消滅で迷子になった起票済み行）
 $: bookTargets = ( statement && statement.lines ) ?
   statement.lines.filter((line) => {
@@ -383,11 +387,22 @@ const restoreScroll = async () => {
   }
 };
 
+const applyPayeeSuggestions = (suggestions) => {
+  for ( const line of ( statement && statement.lines ) || [] ) {
+    if ( line.status !== 'unmatched' || line._payeeMappingId ) continue;
+    const s = ( suggestions || [] ).find((sug) => ( sug.lineId === line.id ));
+    if ( s ) {
+      line._payeeMappingId = s.payeeMappingId;
+    }
+  }
+};
+
 const loadDetail = async (statementId) => {
   const result = await axios.get(`/api/bank_statement/${statementId}`);
   statement = ( result.data && result.data.statement ) || null;
   warnings = [];
   cardSuggestions = [];
+  applyPayeeSuggestions(result.data.payeeSuggestions);
   await restoreScroll();
 };
 
@@ -499,6 +514,7 @@ const runMatch = async () => {
     const result = await axios.post(`/api/bank_statement/${id}/match`);
     statement = result.data.statement;
     cardSuggestions = result.data.suggestions || [];
+    applyPayeeSuggestions(result.data.payeeSuggestions);
     toast.show('明細取込', `${result.data.matched}行を突合しました`);
   } catch (e) {
     toast.show('明細取込', '突合に失敗しました', 'warning');

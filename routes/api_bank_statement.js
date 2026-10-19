@@ -152,6 +152,7 @@ export default {
       const statement = await models.BankStatement.create({
         ...params,
         kind: isPersonal ? 'personal_card' : parsed.kind,
+        profileName: parsed.profileName,
         fileName: upload.fileName,
         mimeType: upload.mimeType,
         fileBody: upload.buffer,
@@ -196,13 +197,17 @@ export default {
       res.json({ code: -10 });
       return;
     }
+    // 支払先候補（摘要→マッピングのルール/key一致）。詳細表示の初回から提示する
+    const payeeSuggestions = ( statement.kind === 'bank' ) ?
+      await reconcile.suggestPayees(statement) : [];
     res.json({
       code: 0,
       statement: {
         ...statement.toJSON(),
         fileBody: undefined,
         lines: statement.lines.map(lineToJSON)
-      }
+      },
+      payeeSuggestions: payeeSuggestions
     });
   },
 
@@ -238,11 +243,13 @@ export default {
     }
     const result = await reconcile.autoMatch(statement);
     const suggestions = await reconcile.suggestCardPayments(statement);
+    const payeeSuggestions = await reconcile.suggestPayees(statement);
     const fresh = await getStatement(statement.id);
     res.json({
       code: 0,
       matched: result.matched,
       suggestions: suggestions,
+      payeeSuggestions: payeeSuggestions,
       lines: fresh.lines.map(lineToJSON)
     });
   },
