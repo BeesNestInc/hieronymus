@@ -49,6 +49,10 @@
     {/each}
     </div>
     <div>
+    	<button type="button" class="btn btn-outline-secondary" id="open-bank-statement"
+    		on:click={() => { openStatement(); }}>
+        明細取込&nbsp;<i class="bi bi-upload"></i>
+      </button>
     	<button type="button" class="btn btn-primary" id="open-cross-slip"
     		on:click={openNewSlip}>
         伝票入力&nbsp;<i class="bi bi-pencil-square"></i>
@@ -251,5 +255,8 @@ const	openNewSlip = () => {
   const year = status.fy.startDate.getFullYear();
   const month = status.fy.startDate.getMonth() + 1;
   routerLink(`/slip/new?year=${year}&month=${month}&returnTo=${currentReturnTo()}`);
+}
+const openStatement = () => {
+  routerLink('/bank-statement');
 }
 </script>

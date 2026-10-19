@@ -334,6 +334,12 @@
                 disabled={!editable}
                 on:change={(e) => { uploadVouchers(e.target.files); e.target.value = ''; }}>
             </label>
+            {#if ( report.id && editable )}
+            <button type="button" class="btn btn-sm btn-outline-info ms-2"
+              on:click={() => { showCardModal = true; }}>
+              カード明細から取込&nbsp;<i class="bi bi-credit-card"></i>
+            </button>
+            {/if}
           </div>
           <div class="drop-hint">
             {#if ( pileVouchers.length > 0 )}
@@ -443,6 +449,16 @@
     </div>
   </div>
 </div>
+
+{#if ( showCardModal )}
+<CardStatementModal
+  {report}
+  mappings={payeeMappings}
+  {toast}
+  on:close={() => { showCardModal = false; }}
+  on:added={reloadAfterCard}
+></CardStatementModal>
+{/if}
 
 {#if ( preview )}
 <div class="preview-overlay" on:click|self={() => { preview = null; }}>
@@ -565,6 +581,7 @@ import {numeric} from '../../../libs/utils';
 import {onMount, createEventDispatcher} from 'svelte';
 const dispatch = createEventDispatcher();
 import CompanySelect from '../components/company-select.svelte';
+import CardStatementModal from './card-statement-modal.svelte';
 import {link} from '../../javascripts/router.js';
 import eventBus from '../../javascripts/event-bus.js';
 
@@ -591,6 +608,17 @@ let floatings = [];
 // 証憑画像の差し替え後の再表示用（ブラウザキャッシュを無効化するバージョン）
 let imageVersion = 0;
 let dragCounter = [];
+// 個人カード明細取込モーダル
+let showCardModal = false;
+
+// カード明細から精算書に明細を追加したら精算書を読み直す
+const reloadAfterCard = async () => {
+  showCardModal = false;
+  const result = await axios.get(`/api/expense_report/${report.id}`);
+  if ( result.data && result.data.id ) {
+    report = result.data;
+  }
+};
 
 $: submitterName = report.submitter ? report.submitter.name : (status.user.name || '');
 

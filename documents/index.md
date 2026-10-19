@@ -57,6 +57,8 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 * [経費精算](expense.md)
 * [仮払金精算](expense.md#仮払金精算)
 * [元帳の確認](ledger.md)
+* [銀行元帳](ledger.md#銀行元帳)
+* [明細取込（通帳・カード）](bank-statement.md)
 * [残高試算表](trial-balance.md)
 * [勘定科目管理](account.md)
 

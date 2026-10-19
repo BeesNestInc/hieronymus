@@ -58,6 +58,7 @@ import Journal from './journal/journal.svelte';
 import SlipPage from './cross-slip/slip-page.svelte';
 import Ledger from './ledger/ledger.svelte';
 import BankLedger from './bank-ledger/bank-ledger.svelte';
+import BankStatement from './bank-statement/bank-statement.svelte';
 import TrialBalance from './trial-balance/trial-balance.svelte';
 import Changes from './changes/changes.svelte';
 import Voucher from './voucher/voucher.svelte';
@@ -104,6 +105,10 @@ const routes = [
   {
     match: /^\/bank-ledger/,
     component: BankLedger
+  },
+  {
+    match: /^\/bank-statement/,
+    component: BankStatement
   },
   {
     match: /^\/trial-balance/,
