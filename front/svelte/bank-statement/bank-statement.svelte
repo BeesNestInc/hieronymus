@@ -99,7 +99,8 @@
           </td>
           <td>
             {#if ( line.slip )}
-            <a class="btn btn-link btn-sm p-0" href={`/slip/${line.slip.year}/${line.slip.month}/${line.slip.no}`}>
+            <a class="btn btn-link btn-sm p-0"
+              href={`/slip/${line.slip.year}/${line.slip.month}/${line.slip.no}?returnTo=${encodeURIComponent('/bank-statement/' + id)}`}>
               {line.slip.month}/{line.slip.day}-{line.slip.no}
             </a>
             {/if}

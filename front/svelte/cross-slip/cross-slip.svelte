@@ -406,7 +406,7 @@ const computeSum = () => {
   let	credit_amount = 0;
   let	credit_tax = 0;
 
-  for ( let i = 0; i < slip.lines.length ; i ++ ) {
+  for ( let i = 0; i < ( slip.lines || [] ).length ; i ++ ) {
     debit_amount += numeric(slip.lines[i].debitAmount);
     debit_tax += numeric(slip.lines[i].debitTax);
     credit_amount += numeric(slip.lines[i].creditAmount);

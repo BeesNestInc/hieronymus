@@ -372,6 +372,12 @@ const loadSlip = async (params) => {
   if ( params.no ) {
     const result = await axios.get(`/api/cross_slip/${params.year}/${params.month}/${params.no}`);
     const data = result.data;
+    // 存在しない伝票（削除済み等）。空オブジェクトで画面を組むと落ちるため戻る
+    if ( !data || data.year === undefined ) {
+      // 存在しない伝票（削除済み等）は静かに戻る（歴史上存在しなかったURL扱い）
+      link(returnTo || defaultReturnTo());
+      return;
+    }
     slip = {
       year: data.year,
       month: data.month,
