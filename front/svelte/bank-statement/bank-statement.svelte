@@ -165,7 +165,8 @@
         {#each statements as statement}
         <tr>
           <td>{kindLabel(statement.kind)}</td>
-          <td><a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}>{statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}</a></td>
+          <td><a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}
+            on:click|preventDefault={() => { routerLink(`/bank-statement/${statement.id}`); }}>{statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}</a></td>
           <td>{statement.periodFrom || '?'}〜{statement.periodTo || '?'}</td>
           <td class="number">{statement.lineCount}</td>
           <td>

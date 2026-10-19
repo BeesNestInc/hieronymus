@@ -67,7 +67,7 @@
             {/if}
             {#if line.projectName}
             <div class="project me-2 text-truncate" style="max-width: 150px;" title={line.projectName}>
-              <i class="fas fa-briefcase me-1"></i><a href={`/project/entry/${line.projectId}`}>{line.projectName}</a>
+              <i class="fas fa-briefcase me-1"></i><a href={`/project/entry/${line.projectId}`} on:click|preventDefault={() => { openProject(line.projectId); }}>{line.projectName}</a>
             </div>
             <div class="me-2 border-end"></div>
             {/if}
@@ -155,6 +155,7 @@
 
 <script>
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {link as routerLink} from '../../javascripts/router.js';
 const dispatch = createEventDispatcher();
 
 export	let	lines;
@@ -163,6 +164,11 @@ export	let	slips;
 export  let fy;
 
 let slip;
+
+// 案件へのリンクはSPA遷移する（フルリロードしない）
+const openProject = (projectId) => {
+  routerLink(`/project/entry/${projectId}`);
+};
 
 const openSlip = (no) => {
   console.log('openSlip', no, slips);

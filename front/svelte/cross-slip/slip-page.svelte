@@ -30,7 +30,8 @@
   {:else if slip}
   {#if ( linkedExpenseReport )}
   <div class="alert alert-info py-2 px-3">
-    <a href={`/expense/entry/${linkedExpenseReport.id}?returnTo=${encodeURIComponent(returnTo || '/home')}`}>
+    <a href={`/expense/entry/${linkedExpenseReport.id}?returnTo=${encodeURIComponent(returnTo || '/home')}`}
+      on:click|preventDefault={() => { link(`/expense/entry/${linkedExpenseReport.id}?returnTo=${encodeURIComponent(returnTo || '/home')}`); }}>
       この伝票は経費精算書から管理されています（修正・承認は精算書の画面で行ってください）
     </a>
   </div>
