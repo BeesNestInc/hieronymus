@@ -26,6 +26,28 @@
     {#each warnings as w}<div>{w}</div>{/each}
   </div>
   {/if}
+  {#if ( statement.kind === 'bank' )}
+  <div class="d-flex align-items-center mb-2">
+    <label class="me-2">口座</label>
+    <select class="form-select form-select-sm me-1" style="width:auto;"
+      bind:value={statement.account}>
+      <option value="">科目</option>
+      {#each bankAccounts as account}
+      <option value={account.code}>{account.name}</option>
+      {/each}
+    </select>
+    <select class="form-select form-select-sm me-1" style="width:auto;"
+      bind:value={statement.subAccount}>
+      <option value="">補助</option>
+      {#each detailSubAccounts as sub}
+      <option value={sub.code}>{sub.name}</option>
+      {/each}
+    </select>
+    <button type="button" class="btn btn-sm btn-outline-primary" on:click={saveAccount}>
+      口座を設定
+    </button>
+  </div>
+  {/if}
   <div class="d-flex align-items-center mb-1">
     {#if ( statement.kind === 'bank' )}
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
@@ -165,7 +187,7 @@
             <select class="form-select" bind:value={form.account}>
               <option value="">科目</option>
               {#each bankAccounts as account}
-              <option value={account.accountCode}>{account.name}</option>
+              <option value={account.code}>{account.name}</option>
               {/each}
             </select>
           </div>
@@ -173,7 +195,7 @@
             <select class="form-select" bind:value={form.subAccount}>
               <option value="">補助</option>
               {#each bankSubAccounts as sub}
-              <option value={sub.subAccountCode}>{sub.name}</option>
+              <option value={sub.code}>{sub.name}</option>
               {/each}
             </select>
           </div>
@@ -293,8 +315,10 @@ const mappingLabel = (mapping) => {
   return ( mapping && mapping.description ) ? `${mapping.name}（${mapping.description}）` : ( mapping ? mapping.name : '' );
 };
 
-$: bankAccounts = ( accounts || [] ).filter((a) => ( /^101/.test(a.accountCode) ));
-$: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.accountCode === form.account )) || {} ).subAccounts || [] );
+$: bankAccounts = ( accounts || [] ).filter((a) => ( /^101/.test(a.code) ));
+$: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) || {} ).subAccounts || [] );
+$: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
+  ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
 // 一括起票の対象行（未照合で、支払先指定 or 利息 or カード引落候補あり）
 $: bookTargets = ( statement && statement.lines ) ?
@@ -361,6 +385,10 @@ const closeModal = () => {
 };
 
 const doPreview = async () => {
+  if ( form.kind === 'bank' && !form.account ) {
+    formError = '科目を選択してください。';
+    return;
+  }
   busy = true;
   formError = '';
   try {
@@ -381,6 +409,10 @@ const doPreview = async () => {
 };
 
 const doUpload = async () => {
+  if ( form.kind === 'bank' && !form.account ) {
+    formError = '科目を選択してください。';
+    return;
+  }
   busy = true;
   formError = '';
   try {
@@ -473,6 +505,24 @@ const setIgnored = async (line, ignored) => {
     status: ignored ? 'ignored' : 'unmatched'
   });
   loadDetail(id);
+};
+
+// 口座の設定（取り込み時に口座を指定しなかった分の後付け）
+const saveAccount = async () => {
+  if ( !statement.account ) {
+    toast.show('明細取込', '科目を選択してください', 'warning');
+    return;
+  }
+  try {
+    await axios.put(`/api/bank_statement/${id}`, {
+      account: statement.account,
+      subAccount: statement.subAccount
+    });
+    toast.show('明細取込', '口座を設定しました');
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) || '口座の設定に失敗しました';
+    toast.show('明細取込', message, 'warning');
+  }
 };
 
 const deleteStatement = async (statement) => {

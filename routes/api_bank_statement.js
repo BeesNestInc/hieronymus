@@ -303,6 +303,25 @@ export default {
     }
   },
 
+  // 口座の後付け設定（取り込み時に口座を指定しなかった分）
+  update: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statement = await models.BankStatement.findByPk(parseInt(req.params.id));
+    if ( !statement ) {
+      res.json({ code: -1 });
+      return;
+    }
+    statement.account = req.body.account || null;
+    statement.subAccount = req.body.subAccount ? parseInt(req.body.subAccount) : null;
+    statement.updatedBy = req.session.user.id;
+    await statement.save();
+    res.json({ code: 0 });
+  },
+
   // 行単位の更新（除外/除外解除/摘要の修正）
   updateLine: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');

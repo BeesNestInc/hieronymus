@@ -78,6 +78,7 @@ const RULES = [
   { match: /^\/bank_statement\/(preview|upload)$/, methods: ['POST'], access: ANY },
   { match: /^\/bank_statement\/\d+\/(match|book)$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/select$/, methods: ['POST'], access: ANY },
+  { match: /^\/bank_statement\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement\/line\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement(\/\d+)?$/, methods: ['DELETE'], access: ['accounting'] },
 

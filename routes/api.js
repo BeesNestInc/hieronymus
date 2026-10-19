@@ -160,6 +160,7 @@ router.post('/bank_statement/upload', bank_statement.upload);
 router.post('/bank_statement/:id/match', bank_statement.match);
 router.post('/bank_statement/:id/book', bank_statement.book);
 router.post('/bank_statement/:id/select', bank_statement.select);
+router.put('/bank_statement/:id', bank_statement.update);
 router.put('/bank_statement/line/:id', bank_statement.updateLine);
 router.delete('/bank_statement/:id', bank_statement.delete);
 
