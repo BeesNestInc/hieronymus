@@ -10,6 +10,19 @@ const canManage = (user) => {
   return Boolean(user.accounting);
 };
 
+// 閲覧: 会計/閲覧権限は全明細、それ以外は自分が取り込んだ個人カード明細のみ
+// （銀行・社用カードの明細は機微な財務情報のため一般ユーザーには出さない）
+const canSeeAll = (user) => {
+  return Boolean(user.accounting || user.fiscalBrowsing);
+};
+
+const visibleFilter = (user) => {
+  if ( canSeeAll(user) ) {
+    return null;
+  }
+  return { kind: 'personal_card', createdBy: user.id };
+};
+
 // 明細行をフロント用に整形する（照合先伝票の情報を添える）
 const lineToJSON = (line) => {
   const plain = line.toJSON();
@@ -156,10 +169,12 @@ export default {
     }
   },
 
-  // 一覧（ファイル本体は除く）
+  // 一覧（ファイル本体は除く）。非会計ユーザーは自分の個人カード明細のみ
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
+    const where = visibleFilter(req.session.user) || {};
     const statements = await models.BankStatement.findAll({
+      where: where,
       attributes: { exclude: [ 'fileBody' ] },
       order: [[ 'id', 'DESC' ]]
     });
@@ -172,6 +187,11 @@ export default {
     const statement = await getStatement(parseInt(req.params.id));
     if ( !statement ) {
       res.json({ code: -1 });
+      return;
+    }
+    const filter = visibleFilter(req.session.user);
+    if ( filter && ( statement.kind !== filter.kind || statement.createdBy !== req.session.user.id ) ) {
+      res.json({ code: -10 });
       return;
     }
     res.json({
@@ -189,6 +209,11 @@ export default {
     const statement = await models.BankStatement.findByPk(parseInt(req.params.id));
     if ( ( !statement ) || ( !statement.fileBody ) ) {
       res.status(404).end();
+      return;
+    }
+    const filter = visibleFilter(req.session.user);
+    if ( filter && ( statement.kind !== filter.kind || statement.createdBy !== req.session.user.id ) ) {
+      res.status(403).end();
       return;
     }
     res.set('Content-Type', statement.mimeType || 'application/octet-stream');

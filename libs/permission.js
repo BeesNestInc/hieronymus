@@ -70,6 +70,17 @@ const RULES = [
   { match: /^\/expense_mapping\/.+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/karibarai\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
 
+  // 明細取込。GET/upload/select は ANY だが、routes/api_bank_statement.js 側で
+  // 銀行・カード明細は会計権限、個人カード明細は本人のみに絞り込む。
+  // 突合・起票・行更新・削除は会計権限のみ
+  { match: /^\/bank_statement(\/\d+)?$/, methods: ['GET'], access: ANY },
+  { match: /^\/bank_statement\/file\/\d+$/, methods: ['GET'], access: ANY },
+  { match: /^\/bank_statement\/(preview|upload)$/, methods: ['POST'], access: ANY },
+  { match: /^\/bank_statement\/\d+\/(match|book)$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/bank_statement\/\d+\/select$/, methods: ['POST'], access: ANY },
+  { match: /^\/bank_statement\/line\/\d+$/, methods: ['PUT'], access: ['accounting'] },
+  { match: /^\/bank_statement(\/\d+)?$/, methods: ['DELETE'], access: ['accounting'] },
+
   { match: /^\/journal/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/ledger/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/remaining/, access: ['accounting', 'fiscalBrowsing'] },
