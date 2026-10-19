@@ -1,0 +1,46 @@
+# 取り込む銀行・カードの形式差は config/banks/*.yaml のプロファイルで調整する。
+# このファイルはサンプルなので動かない（*.sample は読み込まれない）。
+# 実際のプロファイルは <銀行名やカード名>.yaml という名前で置く。
+#
+# 明細のパースに必要な既定の名寄せ表は libs/bank-statement.js を参照。
+# ヘッダ署名（detect）と列名（columns）だけで多くの形式に対応できる。
+
+name: 三井住友銀行
+type: bank                  # bank: 銀行通帳 / card: カード利用明細
+
+# Excel/CSVのヘッダにこの語がすべて含まれるとき、このプロファイルを使う
+detect:
+  - 日付
+  - 内容
+  - 出金金額
+
+# 列名 → 項目。省略した列は既定の名寄せ表で判定する
+# 項目: date / description / amountOut / amountIn / balance / amount / merchant / memo
+columns:
+  date: お取り扱い日
+  description: 摘要
+  amountOut: お支払金額
+  amountIn: お預り金額
+  balance: 差引残高
+
+# 摘要パターン → 区分。省略時は既定ルール（利息/手数料/デビット/振替/税）
+categoryRules:
+  - { pattern: '^利息', category: interest }
+
+# 利息の仕訳テンプレ（type: bank のみ。省略時は既定値を使う）
+# interest:
+#   incomeAccount: '8000000'   # 受取利息
+#   account: '3730000'         # 源泉所得税の科目（省略時は補助「源泉」から自動解決）
+#   subAccount: 1              # 源泉所得税の補助科目
+#   rate: 0.15315              # 源泉徴収率
+
+# 以下は type: card（カード利用明細PDF）用
+#
+# name: 三井住友カード
+# type: card
+# cardName: ミツイスミトモカード   # 銀行側の引落摘要に含まれる名称
+# cardPatterns:                  # カードPDFから総額・支払日を取る正規表現（省略時は既定パターン）
+#   total: '支払い合計額([\d,]+)円'
+#   payDate: '支払い日(\d{4})年(\d{1,2})月(\d{1,2})日'
+# paymentAccount: '2030000'      # 引落決済伝票の借方科目（未払金）
+# paymentSubAccount: 1
