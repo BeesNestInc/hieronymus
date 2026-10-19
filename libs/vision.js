@@ -176,6 +176,33 @@ const pdfToPng = async (buffer) => {
   }
 };
 
+// 証憑・明細をLLMに渡せる画像へ正規化する（PDF→PNG変換と大型画像の縮小）。
+// 失敗時は元のまま送る
+const prepareImage = async (buffer, mimeType) => {
+  let data = buffer;
+  let type = mimeType || '';
+  if ( type === 'application/pdf' ) {
+    data = await pdfToPng(buffer);
+    type = 'image/png';
+  }
+  // 大きい画像は縮小して送る（送信量・トークンの削減。領収書の可読性は保たれる）。
+  try {
+    const img = await Jimp.read(data);
+    const w = img.bitmap.width;
+    const h = img.bitmap.height;
+    const m = Math.max(w, h);
+    const OCR_MAX_DIM = 1600;
+    if ( m > OCR_MAX_DIM ) {
+      const s = OCR_MAX_DIM / m;
+      img.resize({ w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) });
+      type = ( /^image\/jpe?g$/i.test(type) ) ? 'image/jpeg' : 'image/png';
+      data = await img.getBuffer(type);
+    }
+  } catch (e) {
+  }
+  return { data: data, type: type };
+};
+
 const aiApiError = (e) => {
   const status = e && ( e.statusCode || e.status );
   const err = new Error(`AI API error${status ? `: ${status}` : ''}`);
@@ -243,28 +270,9 @@ export const extract = async (buffer, mimeType, options = {}) => {
     err.name = 'AiNotConfigured';
     throw err;
   }
-  let data = buffer;
-  let type = mimeType || '';
-  if ( type === 'application/pdf' ) {
-    data = await pdfToPng(buffer);
-    type = 'image/png';
-  }
-  // 大きい画像は縮小して送る（送信量・トークンの削減。領収書の可読性は保たれる）。
-  // 失敗時は元のまま送る
-  try {
-    const img = await Jimp.read(data);
-    const w = img.bitmap.width;
-    const h = img.bitmap.height;
-    const m = Math.max(w, h);
-    const OCR_MAX_DIM = 1600;
-    if ( m > OCR_MAX_DIM ) {
-      const s = OCR_MAX_DIM / m;
-      img.resize({ w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) });
-      type = ( /^image\/jpe?g$/i.test(type) ) ? 'image/jpeg' : 'image/png';
-      data = await img.getBuffer(type);
-    }
-  } catch (e) {
-  }
+  const prepared = await prepareImage(buffer, mimeType);
+  const data = prepared.data;
+  const type = prepared.type;
   const model = makeModel(setting);
   const prompt = await buildPrompt(options.companies, options.payeeMappings);
   const messages = [{
@@ -293,7 +301,85 @@ export const extract = async (buffer, mimeType, options = {}) => {
   }
 };
 
+// 通帳・明細画像の読み取りプロンプト。全行を漏らさず入出金として読む。
+// 日付は通帳に年が無いことがあるため、文脈（印字年・残高推移）から補完させる。
+const STATEMENT_PROMPT = [
+  'この通帳・明細画像から入出金の明細行をすべて読み取り、',
+  '以下のJSON形式（配列）で出力してください:',
+  '[{"date":"YYYY-MM-DD","description":"摘要","amountOut":数値,"amountIn":数値,"balance":数値,"category":"...","memo":"..."}]',
+  'dateは西暦YYYY-MM-DD。通帳に年が書かれていない場合は文脈から推測し、不明なら null。',
+  'amountOutはお支払（出金）、amountInはお預り（入金）。該当しない側は null。',
+  'balanceは差引残高（なければ null）。descriptionは摘要欄の表記をそのまま。',
+  'categoryは normal / interest(利息) / fee(手数料) / transfer(振込・振替) / tax(税・国税) のいずれか。',
+  'memoにメモ欄や追記があればそのまま入れる。不明項目は null。JSON以外の出力はしないこと。'
+].join('\n');
+
+// 明細読み取りのスキーマ（配列。読めない項目はnullを許す）
+const STATEMENT_SCHEMA = jsonSchema({
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      date: { type: ['string', 'null'] },
+      description: { type: ['string', 'null'] },
+      amountOut: { type: ['number', 'null'] },
+      amountIn: { type: ['number', 'null'] },
+      balance: { type: ['number', 'null'] },
+      category: { type: ['string', 'null'] },
+      memo: { type: ['string', 'null'] }
+    },
+    required: ['date', 'description', 'amountOut', 'amountIn', 'balance', 'category', 'memo'],
+    additionalProperties: false
+  }
+});
+
+// 画像・PDFの通帳から入出金明細を配列で抽出する（bank-statement.js から使う）。
+// 証憑OCR（extract）と同じく、構造化出力→テキスト+サルベージの2段構え。
+export const extractStatement = async (buffer, mimeType) => {
+  const setting = settings();
+  if ( !isAvailable() ) {
+    const err = new Error('AIの設定がありません（config/llms.yaml）。');
+    err.name = 'AiNotConfigured';
+    throw err;
+  }
+  const prepared = await prepareImage(buffer, mimeType);
+  const model = makeModel(setting);
+  const messages = [{
+    role: 'user',
+    content: [
+      { type: 'text', text: STATEMENT_PROMPT },
+      { type: 'image', image: `data:${prepared.type};base64,${prepared.data.toString('base64')}` }
+    ]
+  }];
+  const normalize = (object) => {
+    return ( object || [] ).map((line) => ({
+      date: line.date ? new Date(String(line.date)) : null,
+      rawDescription: line.description || '',
+      merchant: line.description || '',
+      amountOut: ( line.amountOut === null || line.amountOut === undefined ) ? null : Number(line.amountOut),
+      amountIn: ( line.amountIn === null || line.amountIn === undefined ) ? null : Number(line.amountIn),
+      balance: ( line.balance === null || line.balance === undefined ) ? null : Number(line.balance),
+      memo: line.memo || null
+    }));
+  };
+  try {
+    const result = await generateObject({ model: model, schema: STATEMENT_SCHEMA, messages: messages, maxRetries: 1 });
+    return { lines: normalize(result.object), warnings: [] };
+  } catch (e) {
+    if ( e && (( e.name === 'AI_APICallError' ) || e.statusCode || e.status ) ) {
+      throw aiApiError(e);
+    }
+    try {
+      const result = await generateText({ model: model, messages: messages, maxRetries: 1 });
+      return { lines: normalize(extractJson(result.text)), warnings: [] };
+    } catch (e2) {
+      throw aiApiError(e2);
+    }
+  }
+};
+
 export default {
   isAvailable: isAvailable,
-  extract: extract
+  extract: extract,
+  extractStatement: extractStatement
 };

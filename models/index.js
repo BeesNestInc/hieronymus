@@ -2,6 +2,8 @@
 import Account from './account.js';
 import AccountClass from './accountclass.js';
 import AccountRemaining from './accountremaining.js';
+import BankStatement from './bank-statement.js';
+import BankStatementLine from './bank-statement-line.js';
 import CrossSlip from './crossslip.js';
 import CrossSlipDetail from './crossslipdetail.js';
 import Company from './company.js';
@@ -60,6 +62,8 @@ const models = {
   Account: Account(sequelize, DataTypes),
   AccountClass: AccountClass(sequelize, DataTypes),
   AccountRemaining: AccountRemaining(sequelize, DataTypes),
+  BankStatement: BankStatement(sequelize, DataTypes),
+  BankStatementLine: BankStatementLine(sequelize, DataTypes),
   CrossSlip: CrossSlip(sequelize, DataTypes),
   CrossSlipDetail: CrossSlipDetail(sequelize, DataTypes),
   Company: Company(sequelize, DataTypes),

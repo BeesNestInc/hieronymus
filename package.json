@@ -69,6 +69,7 @@
 		"passport": "^0.7.0",
 		"passport-local": "^1.0.0",
 		"path-browserify": "^1.0.1",
+		"pdfjs-dist": "^6.4.299",
 		"pg": "^8.6.0",
 		"pg-hstore": "^2.3.3",
 		"playwright": "^1.51.1",
