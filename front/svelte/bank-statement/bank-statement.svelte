@@ -91,7 +91,11 @@
           <td class="number">{line.balance != null ? Number(line.balance).toLocaleString() : ( line.amount != null ? Number(line.amount).toLocaleString() : '' )}</td>
           <td>{categoryLabel(line.category)}</td>
           <td>
+            {#if ( line.status === 'booked' && !line.crossSlipDetailId )}
+            <span class="badge bg-warning" title="紐付伝票が削除されています">伝票消滅</span>
+            {:else}
             <span class="badge {statusColor(line.status)}">{statusLabel(line.status)}</span>
+            {/if}
           </td>
           <td>
             {#if ( line.slip )}
@@ -114,12 +118,25 @@
             {/if}
           </td>
           <td>
+            {#if ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
+            {#key payeeMappings.length}
+            <select class="form-select form-select-sm" bind:value={line._payeeMappingId}
+              disabled={line.status !== 'unmatched'}>
+              <option value={null}></option>
+              {#each payeeMappings as mapping}
+              <option value={mapping.id}>{mappingLabel(mapping)}</option>
+              {/each}
+            </select>
+            {/key}
+            {/if}
+          </td>
+          <td>
             {#if ( line.status === 'unmatched' )}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="対象外にする"
               on:click={() => { setIgnored(line, true); }}><i class="bi bi-slash-circle"></i></button>
-            {:else if ( line.status === 'ignored' )}
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="対象に戻す"
-              on:click={() => { setIgnored(line, false); }}><i class="bi bi-arrow-counterclockwise"></i></button>
+            {:else if ( line.status === 'ignored' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="未照合に戻す"
+              on:click={() => { restoreLine(line); }}><i class="bi bi-arrow-counterclockwise"></i></button>
             {/if}
           </td>
           {/if}
@@ -320,9 +337,12 @@ $: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) |
 $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
   ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
-// 一括起票の対象行（未照合で、支払先指定 or 利息 or カード引落候補あり）
+// 一括起票の対象行（未照合、または伝票消滅で迷子になった起票済み行）
 $: bookTargets = ( statement && statement.lines ) ?
   statement.lines.filter((line) => {
+    if ( line.status === 'booked' ) {
+      return !line.crossSlipDetailId;
+    }
     if ( line.status !== 'unmatched' ) return false;
     return line.category === 'interest' || line._payeeMappingId || cardSuggestion(line.id);
   }) : [];
@@ -461,7 +481,8 @@ const runBook = async () => {
   try {
     const bookings = [];
     for ( const line of statement.lines ) {
-      if ( line.status !== 'unmatched' ) continue;
+      const isStuck = ( line.status === 'booked' && !line.crossSlipDetailId );
+      if ( line.status !== 'unmatched' && !isStuck ) continue;
       const suggestion = cardSuggestion(line.id);
       if ( line.category === 'interest' ) {
         bookings.push({ lineId: line.id });
@@ -504,6 +525,12 @@ const setIgnored = async (line, ignored) => {
   await axios.put(`/api/bank_statement/line/${line.id}`, {
     status: ignored ? 'ignored' : 'unmatched'
   });
+  loadDetail(id);
+};
+
+// 伝票消滅で迷子になった起票済み行を未照合に戻す
+const restoreLine = async (line) => {
+  await axios.put(`/api/bank_statement/line/${line.id}`, { status: 'unmatched' });
   loadDetail(id);
 };
 

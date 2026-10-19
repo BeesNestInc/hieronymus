@@ -335,7 +335,12 @@ export default {
       res.json({ code: -1 });
       return;
     }
+    // 起票済みだが紐付伝票が消えている行は「未照合」に戻せる
     if ( req.body.status === 'ignored' || req.body.status === 'unmatched' ) {
+      if ( ( line.status === 'booked' ) && line.crossSlipDetailId ) {
+        res.status(422).json({ code: -3, message: '起票済みの明細です。伝票を削除してから戻してください。' });
+        return;
+      }
       line.status = req.body.status;
       line.crossSlipDetailId = null;
     }

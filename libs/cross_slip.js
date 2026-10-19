@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {isLocked} from './fiscal-lock.js';
+import {releaseStatementLines} from './bank-reconcile.js';
 
 const createDetail = (line, slipId, lineNo) => {
   return models.CrossSlipDetail.create({
@@ -176,6 +177,12 @@ export const update = async (slip, body, user, options = {}) => {
     slip.approvedBy = user.id;
   }
   await slip.save();
+  // 明細を組み替える前に、この伝票の明細を突合先にしていた取込明細を解放する
+  const oldDetails = await models.CrossSlipDetail.findAll({
+    where: { crossSlipId: slip.id },
+    attributes: [ 'id' ]
+  });
+  await releaseStatementLines(oldDetails.map((d) => d.id));
   await models.CrossSlipDetail.destroy({
     where: {
       crossSlipId: slip.id

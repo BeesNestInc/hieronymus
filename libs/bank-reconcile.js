@@ -253,8 +253,12 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
   const lines = await models.BankStatementLine.findAll({
     where: {
       statementId: statement.id,
-      status: 'unmatched',
-      id: { [Op.in]: bookings.map((b) => Number(b.lineId)) }
+      id: { [Op.in]: bookings.map((b) => Number(b.lineId)) },
+      // 未照合か、伝票削除で迷子になった起票済み（紐付なし）のみ
+      [Op.or]: [
+        { status: 'unmatched' },
+        { status: 'booked', crossSlipDetailId: null }
+      ]
     },
     order: [[ 'lineNo', 'ASC' ]]
   });
@@ -339,6 +343,21 @@ export const selectForExpense = async (statement, selections, report, user) => {
     created.push(reportLine);
   }
   return { lines: created };
+};
+
+// 仕訳明細が削除・再構築されたときに、それを突合先/起票先としていた
+// 取込明細の状態を「未照合」に戻す（伝票を消したのに「起票済」が残るのを防ぐ）
+export const releaseStatementLines = async (detailIds) => {
+  const ids = ( detailIds || [] ).map(Number).filter((id) => id);
+  if ( ids.length === 0 ) {
+    return;
+  }
+  await models.BankStatementLine.update({
+    status: 'unmatched',
+    crossSlipDetailId: null
+  }, {
+    where: { crossSlipDetailId: { [Op.in]: ids } }
+  });
 };
 
 export default {

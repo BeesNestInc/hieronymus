@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
+import {releaseStatementLines} from '../libs/bank-reconcile.js';
 import * as taxcalc from '../libs/tax-calc.js';
 import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 
@@ -306,6 +307,12 @@ export default {
       });
       return;
     }
+    // この伝票の明細を突合先にしていた取込明細を「未照合」に戻す
+    const detailIds = ( await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id },
+      attributes: [ 'id' ]
+    }) ).map((d) => d.id);
+    await releaseStatementLines(detailIds);
     await slip.destroy();
     res.json({
       code: 0,

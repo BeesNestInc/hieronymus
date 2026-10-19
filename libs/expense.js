@@ -2,6 +2,7 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import * as taxcalc from './tax-calc.js';
 import {create as createCrossSlip} from './cross_slip.js';
+import {releaseStatementLines} from './bank-reconcile.js';
 
 // 支払先マッピングの選択（OCRの取引内容とマッピングの説明で振り分ける）。
 // 同じ会社に説明違いの複数マッピング（Amazonの書籍/事務用品等）が
@@ -282,6 +283,12 @@ export const createSlipForReport = async (report, lines, approver) => {
     if ( slip.approvedAt ) {
       continue;
     }
+    // この伝票の明細を突合先にしていた取込明細を「未照合」に戻す
+    const detailIds = ( await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id },
+      attributes: [ 'id' ]
+    }) ).map((d) => d.id);
+    await releaseStatementLines(detailIds);
     await models.CrossSlipDetail.destroy({
       where: { crossSlipId: slip.id }
     });

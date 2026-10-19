@@ -4,6 +4,7 @@ import fs from 'fs';
 import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
 import { createSlipForReport, pickPayeeMapping } from '../libs/expense.js';
+import { releaseStatementLines } from '../libs/bank-reconcile.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
 import { splitImage, straightenImage, trimImage, rotateImage } from '../libs/imaging.js';
@@ -578,6 +579,12 @@ export default {
           res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: slipFy.term });
           return;
         }
+        // この伝票の明細を突合先にしていた取込明細を「未照合」に戻す
+        const detailIds = ( await models.CrossSlipDetail.findAll({
+          where: { crossSlipId: slip.id },
+          attributes: [ 'id' ]
+        }) ).map((d) => d.id);
+        await releaseStatementLines(detailIds);
         await models.CrossSlipDetail.destroy({
           where: { crossSlipId: slip.id }
         });
