@@ -35,6 +35,9 @@ export default (sequelize, DataTypes) => {
 		periodFrom: DataTypes.DATEONLY,
 		periodTo: DataTypes.DATEONLY,
 		lineCount: DataTypes.INTEGER,
+		// カード明細: 支払総額と支払日（銀行側の引落行との照合に使う）
+		total: DataTypes.DECIMAL(12),
+		payDate: DataTypes.DATEONLY,
 		note: DataTypes.TEXT
 	}, {
 		sequelize,

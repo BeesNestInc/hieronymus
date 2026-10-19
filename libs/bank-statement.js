@@ -399,7 +399,7 @@ const parseCardPdf = async (buffer, profile) => {
     }
     const dateMatch = flat.match(new RegExp(patterns.payDate || '支払い日(\\d{4})年(\\d{1,2})月(\\d{1,2})日'));
     if ( dateMatch ) {
-      payDate = new Date(+dateMatch[1], +dateMatch[2] - 1, +dateMatch[3]);
+      payDate = `${dateMatch[1]}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[3]).padStart(2, '0')}`;
     }
     const lines = cardRowsToLines(pdfLines, profile);
     const warnings = [];

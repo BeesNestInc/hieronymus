@@ -78,7 +78,7 @@ const saveLines = async (statement, parsed) => {
     lines.push(await models.BankStatementLine.create({
       statementId: statement.id,
       lineNo: i + 1,
-      date: line.date ? line.date.toISOString().slice(0, 10) : null,
+      date: line.date || null,
       rawDescription: line.rawDescription || null,
       description: line.description || line.rawDescription || line.merchant || null,
       amountIn: line.amountIn,
@@ -123,7 +123,7 @@ export default {
         lineCount: parsed.lines.length,
         lines: parsed.lines.map((line) => ({
           ...line,
-          date: line.date ? line.date.toISOString().slice(0, 10) : null
+          date: line.date || null
         }))
       });
     } catch (e) {
@@ -158,6 +158,8 @@ export default {
         periodFrom: parsed.periodFrom,
         periodTo: parsed.periodTo,
         lineCount: parsed.lines.length,
+        total: parsed.total,
+        payDate: parsed.payDate,
         createdBy: user.id,
         updatedBy: user.id
       });

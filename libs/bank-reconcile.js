@@ -156,7 +156,7 @@ const buildInterestDetails = async (line, statement, profile) => {
   const rate = conf.rate;
   const gross = rate > 0 ? Math.round(net / ( 1 - rate )) : net;
   const withheld = gross - net;
-  const date = line.date ? new Date(line.date) : new Date();
+  const date = line.date || toDateString(new Date());
   // 源泉所得税の科目は補助科目「源泉」（key=gensen）を既定とする。
   // プロファイルに withholding.account/subAccount があればそれを使う
   let withholdingAccount = conf.account || null;
@@ -238,7 +238,7 @@ const buildExpenseDetails = async (line, statement, booking) => {
     creditTaxRuleId: null,
     application1: application1,
     application2: line.memo || null,
-    _date: line.date ? new Date(line.date) : null
+    _date: line.date || null
   }];
 };
 
@@ -321,7 +321,7 @@ export const selectForExpense = async (statement, selections, report, user) => {
     const reportLine = await models.ExpenseReportLine.create({
       expenseReportId: report.id,
       lineNo: 0,
-      paymentDate: line.date ? toDateString(new Date(line.date)) : null,
+      paymentDate: line.date || null,
       payeeMappingId: ( selection && selection.payeeMappingId ) || null,
       description: line.description || line.merchant || line.rawDescription,
       amount: Number(line.amount),
