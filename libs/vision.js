@@ -353,7 +353,8 @@ export const extractStatement = async (buffer, mimeType) => {
   }];
   const normalize = (object) => {
     return ( object || [] ).map((line) => ({
-      date: line.date ? new Date(String(line.date)) : null,
+      date: ( typeof line.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(line.date) )
+        ? line.date.slice(0, 10) : null,
       rawDescription: line.description || '',
       merchant: line.description || '',
       amountOut: ( line.amountOut === null || line.amountOut === undefined ) ? null : Number(line.amountOut),

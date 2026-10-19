@@ -24,7 +24,7 @@ const DEFAULT_CATEGORY_RULES = [
 ];
 
 // プロファイル読み込み。テスト時は LLM_CONFIG_PATH 同様 BANK_CONFIG_PATH で指せる
-const loadProfiles = () => {
+export const loadProfiles = () => {
   const dir = process.env.BANK_CONFIG_PATH || 'config/banks';
   const profiles = [];
   try {
@@ -61,19 +61,20 @@ const excelSerialToDate = (value) => {
   return new Date(Date.UTC(1899, 11, 30) + Math.round(n * 86400 * 1000));
 };
 
-// 日付セル/文字列の解釈。exceljsのDate型・シリアル値・文字列（YYYY-MM-DD等）に対応
+// 日付はYYYY-MM-DD文字列で扱う（Date型はタイムゾーンで日付がずれるため）。
+// exceljsのDate型・シリアル値・文字列（YYYY-MM-DD等）に対応
 const parseDate = (value) => {
   if ( value instanceof Date ) {
-    return value;
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
   if ( typeof value === 'number' ) {
-    return excelSerialToDate(value);
+    return parseDate(excelSerialToDate(value));
   }
   const s = String(value || '').trim();
   if ( !s ) return null;
   const m = s.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if ( m ) {
-    return new Date(+m[1], +m[2] - 1, +m[3]);
+    return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
   }
   // 銀行CSVにある「6-10-15」「R6.10.15」等はここでは扱わない（プロファイル拡張で対応）
   return null;
@@ -294,11 +295,11 @@ const pdfItemsToLines = (items) => {
   });
 };
 
-// 「26/04/02」形式（カードWeb明細の日付）を日付に
+// 「26/04/02」形式（カードWeb明細の日付）をYYYY-MM-DD文字列に
 const parseCardDate = (token) => {
   const m = String(token || '').match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
   if ( !m ) return null;
-  return new Date(2000 + +m[1], +m[2] - 1, +m[3]);
+  return `20${m[1]}-${m[2]}-${m[3]}`;
 };
 
 // 金額トークン（半角3桁以上、桁区切りカンマ許容）。区分・回数（全角数字）や
@@ -420,10 +421,10 @@ const parseCardPdf = async (buffer, profile) => {
 };
 
 const periodOf = (lines) => {
-  const dates = lines.map((l) => l.date).filter((d) => d).sort((a, b) => a - b);
+  const dates = lines.map((l) => l.date).filter((d) => d).sort();
   return {
-    periodFrom: ( dates[0] && dates[0].toISOString().slice(0, 10) ) || null,
-    periodTo: ( dates[dates.length - 1] && dates[dates.length - 1].toISOString().slice(0, 10) ) || null
+    periodFrom: dates[0] || null,
+    periodTo: dates[dates.length - 1] || null
   };
 };
 
@@ -476,5 +477,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
 export default {
   parseStatement: parseStatement,
   classifyCategory: classifyCategory,
-  validateBalances: validateBalances
+  validateBalances: validateBalances,
+  pdfItemsToLines: pdfItemsToLines,
+  cardRowsToLines: cardRowsToLines
 };

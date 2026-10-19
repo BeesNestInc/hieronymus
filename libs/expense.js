@@ -95,7 +95,8 @@ const resolveAdvanceSubAccount = async (report, payment, accountCode) => {
 // そのため内税科目（taxClass 1: 内税抽出）のときだけルールを導出する。
 // 外税科目（taxClass 2）は既存の伝票入力が「貸方に税込額を手入力」する前提であり、
 // 税込額をそのまま導出すると貸借不一致になるため、ここでは導出しない（税額は0、経理が伝票で調整）。
-const deriveTaxRuleId = async (accountCode, date) => {
+// 銀行明細からの起票（libs/bank-reconcile.js）でも同じルールを使う。
+export const deriveTaxRuleId = async (accountCode, date) => {
   const account = await models.Account.findOne({
     where: { accountCode: accountCode }
   });
