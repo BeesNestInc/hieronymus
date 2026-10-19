@@ -138,7 +138,7 @@ const startDrag = (event, widget) => {
 const link = (href) => {
   let pathes = href.split('/');
   status.current = pathes[1];
-  window.history.pushState(status, "", href);
+  window.history.pushState({ page: href }, "", href);
   status.pathname = href;
 }
 

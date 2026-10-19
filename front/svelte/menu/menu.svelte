@@ -116,7 +116,7 @@ const save = (event) => {
       menuBus.emit('menuUpdated');
       if	( create )	{
         window.history.replaceState(
-          status, "", `/menu/${menu.id}`);
+          { page: `/menu/${menu.id}` }, "", `/menu/${menu.id}`);
       }
     })
   } catch(e) {

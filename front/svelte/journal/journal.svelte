@@ -78,7 +78,7 @@ const openMonth = (_year, _month) => {
   let href = `/journal/${year}/${month}`
   status.pathname = href;
   update();
-  window.history.pushState(status, "", href);
+  window.history.pushState({ page: href }, "", href);
 }
 
 const close_ = (event) => {

@@ -177,7 +177,7 @@ const BANK_ACCOUNTS = [
 ];
 
 const link = (href) => {
-  window.history.pushState(status, "", href);
+  window.history.pushState({ page: href }, "", href);
   currentPage.set(href);
 }
 

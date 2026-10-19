@@ -27,11 +27,4 @@ export const fetchTitleFromUrl = async(url) => {
   }
 }
 
-//  not work
-const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState(status, "", href);
-  status.pathname = href;
-  console.log({status});
-}
+

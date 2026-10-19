@@ -65,7 +65,7 @@ const updateSlip = (event) => {
 }
 
 const closeEntry = (event) => {
-  const query = status.params ? `?${status.params.toString()}` : '';
+  const query = status.params ? `?${new URLSearchParams(status.params).toString()}` : '';
   link(`/voucher${query}`);
 }
 
@@ -75,7 +75,7 @@ const changeMonth = (event) => {
 }
 
 const updateVouchers = (event) => {
-  const param = status.params ? status.params.toString() : '';
+  const param = status.params ? new URLSearchParams(status.params).toString() : '';
   axios.get(`/api/voucher?${param}`).then((result) => {
     vouchers = result.data.vouchers;
   });
@@ -185,7 +185,8 @@ const checkPage = (pageUrl) => {
     }
     break;
   default:
-    status.params = url.searchParams;
+    //  URLSearchParams は structured clone 不可のため pushState(status) が失敗する（Map は可）
+    status.params = new Map(url.searchParams);
     console.log('voucher list params', status.params.get('month'));
     updateVouchers();
     break;

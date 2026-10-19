@@ -58,12 +58,12 @@ const openEntry = (event) => {
 };
 
 const closeEntry = (event) => {
-  const query = status.params ? `?${status.params.toString()}` : '';
+  const query = status.params ? `?${new URLSearchParams(status.params).toString()}` : '';
   link(`/expense${query}`);
 }
 
 const refreshReports = (event) => {
-  const param = status.params ? status.params.toString() : '';
+  const param = status.params ? new URLSearchParams(status.params).toString() : '';
   const t = ++pageToken;
   axios.get(`/api/expense_reports?${param}`).then((result) => {
     if ( t !== pageToken ) return;
@@ -117,7 +117,8 @@ const checkPage = (pageUrl) => {
     }
     break;
   default:
-    status.params = url.searchParams;
+    //  URLSearchParams は structured clone 不可のため pushState(status) が失敗する（Map は可）
+    status.params = new Map(url.searchParams);
     refreshReports();
     break;
   }

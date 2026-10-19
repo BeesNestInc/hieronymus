@@ -647,7 +647,7 @@ $: lineHints = (report.lines || []).map((line) => {
 });
 
 const close_ = (event) => {
-  const query = status.params ? `?${status.params.toString()}` : '';
+  const query = status.params ? `?${new URLSearchParams(status.params).toString()}` : '';
   dispatch('close');
   link(`/expense${query}`);
 }
