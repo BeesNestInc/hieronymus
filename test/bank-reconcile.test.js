@@ -2,7 +2,7 @@ import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
 import {create as createCrossSlip} from '../libs/cross_slip.js';
-import {autoMatch, bookLines, selectForExpense, suggestPayees} from '../libs/bank-reconcile.js';
+import {autoMatch, bookLines, selectForExpense, suggestOpposites} from '../libs/bank-reconcile.js';
 
 // 取り込んだ明細の突合・起票のテスト（DB使用。*_test のみで実行可）
 
@@ -42,6 +42,7 @@ describe('bank-reconcile (test db)', () => {
     await models.CrossSlipDetail.destroy({ where: {} });
     await models.CrossSlip.destroy({ where: {} });
     await models.ExpenseMapping.destroy({ where: {} });
+    await models.BankStatementRule.destroy({ where: {} });
     // 銀行口座（普通預金）
     bankAccount = await findOrCreate(models.Account, {
       accountCode: '1010010'
@@ -201,9 +202,9 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(details[0].creditAmount), 1);
   });
 
-  it('suggestPayees: bookRulesとマッピングkey/nameの一致で支払先を提案する', async () => {
+  it('suggestOpposites: 学習ルール・bookRules・key/name一致で相手方仕訳を提案する', async () => {
     // key付きマッピング（手数料用）
-    const feeMapping = await models.ExpenseMapping.create({
+    await models.ExpenseMapping.create({
       kind: 'payee',
       key: 'tesuuryou',
       name: '送金手数料',
@@ -218,17 +219,39 @@ describe('bank-reconcile (test db)', () => {
     const ruleProfiles = [ { name: 'テスト銀行', bookRules: [
       { pattern: '手数料$', mappingKey: 'tesuuryou' }
     ] } ];
-    const ruled = await suggestPayees(statement, ruleProfiles);
+    const ruled = await suggestOpposites(statement, ruleProfiles);
     // ルール命中（振込手数料→送金手数料マッピング）+ name包含（テスト取引先）
     assert.lengthOf(ruled, 2);
     assert.deepEqual(ruled.map((s) => ( s.lineId )).sort((a, b) => a - b),
       [ lines[0].id, lines[1].id ].sort((a, b) => a - b));
     const fee = ruled.find((s) => ( s.lineId === lines[0].id ));
-    assert.equal(fee.payeeMappingId, feeMapping.id);
+    assert.equal(fee.oppositeAccount, '7000001');
     // プロファイルなしでも key/name 包含で提案する
-    const plain = await suggestPayees(statement, [ { name: 'テスト銀行' } ]);
+    const plain = await suggestOpposites(statement, [ { name: 'テスト銀行' } ]);
     assert.lengthOf(plain, 1);
     assert.equal(plain[0].lineId, lines[1].id);
+  });
+
+  it('学習: 手指定で起票した摘要パターンを覚え、次回以降は学習ルールを優先する', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-01', rawDescription: '国税　納期限', amountOut: 50000 },
+      { date: '2026-09-02', rawDescription: '国税　納期限', amountOut: 60000 }
+    ], 'テスト銀行');
+    // 1行目を手指定（相手方=租税公課想定の7000001）で起票 → 学習する
+    await bookLines(statement, [
+      { lineId: lines[0].id, oppositeAccount: '7000001' }
+    ], approver);
+    const rule = await models.BankStatementRule.findOne({
+      where: { account: '1010010', pattern: '国税納期限' }
+    });
+    assert.isNotNull(rule);
+    assert.isAbove(rule.usageCount, 0);
+    // 2行目（別日・別金額・同パターン）には学習ルールが提案される
+    const suggestions = await suggestOpposites(statement, [ { name: 'テスト銀行' } ]);
+    assert.lengthOf(suggestions, 1);
+    assert.equal(suggestions[0].lineId, lines[1].id);
+    assert.equal(suggestions[0].oppositeAccount, '7000001');
+    assert.isTrue(Boolean(suggestions[0].learned));
   });
 
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {

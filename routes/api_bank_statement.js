@@ -198,8 +198,8 @@ export default {
       return;
     }
     // 支払先候補（摘要→マッピングのルール/key一致）。詳細表示の初回から提示する
-    const payeeSuggestions = ( statement.kind === 'bank' ) ?
-      await reconcile.suggestPayees(statement) : [];
+    const oppositeSuggestions = ( statement.kind === 'bank' ) ?
+      await reconcile.suggestOpposites(statement) : [];
     res.json({
       code: 0,
       statement: {
@@ -207,7 +207,7 @@ export default {
         fileBody: undefined,
         lines: statement.lines.map(lineToJSON)
       },
-      payeeSuggestions: payeeSuggestions
+      oppositeSuggestions: oppositeSuggestions
     });
   },
 
@@ -243,13 +243,13 @@ export default {
     }
     const result = await reconcile.autoMatch(statement);
     const suggestions = await reconcile.suggestCardPayments(statement);
-    const payeeSuggestions = await reconcile.suggestPayees(statement);
+    const oppositeSuggestions = await reconcile.suggestOpposites(statement);
     const fresh = await getStatement(statement.id);
     res.json({
       code: 0,
       matched: result.matched,
       suggestions: suggestions,
-      payeeSuggestions: payeeSuggestions,
+      oppositeSuggestions: oppositeSuggestions,
       lines: fresh.lines.map(lineToJSON)
     });
   },

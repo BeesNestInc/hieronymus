@@ -56,6 +56,15 @@
       on:click={runBook}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
     {/if}
   </div>
+  {#if ( statement.kind === 'bank' )}
+  <div class="mb-1" style="font-size:0.85rem;">
+    全{statement.lines.length}行:
+    <span class="badge bg-success">照合済 {statusCounts.matched}</span>
+    <span class="badge bg-primary">起票済 {statusCounts.booked}</span>
+    <span class="badge bg-dark">対象外 {statusCounts.ignored}</span>
+    <span class="badge bg-secondary">未照合 {statusCounts.unmatched}</span>
+  </div>
+  {/if}
   <div class="table-responsive">
     <table class="table table-striped table-bordered">
       <thead class="table-light">
@@ -69,14 +78,14 @@
           <th style="width:110px;">状態</th>
           <th style="width:110px;">伝票</th>
           {#if ( statement.kind === 'bank' )}
-          <th style="width:200px;">起票用 支払先</th>
+          <th style="width:230px;">相手方仕訳</th>
           <th style="width:60px;"></th>
           {/if}
         </tr>
       </thead>
       <tbody>
         {#each statement.lines as line}
-        <tr>
+        <tr class:matched-row={line.status === 'matched'}>
           <td>{line.date || ''}</td>
           <td>
             {line.description || line.rawDescription || ''}
@@ -108,27 +117,28 @@
           {#if ( statement.kind === 'bank' )}
           <td>
             {#if ( line.status === 'unmatched' && line.category !== 'interest' )}
-            {#key payeeMappings.length}
-            <select class="form-select form-select-sm" bind:value={line._payeeMappingId}>
-              <option value={null}></option>
-              {#each payeeMappings as mapping}
-              <option value={mapping.id}>{mappingLabel(mapping)}</option>
+            <div class="d-flex">
+            {#key oppositeAccounts.length}
+            <select class="form-select form-select-sm me-1" bind:value={line._oppositeAccount}>
+              <option value="">科目</option>
+              {#each oppositeAccounts as account}
+              <option value={account.code}>{account.name}</option>
               {/each}
             </select>
             {/key}
+            {#key ( line._oppositeAccount || '' ) + JSON.stringify(oppositeSubAccounts(line._oppositeAccount))}
+            <select class="form-select form-select-sm" bind:value={line._oppositeSubAccount}
+              disabled={oppositeSubAccounts(line._oppositeAccount).length === 0}>
+              <option value={null}>補助</option>
+              {#each oppositeSubAccounts(line._oppositeAccount) as sub}
+              <option value={sub.code}>{sub.name}</option>
+              {/each}
+            </select>
+            {/key}
+            {#if ( line._learned )}
+            <i class="bi bi-mortar-board-fill text-info ms-1" title="学習済みのルールから自動設定されています"></i>
             {/if}
-          </td>
-          <td>
-            {#if ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
-            {#key payeeMappings.length}
-            <select class="form-select form-select-sm" bind:value={line._payeeMappingId}
-              disabled={line.status !== 'unmatched'}>
-              <option value={null}></option>
-              {#each payeeMappings as mapping}
-              <option value={mapping.id}>{mappingLabel(mapping)}</option>
-              {/each}
-            </select>
-            {/key}
+            </div>
             {/if}
           </td>
           <td>
@@ -282,6 +292,9 @@
     overflow-y: auto;
     padding: 8px;
   }
+  .matched-row td {
+    background-color: rgba(25, 135, 84, 0.08);
+  }
 </style>
 
 <script>
@@ -300,7 +313,6 @@ let bodyEl;
 let statements = [];
 let statement = null;
 let accounts = [];
-let payeeMappings = [];
 let warnings = [];
 let cardSuggestions = [];
 let preview = null;
@@ -331,18 +343,28 @@ const categoryLabel = (category) => ( CATEGORY_LABELS[ category ] || category );
 const statusLabel = (status) => ( STATUS_LABELS[ status ] || status );
 const statusColor = (status) => ( STATUS_COLORS[ status ] || 'bg-secondary' );
 
-const mappingLabel = (mapping) => {
-  return ( mapping && mapping.description ) ? `${mapping.name}（${mapping.description}）` : ( mapping ? mapping.name : '' );
-};
-
 $: bankAccounts = ( accounts || [] ).filter((a) => ( /^101/.test(a.code) ));
 $: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) || {} ).subAccounts || [] );
 $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
   ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
+// 相手方仕訳の選択肢（銀行口座自身は相手にしない）
+$: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) ));
+const oppositeSubAccounts = (accountCode) => {
+  return ( ( ( accounts || [] ).find((a) => ( a.code === accountCode )) || {} ).subAccounts || [] );
+};
+
 // 未照合行数（起票対象の内訳表示用）
 $: unmatchedCount = ( statement && statement.lines ) ?
   statement.lines.filter((line) => ( line.status === 'unmatched' )).length : 0;
+
+// 状態の内訳（ヘッダ表示用）
+$: statusCounts = ( statement && statement.lines ) ? {
+  matched: statement.lines.filter((l) => ( l.status === 'matched' )).length,
+  booked: statement.lines.filter((l) => ( l.status === 'booked' && l.crossSlipDetailId )).length,
+  ignored: statement.lines.filter((l) => ( l.status === 'ignored' )).length,
+  unmatched: statement.lines.filter((l) => ( l.status === 'unmatched' )).length
+} : { matched: 0, booked: 0, ignored: 0, unmatched: 0 };
 
 // 一括起票の対象行（未照合、または伝票消滅で迷子になった起票済み行）
 $: bookTargets = ( statement && statement.lines ) ?
@@ -351,7 +373,7 @@ $: bookTargets = ( statement && statement.lines ) ?
       return !line.crossSlipDetailId;
     }
     if ( line.status !== 'unmatched' ) return false;
-    return line.category === 'interest' || line._payeeMappingId || cardSuggestion(line.id);
+    return line.category === 'interest' || line._oppositeAccount || cardSuggestion(line.id);
   }) : [];
 
 const cardSuggestion = (lineId) => {
@@ -387,12 +409,14 @@ const restoreScroll = async () => {
   }
 };
 
-const applyPayeeSuggestions = (suggestions) => {
+const applyOppositeSuggestions = (suggestions) => {
   for ( const line of ( statement && statement.lines ) || [] ) {
     if ( line.status !== 'unmatched' || line._payeeMappingId ) continue;
     const s = ( suggestions || [] ).find((sug) => ( sug.lineId === line.id ));
     if ( s ) {
-      line._payeeMappingId = s.payeeMappingId;
+      line._oppositeAccount = s.oppositeAccount;
+      line._oppositeSubAccount = s.oppositeSubAccount || null;
+      line._learned = Boolean(s.learned);
     }
   }
 };
@@ -402,7 +426,7 @@ const loadDetail = async (statementId) => {
   statement = ( result.data && result.data.statement ) || null;
   warnings = [];
   cardSuggestions = [];
-  applyPayeeSuggestions(result.data.payeeSuggestions);
+  applyOppositeSuggestions(result.data.oppositeSuggestions);
   await restoreScroll();
 };
 
@@ -428,8 +452,6 @@ onMount(async () => {
   modal = new Modal(modalEl);
   const accs = await axios.get('/api/accounts');
   accounts = Array.isArray(accs.data) ? accs.data : ( accs.data.values || [] );
-  const mappings = await axios.get('/api/expense_mapping?kind=payee');
-  payeeMappings = ( mappings.data && mappings.data.values ) || [];
   checkPage();
 });
 
@@ -514,7 +536,7 @@ const runMatch = async () => {
     const result = await axios.post(`/api/bank_statement/${id}/match`);
     statement = result.data.statement;
     cardSuggestions = result.data.suggestions || [];
-    applyPayeeSuggestions(result.data.payeeSuggestions);
+    applyOppositeSuggestions(result.data.oppositeSuggestions);
     toast.show('明細取込', `${result.data.matched}行を突合しました`);
   } catch (e) {
     toast.show('明細取込', '突合に失敗しました', 'warning');
@@ -532,26 +554,26 @@ const runBook = async () => {
       const suggestion = cardSuggestion(line.id);
       if ( line.category === 'interest' ) {
         bookings.push({ lineId: line.id });
-      } else if ( line._payeeMappingId ) {
-        bookings.push({ lineId: line.id, payeeMappingId: line._payeeMappingId });
+      } else if ( line._oppositeAccount ) {
+        bookings.push({
+          lineId: line.id,
+          oppositeAccount: line._oppositeAccount,
+          oppositeSubAccount: line._oppositeSubAccount || null
+        });
       } else if ( suggestion ) {
         bookings.push({
           lineId: line.id,
-          debitAccount: suggestion.debitAccount,
-          debitSubAccount: suggestion.debitSubAccount
+          oppositeAccount: suggestion.debitAccount,
+          oppositeSubAccount: suggestion.debitSubAccount
         });
       }
     }
-    if ( bookings.some((b) => ( !b.payeeMappingId && !b.debitAccount )) ) {
-      // カード引落候補も支払先も無い行は起票できない（利息以外）
-      const broken = bookings.filter((b) => ( !b.payeeMappingId && !b.debitAccount ));
-      const okLines = statement.lines.filter((l) => broken.some((b) => ( b.lineId === l.id )) &&
-        l.category !== 'interest');
-      if ( okLines.length > 0 ) {
-        toast.show('明細取込', '支払先が未指定の行があります。', 'warning');
-        busy = false;
-        return;
-      }
+    const okBookings = bookings.filter((b) => ( b.oppositeAccount || b.lineId &&
+      statement.lines.find((l) => ( l.id === b.lineId && l.category === 'interest' )) ));
+    if ( okBookings.length !== bookings.length ) {
+      toast.show('明細取込', '相手方仕訳が未指定の行があります。', 'warning');
+      busy = false;
+      return;
     }
     const result = await axios.post(`/api/bank_statement/${id}/book`, { bookings: bookings });
     if ( result.data && result.data.code === 0 ) {

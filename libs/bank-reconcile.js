@@ -41,6 +41,75 @@ const normalizeDescription = (text) => {
   return String(text || '').normalize('NFKC');
 };
 
+// 摘要から学習用の正規化テンプレートを作る。
+// 空白を潰し、数字連続を'#'に置換する（金額・番号・日付の揺れを吸収し、
+// 「振込手数料」「デビット#」のような定型として覚える）
+export const makePattern = (text) => {
+  const s = normalizeDescription(text).replace(/[\s\u3000]+/g, '');
+  if ( !s ) return '';
+  return s.replace(/\d+/g, '#');
+};
+
+// 学習ルールを作成・更新する（upsert）。同じ口座×摘要パターンのルールが
+// あれば適用回数を進め、なければ作る。学習は伝票起票の副作用として行い、
+// 失敗しても起票自体は失敗させない
+export const learnOpposite = async (bankSide, application1, oppositeSide) => {
+  try {
+    const pattern = makePattern(application1);
+    if ( ( !pattern ) || ( !bankSide ) || ( !bankSide.account ) ||
+      ( !oppositeSide ) || ( !oppositeSide.account ) ||
+      ( bankSide.account === oppositeSide.account ) ) {
+      return;
+    }
+    const where = {
+      account: bankSide.account,
+      subAccount: bankSide.sub || null,
+      pattern: pattern
+    };
+    const existing = await models.BankStatementRule.findOne({ where: where });
+    if ( existing ) {
+      existing.oppositeAccount = oppositeSide.account;
+      existing.oppositeSubAccount = oppositeSide.sub || null;
+      existing.usageCount += 1;
+      await existing.save();
+    } else {
+      await models.BankStatementRule.create({
+        ...where,
+        oppositeAccount: oppositeSide.account,
+        oppositeSubAccount: oppositeSide.sub || null,
+        usageCount: 1
+      });
+    }
+  } catch (e) {
+    console.log('learnOpposite failed', e.message);
+  }
+};
+
+// 伝票入力からの学習。銀行科目（預金系101xxx）を含む伝票行の摘要と
+// 相手方科目からルールを蓄積する（createCrossSlip/updateCrossSlipから呼ぶ）
+export const learnFromSlip = async (slip) => {
+  try {
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id }
+    });
+    for ( const detail of details ) {
+      let bankSide = null;
+      let oppositeSide = null;
+      if ( /^101/.test(detail.debitAccount || '') ) {
+        bankSide = { account: detail.debitAccount, sub: detail.debitSubAccount };
+        oppositeSide = { account: detail.creditAccount, sub: detail.creditSubAccount };
+      } else if ( /^101/.test(detail.creditAccount || '') ) {
+        bankSide = { account: detail.creditAccount, sub: detail.creditSubAccount };
+        oppositeSide = { account: detail.debitAccount, sub: detail.debitSubAccount };
+      }
+      if ( !oppositeSide ) continue;
+      await learnOpposite(bankSide, detail.application1, oppositeSide);
+    }
+  } catch (e) {
+    console.log('learnFromSlip failed', e.message);
+  }
+};
+
 // 銀行明細の行を既存の仕訳明細と突合する。
 // 口座（勘定科目+補助科目）の仕訳明細のうち、金額が一致し伝票日付が
 // ±days 日以内のものを対応付ける（すでに別行の突合先になっている明細は除く）。
@@ -203,11 +272,18 @@ const buildInterestDetails = async (line, statement, profile) => {
 
 // 通常の経費行の仕訳。借方=支払先マッピングの科目、貸方=明細の口座。
 // bookings で debitAccount/debitSubAccount の直指定もできる（カード引落の決済等）。
-const buildExpenseDetails = async (line, statement, booking) => {
-  const amount = Number(line.amountOut);
-  let debitAccount = booking.debitAccount || null;
-  let debitSubAccount = booking.debitSubAccount || null;
-  let application1 = line.description;
+// 通常の明細行の仕訳。借貸の向きは行の入出金で決まる:
+// 出金行（amountOut）= 借方 相手方 / 貸方 明細の口座（経費支出）
+// 入金行（amountIn）  = 借方 明細の口座 / 貸方 相手方（売上等の収入）
+// 相手方は booking.oppositeAccount（+oppositeSubAccount）か、旧形式の
+// payeeMappingId/debitAccount で指定する。起票時に学習ルールを蓄積する
+const buildLineDetails = async (line, statement, booking) => {
+  const isOut = ( line.amountOut !== null && line.amountOut !== undefined );
+  const amount = Number(isOut ? line.amountOut : line.amountIn);
+  let oppositeAccount = booking.oppositeAccount || booking.debitAccount || null;
+  let oppositeSubAccount = ( booking.oppositeSubAccount !== undefined ) ?
+    booking.oppositeSubAccount : booking.debitSubAccount || null;
+  let application1 = line.description || line.rawDescription;
   if ( booking.payeeMappingId ) {
     const mapping = await models.ExpenseMapping.findByPk(booking.payeeMappingId);
     if ( !mapping || !mapping.account ) {
@@ -215,35 +291,60 @@ const buildExpenseDetails = async (line, statement, booking) => {
       err.name = 'BankReconcileError';
       throw err;
     }
-    debitAccount = mapping.account;
-    debitSubAccount = mapping.subAccount || null;
+    oppositeAccount = mapping.account;
+    oppositeSubAccount = mapping.subAccount || null;
     application1 = line.description || mapping.name;
   }
-  if ( !debitAccount || !statement.account ) {
-    const err = new Error(`${line.lineNo}行目の借方科目（または明細の口座）が未設定です。`);
+  if ( !oppositeAccount || !statement.account ) {
+    const err = new Error(`${line.lineNo}行目の相手方仕訳（または明細の口座）が未設定です。`);
     err.name = 'BankReconcileError';
     throw err;
   }
-  const taxRuleId = await deriveTaxRuleId(debitAccount, line.date || new Date());
-  return [{
-    debitAccount: debitAccount,
-    debitSubAccount: debitSubAccount,
+  const bankSide = {
+    account: statement.account,
+    subAccount: statement.subAccount
+  };
+  const oppositeSide = {
+    account: oppositeAccount,
+    subAccount: oppositeSubAccount
+  };
+  // 税ルールは出金（経費）側だけ導出する（内税科目のみ。外税は税0で経理が調整）
+  const taxRuleId = isOut ? await deriveTaxRuleId(oppositeAccount, line.date || new Date()) : null;
+  // 起票のたびに学習する（次回から同じ摘要に相手方仕訳を提案する）
+  await learnOpposite(bankSide, application1, oppositeSide);
+  return [ isOut ? {
+    debitAccount: oppositeAccount,
+    debitSubAccount: oppositeSubAccount,
     debitAmount: amount,
     debitTax: 0,
     debitTaxRuleId: taxRuleId,
-    creditAccount: statement.account,
-    creditSubAccount: statement.subAccount,
+    creditAccount: bankSide.account,
+    creditSubAccount: bankSide.subAccount,
     creditAmount: amount,
     creditTax: 0,
     creditTaxRuleId: null,
     application1: application1,
     application2: line.memo || null,
     _date: line.date || null
-  }];
+  } : {
+    debitAccount: bankSide.account,
+    debitSubAccount: bankSide.subAccount,
+    debitAmount: amount,
+    debitTax: 0,
+    debitTaxRuleId: null,
+    creditAccount: oppositeAccount,
+    creditSubAccount: oppositeSubAccount,
+    creditAmount: amount,
+    creditTax: 0,
+    creditTaxRuleId: null,
+    application1: application1,
+    application2: line.memo || null,
+    _date: line.date || null
+  } ];
 };
 
 // 未照合行を一括起票する。
-// bookings: [{lineId, payeeMappingId?, debitAccount?, debitSubAccount?}]
+// bookings: [{lineId, oppositeAccount?, oppositeSubAccount?, payeeMappingId?, debitAccount?}]
 // 利息行（category='interest'）はテンプレ仕訳になる（booking指定は不要）。
 // 伝票は行の日付ごとにまとめ、未承認（承認待ち）で作成する。
 export const bookLines = async (statement, bookings, user, options = {}) => {
@@ -273,7 +374,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     const profile = profiles && profiles.find((p) => p.name === profileName);
     const details = ( line.category === 'interest' ) ?
       await buildInterestDetails(line, statement, profile) :
-      await buildExpenseDetails(line, statement, booking);
+      await buildLineDetails(line, statement, booking);
     const key = toDateString(details[0]._date || new Date());
     if ( !groups.has(key) ) {
       groups.set(key, []);
@@ -363,14 +464,29 @@ export const releaseStatementLines = async (detailIds) => {
 // 未照合行の支払先マッピングを摘要から提案する。
 // 優先順: ①プロファイルのbookRules（摘要パターン→マッピングkey/id）
 //         ②マッピングのkeyが摘要に含まれる  ③マッピング名が摘要に含まれる
-export const suggestPayees = async (statement, profiles = null) => {
+// 未照合行の相手方仕訳を提案する。優先順:
+//   ①学習ルール（BankStatementRule。摘要パターン完全一致、適用回数順）
+//   ②プロファイルのbookRules（摘要パターン→支払先マッピングkey/id）
+//   ③支払先マッピングのkey/nameが摘要に含まれる
+// 戻り値は {lineId, oppositeAccount, oppositeSubAccount} の配列
+export const suggestOpposites = async (statement, profiles = null) => {
   const {loadProfiles} = await import('./bank-statement.js');
   const allProfiles = profiles || loadProfiles();
   const profile = allProfiles.find((p) => ( p.name === statement.profileName ));
-  const rules = ( profile && profile.bookRules ) || [];
+  const bookRules = ( profile && profile.bookRules ) || [];
   const payees = await models.ExpenseMapping.findAll({
     where: { kind: 'payee' }
   });
+  const learnedRules = statement.account ? await models.BankStatementRule.findAll({
+    where: {
+      account: statement.account,
+      [Op.or]: [
+        { subAccount: statement.subAccount || null },
+        { subAccount: null }
+      ]
+    },
+    order: [[ 'usageCount', 'DESC' ]]
+  }) : [];
   const lines = await models.BankStatementLine.findAll({
     where: { statementId: statement.id, status: 'unmatched' }
   });
@@ -378,27 +494,44 @@ export const suggestPayees = async (statement, profiles = null) => {
   for ( const line of lines ) {
     const desc = normalizeDescription(line.rawDescription);
     if ( !desc ) continue;
-    let hit = null;
-    for ( const rule of rules ) {
+    const pattern = makePattern(desc);
+    // ①学習ルール
+    const learned = learnedRules.find((r) => ( r.pattern === pattern ));
+    if ( learned ) {
+      suggestions.push({
+        lineId: line.id,
+        oppositeAccount: learned.oppositeAccount,
+        oppositeSubAccount: learned.oppositeSubAccount,
+        learned: true
+      });
+      continue;
+    }
+    // ②bookRules / ③key・name包含 → 支払先マッピングの科目に解決する
+    let mapping = null;
+    for ( const rule of bookRules ) {
       try {
         if ( !new RegExp(rule.pattern).test(desc) ) continue;
       } catch (e) {
         continue;
       }
-      const mapping = payees.find((p) => ( p.key === rule.mappingKey ) ||
+      const hit = payees.find((p) => ( p.key === rule.mappingKey ) ||
         ( String(p.id) === String(rule.mappingKey) ));
-      if ( mapping ) {
-        hit = mapping;
+      if ( hit ) {
+        mapping = hit;
         break;
       }
     }
-    if ( !hit ) {
-      hit = payees.find((p) => ( ( p.key && normalizeDescription(p.key) &&
+    if ( !mapping ) {
+      mapping = payees.find((p) => ( ( p.key && normalizeDescription(p.key) &&
           desc.includes(normalizeDescription(p.key)) ) ||
         ( p.name && desc.includes(normalizeDescription(p.name)) ) )) || null;
     }
-    if ( hit ) {
-      suggestions.push({ lineId: line.id, payeeMappingId: hit.id });
+    if ( mapping && mapping.account ) {
+      suggestions.push({
+        lineId: line.id,
+        oppositeAccount: mapping.account,
+        oppositeSubAccount: mapping.subAccount || null
+      });
     }
   }
   return suggestions;
@@ -407,6 +540,10 @@ export const suggestPayees = async (statement, profiles = null) => {
 export default {
   autoMatch: autoMatch,
   suggestCardPayments: suggestCardPayments,
+  suggestOpposites: suggestOpposites,
+  makePattern: makePattern,
+  learnOpposite: learnOpposite,
+  learnFromSlip: learnFromSlip,
   bookLines: bookLines,
   selectForExpense: selectForExpense
 };

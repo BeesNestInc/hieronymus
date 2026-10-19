@@ -1,7 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {isLocked} from './fiscal-lock.js';
-import {releaseStatementLines} from './bank-reconcile.js';
+import {releaseStatementLines, learnFromSlip} from './bank-reconcile.js';
 
 const createDetail = (line, slipId, lineNo) => {
   return models.CrossSlipDetail.create({
@@ -130,6 +130,8 @@ export const create = async (body, user, options = {}) => {
         lines.push(line);
       }
       await t.commit();
+      // 銀行科目を含む伝票から摘要→相手方仕訳のルールを学習する（副作用。失敗しない）
+      await learnFromSlip(slip);
       return  ({
         id: slip.id,
         year: body.year,
@@ -192,4 +194,6 @@ export const update = async (slip, body, user, options = {}) => {
     let line = body.lines[i];
     await createDetail(line, slip.id, i);
   }
+  // 銀行科目を含む伝票から摘要→相手方仕訳のルールを学習する（副作用。失敗しない）
+  await learnFromSlip(slip);
 }
