@@ -12,7 +12,7 @@
 </div>
 
 {#if ( id )}
-<div class="body full-height-2">
+<div class="body full-height-2" bind:this={bodyEl}>
   {#if ( statement )}
   <div class="mb-1 text-muted">
     {kindLabel(statement.kind)} / {statement.fileName} /
@@ -99,10 +99,10 @@
           </td>
           <td>
             {#if ( line.slip )}
-            <a class="btn btn-link btn-sm p-0"
-              href={`/slip/${line.slip.year}/${line.slip.month}/${line.slip.no}?returnTo=${encodeURIComponent('/bank-statement/' + id)}`}>
+            <button type="button" class="btn btn-link btn-sm p-0"
+              on:click={() => { openSlip(line.slip); }}>
               {line.slip.month}/{line.slip.day}-{line.slip.no}
-            </a>
+            </button>
             {/if}
           </td>
           {#if ( statement.kind === 'bank' )}
@@ -285,7 +285,7 @@
 
 <script>
 import axios from 'axios';
-import {onMount} from 'svelte';
+import {onMount, tick} from 'svelte';
 import Modal from 'bootstrap/js/dist/modal';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
@@ -295,6 +295,7 @@ export let toast;
 let id = null;
 let modalEl;
 let modal;
+let bodyEl;
 let statements = [];
 let statement = null;
 let accounts = [];
@@ -361,11 +362,38 @@ const loadList = async () => {
   statements = ( result.data && result.data.values ) || [];
 };
 
+// 詳細画面のスクロール位置。伝票を開いて戻ってきたときに復元する
+// （sessionStorageに入れるのでフルリロードしても生きる）
+const SCROLL_KEY = 'bank-statement-scroll';
+const saveScroll = () => {
+  if ( bodyEl && id ) {
+    sessionStorage.setItem(SCROLL_KEY, String(bodyEl.scrollTop));
+  }
+};
+const restoreScroll = async () => {
+  const pos = sessionStorage.getItem(SCROLL_KEY);
+  if ( pos === null ) {
+    return;
+  }
+  sessionStorage.removeItem(SCROLL_KEY);
+  await tick();
+  if ( bodyEl ) {
+    bodyEl.scrollTop = parseInt(pos);
+  }
+};
+
 const loadDetail = async (statementId) => {
   const result = await axios.get(`/api/bank_statement/${statementId}`);
   statement = ( result.data && result.data.statement ) || null;
   warnings = [];
   cardSuggestions = [];
+  await restoreScroll();
+};
+
+// 伝票を開く（戻り先はこの画面。スクロール位置を保存してから遷移する）
+const openSlip = (slip) => {
+  saveScroll();
+  routerLink(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${encodeURIComponent('/bank-statement/' + id)}`);
 };
 
 const checkPage = (page) => {
