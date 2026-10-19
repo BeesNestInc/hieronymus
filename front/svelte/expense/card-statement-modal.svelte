@@ -1,9 +1,9 @@
-<div class="modal-backdrop" onclick={() => { dispatch('close'); }}>
-  <div class="modal-dialog modal-lg" onclick={(e) => { e.stopPropagation(); }}>
+<div class="modal" bind:this={modalEl} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">個人カード明細から精算</h5>
-        <button type="button" class="btn-close" onclick={() => { dispatch('close'); }}></button>
+        <button type="button" class="btn-close" onclick={close}></button>
       </div>
       <div class="modal-body">
         <div class="row mb-2">
@@ -84,7 +84,7 @@
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick={() => { dispatch('close'); }}>閉じる</button>
+        <button type="button" class="btn btn-outline-secondary" onclick={close}>閉じる</button>
         <button type="button" class="btn btn-primary" disabled={busy || selected.length === 0}
           on:click={addLines}>
           選択した{selected.length}行を精算書に追加
@@ -101,6 +101,7 @@
 import axios from 'axios';
 import {onMount} from 'svelte';
 import {createEventDispatcher} from 'svelte';
+import Modal from 'bootstrap/js/dist/modal';
 
 export let report;
 export let mappings = [];
@@ -108,6 +109,8 @@ export let toast = null;
 
 const dispatch = createEventDispatcher();
 
+let modalEl;
+let modal;
 let statements = [];
 let statementId = null;
 let lines = [];
@@ -191,6 +194,14 @@ const addLines = async () => {
 };
 
 onMount(() => {
+  modal = new Modal(modalEl);
+  modal.show();
   loadStatements();
 });
+
+// 閉じるボタン。Bootstrapのhideを挟んでから親に状態を伝える
+const close = () => {
+  modal?.hide();
+  dispatch('close');
+};
 </script>

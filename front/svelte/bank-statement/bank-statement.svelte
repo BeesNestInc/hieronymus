@@ -4,7 +4,7 @@
     {#if ( id )}
     <button type="button" class="btn btn-outline-secondary" on:click={goList}>一覧へ戻る</button>
     {:else}
-    <button type="button" class="btn btn-primary" on:click={() => { showModal = true; }}>
+    <button type="button" class="btn btn-primary" on:click={openModal}>
       取り込む&nbsp;<i class="bi bi-upload"></i>
     </button>
     {/if}
@@ -140,13 +140,12 @@
 </div>
 {/if}
 
-{#if ( showModal )}
-<div class="modal-backdrop" onclick={() => { showModal = false; }}>
-  <div class="modal-dialog" onclick={(e) => { e.stopPropagation(); }}>
+<div class="modal" bind:this={modalEl} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">明細の取り込み</h5>
-        <button type="button" class="btn-close" onclick={() => { showModal = false; }}></button>
+        <button type="button" class="btn-close" onclick={closeModal}></button>
       </div>
       <div class="modal-body">
         <div class="row mb-2">
@@ -221,7 +220,7 @@
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick={() => { showModal = false; }}>キャンセル</button>
+        <button type="button" class="btn btn-outline-secondary" onclick={closeModal}>キャンセル</button>
         {#if ( !preview )}
         <button type="button" class="btn btn-primary" disabled={!form.file || busy} on:click={doPreview}>
           {#if ( busy )}読み取り中…{:else}内容確認{/if}
@@ -235,7 +234,6 @@
     </div>
   </div>
 </div>
-{/if}
 
 <style>
   .body {
@@ -248,19 +246,21 @@
 <script>
 import axios from 'axios';
 import {onMount} from 'svelte';
+import Modal from 'bootstrap/js/dist/modal';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
 export let status;
 export let toast;
 
 let id = null;
+let modalEl;
+let modal;
 let statements = [];
 let statement = null;
 let accounts = [];
 let payeeMappings = [];
 let warnings = [];
 let cardSuggestions = [];
-let showModal = false;
 let preview = null;
 let formError = '';
 let busy = false;
@@ -336,6 +336,7 @@ const checkPage = (page) => {
 };
 
 onMount(async () => {
+  modal = new Modal(modalEl);
   const accs = await axios.get('/api/accounts');
   accounts = Array.isArray(accs.data) ? accs.data : ( accs.data.values || [] );
   const mappings = await axios.get('/api/expense_mapping?kind=payee');
@@ -344,6 +345,20 @@ onMount(async () => {
 });
 
 $: checkPage($currentPage);
+
+// モーダルはBootstrapのModalで制御する（開閉時に状態を戻す）
+const openModal = () => {
+  preview = null;
+  formError = '';
+  form = { kind: 'bank' };
+  modal?.show();
+};
+const closeModal = () => {
+  preview = null;
+  formError = '';
+  form = {};
+  modal?.hide();
+};
 
 const doPreview = async () => {
   busy = true;
@@ -378,7 +393,7 @@ const doUpload = async () => {
     const result = await axios.post('/api/bank_statement/upload', fd,
       { 'content-type': 'multipart/form-data' });
     if ( result.data && result.data.code === 0 ) {
-      showModal = false;
+      modal?.hide();
       preview = null;
       form = {};
       if ( result.data.warnings.length > 0 ) {
