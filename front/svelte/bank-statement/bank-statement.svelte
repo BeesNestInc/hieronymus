@@ -117,23 +117,11 @@
           {#if ( statement.kind === 'bank' )}
           <td>
             {#if ( line.status === 'unmatched' && line.category !== 'interest' )}
-            <div class="d-flex">
+            <div class="d-flex align-items-center">
             {#key oppositeAccounts.length}
-            <select class="form-select form-select-sm me-1" bind:value={line._oppositeAccount}>
-              <option value="">科目</option>
-              {#each oppositeAccounts as account}
-              <option value={account.code}>{account.name}</option>
-              {/each}
-            </select>
-            {/key}
-            {#key ( line._oppositeAccount || '' ) + JSON.stringify(oppositeSubAccounts(line._oppositeAccount))}
-            <select class="form-select form-select-sm" bind:value={line._oppositeSubAccount}
-              disabled={oppositeSubAccounts(line._oppositeAccount).length === 0}>
-              <option value={null}>補助</option>
-              {#each oppositeSubAccounts(line._oppositeAccount) as sub}
-              <option value={sub.code}>{sub.name}</option>
-              {/each}
-            </select>
+            <Account accounts={oppositeAccounts}
+              bind:code={line._oppositeAccount}
+              bind:sub_code={line._oppositeSubAccount}/>
             {/key}
             {#if ( line._learned )}
             <i class="bi bi-mortar-board-fill text-info ms-1" title="学習済みのルールから自動設定されています"></i>
@@ -301,6 +289,7 @@
 import axios from 'axios';
 import {onMount, tick} from 'svelte';
 import Modal from 'bootstrap/js/dist/modal';
+import Account from '../cross-slip/account.svelte';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
 export let status;
@@ -350,9 +339,6 @@ $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
 
 // 相手方仕訳の選択肢（銀行口座自身は相手にしない）
 $: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) ));
-const oppositeSubAccounts = (accountCode) => {
-  return ( ( ( accounts || [] ).find((a) => ( a.code === accountCode )) || {} ).subAccounts || [] );
-};
 
 // 未照合行数（起票対象の内訳表示用）
 $: unmatchedCount = ( statement && statement.lines ) ?
