@@ -116,7 +116,9 @@
           </td>
           {#if ( statement.kind === 'bank' )}
           <td>
-            {#if ( line.status === 'unmatched' && line.category !== 'interest' )}
+            {#if ( ( line.status === 'unmatched' ||
+                      ( line.status === 'booked' && !line.crossSlipDetailId ) ) &&
+                    line.category !== 'interest' )}
             <div class="d-flex align-items-center">
             {#key oppositeAccounts.length}
             <Account accounts={oppositeAccounts}
@@ -127,9 +129,15 @@
             <i class="bi bi-mortar-board-fill text-info ms-1" title="学習済みのルールから自動設定されています"></i>
             {/if}
             </div>
+            {:else if ( line.status === 'booked' && line.crossSlipDetailId )}
+            <span class="text-muted">{bookedOppositeLabel(line)}</span>
             {/if}
           </td>
           <td>
+            {#if ( canBookLine(line) )}
+            <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけ起票"
+              on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
+            {/if}
             {#if ( line.status === 'unmatched' )}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="対象外にする"
               on:click={() => { setIgnored(line, true); }}><i class="bi bi-slash-circle"></i></button>
@@ -398,7 +406,7 @@ const restoreScroll = async () => {
 
 const applyOppositeSuggestions = (suggestions) => {
   for ( const line of ( statement && statement.lines ) || [] ) {
-    if ( line.status !== 'unmatched' || line._payeeMappingId ) continue;
+    if ( line.status !== 'unmatched' ) continue;
     const s = ( suggestions || [] ).find((sug) => ( sug.lineId === line.id ));
     if ( s ) {
       line._oppositeAccount = s.oppositeAccount;
@@ -533,40 +541,79 @@ const runMatch = async () => {
   busy = false;
 };
 
-const runBook = async () => {
+// 行に単独起票できるか（利息は相手方なし、それ以外は相手方の指定やカード候補が必要）
+const canBookLine = (line) => {
+  return ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) ) &&
+    ( line.category === 'interest' || line._oppositeAccount || cardSuggestion(line.id) );
+};
+
+// 起票済み行の相手方仕訳の表示ラベル（伝票明細から復元する）
+const bookedOppositeLabel = (line) => {
+  const d = line.crossSlipDetail;
+  if ( !d ) return '';
+  const code = ( line.amountIn != null ) ? d.creditAccount : d.debitAccount;
+  const subCode = ( line.amountIn != null ) ? d.creditSubAccount : d.debitSubAccount;
+  const account = ( accounts || [] ).find((a) => ( a.code === code ));
+  const sub = subCode ? ( ( ( account || {} ).subAccounts || [] ).find((s) => ( s.code === subCode )) || {} ) : {};
+  return ( account ? account.name : ( code || '' ) ) + ( sub.name ? `/${sub.name}` : '' );
+};
+
+// 指定した明細行だけ起票する（未指定なら未照合行をまとめて）
+const runBook = async (givenBookings = null) => {
   busy = true;
   try {
-    const bookings = [];
-    for ( const line of statement.lines ) {
-      const isStuck = ( line.status === 'booked' && !line.crossSlipDetailId );
-      if ( line.status !== 'unmatched' && !isStuck ) continue;
-      const suggestion = cardSuggestion(line.id);
-      if ( line.category === 'interest' ) {
-        bookings.push({ lineId: line.id });
-      } else if ( line._oppositeAccount ) {
-        bookings.push({
-          lineId: line.id,
-          oppositeAccount: line._oppositeAccount,
-          oppositeSubAccount: line._oppositeSubAccount || null
-        });
-      } else if ( suggestion ) {
-        bookings.push({
-          lineId: line.id,
-          oppositeAccount: suggestion.debitAccount,
-          oppositeSubAccount: suggestion.debitSubAccount
-        });
+    let bookings = givenBookings;
+    if ( !bookings ) {
+      bookings = [];
+      for ( const line of statement.lines ) {
+        const isStuck = ( line.status === 'booked' && !line.crossSlipDetailId );
+        if ( line.status !== 'unmatched' && !isStuck ) continue;
+        const suggestion = cardSuggestion(line.id);
+        if ( line.category === 'interest' ) {
+          bookings.push({ lineId: line.id });
+        } else if ( line._oppositeAccount ) {
+          bookings.push({
+            lineId: line.id,
+            oppositeAccount: line._oppositeAccount,
+            oppositeSubAccount: line._oppositeSubAccount || null
+          });
+        } else if ( suggestion ) {
+          bookings.push({
+            lineId: line.id,
+            oppositeAccount: suggestion.debitAccount,
+            oppositeSubAccount: suggestion.debitSubAccount
+          });
+        }
       }
     }
-    const okBookings = bookings.filter((b) => ( b.oppositeAccount || b.lineId &&
-      statement.lines.find((l) => ( l.id === b.lineId && l.category === 'interest' )) ));
-    if ( okBookings.length !== bookings.length ) {
+    // 起票対象には相手方仕訳が必須（利息を除く）
+    const bad = bookings.filter((b) => {
+      const line = statement.lines.find((l) => ( l.id === b.lineId ));
+      return ( line && line.category !== 'interest' && !b.oppositeAccount );
+    });
+    if ( bad.length > 0 ) {
       toast.show('明細取込', '相手方仕訳が未指定の行があります。', 'warning');
       busy = false;
       return;
     }
     const result = await axios.post(`/api/bank_statement/${id}/book`, { bookings: bookings });
     if ( result.data && result.data.code === 0 ) {
-      statement = result.data.statement;
+      // 受け取り直した明細に、編集途中の相手方仕訳を引き継ぐ
+      const before = statement.lines;
+      statement = Object.assign({}, statement, {
+        lines: result.data.lines.map((l) => {
+          const old = before.find((b) => ( b.id === l.id ));
+          if ( old && l.status === 'unmatched' ) {
+            l._oppositeAccount = old._oppositeAccount;
+            l._oppositeSubAccount = old._oppositeSubAccount || null;
+            l._learned = old._learned;
+          }
+          return l;
+        })
+      });
+      // 起票済みの行はカード引落候補の表示対象から外す
+      cardSuggestions = cardSuggestions.filter((s) =>
+        !bookings.some((b) => ( b.lineId === s.lineId )));
       toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち）`);
     } else {
       toast.show('明細取込', '起票に失敗しました', 'warning');
@@ -576,6 +623,16 @@ const runBook = async () => {
     toast.show('明細取込', message, 'warning');
   }
   busy = false;
+};
+
+// この明細だけ単独で起票する
+const bookLine = (line) => {
+  const booking = ( line.category === 'interest' ) ? { lineId: line.id } : {
+    lineId: line.id,
+    oppositeAccount: line._oppositeAccount,
+    oppositeSubAccount: line._oppositeSubAccount || null
+  };
+  return runBook([booking]);
 };
 
 const setIgnored = async (line, ignored) => {
