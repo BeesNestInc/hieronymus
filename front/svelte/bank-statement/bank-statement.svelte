@@ -290,6 +290,7 @@ import axios from 'axios';
 import {onMount, tick} from 'svelte';
 import Modal from 'bootstrap/js/dist/modal';
 import Account from '../cross-slip/account.svelte';
+import {setAccounts} from '../../javascripts/cross-slip';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
 export let status;
@@ -438,6 +439,8 @@ onMount(async () => {
   modal = new Modal(modalEl);
   const accs = await axios.get('/api/accounts');
   accounts = Array.isArray(accs.data) ? accs.data : ( accs.data.values || [] );
+  // 伝票と同じ科目検索（account.svelte）はこの共通リストを使う
+  setAccounts(accounts);
   checkPage();
 });
 
