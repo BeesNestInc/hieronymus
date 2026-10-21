@@ -53,7 +53,7 @@
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
       on:click={runMatch}>既存仕訳と突合</button>
     <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || bookTargets.length === 0}
-      on:click={runBook}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
+      on:click={() => { runBook(); }}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
     {/if}
   </div>
   {#if ( statement.kind === 'bank' )}
@@ -558,8 +558,12 @@ const bookedOppositeLabel = (line) => {
   return ( account ? account.name : ( code || '' ) ) + ( sub.name ? `/${sub.name}` : '' );
 };
 
-// 指定した明細行だけ起票する（未指定なら未照合行をまとめて）
+// 指定した明細行だけ起票する（未指定なら未照合行をまとめて）。
+// ボタンの on:click からイベントオブジェクトが渡っても配列以外は捨てる
 const runBook = async (givenBookings = null) => {
+  if ( givenBookings && !Array.isArray(givenBookings) ) {
+    givenBookings = null;
+  }
   busy = true;
   try {
     let bookings = givenBookings;
@@ -616,10 +620,15 @@ const runBook = async (givenBookings = null) => {
         !bookings.some((b) => ( b.lineId === s.lineId )));
       toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち）`);
     } else {
-      toast.show('明細取込', '起票に失敗しました', 'warning');
+      // code≠0はサイレントに来る（権限等）。原因がわかるように表示する
+      const detail = result.data ? `（code=${result.data.code}）` : '';
+      toast.show('明細取込', `起票に失敗しました${detail}`, 'warning');
     }
   } catch (e) {
-    const message = ( e.response && e.response.data && e.response.data.message ) || '起票に失敗しました';
+    console.error('book failed', e);
+    const status = ( e.response && e.response.status ) ? ` HTTP${e.response.status}` : '';
+    const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
+      `起票に失敗しました${status}`;
     toast.show('明細取込', message, 'warning');
   }
   busy = false;
