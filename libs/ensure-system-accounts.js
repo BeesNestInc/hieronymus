@@ -16,8 +16,9 @@ const SYSTEM_ACCOUNTS = [
       major: '資産',
       middle: '流動資産',
       minor: '出金仮',
+      // 科目コード1900000 = field(1) + adding(90) + 連番(0000)
       field: 1,
-      adding: 19
+      adding: 90
     }
   },
   {
@@ -29,8 +30,9 @@ const SYSTEM_ACCOUNTS = [
       major: '負債',
       middle: '流動負債',
       minor: '入金仮',
+      // 科目コード3900000 = field(3) + adding(90) + 連番(0000)
       field: 3,
-      adding: 19
+      adding: 90
     }
   }
 ];

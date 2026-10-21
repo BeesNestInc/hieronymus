@@ -10,23 +10,23 @@
 // 既存DBではこのマイグレーションが確実に用意しておく。
 
 const QUERY = [
-  // 出金仮（1,19）
+  // 出金仮（1,90）
   `INSERT INTO "AccountClasses" (major, middle, minor, field, adding, "createdAt", "updatedAt")
-   SELECT '資産', '流動資産', '出金仮', 1, 19, NOW(), NOW()
-   WHERE NOT EXISTS (SELECT 1 FROM "AccountClasses" WHERE "field" = 1 AND "adding" = 19)`,
+   SELECT '資産', '流動資産', '出金仮', 1, 90, NOW(), NOW()
+   WHERE NOT EXISTS (SELECT 1 FROM "AccountClasses" WHERE "field" = 1 AND "adding" = 90)`,
   `INSERT INTO "Accounts" (name, key, "accountClassId", "accountCode", "taxClass", "subAccountCount", "createdAt", "updatedAt")
    SELECT '出金仮', 'shukkinkari', c.id, '1900000', 0, 0, NOW(), NOW()
    FROM "AccountClasses" c
-   WHERE c."field" = 1 AND c."adding" = 19
+   WHERE c."field" = 1 AND c."adding" = 90
    AND NOT EXISTS (SELECT 1 FROM "Accounts" WHERE "accountCode" = '1900000')`,
-  // 入金仮（3,19）
+  // 入金仮（3,90）
   `INSERT INTO "AccountClasses" (major, middle, minor, field, adding, "createdAt", "updatedAt")
-   SELECT '負債', '流動負債', '入金仮', 3, 19, NOW(), NOW()
-   WHERE NOT EXISTS (SELECT 1 FROM "AccountClasses" WHERE "field" = 3 AND "adding" = 19)`,
+   SELECT '負債', '流動負債', '入金仮', 3, 90, NOW(), NOW()
+   WHERE NOT EXISTS (SELECT 1 FROM "AccountClasses" WHERE "field" = 3 AND "adding" = 90)`,
   `INSERT INTO "Accounts" (name, key, "accountClassId", "accountCode", "taxClass", "subAccountCount", "createdAt", "updatedAt")
    SELECT '入金仮', 'nyukinkari', c.id, '3900000', 0, 0, NOW(), NOW()
    FROM "AccountClasses" c
-   WHERE c."field" = 3 AND c."adding" = 19
+   WHERE c."field" = 3 AND c."adding" = 90
    AND NOT EXISTS (SELECT 1 FROM "Accounts" WHERE "accountCode" = '3900000')`
 ];
 

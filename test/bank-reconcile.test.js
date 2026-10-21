@@ -99,10 +99,10 @@ describe('bank-reconcile (test db)', () => {
     });
     // 仮入科目（マイグレーションと同じ。test DBではシード時に存在しない）
     await findOrCreate(models.AccountClass, {
-      field: 1, adding: 19
+      field: 1, adding: 90
     }, {
       major: '資産', middle: '流動資産', minor: '出金仮',
-      field: 1, adding: 19
+      field: 1, adding: 90
     });
     await findOrCreate(models.Account, {
       accountCode: '1900000'
@@ -112,10 +112,10 @@ describe('bank-reconcile (test db)', () => {
       accountCode: '1900000', taxClass: 0, subAccountCount: 0
     });
     await findOrCreate(models.AccountClass, {
-      field: 3, adding: 19
+      field: 3, adding: 90
     }, {
       major: '負債', middle: '流動負債', minor: '入金仮',
-      field: 3, adding: 19
+      field: 3, adding: 90
     });
     await findOrCreate(models.Account, {
       accountCode: '3900000'
