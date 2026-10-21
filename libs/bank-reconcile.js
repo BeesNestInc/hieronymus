@@ -232,14 +232,27 @@ export const suggestCardPayments = async (statement, profiles = null) => {
 };
 
 // 利息行の仕訳（受取利息+源泉所得税+普通預金）。
-// 明細の金額は税引後（受取額）なので、源泉率から税抜額を逆算する。
+// 源泉徴収額の決め方:
+// - 同じ日の「国税」明細行（category=tax。国税=源泉徴収額が別行として載る
+//   通帳向け）があればその出金額を源泉額にする。このとき利息行の金額は
+//   税込（総額）として扱うので、普通預金の借方は「利息額−源泉額」になる
+// - 国税行がなければ利息行の金額を税引後とみなし、源泉率から税抜額を逆算する
 // 源泉額が丸めて0になる場合は受取利息のみの1行（2側）にする。
-const buildInterestDetails = async (line, statement, profile) => {
+const buildInterestDetails = async (line, statement, profile, taxLine = null) => {
   const conf = { ...INTEREST_DEFAULTS, ...( ( profile && profile.interest ) || {} ) };
-  const net = Number(( line.amountIn !== null && line.amountIn !== undefined ) ? line.amountIn : line.amountOut);
-  const rate = conf.rate;
-  const gross = rate > 0 ? Math.round(net / ( 1 - rate )) : net;
-  const withheld = gross - net;
+  const amountIn = Number(( line.amountIn !== null && line.amountIn !== undefined ) ? line.amountIn : line.amountOut);
+  let gross;
+  let withheld;
+  if ( taxLine ) {
+    gross = amountIn;
+    withheld = Number(taxLine.amountOut) || 0;
+  } else {
+    // 国税行がなければ明細の利息額を税引後とみなし、源泉率から税抜額を逆算する
+    const rate = conf.rate;
+    gross = rate > 0 ? Math.round(amountIn / ( 1 - rate )) : amountIn;
+    withheld = gross - amountIn;
+  }
+  const net = gross - withheld;
   const date = line.date || toDateString(new Date());
   // 源泉所得税の科目は補助科目「源泉」（key=gensen）を既定とする。
   // プロファイルに withholding.account/subAccount があればそれを使う
@@ -265,23 +278,30 @@ const buildInterestDetails = async (line, statement, profile) => {
   if ( withheld > 0 && withholdingAccount ) {
     // 伝票は借貸ペアで構成するため、源泉分を「借方 源泉所得税 / 貸方 受取利息」
     // の独立行にする（受取利息の貸方合計が税抜額になる）
-    details.push({
+    const gensenDetail = {
       debitAccount: withholdingAccount,
       debitSubAccount: withholdingSubAccount,
       debitAmount: withheld,
       debitTax: 0,
       creditAccount: conf.incomeAccount,
       creditAmount: withheld
-    });
+    };
+    // 国税行がソースならその行をこの明細に対応させる
+    if ( taxLine ) {
+      gensenDetail.statementLineId = taxLine.id;
+    }
+    details.push(gensenDetail);
   }
   for ( const detail of details ) {
+    if ( detail.statementLineId === undefined ) {
+      detail.statementLineId = line.id;
+    }
     detail.creditTax = 0;
     detail.creditTaxRuleId = null;
     detail.creditSubAccount = null;
     detail.debitTaxRuleId = null;
     detail.application1 = line.description || '利息';
     detail._date = date;
-    detail.statementLineId = line.id;
   }
   return details;
 };
@@ -461,12 +481,58 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
   const groups = [];
   const byDate = new Map();
   const bookedIds = [];
+  // 利息行に同じ日の「国税」行（category=tax。源泉徴収額）が添わる通帳向け。
+  // 国税行は利息仕訳の源泉分として飲み込まれ、自分の伝票にはならない
+  const taxPool = new Map();
+  const consumed = new Set();
   for ( const line of lines ) {
+    if ( ( line.category !== 'tax' ) || ( Number(line.amountOut) <= 0 ) ) {
+      continue;
+    }
+    const key = toDateString(line.date || new Date());
+    if ( !taxPool.has(key) ) {
+      taxPool.set(key, []);
+    }
+    taxPool.get(key).push(line);
+  }
+  for ( const pool of taxPool.values() ) {
+    pool.sort((a, b) => a.lineNo - b.lineNo);
+  }
+  // 国税行のサニティ: 納税の振替が誤って源泉として扱われないよう、
+  // 利息額叩きの小 Dana 額に限定する(2 x 利息額, 上限1万円)
+  const pickTaxLine = (interestLine, key) => {
+    const net = Number(( interestLine.amountIn !== null && interestLine.amountIn !== undefined ) ?
+      interestLine.amountIn : interestLine.amountOut);
+    const candidates = ( taxPool.get(key) || [] ).filter((tax) => (
+      !consumed.has(tax.id) &&
+      Number(tax.amountOut) <= Math.max(2 * net, 100) &&
+      Number(tax.amountOut) < 10000
+    ));
+    return candidates[ 0 ] || null;
+  };
+  for ( const line of lines ) {
+    if ( consumed.has(line.id) ) {
+      continue;
+    }
     const booking = bookingMap.get(line.id) || {};
-    const details = ( line.category === 'interest' ) ?
-      await buildInterestDetails(line, statement, profile) :
-      await buildLineDetails(line, statement, booking);
-    const key = toDateString(line.date || details[0]._date || new Date());
+    let detailEntries = [];
+    if ( line.category === 'interest' ) {
+      const key = toDateString(line.date || new Date());
+      const taxLine = pickTaxLine(line, key);
+      const details = await buildInterestDetails(line, statement, profile, taxLine);
+      // 国税行を源泉明細に結び付けられたときだけ、その行を飲み込む
+      if ( taxLine && details.some((detail) => ( Number( detail.statementLineId ) === Number( taxLine.id ) )) ) {
+        consumed.add(taxLine.id);
+        detailEntries = details.map((detail) => (
+          { detail: detail, line: ( Number(detail.statementLineId) === Number(taxLine.id) ) ? taxLine : line }
+        ));
+      } else {
+        detailEntries = details.map((detail) => ({ detail: detail, line: line }));
+      }
+    } else {
+      detailEntries = ( await buildLineDetails(line, statement, booking) ).map((detail) => ({ detail: detail, line: line }));
+    }
+    const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
     let group = null;
     if ( isMergeable(line, profile) && byDate.has(key) ) {
       group = byDate.get(key);
@@ -475,10 +541,12 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       groups.push(group);
       byDate.set(key, group);
     }
-    for ( const detail of details ) {
-      group.entries.push({ detail: detail, line: line });
+    for ( const entry of detailEntries ) {
+      group.entries.push(entry);
     }
-    bookedIds.push(line.id);
+    if ( !consumed.has(line.id) ) {
+      bookedIds.push(line.id);
+    }
   }
   const created = [];
   for ( const group of groups ) {
@@ -490,18 +558,22 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       lines: group.entries.map((e) => e.detail)
     }, user, { forceUnapproved: true });
     // 起票した明細を statementLineId で行に対応付ける
-    // （1行から2明細になる利息行は同じ行に対応する）
+    // （1行から2明細になる利息行は同じ行に対応する。1行1明細を優先するため、
+    // 同じ行への2つ目以降の対応は上書きしない）
+    const processed = new Set();
     const details = await models.CrossSlipDetail.findAll({
       where: { crossSlipId: slip.id },
       order: [[ 'lineNo', 'ASC' ]]
     });
     for ( const detail of details ) {
-      if ( detail.statementLineId ) {
-        await models.BankStatementLine.update({
-          status: 'booked',
-          crossSlipDetailId: detail.id
-        }, { where: { id: detail.statementLineId } });
+      if ( !detail.statementLineId || processed.has(Number(detail.statementLineId)) ) {
+        continue;
       }
+      processed.add(Number(detail.statementLineId));
+      await models.BankStatementLine.update({
+        status: 'booked',
+        crossSlipDetailId: detail.id
+      }, { where: { id: detail.statementLineId } });
     }
     created.push(slip);
   }

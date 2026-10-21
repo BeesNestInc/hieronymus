@@ -310,6 +310,65 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(details[0].creditAmount), 1);
   });
 
+  it('bookLines: 利息と同じ日の国税行は源泉徴収額として合算する', async () => {
+    // 通帳の体裁: 利息行(総額)+国税行(源泉徴収額)。受取利息の貸方は総額、
+    // 普通預金の借方は「総額−源泉額」、源泉所得税の借方は国税行の金額
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-22', rawDescription: '利息', amountIn: 60, category: 'interest' },
+      { date: '2026-09-22', rawDescription: '国税', amountOut: 9, category: 'tax' }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    // 2行は1枚の伝票に合算される
+    assert.lengthOf(result.slips, 1);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slips[0].id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    // 借方 普通預金 51 / 貸方 受取利息 51
+    const bank = details[0];
+    assert.equal(bank.debitAccount, '1010010');
+    assert.equal(Number(bank.debitAmount), 51);
+    assert.equal(bank.creditAccount, '8000000');
+    assert.equal(Number(bank.creditAmount), 51);
+    // 借方 源泉所得税 9 / 貸方 受取利息 9（源泉額は国税行から）
+    const gensen = details[1];
+    assert.equal(Number(gensen.debitAmount), 9);
+    assert.equal(Number(gensen.creditAmount), 9);
+    // 国税行は源泉明細に対応付けられて起票済みになる
+    await lines[0].reload();
+    await lines[1].reload();
+    assert.equal(lines[0].status, 'booked');
+    assert.equal(lines[1].status, 'booked');
+    assert.equal(gensen.statementLineId, lines[1].id);
+    assert.equal(bank.statementLineId, lines[0].id);
+  });
+
+  it('bookLines: 国税の納税振替は利息と合算しない（額が大きすぎ）', async () => {
+    // 同じ日の国税行でも額が利息を大きく上回るなら、それは納税の振替なので
+    // 普通の出金行（仮入科目）として扱う
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-23', rawDescription: '利息', amountIn: 8, category: 'interest' },
+      { date: '2026-09-23', rawDescription: '国税', amountOut: 150000, category: 'tax' }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 2);
+    await reloadAll(lines);
+    const interestDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    // 利息伝票: 借方 普通預金 8（逆算で総額9・源泉1）/ 貸方 受取利息 9
+    const interestSlipDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: interestDetail.crossSlipId },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.equal(Number(interestSlipDetails[0].debitAmount), 8);
+    assert.equal(Number(interestSlipDetails[0].creditAmount), 8);
+    assert.equal(Number(interestSlipDetails[1].creditAmount), 1);
+    const taxDetail = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    // 納税行は従来通り仮入科目で起票する
+    assert.equal(taxDetail.debitAccount, '1900000');
+    assert.equal(Number(taxDetail.debitAmount), 150000);
+  });
+
   it('suggestOpposites: 学習ルールに一致する行だけを表示用に返す', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-09-02', rawDescription: '国税　納期限', amountOut: 60000 },
