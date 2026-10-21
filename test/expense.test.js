@@ -42,13 +42,23 @@ describe('expense (test db)', () => {
     await models.ExpenseReportLine.destroy({ where: {} });
     await models.ExpenseReport.destroy({ where: {} });
     await models.ExpenseMapping.destroy({ where: {} });
-    // 仮払金（taxClass 0）と補助科目（立替者）
+    // 仮払金（taxClass 0）と補助科目（立替者）。本番と同じクラス(field1 adding13)
+    const karibaraiClass = await findOrCreate(models.AccountClass, {
+      field: 1,
+      adding: 13
+    }, {
+      major: '資産',
+      middle: '流動資産',
+      minor: '仮払金',
+      field: 1,
+      adding: 13
+    });
     karibarai = await findOrCreate(models.Account, {
       accountCode: '1130000'
     }, {
       name: '仮払金',
       key: 'karibarai',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: karibaraiClass.id,
       accountCode: '1130000',
       taxClass: 0,
       subAccountCount: 1

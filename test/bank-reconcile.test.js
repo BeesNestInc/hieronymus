@@ -48,13 +48,29 @@ describe('bank-reconcile (test db)', () => {
     await models.CrossSlip.destroy({ where: {} });
     await models.ExpenseMapping.destroy({ where: {} });
     await models.BankStatementRule.destroy({ where: {} });
+    // 本番と同じ科目クラス構造(klass=field+adding2桁)で揃える
+    const ensureClass = async (def) => {
+      return findOrCreate(models.AccountClass, {
+        field: def.field,
+        adding: def.adding
+      }, def);
+    };
+    const bankClass = await ensureClass({
+      major: '資産', middle: '流動資産', minor: '預金', field: 1, adding: 1
+    });
+    const incomeClass = await ensureClass({
+      major: '経常損益', middle: '営業外収益', minor: '受取利息', field: 8, adding: 0
+    });
+    const azukariClass = await ensureClass({
+      major: '負債', middle: '流動負債', minor: '預り金(源泉)', field: 3, adding: 73
+    });
     // 銀行口座（普通預金）
     bankAccount = await findOrCreate(models.Account, {
       accountCode: '1010010'
     }, {
       name: '普通預金',
       key: 'bank',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: bankClass.id,
       accountCode: '1010010',
       taxClass: 0,
       subAccountCount: 0
@@ -72,7 +88,7 @@ describe('bank-reconcile (test db)', () => {
     }, {
       name: '受取利息',
       key: 'interest-income',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: incomeClass.id,
       accountCode: '8000000',
       taxClass: 0,
       subAccountCount: 0
@@ -82,7 +98,7 @@ describe('bank-reconcile (test db)', () => {
     }, {
       name: '預り金',
       key: 'azukari',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: azukariClass.id,
       accountCode: '3730000',
       taxClass: 0,
       subAccountCount: 1
@@ -98,30 +114,24 @@ describe('bank-reconcile (test db)', () => {
       taxClass: 0
     });
     // 仮入科目（マイグレーションと同じ。test DBではシード時に存在しない）
-    await findOrCreate(models.AccountClass, {
-      field: 1, adding: 90
-    }, {
-      major: '資産', middle: '流動資産', minor: '出金仮',
-      field: 1, adding: 90
+    const shukkinkariClass = await ensureClass({
+      major: '資産', middle: '流動資産', minor: '出金仮', field: 1, adding: 90
     });
     await findOrCreate(models.Account, {
       accountCode: '1900000'
     }, {
       name: '出金仮', key: 'shukkinkari',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: shukkinkariClass.id,
       accountCode: '1900000', taxClass: 0, subAccountCount: 0
     });
-    await findOrCreate(models.AccountClass, {
-      field: 3, adding: 90
-    }, {
-      major: '負債', middle: '流動負債', minor: '入金仮',
-      field: 3, adding: 90
+    const nyukinkariClass = await ensureClass({
+      major: '負債', middle: '流動負債', minor: '入金仮', field: 3, adding: 90
     });
     await findOrCreate(models.Account, {
       accountCode: '3900000'
     }, {
       name: '入金仮', key: 'nyukinkari',
-      accountClassId: data.expense.accountClassId,
+      accountClassId: nyukinkariClass.id,
       accountCode: '3900000', taxClass: 0, subAccountCount: 0
     });
     approver = data.approver;

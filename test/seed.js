@@ -32,13 +32,35 @@ const seed = async () => {
     endDate: null
   });
 
-  const accountClass = await findOrCreate(models.AccountClass, {
-    major: '1'
-  }, {
-    major: '1',
-    middle: '100',
-    minor: '1000',
+  // 科目クラスは本番と同じ構造（field+addingでklassコード=field+adding2桁）
+  const cashClass = await findOrCreate(models.AccountClass, {
     field: 1,
+    adding: 0
+  }, {
+    major: '資産',
+    middle: '流動資産',
+    minor: '現金',
+    field: 1,
+    adding: 0
+  });
+  const purchaseClass = await findOrCreate(models.AccountClass, {
+    field: 7,
+    adding: 0
+  }, {
+    major: '経常損益',
+    middle: '売上原価',
+    minor: '仕入高',
+    field: 7,
+    adding: 0
+  });
+  const salesClass = await findOrCreate(models.AccountClass, {
+    field: 6,
+    adding: 0
+  }, {
+    major: '経常損益',
+    middle: '売上高',
+    minor: '売上高',
+    field: 6,
     adding: 0
   });
 
@@ -47,7 +69,7 @@ const seed = async () => {
   }, {
     name: '現金',
     key: 'cash',
-    accountClassId: accountClass.id,
+    accountClassId: cashClass.id,
     accountCode: '1000001',
     taxClass: 0,
     subAccountCount: 0
@@ -58,7 +80,7 @@ const seed = async () => {
   }, {
     name: '仕入',
     key: 'purchase',
-    accountClassId: accountClass.id,
+    accountClassId: purchaseClass.id,
     accountCode: '7000001',
     taxClass: 2,
     subAccountCount: 0
@@ -69,7 +91,7 @@ const seed = async () => {
   }, {
     name: '売上',
     key: 'sales',
-    accountClassId: accountClass.id,
+    accountClassId: salesClass.id,
     accountCode: '6000001',
     taxClass: 2,
     subAccountCount: 0
