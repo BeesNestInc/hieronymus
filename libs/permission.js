@@ -76,11 +76,18 @@ const RULES = [
   { match: /^\/bank_statement(\/\d+)?$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement\/file\/\d+$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement\/(preview|upload)$/, methods: ['POST'], access: ANY },
-  { match: /^\/bank_statement\/\d+\/(match|book)$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/bank_statement\/\d+\/(match|book|rebook)$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/select$/, methods: ['POST'], access: ANY },
   { match: /^\/bank_statement\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement\/line\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement(\/\d+)?$/, methods: ['DELETE'], access: ['accounting'] },
+
+  // 学習ルール（明細取込の相手方仕訳を決める正規ルール）。閲覧は閲覧権限も、
+  // 変更は会計権限のみ
+  { match: /^\/bank_statement_rule$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
+  { match: /^\/bank_statement_rule$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/bank_statement_rule\/\d+$/, methods: ['PUT'], access: ['accounting'] },
+  { match: /^\/bank_statement_rule\/\d+$/, methods: ['DELETE'], access: ['accounting'] },
 
   { match: /^\/journal/, access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/ledger/, access: ['accounting', 'fiscalBrowsing'] },

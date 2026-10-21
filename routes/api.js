@@ -36,6 +36,7 @@ import cross_slip_detail from './api_cross_slip_detail.js';
 import expense_report from './api_expense_report.js';
 import expense_mapping from './api_expense_mapping.js';
 import bank_statement from './api_bank_statement.js';
+import bank_statement_rule from './api_bank_statement_rule.js';
 import karibarai from './api_karibarai.js';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
@@ -160,9 +161,14 @@ router.post('/bank_statement/upload', bank_statement.upload);
 router.post('/bank_statement/:id/match', bank_statement.match);
 router.post('/bank_statement/:id/book', bank_statement.book);
 router.post('/bank_statement/:id/select', bank_statement.select);
+router.post('/bank_statement/:id/rebook', bank_statement.rebook);
 router.put('/bank_statement/:id', bank_statement.update);
 router.put('/bank_statement/line/:id', bank_statement.updateLine);
 router.delete('/bank_statement/:id', bank_statement.delete);
+router.get('/bank_statement_rule', bank_statement_rule.list);
+router.post('/bank_statement_rule', bank_statement_rule.create);
+router.put('/bank_statement_rule/:id', bank_statement_rule.update);
+router.delete('/bank_statement_rule/:id', bank_statement_rule.delete);
 
 router.get('/trial-balance', trial_balance.get);
 router.get('/trial-balance/:param', trial_balance.get);

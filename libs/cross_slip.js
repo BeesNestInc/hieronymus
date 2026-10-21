@@ -21,7 +21,9 @@ const createDetail = (line, slipId, lineNo) => {
     creditTaxRuleId: line.creditTaxRuleId,
     projectId: line.projectId,
     application1: line.application1,
-    application2: line.application2
+    application2: line.application2,
+    // 取込明細行との紐付け（明細取込からの起票で渡る）
+    statementLineId: line.statementLineId || null
   });
 }
 
@@ -97,7 +99,8 @@ export const create = async (body, user, options = {}) => {
         day: body.day,
         no: ml.slipCount,
         lineCount: body.lines.length,
-        term: body.term,
+        // termの指定がない起票（明細取込のbookLinesなど）は会計年度から補う
+        term: body.term || fy.term,
         expenseReportId: body.expenseReportId || null,
         createdBy: user.id,
         approvedAt: approvedAt,
@@ -125,7 +128,9 @@ export const create = async (body, user, options = {}) => {
           creditTaxRuleId: line.creditTaxRuleId,
           projectId: line.projectId,
           application1: line.application1,
-          application2: line.application2
+          application2: line.application2,
+          // 取込明細行との紐付け（明細取込からの起票で渡る）
+          statementLineId: line.statementLineId || null
         }, { transaction: t });
         lines.push(line);
       }
@@ -137,6 +142,7 @@ export const create = async (body, user, options = {}) => {
         year: body.year,
         month: body.month,
         day: body.day,
+        term: slip.term,
         no: slip.no,
         lines: lines
       });
@@ -179,12 +185,27 @@ export const update = async (slip, body, user, options = {}) => {
     slip.approvedBy = user.id;
   }
   await slip.save();
-  // 明細を組み替える前に、この伝票の明細を突合先にしていた取込明細を解放する
+  // 明細を組み替える前に、この伝票の明細と取込明細行の対応を控える。
+  // 伝票の更新は明細の再作成（destroy→create）になるので、行側の
+  // crossSlipDetailId が古いIDを指してしまう。対応を控えておき、
+  // 再作成後に明細行を新しい明細に付け替える（明細数が変わったときは
+  // 対応を維持できないので解放する）
   const oldDetails = await models.CrossSlipDetail.findAll({
     where: { crossSlipId: slip.id },
-    attributes: [ 'id' ]
+    order: [[ 'lineNo', 'ASC' ]]
   });
-  await releaseStatementLines(oldDetails.map((d) => d.id));
+  const oldBindings = [];
+  for ( const oldDetail of oldDetails ) {
+    const bound = await models.BankStatementLine.findOne({
+      where: { crossSlipDetailId: oldDetail.id }
+    });
+    oldBindings.push({ lineId: bound ? bound.id : null, oldLineId: oldDetail.statementLineId || null });
+  }
+  const detailCountChanged = oldDetails.length !== body.lines.length;
+  if ( detailCountChanged ) {
+    // 明細を組み替える前に、この伝票の明細を突合先にしていた取込明細を解放する
+    await releaseStatementLines(oldDetails.map((d) => d.id));
+  }
   await models.CrossSlipDetail.destroy({
     where: {
       crossSlipId: slip.id
@@ -192,7 +213,31 @@ export const update = async (slip, body, user, options = {}) => {
   });
   for ( let i = 0; i < body.lines.length ; i ++ ) {
     let line = body.lines[i];
+    // 明細数が変わっていなければ、控えていた対応を明細に引き継ぐ
+    if ( ( !detailCountChanged ) && oldBindings[ i ] ) {
+      line.statementLineId = oldBindings[ i ].lineId || oldBindings[ i ].oldLineId || null;
+    }
     await createDetail(line, slip.id, i);
+  }
+  // 取込明細行を新しい明細に付け替える（解放済みのときは対象外）
+  for ( let i = 0; i < oldBindings.length ; i ++ ) {
+    if ( detailCountChanged ) break;
+    try {
+      const binding = oldBindings[ i ];
+      const lineId = Number(binding.lineId || binding.oldLineId);
+      if ( !lineId ) continue;
+      const newDetail = await models.CrossSlipDetail.findOne({
+        where: { crossSlipId: slip.id, lineNo: i }
+      });
+      if ( newDetail && newDetail.statementLineId === lineId ) {
+        await models.BankStatementLine.update({
+          status: 'booked',
+          crossSlipDetailId: newDetail.id
+        }, { where: { id: lineId } });
+      }
+    } catch (e) {
+      // 紐付けの復元に失敗しても伝票更新は成功させる（解放される）
+    }
   }
   // 銀行科目を含む伝票から摘要→相手方仕訳のルールを学習する（副作用。失敗しない）
   await learnFromSlip(slip);

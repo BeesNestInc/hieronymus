@@ -4,10 +4,21 @@ import fs from 'fs';
 import Mime from 'mime';
 import * as parser from '../libs/bank-statement.js';
 import * as reconcile from '../libs/bank-reconcile.js';
+import { isLocked, findFiscalYearForDate } from '../libs/fiscal-lock.js';
 
 // 取込は会計権限、個人カードの取込と精算への選択は本人も可
 const canManage = (user) => {
   return Boolean(user.accounting);
+};
+
+// 取込期間が含まれる期が確定済みなら、起票の再実行はできない
+const lockedStatementMessage = async (statement) => {
+  const anchor = statement.periodTo || statement.periodFrom;
+  if ( !anchor ) {
+    return null;
+  }
+  const fy = await findFiscalYearForDate(anchor);
+  return isLocked(fy) ? fy : null;
 };
 
 // 閲覧: 会計/閲覧権限は全明細、それ以外は自分が取り込んだ個人カード明細のみ
@@ -228,7 +239,7 @@ export default {
     res.send(statement.fileBody);
   },
 
-  // 突合の実行（既存仕訳との自動照合+カード引落候補の提示）
+  // 突合の実行（既存仕訳との自動照合+カード引落候補の提示+仮起票の後突合）
   match: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
@@ -240,6 +251,13 @@ export default {
     if ( !statement ) {
       res.json({ code: -1 });
       return;
+    }
+    // 「後の処理」。仮入科目で起票した伝票が実科目の伝票と突合できる形に
+    // なっているかもしれないので、先に差し替えを試みる
+    try {
+      await reconcile.reconcilePlaceholders();
+    } catch (e) {
+      console.error('reconcilePlaceholders failed', e);
     }
     const result = await reconcile.autoMatch(statement);
     const suggestions = await reconcile.suggestCardPayments(statement);
@@ -254,7 +272,7 @@ export default {
     });
   },
 
-  // 未照合行の一括起票。bookings: [{lineId, payeeMappingId?, debitAccount?, debitSubAccount?}]
+  // 未照合行の一括起票。bookings は空でいい（ルール→仮入科目に落ちる）
   book: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
@@ -276,8 +294,49 @@ export default {
         lines: fresh.lines.map(lineToJSON)
       });
     } catch (e) {
-      console.log(e);
+      console.error(e);
       res.status(422).json({ code: -1, message: e.message });
+    }
+  },
+
+  // 再実行。ルール追加・手作業修正の後に、取込から起票した未承認伝票を
+  // 解放して現行ルール（mergeRules含む）で起票し直す。確定（承認済み）
+  // 伝票・精算書由来伝票・会計年度確定中の伝票には触らない
+  rebook: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statement = await models.BankStatement.findByPk(parseInt(req.params.id));
+    if ( !statement ) {
+      res.json({ code: -1 });
+      return;
+    }
+    const lockFy = await lockedStatementMessage(statement);
+    if ( lockFy ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: lockFy.term });
+      return;
+    }
+    try {
+      // 先に仮起票の後突合を流しておく（手作業や他証憑の処理を拾う）
+      try {
+        await reconcile.reconcilePlaceholders();
+      } catch (e) {
+        console.error('reconcilePlaceholders failed', e);
+      }
+      const result = await reconcile.rebookStatement(statement, user);
+      const fresh = await getStatement(statement.id);
+      res.json({
+        code: 0,
+        rebooked: result.rebooked,
+        skipped: result.skipped,
+        lines: fresh.lines.map(lineToJSON)
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '起票の再実行に失敗しました。' });
     }
   },
 

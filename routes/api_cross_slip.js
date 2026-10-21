@@ -1,7 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
-import {releaseStatementLines} from '../libs/bank-reconcile.js';
+import {releaseStatementLines, reconcilePlaceholders} from '../libs/bank-reconcile.js';
 import * as taxcalc from '../libs/tax-calc.js';
 import {isLocked, findFiscalYearForTerm} from '../libs/fiscal-lock.js';
 
@@ -179,6 +179,13 @@ export default {
     try {
       let slip = await createCrossSlip(body, req.session.user);
       if  ( slip )  {
+        // 「後の処理」。実科目の伝票が増えたので、仮入科目の未承認伝票を
+        // 突合して差し替える（完全自動運用。失敗しても登録自体は成功）
+        try {
+          await reconcilePlaceholders();
+        } catch (e) {
+          console.error('reconcilePlaceholders failed', e);
+        }
         res.json(slip);
       } else {
         res.status(422).json({
@@ -235,6 +242,13 @@ export default {
            ( req.session.user.id == slip.createdBy )) {
             try {
               await updateCrossSlip(slip, body, req.session.user);
+              // 手作業の修正（仮科目→実科目にした場合）も学習対象になる。
+              // 「後の処理」の候補増加もここで処理する
+              try {
+                await reconcilePlaceholders();
+              } catch (e) {
+                console.error('reconcilePlaceholders failed', e);
+              }
             } catch (e) {
               if ( e && e.name === 'FiscalYearLocked' ) {
                 res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: e.term });
@@ -360,6 +374,14 @@ export default {
         }
         slip.updatedBy = req.session.user.id;
         await slip.save();
+        // 伝票が増えるのと同じなので「後の処理」を走らせる
+        if ( body.approvedAt ) {
+          try {
+            await reconcilePlaceholders();
+          } catch (e) {
+            console.error('reconcilePlaceholders failed', e);
+          }
+        }
         res.json({
           code: 0,
           id: slip.id

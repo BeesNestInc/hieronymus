@@ -1,5 +1,6 @@
 import models from '../models/index.js';
 import parseAccounts from '../libs/parse_accounts.js';
+import {ensureSystemAccounts} from '../libs/ensure-system-accounts.js';
 import {getCompanyInfo, putCompanyInfo} from '../libs/utils.js';
 
 const createInitialAccount = async (term, companyClass, t) => {
@@ -88,6 +89,9 @@ export const setup = async (req, res, next) => {
         year: req.body.year
       },{ transaction: t });
       await createInitialAccount(req.body.term, req.body.companyClass, t);
+      // システム都合の科目（出金仮1900000/入金仮3900000）。accounts.csv は
+      // 触らず、「なかったらINSERT」で初期設定に組み込む
+      await ensureSystemAccounts({ transaction: t });
       getCompanyInfo().then(async (company) => {
         company.roundingMethod = req.body.roundingMethod;
         await putCompanyInfo(company);

@@ -4,6 +4,10 @@
     {#if ( id )}
     <button type="button" class="btn btn-outline-secondary" on:click={goList}>一覧へ戻る</button>
     {:else}
+    <button type="button" class="btn btn-outline-secondary me-2" title="学習ルール（摘要→相手方仕訳）の閲覧・編集"
+      on:click={() => { openRulesModal(); }}>
+      学習ルール&nbsp;<i class="bi bi-mortar-board"></i>
+    </button>
     <button type="button" class="btn btn-primary" on:click={openModal}>
       取り込む&nbsp;<i class="bi bi-upload"></i>
     </button>
@@ -54,6 +58,9 @@
       on:click={runMatch}>既存仕訳と突合</button>
     <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || bookTargets.length === 0}
       on:click={() => { runBook(); }}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary me-2" disabled={busy}
+      title="学習ルールを更新したあとに、未承認の起票伝票を解放して作り直します（確定済み伝票には触りません）"
+      on:click={runRebook}><i class="bi bi-arrow-repeat me-1"></i>再実行</button>
     {/if}
   </div>
   {#if ( statement.kind === 'bank' )}
@@ -78,8 +85,8 @@
           <th style="width:110px;">状態</th>
           <th style="width:110px;">伝票</th>
           {#if ( statement.kind === 'bank' )}
-          <th style="width:230px;">相手方仕訳</th>
-          <th style="width:60px;"></th>
+          <th style="width:180px;">相手方</th>
+          <th style="width:90px;"></th>
           {/if}
         </tr>
       </thead>
@@ -102,6 +109,12 @@
           <td>
             {#if ( line.status === 'booked' && !line.crossSlipDetailId )}
             <span class="badge bg-warning" title="紐付伝票が削除されています">伝票消滅</span>
+            {:else if ( line.status === 'booked' && line.crossSlipDetailId )}
+            {#if ( isTentative(line) )}
+            <span class="badge bg-warning" title="仮入科目で起票されています。実科目の伝票（請求書等）を入力すると自動で差し替わります">仮起票</span>
+            {:else}
+            <span class="badge {statusColor(line.status)}">{statusLabel(line.status)}</span>
+            {/if}
             {:else}
             <span class="badge {statusColor(line.status)}">{statusLabel(line.status)}</span>
             {/if}
@@ -116,27 +129,18 @@
           </td>
           {#if ( statement.kind === 'bank' )}
           <td>
-            {#if ( ( line.status === 'unmatched' ||
-                      ( line.status === 'booked' && !line.crossSlipDetailId ) ) &&
-                    line.category !== 'interest' )}
-            <div class="d-flex align-items-center">
-            {#key oppositeAccounts.length}
-            <Account accounts={oppositeAccounts}
-              bind:code={line._oppositeAccount}
-              bind:sub_code={line._oppositeSubAccount}/>
-            {/key}
-            {#if ( line._learned )}
-            <i class="bi bi-mortar-board-fill text-info ms-1" title="学習済みのルールから自動設定されています"></i>
-            {/if}
-            </div>
-            {:else if ( line.status === 'booked' && line.crossSlipDetailId )}
-            <span class="text-muted">{bookedOppositeLabel(line)}</span>
+            {#if ( line.status === 'booked' && line.crossSlipDetailId )}
+            <span class={ isTentative(line) ? 'text-warning' : 'text-muted' }>{bookedOppositeLabel(line)}</span>
+            {:else if ( line._oppositeLabel )}
+            <span class="text-info"><i class="bi bi-mortar-board-fill me-1" title="学習済みのルールから起票します"></i>{line._oppositeLabel}</span>
             {/if}
           </td>
-          <td>
+          <td style="white-space:nowrap;">
             {#if ( canBookLine(line) )}
             <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけ起票"
               on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="この摘要の学習ルールを追加・編集"
+              on:click={() => { openRulesModal(line); }}><i class="bi bi-mortar-board"></i></button>
             {/if}
             {#if ( line.status === 'unmatched' )}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="対象外にする"
@@ -282,6 +286,142 @@
   </div>
 </div>
 
+<div class="modal" bind:this={rulesModalEl} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">学習ルール（摘要 → 相手方仕訳）</h5>
+        <button type="button" class="btn-close" onclick={closeRulesModal}></button>
+      </div>
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+        <div class="text-muted mb-2" style="font-size:0.8rem;">
+          摘要の完全一致で照合する。実科目が決わっている仕訳から「隙あらば学習」して蓄積されます。
+          この画面から手登録・修正・削除もできます。ルールを変えた後は「再実行」で未承認の起票を作り直せます。
+        </div>
+        {#if ( !showAllRulesForm ) }
+        <button type="button" class="btn btn-sm btn-outline-primary mb-2"
+          on:click={() => { showAllRulesForm = true; }}>
+          ＋新規ルール
+        </button>
+        {/if}
+        <table class="table table-sm table-striped table-bordered" style="font-size:0.85rem;">
+          <thead class="table-light">
+            <tr>
+              <th style="width:190px;">口座</th>
+              <th>摘要（完全一致）</th>
+              <th style="width:190px;">相手方</th>
+              <th class="number" style="width:60px;">使用</th>
+              <th style="width:70px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background-color:rgba(13,110,253,0.05);">
+              <td>
+                <select class="form-select form-select-sm" bind:value={newRule.account}>
+                  <option value="">科目</option>
+                  {#each accounts as account}
+                  <option value={account.code}>{account.code} {account.name}</option>
+                  {/each}
+                </select>
+                <select class="form-select form-select-sm" bind:value={newRule.subAccount}>
+                  <option value="">補助</option>
+                  {#each ( ( accounts.find((a) => ( a.code === newRule.account )) || {} ).subAccounts || [] ) as sub}
+                  <option value={sub.code}>{sub.name}</option>
+                  {/each}
+                </select>
+              </td>
+              <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
+                placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
+              <td>
+                <select class="form-select form-select-sm" bind:value={newRule.oppositeAccount}>
+                  <option value="">科目</option>
+                  {#each oppositeAccounts as account}
+                  <option value={account.code}>{account.code} {account.name}</option>
+                  {/each}
+                </select>
+                <select class="form-select form-select-sm" bind:value={newRule.oppositeSubAccount}>
+                  <option value="">補助</option>
+                  {#each ( ( oppositeAccounts.find((a) => ( a.code === newRule.oppositeAccount )) || {} ).subAccounts || [] ) as sub}
+                  <option value={sub.code}>{sub.name}</option>
+                  {/each}
+                </select>
+              </td>
+              <td class="text-center">-</td>
+              <td class="text-center">
+                <button type="button" class="btn btn-sm btn-primary" on:click={createRule}>登録</button>
+              </td>
+            </tr>
+            {#each rules as rule (rule.id)}
+            <tr class:rule-edit-row={ editingRule && editingRule.id === rule.id }>
+              <td>
+                {#if ( editingRule === rule )}
+                <select class="form-select form-select-sm" bind:value={editingRule.account}>
+                  {#each accounts as account}
+                  <option value={account.code}>{account.code} {account.name}</option>
+                  {/each}
+                </select>
+                <select class="form-select form-select-sm" bind:value={editingRule.subAccount}>
+                  <option value="">補助なし</option>
+                  {#each ( ( accounts.find((a) => ( a.code === editingRule.account )) || {} ).subAccounts || [] ) as sub}
+                  <option value={sub.code}>{sub.name}</option>
+                  {/each}
+                </select>
+                {:else}
+                {ruleAccountLabel(rule)}
+                {/if}
+              </td>
+              <td>
+                {#if ( editingRule === rule )}
+                <input type="text" class="form-control form-control-sm" bind:value={editingRule.pattern}>
+                {:else}
+                {rule.pattern}
+                {/if}
+              </td>
+              <td>
+                {#if ( editingRule === rule )}
+                <select class="form-select form-select-sm" bind:value={editingRule.oppositeAccount}>
+                  <option value="">科目</option>
+                  {#each oppositeAccounts as account}
+                  <option value={account.code}>{account.code} {account.name}</option>
+                  {/each}
+                </select>
+                <select class="form-select form-select-sm" bind:value={editingRule.oppositeSubAccount}>
+                  <option value="">補助なし</option>
+                  {#each ( ( oppositeAccounts.find((a) => ( a.code === editingRule.oppositeAccount )) || {} ).subAccounts || [] ) as sub}
+                  <option value={sub.code}>{sub.name}</option>
+                  {/each}
+                </select>
+                {:else}
+                {ruleOppositeLabel(rule)}
+                {/if}
+              </td>
+              <td class="text-center">{rule.usageCount || 0}</td>
+              <td class="text-center" style="white-space:nowrap;">
+                {#if ( editingRule === rule )}
+                <button type="button" class="btn btn-sm btn-primary" on:click={() => { saveRule(rule); }}>保存</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" on:click={() => { editingRule = null; }}>取消</button>
+                {:else}
+                <button type="button" class="btn btn-sm btn-outline-secondary" title="編集"
+                  on:click={() => { editingRule = JSON.parse(JSON.stringify(rule)); }}><i class="bi bi-pencil"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-danger" title="削除"
+                  on:click={() => { deleteRule(rule); }}><i class="bi bi-trash"></i></button>
+                {/if}
+              </td>
+            </tr>
+            {/each}
+          </tbody>
+        </table>
+        {#if ( rules.length === 0 )}
+        <div class="text-muted">学習ルールはありません。実科目で起票した伝票から自動で学習します。</div>
+        {/if}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" onclick={closeRulesModal}>閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
   .body {
     height: 100%;
@@ -291,13 +431,18 @@
   .matched-row td {
     background-color: rgba(25, 135, 84, 0.08);
   }
+  .rule-edit-row td {
+    background-color: rgba(13, 110, 253, 0.08);
+  }
+  .modal-header h5 {
+    font-size: 1rem;
+  }
 </style>
 
 <script>
 import axios from 'axios';
 import {onMount, tick} from 'svelte';
 import Modal from 'bootstrap/js/dist/modal';
-import Account from '../cross-slip/account.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 
@@ -317,6 +462,16 @@ let preview = null;
 let formError = '';
 let busy = false;
 let form = {};
+// 学習ルール
+let rulesModalEl;
+let rulesModal;
+let rules = [];
+let editingRule = null;
+let showAllRulesForm = false;
+let newRule = {};
+
+// 仮入科目（x9xxxxx）
+const TEMP_ACCOUNT_CODES = [ '1900000', '3900000' ];
 
 const KIND_LABELS = {
   bank: '通帳',
@@ -346,8 +501,8 @@ $: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) |
 $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
   ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
-// 相手方仕訳の選択肢（銀行口座自身は相手にしない）
-$: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) ));
+// 相手方仕訳の選択肢（銀行口座自身と仮入科目は相手にしない）
+$: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) && a.code !== '1900000' && a.code !== '3900000' ));
 
 // 未照合行数（起票対象の内訳表示用）
 $: unmatchedCount = ( statement && statement.lines ) ?
@@ -361,15 +516,24 @@ $: statusCounts = ( statement && statement.lines ) ? {
   unmatched: statement.lines.filter((l) => ( l.status === 'unmatched' )).length
 } : { matched: 0, booked: 0, ignored: 0, unmatched: 0 };
 
-// 一括起票の対象行（未照合、または伝票消滅で迷子になった起票済み行）
+// 一括起票の対象行（未照合、または伝票消滅で迷子になった起票済み行。
+// 相手方の決定はルール→仮入科目に落ちるので全行が対象になる）
 $: bookTargets = ( statement && statement.lines ) ?
   statement.lines.filter((line) => {
     if ( line.status === 'booked' ) {
       return !line.crossSlipDetailId;
     }
-    if ( line.status !== 'unmatched' ) return false;
-    return line.category === 'interest' || line._oppositeAccount || cardSuggestion(line.id);
+    return line.status === 'unmatched';
   }) : [];
+
+// 起票済み行が仮入科目（出金仮/入金仮）か
+const isTentative = (line) => {
+  const d = line.crossSlipDetail;
+  if ( !d ) {
+    return false;
+  }
+  return ( d.debitAccount === '1900000' ) || ( d.creditAccount === '3900000' );
+};
 
 const cardSuggestion = (lineId) => {
   return cardSuggestions.find((s) => ( s.lineId === lineId )) || null;
@@ -404,14 +568,24 @@ const restoreScroll = async () => {
   }
 };
 
+// 科目コード→「名前/補助名」のラベル
+const accountLabel = (code, subCode) => {
+  if ( !code ) {
+    return '';
+  }
+  const account = ( accounts || [] ).find((a) => ( a.code === code ));
+  const sub = subCode ? ( ( ( account || {} ).subAccounts || [] ).find((s) => ( s.code === subCode )) || {} ) : {};
+  return ( account ? account.name : code ) + ( sub.name ? `/${sub.name}` : '' );
+};
+
+// 学習ルールの提案（表示用）。相手方は起票時にサーバ側で決まる（ルール→仮）
 const applyOppositeSuggestions = (suggestions) => {
   for ( const line of ( statement && statement.lines ) || [] ) {
+    line._oppositeLabel = '';
     if ( line.status !== 'unmatched' ) continue;
     const s = ( suggestions || [] ).find((sug) => ( sug.lineId === line.id ));
-    if ( s ) {
-      line._oppositeAccount = s.oppositeAccount;
-      line._oppositeSubAccount = s.oppositeSubAccount || null;
-      line._learned = Boolean(s.learned);
+    if ( s && s.learned ) {
+      line._oppositeLabel = accountLabel(s.oppositeAccount, s.oppositeSubAccount);
     }
   }
 };
@@ -541,10 +715,9 @@ const runMatch = async () => {
   busy = false;
 };
 
-// 行に単独起票できるか（利息は相手方なし、それ以外は相手方の指定やカード候補が必要）
+// 行に単独起票できるか（相手方の決定はサーバ側でルール→仮に落ちる）
 const canBookLine = (line) => {
-  return ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) ) &&
-    ( line.category === 'interest' || line._oppositeAccount || cardSuggestion(line.id) );
+  return ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) );
 };
 
 // 起票済み行の相手方仕訳の表示ラベル（伝票明細から復元する）
@@ -553,9 +726,7 @@ const bookedOppositeLabel = (line) => {
   if ( !d ) return '';
   const code = ( line.amountIn != null ) ? d.creditAccount : d.debitAccount;
   const subCode = ( line.amountIn != null ) ? d.creditSubAccount : d.debitSubAccount;
-  const account = ( accounts || [] ).find((a) => ( a.code === code ));
-  const sub = subCode ? ( ( ( account || {} ).subAccounts || [] ).find((s) => ( s.code === subCode )) || {} ) : {};
-  return ( account ? account.name : ( code || '' ) ) + ( sub.name ? `/${sub.name}` : '' );
+  return accountLabel(code, subCode);
 };
 
 // 指定した明細行だけ起票する（未指定なら未照合行をまとめて）。
@@ -566,59 +737,18 @@ const runBook = async (givenBookings = null) => {
   }
   busy = true;
   try {
-    let bookings = givenBookings;
-    if ( !bookings ) {
-      bookings = [];
-      for ( const line of statement.lines ) {
-        const isStuck = ( line.status === 'booked' && !line.crossSlipDetailId );
-        if ( line.status !== 'unmatched' && !isStuck ) continue;
-        const suggestion = cardSuggestion(line.id);
-        if ( line.category === 'interest' ) {
-          bookings.push({ lineId: line.id });
-        } else if ( line._oppositeAccount ) {
-          bookings.push({
-            lineId: line.id,
-            oppositeAccount: line._oppositeAccount,
-            oppositeSubAccount: line._oppositeSubAccount || null
-          });
-        } else if ( suggestion ) {
-          bookings.push({
-            lineId: line.id,
-            oppositeAccount: suggestion.debitAccount,
-            oppositeSubAccount: suggestion.debitSubAccount
-          });
-        }
-      }
-    }
-    // 起票対象には相手方仕訳が必須（利息を除く）
-    const bad = bookings.filter((b) => {
-      const line = statement.lines.find((l) => ( l.id === b.lineId ));
-      return ( line && line.category !== 'interest' && !b.oppositeAccount );
-    });
-    if ( bad.length > 0 ) {
-      toast.show('明細取込', '相手方仕訳が未指定の行があります。', 'warning');
-      busy = false;
-      return;
-    }
+    // 相手方の決定はサーバ側（学習ルール→仮入科目）。フロントは行IDだけ渡す
+    const bookings = givenBookings || [];
     const result = await axios.post(`/api/bank_statement/${id}/book`, { bookings: bookings });
     if ( result.data && result.data.code === 0 ) {
-      // 受け取り直した明細に、編集途中の相手方仕訳を引き継ぐ
-      const before = statement.lines;
-      statement = Object.assign({}, statement, {
-        lines: result.data.lines.map((l) => {
-          const old = before.find((b) => ( b.id === l.id ));
-          if ( old && l.status === 'unmatched' ) {
-            l._oppositeAccount = old._oppositeAccount;
-            l._oppositeSubAccount = old._oppositeSubAccount || null;
-            l._learned = old._learned;
-          }
-          return l;
-        })
-      });
+      statement = Object.assign({}, statement, { lines: result.data.lines });
       // 起票済みの行はカード引落候補の表示対象から外す
-      cardSuggestions = cardSuggestions.filter((s) =>
-        !bookings.some((b) => ( b.lineId === s.lineId )));
-      toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち）`);
+      const bookedLineIds = ( statement.lines || [] )
+        .filter((l) => ( l.status === 'booked' ))
+        .map((l) => l.id);
+      cardSuggestions = cardSuggestions.filter((s) => !bookedLineIds.includes(s.lineId));
+      // 仮起票の伝票を確認できた分だけ「後の処理」で差し替わる（次回の突合時）
+      toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち。ルール未命中は仮入科目になります）`);
     } else {
       // code≠0はサイレントに来る（権限等）。原因がわかるように表示する
       const detail = result.data ? `（code=${result.data.code}）` : '';
@@ -636,12 +766,120 @@ const runBook = async (givenBookings = null) => {
 
 // この明細だけ単独で起票する
 const bookLine = (line) => {
-  const booking = ( line.category === 'interest' ) ? { lineId: line.id } : {
-    lineId: line.id,
-    oppositeAccount: line._oppositeAccount,
-    oppositeSubAccount: line._oppositeSubAccount || null
+  return runBook([{ lineId: line.id }]);
+};
+
+// 「再実行」。未承認の起票伝票を解放して現行ルールで作り直す
+const runRebook = async () => {
+  if ( !window.confirm('確定（承認済み）以外の起票伝票を解放して、現行ルールで起票し直します。よろしいですか？') ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.post(`/api/bank_statement/${id}/rebook`);
+    if ( result.data && result.data.code === 0 ) {
+      statement = Object.assign({}, statement, { lines: result.data.lines });
+      toast.show('明細取込', `起票済み${result.data.rebooked}行を再起票しました（スキップ${result.data.skipped}行）`);
+    } else {
+      const detail = result.data ? `（code=${result.data.code}）` : '';
+      toast.show('明細取込', `再実行に失敗しました${detail}`, 'warning');
+    }
+  } catch (e) {
+    console.error('rebook failed', e);
+    const status = ( e.response && e.response.status ) ? ` HTTP${e.response.status}` : '';
+    const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
+      `再実行に失敗しました${status}`;
+    toast.show('明細取込', message, 'warning');
+  }
+  busy = false;
+};
+
+// 学習ルールのモーダル
+const openRulesModal = async (line = null) => {
+  editingRule = null;
+  showAllRulesForm = false;
+  const pattern = line ?
+    String(line.rawDescription || '').normalize('NFKC').replace(/[\s\u3000]+/g, '') : '';
+  newRule = {
+    account: ( statement && statement.account ) || '',
+    subAccount: '',
+    pattern: pattern,
+    // 仮で起票済みの行から登録する場合は既に起票済み伝票からは引き出せないので空
+    oppositeAccount: '',
+    oppositeSubAccount: ''
   };
-  return runBook([booking]);
+  if ( !rulesModal ) {
+    rulesModal = new Modal(rulesModalEl);
+  }
+  try {
+    const result = await axios.get('/api/bank_statement_rule');
+    rules = ( result.data && result.data.values ) || [];
+  } catch (e) {
+    console.error('load rules failed', e);
+    rules = [];
+  }
+  rulesModal.show();
+};
+const closeRulesModal = () => {
+  rulesModal?.hide();
+};
+const ruleAccountLabel = (rule) => {
+  return accountLabel(rule.account, rule.subAccount);
+};
+const ruleOppositeLabel = (rule) => {
+  return accountLabel(rule.oppositeAccount, rule.oppositeSubAccount);
+};
+const createRule = async () => {
+  try {
+    await axios.post('/api/bank_statement_rule', {
+      account: newRule.account,
+      subAccount: newRule.subAccount || null,
+      pattern: newRule.pattern,
+      oppositeAccount: newRule.oppositeAccount,
+      oppositeSubAccount: newRule.oppositeSubAccount || null
+    });
+    newRule = {};
+    showAllRulesForm = false;
+    const result = await axios.get('/api/bank_statement_rule');
+    rules = ( result.data && result.data.values ) || [];
+    toast.show('学習ルール', 'ルールを登録しました');
+  } catch (e) {
+    console.error('create rule failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '登録に失敗しました';
+    toast.show('学習ルール', message, 'warning');
+  }
+};
+const saveRule = async (rule) => {
+  try {
+    await axios.put(`/api/bank_statement_rule/${rule.id}`, {
+      account: rule.account,
+      subAccount: rule.subAccount || null,
+      pattern: rule.pattern,
+      oppositeAccount: rule.oppositeAccount,
+      oppositeSubAccount: rule.oppositeSubAccount || null
+    });
+    editingRule = null;
+    const result = await axios.get('/api/bank_statement_rule');
+    rules = ( result.data && result.data.values ) || [];
+    toast.show('学習ルール', 'ルールを更新しました');
+  } catch (e) {
+    console.error('save rule failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '更新に失敗しました';
+    toast.show('学習ルール', message, 'warning');
+  }
+};
+const deleteRule = async (rule) => {
+  if ( !window.confirm('このルールを削除しますか？') ) {
+    return;
+  }
+  try {
+    await axios.delete(`/api/bank_statement_rule/${rule.id}`);
+    rules = rules.filter((r) => ( r.id !== rule.id ));
+    toast.show('学習ルール', 'ルールを削除しました');
+  } catch (e) {
+    console.error('delete rule failed', e);
+    toast.show('学習ルール', '削除に失敗しました', 'warning');
+  }
 };
 
 const setIgnored = async (line, ignored) => {

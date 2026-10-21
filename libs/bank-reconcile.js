@@ -9,6 +9,8 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import {create as createCrossSlip} from './cross_slip.js';
 import {deriveTaxRuleId} from './expense.js';
+import {isLocked} from './fiscal-lock.js';
+import {normalizeText} from './bank-statement.js';
 
 // 利息仕訳テンプレの既定値（config/banks/*.yaml の interest 設定で上書きできる）
 // incomeAccount: 受取利息。withholding: 源泉所得税（借方）。rate: 源泉徴収率
@@ -16,6 +18,18 @@ const INTEREST_DEFAULTS = {
   incomeAccount: '8000000',
   rate: 0.15315
 };
+
+// システム都合の仮入科目（x9xxxxx）。ルールに該当しない取込行は
+// 一旦この科目で起票し、「後の処理」で実科目に差し替える。
+// OUT: 出金行（借方でたてる）。IN: 入金行（貸方でうける）
+export const TEMP_ACCOUNTS = { OUT: '1900000', IN: '3900000' };
+export const isTempAccount = (account) => (
+  ( account === TEMP_ACCOUNTS.OUT ) || ( account === TEMP_ACCOUNTS.IN )
+);
+
+// mergeRules 未指定のプロファイル向けの既定（摘要パターン。手数料・利息行は
+// 同じ日の主取引行の伝票に合流させる）
+const DEFAULT_MERGE_PATTERNS = [ '手数料', '利息' ];
 
 const dayDiff = (dateA, dateB) => {
   // DATEONLY（YYYY-MM-DD文字列）とDateの両方を受けられるようにする
@@ -41,13 +55,12 @@ const normalizeDescription = (text) => {
   return String(text || '').normalize('NFKC');
 };
 
-// 摘要から学習用の正規化テンプレートを作る。
-// 空白を潰し、数字連続を'#'に置換する（金額・番号・日付の揺れを吸収し、
-// 「振込手数料」「デビット#」のような定型として覚える）
+// 摘要から学習ルール照合用の正規化文字列を作る。
+// 「デビット」のような銀行の体裁語は経理的に鍵にならないため、テンプレート
+// （数字の'#'置換）は使わない。NFKC正規化＋空白潰しの完全一致で覚える
+// （店名や番号の違いで別取引になるべきものが別扱いになる）
 export const makePattern = (text) => {
-  const s = normalizeDescription(text).replace(/[\s\u3000]+/g, '');
-  if ( !s ) return '';
-  return s.replace(/\d+/g, '#');
+  return normalizeDescription(text).replace(/[\s\u3000]+/g, '') || '';
 };
 
 // 学習ルールを作成・更新する（upsert）。同じ口座×摘要パターンのルールが
@@ -58,7 +71,9 @@ export const learnOpposite = async (bankSide, application1, oppositeSide) => {
     const pattern = makePattern(application1);
     if ( ( !pattern ) || ( !bankSide ) || ( !bankSide.account ) ||
       ( !oppositeSide ) || ( !oppositeSide.account ) ||
-      ( bankSide.account === oppositeSide.account ) ) {
+      ( bankSide.account === oppositeSide.account ) ||
+      // 仮入科目は実科目として扱えない（仮で起票した仕訳は学習しない）
+      isTempAccount(oppositeSide.account) || isTempAccount(bankSide.account) ) {
       return;
     }
     const where = {
@@ -266,8 +281,29 @@ const buildInterestDetails = async (line, statement, profile) => {
     detail.debitTaxRuleId = null;
     detail.application1 = line.description || '利息';
     detail._date = date;
+    detail.statementLineId = line.id;
   }
   return details;
+};
+
+// 学習ルールを摘要パターンで引く（bookLinesの相手方指定が無い行向け）。
+// 正規化後の完全一致。口座単位（subAccountはnull許容）
+const findLearnedRule = async (statement, application1) => {
+  const pattern = makePattern(application1);
+  if ( !pattern || !statement.account ) {
+    return null;
+  }
+  return models.BankStatementRule.findOne({
+    where: {
+      account: statement.account,
+      pattern: pattern,
+      [Op.or]: [
+        { subAccount: statement.subAccount || null },
+        { subAccount: null }
+      ]
+    },
+    order: [[ 'usageCount', 'DESC' ]]
+  });
 };
 
 // 通常の経費行の仕訳。借方=支払先マッピングの科目、貸方=明細の口座。
@@ -276,8 +312,11 @@ const buildInterestDetails = async (line, statement, profile) => {
 // 出金行（amountOut）= 借方 相手方 / 貸方 明細の口座（経費支出）
 // 入金行（amountIn）  = 借方 明細の口座 / 貸方 相手方（売上等の収入）
 // 相手方は booking.oppositeAccount（+oppositeSubAccount）か、旧形式の
-// payeeMappingId/debitAccount で指定する。起票時に学習ルールを蓄積する
-const buildLineDetails = async (line, statement, booking) => {
+// payeeMappingId/debitAccount で指定する。指定がなければ学習ルールを引く。
+// それでも決まらなければ仮入科目（出金仮/入金仮）で起票し、後の処理で
+// 他の証憑との突合によって差し替える（仮科目の仕訳は学習しない）。
+// detail に statementLineId を入れて、起票済み伝票の更新で紐付けを復元できるようにする
+const buildLineDetails = async (line, statement, booking, options = {}) => {
   const isOut = ( line.amountOut !== null && line.amountOut !== undefined );
   const amount = Number(isOut ? line.amountOut : line.amountIn);
   let oppositeAccount = booking.oppositeAccount || booking.debitAccount || null;
@@ -295,8 +334,9 @@ const buildLineDetails = async (line, statement, booking) => {
     oppositeSubAccount = mapping.subAccount || null;
     application1 = line.description || mapping.name;
   }
-  if ( !oppositeAccount || !statement.account ) {
-    const err = new Error(`${line.lineNo}行目の相手方仕訳（または明細の口座）が未設定です。`);
+  // 銀行科目（口座）は必須
+  if ( !statement.account ) {
+    const err = new Error(`${line.lineNo}行目の明細に口座（勘定科目）が設定されていません。`);
     err.name = 'BankReconcileError';
     throw err;
   }
@@ -304,15 +344,35 @@ const buildLineDetails = async (line, statement, booking) => {
     account: statement.account,
     subAccount: statement.subAccount
   };
-  const oppositeSide = {
+  let oppositeSide = null;
+  if ( !oppositeAccount ) {
+    // ルールも指定もない → 学習ルールを引き、それも無ければ仮入科目で起票する
+    const rule = await findLearnedRule(statement, application1);
+    if ( rule && !isTempAccount(rule.oppositeAccount) ) {
+      oppositeAccount = rule.oppositeAccount;
+      oppositeSubAccount = rule.oppositeSubAccount || null;
+      if ( options.onRule ) {
+        options.onRule(rule);
+      }
+    }
+  }
+  if ( !oppositeAccount ) {
+    oppositeAccount = isOut ? TEMP_ACCOUNTS.OUT : TEMP_ACCOUNTS.IN;
+    oppositeSubAccount = null;
+  }
+  oppositeSide = {
     account: oppositeAccount,
     subAccount: oppositeSubAccount
   };
-  // 税ルールは出金（経費）側だけ導出する（内税科目のみ。外税は税0で経理が調整）
-  const taxRuleId = isOut ? await deriveTaxRuleId(oppositeAccount, line.date || new Date()) : null;
-  // 起票のたびに学習する（次回から同じ摘要に相手方仕訳を提案する）
-  await learnOpposite(bankSide, application1, oppositeSide);
-  return [ isOut ? {
+  // 税ルールは出金（経費）側だけ導出する（内税科目のみ。外税は税0で経理が調整）。
+  // 仮入科目でのお預かりは税.Rulesを付けない（後の処理での差し替えに任せる）
+  const taxRuleId = ( isOut && !isTempAccount(oppositeAccount) ) ?
+    await deriveTaxRuleId(oppositeAccount, line.date || new Date()) : null;
+  // 実科目で起票するときは学習する（仮入科目は学習対象にしない）
+  if ( !isTempAccount(oppositeAccount) ) {
+    await learnOpposite(bankSide, application1, oppositeSide);
+  }
+  const detail = isOut ? {
     debitAccount: oppositeAccount,
     debitSubAccount: oppositeSubAccount,
     debitAmount: amount,
@@ -324,8 +384,7 @@ const buildLineDetails = async (line, statement, booking) => {
     creditTax: 0,
     creditTaxRuleId: null,
     application1: application1,
-    application2: line.memo || null,
-    _date: line.date || null
+    application2: line.memo || null
   } : {
     debitAccount: bankSide.account,
     debitSubAccount: bankSide.subAccount,
@@ -338,72 +397,111 @@ const buildLineDetails = async (line, statement, booking) => {
     creditTax: 0,
     creditTaxRuleId: null,
     application1: application1,
-    application2: line.memo || null,
-    _date: line.date || null
-  } ];
+    application2: line.memo || null
+  };
+  detail._date = line.date || null;
+  detail.statementLineId = line.id;
+  return [ detail ];
+};
+
+// mergeRules（摘要パターン）に該当する行か。該当行は同じ日の主取引行の
+// 伝票に合流する（ATM手数料・利息など。プロファイルの mergeRules で指定。
+// 省略時は DEFAULT_MERGE_PATTERNS）
+const isMergeable = (line, profile) => {
+  const desc = normalizeText(line.description || line.rawDescription);
+  if ( !desc ) {
+    return false;
+  }
+  const patterns = ( profile && profile.mergeRules ) || DEFAULT_MERGE_PATTERNS;
+  for ( const rule of patterns ) {
+    const pattern = ( typeof rule === 'string' ) ? rule : ( rule.pattern || '' );
+    if ( !pattern ) continue;
+    try {
+      if ( new RegExp(pattern).test(desc) ) {
+        return true;
+      }
+    } catch (e) {
+      // 不正な正規表現は無視する
+    }
+  }
+  return false;
 };
 
 // 未照合行を一括起票する。
-// bookings: [{lineId, oppositeAccount?, oppositeSubAccount?, payeeMappingId?, debitAccount?}]
+// bookings は null でいい（相手方の決定はルール→仮入科目に落ちる）。
+// mergeRules 該当行（手数料・利息等）は同じ日の主取引行の伝票に合流し、
+// 該当しない行は行ごとに個別の伝票になる（後の処理で行単位に差し替え可能に
+// するため。既存の「同じ日=1枚」の集約はしない）。
 // 利息行（category='interest'）はテンプレ仕訳になる（booking指定は不要）。
-// 伝票は行の日付ごとにまとめ、未承認（承認待ち）で作成する。
+// 伝票は未承認（承認待ち）で作成する。
 export const bookLines = async (statement, bookings, user, options = {}) => {
   const profiles = options.profiles || null;
   const profileName = statement.cardName || statement.account;
-  const bookingMap = new Map(bookings.map((b) => [ Number(b.lineId), b ]));
+  const bookingMap = new Map(( bookings || [] ).map((b) => [ Number(b.lineId), b ]));
+  const where = { statementId: statement.id };
+  if ( ( bookings || [] ).length > 0 ) {
+    where.id = { [Op.in]: bookings.map((b) => Number(b.lineId)) };
+  } else {
+    // bookings 未指定は全未照合（+伝票削除で迷子になった起票済み）を対象にする
+    where[Op.or] = [
+      { status: 'unmatched' },
+      { status: 'booked', crossSlipDetailId: null }
+    ];
+  }
   const lines = await models.BankStatementLine.findAll({
-    where: {
-      statementId: statement.id,
-      id: { [Op.in]: bookings.map((b) => Number(b.lineId)) },
-      // 未照合か、伝票削除で迷子になった起票済み（紐付なし）のみ
-      [Op.or]: [
-        { status: 'unmatched' },
-        { status: 'booked', crossSlipDetailId: null }
-      ]
-    },
+    where: where,
     order: [[ 'lineNo', 'ASC' ]]
   });
   if ( lines.length === 0 ) {
     return { slips: [] };
   }
-  // 伝票明細を日付ごとにグループ化して起票する
-  const groups = new Map();
+  const profile = profiles && profiles.find((p) => p.name === profileName);
+  // mergeRules 該当行（手数料・利息等）は同じ日の主取引行の伝票に合流する。
+  // 主取引行がなければ自分の伝票になる
+  const groups = [];
+  const byDate = new Map();
   const bookedIds = [];
   for ( const line of lines ) {
     const booking = bookingMap.get(line.id) || {};
-    const profile = profiles && profiles.find((p) => p.name === profileName);
     const details = ( line.category === 'interest' ) ?
       await buildInterestDetails(line, statement, profile) :
       await buildLineDetails(line, statement, booking);
-    const key = toDateString(details[0]._date || new Date());
-    if ( !groups.has(key) ) {
-      groups.set(key, []);
+    const key = toDateString(line.date || details[0]._date || new Date());
+    let group = null;
+    if ( isMergeable(line, profile) && byDate.has(key) ) {
+      group = byDate.get(key);
+    } else {
+      group = { date: key, entries: [] };
+      groups.push(group);
+      byDate.set(key, group);
     }
     for ( const detail of details ) {
-      groups.get(key).push({ detail: detail, line: line });
+      group.entries.push({ detail: detail, line: line });
     }
     bookedIds.push(line.id);
   }
   const created = [];
-  for ( const [ key, entries ] of groups ) {
-    const [ year, month, day ] = key.split('-').map(Number);
+  for ( const group of groups ) {
+    const [ year, month, day ] = group.date.split('-').map(Number);
     const slip = await createCrossSlip({
       year: year,
       month: month,
       day: day,
-      lines: entries.map((e) => e.detail)
+      lines: group.entries.map((e) => e.detail)
     }, user, { forceUnapproved: true });
-    // 起票した明細を作成順（lineNo順）で行に対応付ける
-    // （利息行は1行から2明細になるが、作成順は entries の順に一致する）
+    // 起票した明細を statementLineId で行に対応付ける
+    // （1行から2明細になる利息行は同じ行に対応する）
     const details = await models.CrossSlipDetail.findAll({
       where: { crossSlipId: slip.id },
       order: [[ 'lineNo', 'ASC' ]]
     });
-    for ( let i = 0; i < details.length; i ++ ) {
-      await models.BankStatementLine.update({
-        status: 'booked',
-        crossSlipDetailId: details[ i ].id
-      }, { where: { id: entries[ i ].line.id } });
+    for ( const detail of details ) {
+      if ( detail.statementLineId ) {
+        await models.BankStatementLine.update({
+          status: 'booked',
+          crossSlipDetailId: detail.id
+        }, { where: { id: detail.statementLineId } });
+      }
     }
     created.push(slip);
   }
@@ -461,22 +559,10 @@ export const releaseStatementLines = async (detailIds) => {
   });
 };
 
-// 未照合行の支払先マッピングを摘要から提案する。
-// 優先順: ①プロファイルのbookRules（摘要パターン→マッピングkey/id）
-//         ②マッピングのkeyが摘要に含まれる  ③マッピング名が摘要に含まれる
-// 未照合行の相手方仕訳を提案する。優先順:
-//   ①学習ルール（BankStatementRule。摘要パターン完全一致、適用回数順）
-//   ②プロファイルのbookRules（摘要パターン→支払先マッピングkey/id）
-//   ③支払先マッピングのkey/nameが摘要に含まれる
-// 戻り値は {lineId, oppositeAccount, oppositeSubAccount} の配列
+// 未照合行の相手方仕訳の候補を表示用に返す（起票時の仮入科目に置かれる前の
+// 判断材料。学習ルールに完全一致する行だけを対象にする）
+// 戻り値は {lineId, oppositeAccount, oppositeSubAccount, learned:true} の配列
 export const suggestOpposites = async (statement, profiles = null) => {
-  const {loadProfiles} = await import('./bank-statement.js');
-  const allProfiles = profiles || loadProfiles();
-  const profile = allProfiles.find((p) => ( p.name === statement.profileName ));
-  const bookRules = ( profile && profile.bookRules ) || [];
-  const payees = await models.ExpenseMapping.findAll({
-    where: { kind: 'payee' }
-  });
   const learnedRules = statement.account ? await models.BankStatementRule.findAll({
     where: {
       account: statement.account,
@@ -495,7 +581,6 @@ export const suggestOpposites = async (statement, profiles = null) => {
     const desc = normalizeDescription(line.rawDescription);
     if ( !desc ) continue;
     const pattern = makePattern(desc);
-    // ①学習ルール
     const learned = learnedRules.find((r) => ( r.pattern === pattern ));
     if ( learned ) {
       suggestions.push({
@@ -504,37 +589,145 @@ export const suggestOpposites = async (statement, profiles = null) => {
         oppositeSubAccount: learned.oppositeSubAccount,
         learned: true
       });
-      continue;
-    }
-    // ②bookRules / ③key・name包含 → 支払先マッピングの科目に解決する
-    let mapping = null;
-    for ( const rule of bookRules ) {
-      try {
-        if ( !new RegExp(rule.pattern).test(desc) ) continue;
-      } catch (e) {
-        continue;
-      }
-      const hit = payees.find((p) => ( p.key === rule.mappingKey ) ||
-        ( String(p.id) === String(rule.mappingKey) ));
-      if ( hit ) {
-        mapping = hit;
-        break;
-      }
-    }
-    if ( !mapping ) {
-      mapping = payees.find((p) => ( ( p.key && normalizeDescription(p.key) &&
-          desc.includes(normalizeDescription(p.key)) ) ||
-        ( p.name && desc.includes(normalizeDescription(p.name)) ) )) || null;
-    }
-    if ( mapping && mapping.account ) {
-      suggestions.push({
-        lineId: line.id,
-        oppositeAccount: mapping.account,
-        oppositeSubAccount: mapping.subAccount || null
-      });
     }
   }
   return suggestions;
+};
+
+// 「後の処理」。仮入科目（出金仮/入金仮）で起票した未承認伝票を、
+// 後から入力された実科目の仕訳（請求書・領収書等の経理処理由来）と突合して
+// 仮科目を差し替える。デビット・振込は必ず対応する他証憑があるという前提。
+// 条件: 金額一致 + 伝票日付が ±days 以内。自動で適用する（完全自動運用）。
+// 差し替えたときに「隙あらば学習」する（次回から同じ摘要は正科目で起票できる）。
+// 確定（承認済み）伝票・精算書由来伝票は触らない。
+export const reconcilePlaceholders = async (options = {}) => {
+  const days = ( options.days === undefined ) ? 3 : options.days;
+  // 仮科目を含む仕訳明細（未承認・精算書由来は除く）
+  const tempCandidates = await models.CrossSlipDetail.findAll({
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }],
+    where: {
+      [Op.or]: [
+        { debitAccount: TEMP_ACCOUNTS.OUT },
+        { creditAccount: TEMP_ACCOUNTS.IN }
+      ]
+    }
+  });
+  const temps = tempCandidates.filter((detail) => (
+    detail.crossSlip && !detail.crossSlip.approvedAt && !detail.crossSlip.expenseReportId
+  ));
+  if ( temps.length === 0 ) {
+    return { replaced: 0 };
+  }
+  // 差し替えの「来源明細」。既に取込行の突合先・起票先になっている明細は除外する
+  // （その明細はすでに銀行側の伝票として存在するため、重複して役目を負わせない）
+  const used = await models.BankStatementLine.findAll({
+    where: { crossSlipDetailId: { [Op.ne]: null } },
+    attributes: [ 'crossSlipDetailId' ]
+  });
+  const usedIds = new Set(used.map((l) => l.crossSlipDetailId));
+  const allDetails = await models.CrossSlipDetail.findAll({
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+  });
+  let replaced = 0;
+  for ( const temp of temps ) {
+    const isOut = ( temp.debitAccount === TEMP_ACCOUNTS.OUT );
+    const amount = Number(isOut ? temp.debitAmount : temp.creditAmount);
+    if ( !amount || !temp.crossSlip ) continue;
+    const candidates = allDetails.filter((detail) => {
+      if ( detail.crossSlip === undefined || detail.crossSlip === null ) return false;
+      if ( usedIds.has(detail.id) ) return false;
+      if ( isTempAccount(detail.debitAccount) || isTempAccount(detail.creditAccount) ) {
+        return false;
+      }
+      const side = isOut ? 'debit' : 'credit';
+      if ( Number(detail[`${side}Amount`]) !== amount ) return false;
+      const account = detail[`${side}Account`];
+      // 銀行科目や仮科目そのもの、預金系は「実科目」ではない
+      if ( !account || isTempAccount(account) || /^101/.test(account) ) return false;
+      const slip = detail.crossSlip;
+      if ( slip.expenseReportId ) return false;
+      const slipDate = new Date(slip.year, slip.month - 1, slip.day);
+      const tempDate = new Date(temp.crossSlip.year, temp.crossSlip.month - 1, temp.crossSlip.day);
+      return dayDiff(slipDate, tempDate) <= days;
+    });
+    if ( candidates.length === 0 ) {
+      continue;
+    }
+    // 日付が最も近い明細を採用する
+    candidates.sort((a, b) => {
+      const da = dayDiff(new Date(a.crossSlip.year, a.crossSlip.month - 1, a.crossSlip.day),
+        new Date(temp.crossSlip.year, temp.crossSlip.month - 1, temp.crossSlip.day));
+      const db = dayDiff(new Date(b.crossSlip.year, b.crossSlip.month - 1, b.crossSlip.day),
+        new Date(temp.crossSlip.year, temp.crossSlip.month - 1, temp.crossSlip.day));
+      return da - db;
+    });
+    const source = candidates[0];
+    const side = isOut ? 'debit' : 'credit';
+    temp[`${side}Account`] = source[`${side}Account`];
+    temp[`${side}SubAccount`] = source[`${side}SubAccount`] || null;
+    // 証憑が紐付いた明細であれば、仮起票伝票側にも証憑を残す
+    const voucherId = source[`${side}VoucherId`];
+    if ( voucherId ) {
+      temp[`${side}VoucherId`] = voucherId;
+    }
+    await temp.save();
+    usedIds.add(source.id);
+    replaced ++;
+    // このままでは学習が効かない（learnFromSlip は伝票作成/更新時フック）ので、
+    // 差し替えた時点で摘要→相手方を覚える
+    await learnOpposite(
+      isOut ? { account: temp.creditAccount, sub: temp.creditSubAccount }
+            : { account: temp.debitAccount, sub: temp.debitSubAccount },
+      temp.application1,
+      isOut ? { account: source.debitAccount, sub: source.debitSubAccount }
+            : { account: source.creditAccount, sub: source.creditSubAccount }
+    );
+  }
+  return { replaced: replaced };
+};
+
+// 「再実行」。ルール追加や手作業修正の後に、取込から起票した未承認伝票を
+// 解放して現行ルールで起票し直す。承認済み（確定）伝票・精算書由来伝票・
+// 佩戴中（会計年度ロック中）の伝票は決して触らない
+export const rebookStatement = async (statement, user) => {
+  const lines = await models.BankStatementLine.findAll({
+    where: {
+      statementId: statement.id,
+      crossSlipDetailId: { [Op.ne]: null },
+      status: 'booked'
+    }
+  });
+  const result = { rebooked: 0, skipped: 0 };
+  for ( const line of lines ) {
+    const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
+    const slip = detail ? await models.CrossSlip.findByPk(detail.crossSlipId) : null;
+    if ( !slip ) {
+      // 伝票が消えていれば解放だけする
+      line.status = 'unmatched';
+      line.crossSlipDetailId = null;
+      await line.save();
+      continue;
+    }
+    if ( slip.approvedAt || slip.expenseReportId ) {
+      result.skipped ++;
+      continue;
+    }
+    const fy = await models.FiscalYear.findOne({ where: { term: slip.term } });
+    if ( fy && isLocked(fy) ) {
+      result.skipped ++;
+      continue;
+    }
+    // 行を解放して伝票を消す
+    line.status = 'unmatched';
+    line.crossSlipDetailId = null;
+    await line.save();
+    await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });
+    await slip.destroy();
+    result.rebooked ++;
+  }
+  // 現行ルールで再起票する（mergeRules も施行される）
+  await bookLines(statement, null, user);
+  return result;
 };
 
 export default {
@@ -545,5 +738,9 @@ export default {
   learnOpposite: learnOpposite,
   learnFromSlip: learnFromSlip,
   bookLines: bookLines,
-  selectForExpense: selectForExpense
+  selectForExpense: selectForExpense,
+  reconcilePlaceholders: reconcilePlaceholders,
+  rebookStatement: rebookStatement,
+  TEMP_ACCOUNTS: TEMP_ACCOUNTS,
+  isTempAccount: isTempAccount
 };

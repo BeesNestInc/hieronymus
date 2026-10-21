@@ -58,7 +58,11 @@ export default (sequelize, DataTypes) => {
 		creditTaxRuleId: DataTypes.INTEGER,
 		projectId: DataTypes.INTEGER,
 		application1: DataTypes.STRING,
-		application2: DataTypes.STRING
+		application2: DataTypes.STRING,
+		// 取込明細行（BankStatementLine）との紐付け。
+		// 伝票の更新は明細を再作成するため、行側の crossSlipDetailId だけでなく
+		// 伝票側にも対象行を保持して、更新後の対応復元に使う
+		statementLineId: DataTypes.INTEGER
 	}, {
 		sequelize,
 		modelName: 'CrossSlipDetail',
