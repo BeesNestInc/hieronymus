@@ -10,7 +10,7 @@ const Op = models.Sequelize.Op;
 import {create as createCrossSlip} from './cross_slip.js';
 import {deriveTaxRuleId} from './expense.js';
 import {isLocked} from './fiscal-lock.js';
-import {normalizeText} from './bank-statement.js';
+import {normalizeText, loadMergeDescriptions} from './bank-statement.js';
 
 // 利息仕訳テンプレの既定値（config/banks/*.yaml の interest 設定で上書きできる）
 // incomeAccount: 受取利息。withholding: 源泉所得税（借方）。rate: 源泉徴収率
@@ -27,16 +27,15 @@ export const isTempAccount = (account) => (
   ( account === TEMP_ACCOUNTS.OUT ) || ( account === TEMP_ACCOUNTS.IN )
 );
 
-// 「前の行（同じ日）の伝票に合流させる」摘要の完全一致リスト（normalizeText
-// 後の文字列。ＡＴＭ手数料→ATM手数料 のように正規化で揃う）。
-// パターン（部分一致/正規表現）ではなく完全一致で判定する（誤って合流するより
-// 「一々定義する手間」を取る。表現の揺れは列挙する）。
-// 銀行ごとの設定は不要（口座に共通のお約束として扱う）
-export const MERGE_DESCRIPTIONS = [
-  '手数料',
-  '振込手数料',
-  'ATM手数料'
-];
+// 「前の行（同じ日）の伝票に合流させる」摘要は config/banks/merge-rules.yaml
+// （明細取込画面の「合流摘要」で加除できる。口座共通のお約束）で定義する
+const isMergeable = (line) => {
+  const desc = normalizeText(line.description || line.rawDescription);
+  if ( !desc ) {
+    return false;
+  }
+  return loadMergeDescriptions().some((d) => ( normalizeText(d) === desc ));
+};
 
 const dayDiff = (dateA, dateB) => {
   // DATEONLY（YYYY-MM-DD文字列）とDateの両方を受けられるようにする
@@ -431,17 +430,9 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   return [ detail ];
 };
 
-// 「前の行（同じ日）の伝票に合流させる」行か。摘要（正規化後）が
-// MERGE_DESCRIPTIONS に完全一致するかで判定する
-// （振込の次の行の振込手数料、ATM出金の次の行のATM手数料など）
-const isMergeable = (line) => {
-  const desc = normalizeText(line.description || line.rawDescription);
-  return MERGE_DESCRIPTIONS.includes(desc);
-};
-
 // 未照合行を一括起票する。
 // bookings は null でいい（相手方の決定はルール→仮入科目に落ちる）。
-// 摘要がMERGE_DESCRIPTIONSに完全一致する行（手数料など）は「前の行と同じ伝票」
+// 合流摘要（merge-rules.yamlに完全一致。手数料など）の行は「前の行と同じ伝票」
 // （同じ日が条件）に合流する。該当しない行は行ごとに個別の伝票になる
 // （後の処理で行単位に差し替え可能にするため）。
 // 利息行（category='interest'）はテンプレ仕訳になる（booking指定は不要）。
@@ -470,7 +461,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     return { slips: [] };
   }
   const profile = profiles && profiles.find((p) => p.name === profileName);
-  // MERGE_DESCRIPTIONS 完全一致の行は「前の行（同じ日）の伝票」に合流する。
+  // 合流摘要の行は「前の行（同じ日）の伝票」に合流する。
   // 前の行がなければ/日付が違えば自分の伝票になる
   const groups = [];
   const bookedIds = [];

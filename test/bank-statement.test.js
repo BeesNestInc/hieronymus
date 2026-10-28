@@ -1,5 +1,6 @@
 import {assert} from 'chai';
 import ExcelJS from 'exceljs';
+import fs from 'fs';
 import parser from '../libs/bank-statement.js';
 
 // 明細パーサのテスト（DB不依存）。
@@ -112,5 +113,41 @@ describe('bank-statement (parser)', () => {
     assert.lengthOf(lines, 2);
     assert.equal(lines[0].y, 100);
     assert.equal(lines[0].tokens.join(''), 'ab');
+  });
+});
+
+describe('bank-statement (merge rules)', () => {
+  const TEST_DIR = '/tmp/opencode/merge-rules-test';
+
+  const withConfigPath = (dir, fn) => {
+    const saved = process.env.BANK_CONFIG_PATH;
+    process.env.BANK_CONFIG_PATH = dir;
+    try {
+      return fn();
+    } finally {
+      if ( saved === undefined ) {
+        delete process.env.BANK_CONFIG_PATH;
+      } else {
+        process.env.BANK_CONFIG_PATH = saved;
+      }
+    }
+  };
+
+  it('merge-rules.yaml が無ければ既定の合流摘要を返す', () => {
+    withConfigPath('/tmp/opencode/no-such-banks-dir', () => {
+      const values = parser.loadMergeDescriptions();
+      assert.isArray(values);
+      assert.include(values, '手数料');
+    });
+  });
+
+  it('merge-rules.yaml を保存・読み込みできる（roundtrip）', () => {
+    fs.mkdirSync(TEST_DIR, { recursive: true });
+    withConfigPath(TEST_DIR, () => {
+      // 空要素は除かれる
+      const written = parser.saveMergeDescriptions([ '手数料', '納付手数料', '' ]);
+      assert.deepEqual(written, [ '手数料', '納付手数料' ]);
+      assert.deepEqual(parser.loadMergeDescriptions(), [ '手数料', '納付手数料' ]);
+    });
   });
 });

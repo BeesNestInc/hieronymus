@@ -1,9 +1,12 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import { makePattern, isTempAccount } from '../libs/bank-reconcile.js';
+import { loadMergeDescriptions, saveMergeDescriptions } from '../libs/bank-statement.js';
 
 // 学習ルール（BankStatementRule）の管理。明細取込で相手方仕訳を決める唯一の
 // 正規ルール置き場（YAML等の外部定義はしない）。操作は会計権限。
+// 合流摘要（前の行と同じ伝票に載せる摘要。config/banks/merge-rules.yaml）の
+// 加除もここから行う。
 const canManage = (user) => {
   return Boolean(user.accounting);
 };
@@ -126,5 +129,36 @@ export default {
     }
     await rule.destroy();
     res.json({ code: 0 });
+  },
+
+  // 合流摘要の取得（前の行と同じ伝票に載せる摘要。口座共通）
+  mergeRulesGet: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) && !req.session.user.fiscalBrowsing ) {
+      res.json({ code: -10 });
+      return;
+    }
+    res.json({ code: 0, values: loadMergeDescriptions() });
+  },
+
+  // 合流摘要の保存（リスト全体を差し替える）
+  mergeRulesPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const values = ( req.body && Array.isArray(req.body.values) ) ? req.body.values : null;
+    if ( !values ) {
+      res.status(422).json({ code: -2, message: 'values（摘要の配列）が未指定です。' });
+      return;
+    }
+    try {
+      const saved = saveMergeDescriptions(values);
+      res.json({ code: 0, values: saved });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '保存に失敗しました。' });
+    }
   }
 };

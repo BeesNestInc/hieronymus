@@ -8,6 +8,10 @@
       on:click={() => { openRulesModal(); }}>
       学習ルール&nbsp;<i class="bi bi-mortar-board"></i>
     </button>
+    <button type="button" class="btn btn-outline-secondary me-2" title="前の行の伝票に合流させる摘要（手数料など）の加除"
+      on:click={() => { openMergeModal(); }}>
+      合流摘要&nbsp;<i class="bi bi-collection"></i>
+    </button>
     <button type="button" class="btn btn-primary" on:click={openModal}>
       取り込む&nbsp;<i class="bi bi-upload"></i>
     </button>
@@ -422,6 +426,48 @@
   </div>
 </div>
 
+<div class="modal" bind:this={mergeModalEl} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">合流摘要（前の行の伝票に合流させる摘要）</h5>
+        <button type="button" class="btn-close" onclick={closeMergeModal}></button>
+      </div>
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+        <div class="text-muted mb-2" style="font-size:0.8rem;">
+          この摘要の行は、取込順の直前の行（同じ日）の伝票に合流します（振込の次の行の振込手数料など）。
+          正規化（全角半角・空白）したうえで完全一致で判定します。前の行がなければ/日付が違えば自分の伝票になります。
+          設定は config/banks/merge-rules.yaml に保存されます。
+        </div>
+        <div class="input-group input-group-sm mb-2">
+          <input type="text" class="form-control" placeholder="摘要（例: 振込手数料）"
+            bind:value={newMergeDescription}
+            on:keydown={(e) => { if ( e.key === 'Enter' ) { addMergeDescription(); } }}>
+          <button type="button" class="btn btn-primary" on:click={addMergeDescription}>追加</button>
+        </div>
+        <ul class="list-group list-group-flush" style="font-size:0.85rem;">
+          {#each mergeDescriptions as description, i (description + i)}
+          <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+            <span>{description}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0"
+              on:click={() => { mergeDescriptions = mergeDescriptions.filter((d, j) => ( j !== i )); }}>
+              <i class="bi bi-x"></i>
+            </button>
+          </li>
+          {/each}
+        </ul>
+        {#if ( mergeDescriptions.length === 0 )}
+        <div class="text-muted">合流摘要はありません。</div>
+        {/if}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" on:click={saveMergeDescriptions}>保存</button>
+        <button type="button" class="btn btn-outline-secondary" onclick={closeMergeModal}>閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
   .body {
     height: 100%;
@@ -469,6 +515,12 @@ let rules = [];
 let editingRule = null;
 let showAllRulesForm = false;
 let newRule = {};
+
+// 合流摘要
+let mergeModalEl;
+let mergeModal;
+let mergeDescriptions = [];
+let newMergeDescription = '';
 
 // 仮入科目（x9xxxxx）
 const TEMP_ACCOUNT_CODES = [ '1900000', '3900000' ];
@@ -879,6 +931,50 @@ const deleteRule = async (rule) => {
   } catch (e) {
     console.error('delete rule failed', e);
     toast.show('学習ルール', '削除に失敗しました', 'warning');
+  }
+};
+
+// 合流摘要のモーダル
+const openMergeModal = async () => {
+  if ( !mergeModal ) {
+    mergeModal = new Modal(mergeModalEl);
+  }
+  try {
+    const result = await axios.get('/api/bank_statement_rule/merge_rules');
+    mergeDescriptions = ( result.data && result.data.values ) || [];
+  } catch (e) {
+    console.error('load merge descriptions failed', e);
+    mergeDescriptions = [];
+  }
+  newMergeDescription = '';
+  mergeModal.show();
+};
+const closeMergeModal = () => {
+  mergeModal?.hide();
+};
+const addMergeDescription = () => {
+  const description = String(newMergeDescription || '').trim();
+  if ( !description ) {
+    return;
+  }
+  if ( mergeDescriptions.includes(description) ) {
+    newMergeDescription = '';
+    return;
+  }
+  mergeDescriptions = [ ...mergeDescriptions, description ];
+  newMergeDescription = '';
+};
+const saveMergeDescriptions = async () => {
+  try {
+    const result = await axios.put('/api/bank_statement_rule/merge_rules', {
+      values: mergeDescriptions
+    });
+    mergeDescriptions = ( result.data && result.data.values ) || mergeDescriptions;
+    toast.show('合流摘要', '保存しました');
+  } catch (e) {
+    console.error('save merge descriptions failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました';
+    toast.show('合流摘要', message, 'warning');
   }
 };
 

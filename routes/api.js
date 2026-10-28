@@ -165,6 +165,8 @@ router.post('/bank_statement/:id/rebook', bank_statement.rebook);
 router.put('/bank_statement/:id', bank_statement.update);
 router.put('/bank_statement/line/:id', bank_statement.updateLine);
 router.delete('/bank_statement/:id', bank_statement.delete);
+router.get('/bank_statement_rule/merge_rules', bank_statement_rule.mergeRulesGet);
+router.put('/bank_statement_rule/merge_rules', bank_statement_rule.mergeRulesPut);
 router.get('/bank_statement_rule', bank_statement_rule.list);
 router.post('/bank_statement_rule', bank_statement_rule.create);
 router.put('/bank_statement_rule/:id', bank_statement_rule.update);

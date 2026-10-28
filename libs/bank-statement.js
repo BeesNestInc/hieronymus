@@ -11,7 +11,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { load as yamlLoad } from 'js-yaml';
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import ExcelJS from 'exceljs';
 
 // 銀行系の既定カテゴリ分類（プロファイルの categoryRules が優先される）
@@ -22,6 +22,35 @@ const DEFAULT_CATEGORY_RULES = [
   { pattern: '^口座振替|^振替|＊ＡＤ|\\*AD', category: 'transfer' },
   { pattern: '^国税|^税|^年金|^保険料', category: 'tax' }
 ];
+
+// 「前の行（同じ日）の伝票に合流させる」摘要の設定（口座共通の「お約束」）。
+// config/banks/merge-rules.yaml に1行1摘要で書く（明細取込画面の「合流摘要」
+// で加除できる）。ファイルがなければ既定値を使う
+export const mergeRulesPath = () => {
+  const dir = process.env.BANK_CONFIG_PATH || 'config/banks';
+  return path.join(dir, 'merge-rules.yaml');
+};
+
+export const loadMergeDescriptions = () => {
+  try {
+    const text = fs.readFileSync(mergeRulesPath(), 'utf-8');
+    const data = yamlLoad(text);
+    if ( Array.isArray(data) ) {
+      return data.map((d) => ( ( d === null || d === undefined ) ? '' : String(d).trim() )).filter((d) => d);
+    }
+  } catch (e) {
+    // ファイルがなければ既定値に落ちる
+  }
+  return [ '手数料', '振込手数料', 'ATM手数料' ];
+};
+
+export const saveMergeDescriptions = (descriptions) => {
+  const list = ( descriptions || [] )
+    .map((d) => ( ( d === null || d === undefined ) ? '' : String(d).trim() ))
+    .filter((d) => d);
+  fs.writeFileSync(mergeRulesPath(), yamlDump(list), 'utf-8');
+  return list;
+};
 
 // プロファイル読み込み。テスト時は LLM_CONFIG_PATH 同様 BANK_CONFIG_PATH で指せる
 export const loadProfiles = () => {
@@ -479,5 +508,7 @@ export default {
   classifyCategory: classifyCategory,
   validateBalances: validateBalances,
   pdfItemsToLines: pdfItemsToLines,
-  cardRowsToLines: cardRowsToLines
+  cardRowsToLines: cardRowsToLines,
+  loadMergeDescriptions: loadMergeDescriptions,
+  saveMergeDescriptions: saveMergeDescriptions
 };
