@@ -27,10 +27,16 @@ export const isTempAccount = (account) => (
   ( account === TEMP_ACCOUNTS.OUT ) || ( account === TEMP_ACCOUNTS.IN )
 );
 
-// mergeRules 未指定のプロファイル向けの既定（摘要パターン。手数料行は
-// 前の行（同じ日）の伝票に合流させる。利息+国税のペアは源泉処理として
-// この仕組みの外で吸収する）
-const DEFAULT_MERGE_PATTERNS = [ '手数料' ];
+// 「前の行（同じ日）の伝票に合流させる」摘要の完全一致リスト（normalizeText
+// 後の文字列。ＡＴＭ手数料→ATM手数料 のように正規化で揃う）。
+// パターン（部分一致/正規表現）ではなく完全一致で判定する（誤って合流するより
+// 「一々定義する手間」を取る。表現の揺れは列挙する）。
+// 銀行ごとの設定は不要（口座に共通のお約束として扱う）
+export const MERGE_DESCRIPTIONS = [
+  '手数料',
+  '振込手数料',
+  'ATM手数料'
+];
 
 const dayDiff = (dateA, dateB) => {
   // DATEONLY（YYYY-MM-DD文字列）とDateの両方を受けられるようにする
@@ -425,37 +431,19 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   return [ detail ];
 };
 
-// mergeRules（摘要パターンのリスト。string または {pattern}）に該当する行か。
-// 該当行は「前の行（取込順の直前の行。同じ日）の伝票」に合流する
-// （振込の次の行の振込手数料、ATM出金の次の行のATM手数料、利息の次の行の
-// 国税など。前の行がなければ/日付が違えば自分の伝票になる。
-// プロファイルの mergeRules で指定。表現の揺れは銀行ごとに複数定義できる。
-// 省略時は DEFAULT_MERGE_PATTERNS）
-const isMergeable = (line, profile) => {
+// 「前の行（同じ日）の伝票に合流させる」行か。摘要（正規化後）が
+// MERGE_DESCRIPTIONS に完全一致するかで判定する
+// （振込の次の行の振込手数料、ATM出金の次の行のATM手数料など）
+const isMergeable = (line) => {
   const desc = normalizeText(line.description || line.rawDescription);
-  if ( !desc ) {
-    return false;
-  }
-  const patterns = ( profile && profile.mergeRules ) || DEFAULT_MERGE_PATTERNS;
-  for ( const rule of patterns ) {
-    const pattern = ( typeof rule === 'string' ) ? rule : ( rule.pattern || '' );
-    if ( !pattern ) continue;
-    try {
-      if ( new RegExp(pattern).test(desc) ) {
-        return true;
-      }
-    } catch (e) {
-      // 不正な正規表現は無視する
-    }
-  }
-  return false;
+  return MERGE_DESCRIPTIONS.includes(desc);
 };
 
 // 未照合行を一括起票する。
 // bookings は null でいい（相手方の決定はルール→仮入科目に落ちる）。
-// mergeRules 該当行（手数料など）は「前の行と同じ伝票」（同じ日が条件）に
-// 合流する。該当しない行は行ごとに個別の伝票になる（後の処理で行単位に
-// 差し替え可能にするため）。
+// 摘要がMERGE_DESCRIPTIONSに完全一致する行（手数料など）は「前の行と同じ伝票」
+// （同じ日が条件）に合流する。該当しない行は行ごとに個別の伝票になる
+// （後の処理で行単位に差し替え可能にするため）。
 // 利息行（category='interest'）はテンプレ仕訳になる（booking指定は不要）。
 // 利息行の次の行が国税（category='tax'。源泉徴収額が別行として載る通帳向け）
 // なら、その行を源泉分として飲み込む（自分の伝票にはしない）。
@@ -482,7 +470,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     return { slips: [] };
   }
   const profile = profiles && profiles.find((p) => p.name === profileName);
-  // mergeRules 該当行は「前の行（同じ日）の伝票」に合流する。
+  // MERGE_DESCRIPTIONS 完全一致の行は「前の行（同じ日）の伝票」に合流する。
   // 前の行がなければ/日付が違えば自分の伝票になる
   const groups = [];
   const bookedIds = [];
@@ -530,9 +518,9 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       detailEntries = ( await buildLineDetails(line, statement, booking) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
-    // mergeRules該当なら前の行（同じ日）の伝票に合流する
+    // 完全一致の合流摘要なら前の行（同じ日）の伝票に合流する
     let group = null;
-    if ( isMergeable(line, profile) && prevGroup && ( prevDate === key ) ) {
+    if ( isMergeable(line) && prevGroup && ( prevDate === key ) ) {
       group = prevGroup;
     } else {
       group = { date: key, entries: [] };
@@ -796,7 +784,7 @@ export const rebookStatement = async (statement, user) => {
     await slip.destroy();
     result.rebooked ++;
   }
-  // 現行ルールで再起票する（mergeRules も施行される）
+  // 現行ルールで再起票する（合流も施行される）
   await bookLines(statement, null, user);
   return result;
 };

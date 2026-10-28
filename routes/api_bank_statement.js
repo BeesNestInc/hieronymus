@@ -300,7 +300,7 @@ export default {
   },
 
   // 再実行。ルール追加・手作業修正の後に、取込から起票した未承認伝票を
-  // 解放して現行ルール（mergeRules含む）で起票し直す。確定（承認済み）
+  // 解放して現行ルール（合流含む）で起票し直す。確定（承認済み）
   // 伝票・精算書由来伝票・会計年度確定中の伝票には触らない
   rebook: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');

@@ -248,7 +248,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(temp.debitAccount, '1900000');
   });
 
-  it('bookLines: mergeRules（手数料）は前の行（同じ日）の伝票に合流する', async () => {
+  it('bookLines: 手数料行は前の行（同じ日）の伝票に合流する', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-08-20', rawDescription: 'ＡＴＭ出金', amountOut: 50000 },
       { date: '2026-08-20', rawDescription: 'ＡＴＭ手数料', amountOut: 110 },
@@ -369,29 +369,23 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(taxDetail.debitAmount), 150000);
   });
 
-  it('bookLines: mergeRulesは自分で定義でき、前の行（同じ日）に合流する', async () => {
-    // 国税(源泉徴収額のペア判定外の大額)を利息行の伝票に合流させる例。
-    // 表現の揺れは銀行ごとに複数パターンを定義できる
-    const profile = {
-      name: '1010010',
-      mergeRules: [ '^国税', { pattern: '納付' } ]
-    };
+  it('bookLines: 合流摘要は完全一致で判定する（類似摘要は合流しない）', async () => {
+    // 完全一致なので「振込手数料」は合流するが「納付待」等の別摘要は
+    // 自分の伝票になる（誤合流より定義の手間を取る）
     const { statement, lines } = await createStatement('bank', [
-      { date: '2026-09-24', rawDescription: '利息', amountIn: 100000, category: 'interest' },
-      { date: '2026-09-24', rawDescription: '国税', amountOut: 15000, category: 'tax' }
+      { date: '2026-09-24', rawDescription: '振込＊テスト取引先', amountOut: 100000, category: 'normal' },
+      { date: '2026-09-24', rawDescription: '振込手数料', amountOut: 140, category: 'fee' },
+      { date: '2026-09-24', rawDescription: '納付待', amountOut: 30000, category: 'normal' }
     ]);
-    const result = await bookLines(statement, null, approver, { profiles: [ profile ] });
-    // 利息伝票に国税の明細が合流する（源泉ペア採用は1万円未満の条件外）
-    assert.lengthOf(result.slips, 1);
-    const details = await models.CrossSlipDetail.findAll({
-      where: { crossSlipId: result.slips[0].id },
-      order: [[ 'lineNo', 'ASC' ]]
-    });
-    const accounts = details.map((d) => d.debitAccount);
-    assert.includeMembers(accounts, [ '1010010', '1900000' ]);
-    const tempDetail = details.find((d) => ( d.debitAccount === '1900000' ));
-    assert.equal(Number(tempDetail.debitAmount), 15000);
-    assert.equal(tempDetail.statementLineId, lines[1].id);
+    const result = await bookLines(statement, null, approver);
+    // 手数料は合流、納付待は自分の伝票
+    assert.lengthOf(result.slips, 2);
+    await reloadAll(lines);
+    const feeSlipId = ( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).crossSlipId;
+    const mainSlipId = ( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).crossSlipId;
+    assert.equal(feeSlipId, mainSlipId);
+    const separateSlipId = ( await models.CrossSlipDetail.findByPk(lines[2].crossSlipDetailId) ).crossSlipId;
+    assert.notEqual(separateSlipId, mainSlipId);
   });
 
   it('suggestOpposites: 学習ルールに一致する行だけを表示用に返す', async () => {
