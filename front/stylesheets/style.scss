@@ -97,7 +97,9 @@ body {
 .content-wrapper {
   height: 100%;
   font-size: 12pt;
-  width: 1200px;
+  // 窓幅いっぱいまで広げる（大きい窓で右側が空くのを防ぐ）
+  width: auto;
+  max-width: none;
 }
 .content {
   min-width: 1170px;

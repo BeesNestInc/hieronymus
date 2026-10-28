@@ -488,11 +488,11 @@
     min-height: 0;
     overflow-y: auto;
   }
+  /* ヘッダ行の配色は共通スタイル(.table th)に任せる（上書きしない） */
   .table-scroll :global(thead th) {
     position: sticky;
     top: 0;
     z-index: 1;
-    background-color: var(--bs-table-bg, #f8f9fa);
   }
   .matched-row td {
     background-color: rgba(25, 135, 84, 0.08);
