@@ -3,7 +3,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">個人カード明細から精算</h5>
-        <button type="button" class="btn-close" onclick={close}></button>
+        <button type="button" class="btn-close" on:click={close}></button>
       </div>
       <div class="modal-body">
         <div class="row mb-2">
@@ -84,7 +84,7 @@
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick={close}>閉じる</button>
+        <button type="button" class="btn btn-outline-secondary" on:click={close}>閉じる</button>
         <button type="button" class="btn btn-primary" disabled={busy || selected.length === 0}
           on:click={addLines}>
           選択した{selected.length}行を精算書に追加

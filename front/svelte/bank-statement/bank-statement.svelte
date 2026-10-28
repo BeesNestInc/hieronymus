@@ -202,7 +202,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">明細の取り込み</h5>
-        <button type="button" class="btn-close" onclick={closeModal}></button>
+        <button type="button" class="btn-close" on:click={closeModal}></button>
       </div>
       <div class="modal-body">
         <div class="row mb-2">
@@ -277,7 +277,7 @@
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick={closeModal}>キャンセル</button>
+        <button type="button" class="btn btn-outline-secondary" on:click={closeModal}>キャンセル</button>
         {#if ( !preview )}
         <button type="button" class="btn btn-primary" disabled={!form.file || busy} on:click={doPreview}>
           {#if ( busy )}読み取り中…{:else}内容確認{/if}
@@ -297,7 +297,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">学習ルール（摘要 → 相手方仕訳）</h5>
-        <button type="button" class="btn-close" onclick={closeRulesModal}></button>
+        <button type="button" class="btn-close" on:click={closeRulesModal}></button>
       </div>
       <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
         <div class="text-muted mb-2" style="font-size:0.8rem;">
@@ -422,7 +422,7 @@
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick={closeRulesModal}>閉じる</button>
+        <button type="button" class="btn btn-outline-secondary" on:click={closeRulesModal}>閉じる</button>
       </div>
     </div>
   </div>
@@ -433,7 +433,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">合流摘要（前の行の伝票に合流させる摘要）</h5>
-        <button type="button" class="btn-close" onclick={closeMergeModal}></button>
+        <button type="button" class="btn-close" on:click={closeMergeModal}></button>
       </div>
       <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
         <div class="text-muted mb-2" style="font-size:0.8rem;">
@@ -464,7 +464,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" on:click={saveMergeDescriptions}>保存</button>
-        <button type="button" class="btn btn-outline-secondary" onclick={closeMergeModal}>閉じる</button>
+        <button type="button" class="btn btn-outline-secondary" on:click={closeMergeModal}>閉じる</button>
       </div>
     </div>
   </div>
