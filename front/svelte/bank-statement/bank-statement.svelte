@@ -12,7 +12,8 @@
       on:click={() => { openMergeModal(); }}>
       合流摘要&nbsp;<i class="bi bi-collection"></i>
     </button>
-    <button type="button" class="btn btn-primary" on:click={openModal}>
+    <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF）を取り込みます"
+      on:click={openModal}>
       取り込む&nbsp;<i class="bi bi-upload"></i>
     </button>
     {/if}
@@ -20,7 +21,7 @@
 </div>
 
 {#if ( id )}
-<div class="body full-height-2" bind:this={bodyEl}>
+<div class="body">
   {#if ( statement )}
   <div class="mb-1 text-muted">
     {kindLabel(statement.kind)} / {statement.fileName} /
@@ -51,7 +52,8 @@
       <option value={sub.code}>{sub.name}</option>
       {/each}
     </select>
-    <button type="button" class="btn btn-sm btn-outline-primary" on:click={saveAccount}>
+    <button type="button" class="btn btn-sm btn-outline-primary" title="この明細の起票に使う銀行口座（勘定科目）を保存します"
+      on:click={saveAccount}>
       口座を設定
     </button>
   </div>
@@ -59,8 +61,10 @@
   <div class="d-flex align-items-center mb-1">
     {#if ( statement.kind === 'bank' )}
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
+      title="金額が一致し日付が近い既存の伝票明細と、この明細を自動で対応付けます"
       on:click={runMatch}>既存仕訳と突合</button>
     <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || bookTargets.length === 0}
+      title="未照合の行から伝票を起票します。相手方は学習ルール→仮入科目（出金仮/入金仮）の順に決まります。手数料などの合流摘要は前の行の伝票に合流します"
       on:click={() => { runBook(); }}>一括起票（対象{bookTargets.length}行 / 未照合{unmatchedCount}行）</button>
     <button type="button" class="btn btn-sm btn-outline-secondary me-2" disabled={busy}
       title="学習ルールを更新したあとに、未承認の起票伝票を解放して作り直します（確定済み伝票には触りません）"
@@ -78,7 +82,7 @@
     <span class="badge bg-secondary">未照合 {statusCounts.unmatched}</span>
   </div>
   {/if}
-  <div class="table-responsive">
+  <div class="table-responsive table-scroll" bind:this={tableScrollEl}>
     <table class="table table-striped table-bordered">
       <thead class="table-light">
         <tr>
@@ -165,8 +169,8 @@
   {/if}
 </div>
 {:else}
-<div class="body full-height-2">
-  <div class="table-responsive">
+<div class="body">
+  <div class="table-responsive table-scroll">
     <table class="table table-striped table-bordered">
       <thead class="table-light">
         <tr>
@@ -472,9 +476,23 @@
 
 <style>
   .body {
-    height: 100%;
-    overflow-y: auto;
+    height: calc(100vh - 270px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: 8px;
+  }
+  /* 表だけをスクロールさせ、ヘッダ行は固定する */
+  .table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .table-scroll :global(thead th) {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--bs-table-bg, #f8f9fa);
   }
   .matched-row td {
     background-color: rgba(25, 135, 84, 0.08);
@@ -500,7 +518,7 @@ export let toast;
 let id = null;
 let modalEl;
 let modal;
-let bodyEl;
+let tableScrollEl;
 let statements = [];
 let statement = null;
 let accounts = [];
@@ -606,8 +624,8 @@ const loadList = async () => {
 // （sessionStorageに入れるのでフルリロードしても生きる）
 const SCROLL_KEY = 'bank-statement-scroll';
 const saveScroll = () => {
-  if ( bodyEl && id ) {
-    sessionStorage.setItem(SCROLL_KEY, String(bodyEl.scrollTop));
+  if ( tableScrollEl && id ) {
+    sessionStorage.setItem(SCROLL_KEY, String(tableScrollEl.scrollTop));
   }
 };
 const restoreScroll = async () => {
@@ -617,8 +635,8 @@ const restoreScroll = async () => {
   }
   sessionStorage.removeItem(SCROLL_KEY);
   await tick();
-  if ( bodyEl ) {
-    bodyEl.scrollTop = parseInt(pos);
+  if ( tableScrollEl ) {
+    tableScrollEl.scrollTop = parseInt(pos);
   }
 };
 
