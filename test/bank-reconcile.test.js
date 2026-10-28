@@ -248,7 +248,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(temp.debitAccount, '1900000');
   });
 
-  it('bookLines: mergeRules（手数料・利息）は同じ日の主取引行の伝票に合流する', async () => {
+  it('bookLines: mergeRules（手数料）は前の行（同じ日）の伝票に合流する', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-08-20', rawDescription: 'ＡＴＭ出金', amountOut: 50000 },
       { date: '2026-08-20', rawDescription: 'ＡＴＭ手数料', amountOut: 110 },
@@ -369,19 +369,19 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(taxDetail.debitAmount), 150000);
   });
 
-  it('bookLines: mergeRulesのtargetで合流先categoryを指定できる', async () => {
-    // profile の mergeRules を {pattern, target} 形式にして、
-    // 国税行を同日の利息行の伝票に合流させる（源泉ペア判定の対象外の大額）
+  it('bookLines: mergeRulesは自分で定義でき、前の行（同じ日）に合流する', async () => {
+    // 国税(源泉徴収額のペア判定外の大額)を利息行の伝票に合流させる例。
+    // 表現の揺れは銀行ごとに複数パターンを定義できる
     const profile = {
       name: '1010010',
-      mergeRules: [ { pattern: '^国税', target: 'interest' } ]
+      mergeRules: [ '^国税', { pattern: '納付' } ]
     };
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-09-24', rawDescription: '利息', amountIn: 100000, category: 'interest' },
       { date: '2026-09-24', rawDescription: '国税', amountOut: 15000, category: 'tax' }
     ]);
     const result = await bookLines(statement, null, approver, { profiles: [ profile ] });
-    // 利息伝票に国税の明細が合流する（源泉ペア採用は1万円以下の条件外）
+    // 利息伝票に国税の明細が合流する（源泉ペア採用は1万円未満の条件外）
     assert.lengthOf(result.slips, 1);
     const details = await models.CrossSlipDetail.findAll({
       where: { crossSlipId: result.slips[0].id },
