@@ -65,6 +65,8 @@
     <button type="button" class="btn btn-sm btn-outline-secondary me-2" disabled={busy}
       title="学習ルールを更新したあとに、未承認の起票伝票を解放して作り直します（確定済み伝票には触りません）"
       on:click={runRebook}><i class="bi bi-arrow-repeat me-1"></i>再実行</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="前の行の伝票に合流させる摘要（手数料など）の加除"
+      on:click={() => { openMergeModal(); }}><i class="bi bi-collection me-1"></i>合流摘要</button>
     {/if}
   </div>
   {#if ( statement.kind === 'bank' )}
