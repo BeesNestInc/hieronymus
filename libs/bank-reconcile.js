@@ -424,13 +424,15 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   return [ detail ];
 };
 
-// mergeRules（摘要パターン）に該当する行か。該当行は同じ日の主取引行の
-// 伝票に合流する（ATM手数料・利息など。プロファイルの mergeRules で指定。
-// 省略時は DEFAULT_MERGE_PATTERNS）
-const isMergeable = (line, profile) => {
+// mergeRules の1要素を正規化する。
+// string（'手数料'）→ {pattern, target:'main'}: 同日の主取引行（その日最初の
+// グループ）に合流する。object（{pattern, target}）→ target は合流先の
+// category（'interest' 等）。その日そのcategoryの先頭行の伝票に合流する。
+// いずれも合流先がなければ自分の伝票になる
+const mergeRuleFor = (line, profile) => {
   const desc = normalizeText(line.description || line.rawDescription);
   if ( !desc ) {
-    return false;
+    return null;
   }
   const patterns = ( profile && profile.mergeRules ) || DEFAULT_MERGE_PATTERNS;
   for ( const rule of patterns ) {
@@ -438,20 +440,23 @@ const isMergeable = (line, profile) => {
     if ( !pattern ) continue;
     try {
       if ( new RegExp(pattern).test(desc) ) {
-        return true;
+        return {
+          target: ( typeof rule === 'object' && rule.target ) ? String(rule.target) : 'main'
+        };
       }
     } catch (e) {
       // 不正な正規表現は無視する
     }
   }
-  return false;
+  return null;
 };
 
 // 未照合行を一括起票する。
 // bookings は null でいい（相手方の決定はルール→仮入科目に落ちる）。
-// mergeRules 該当行（手数料・利息等）は同じ日の主取引行の伝票に合流し、
-// 該当しない行は行ごとに個別の伝票になる（後の処理で行単位に差し替え可能に
-// するため。既存の「同じ日=1枚」の集約はしない）。
+// mergeRules 該当行（手数料・利息等）は同じ日の合流先伝票に合流する。
+// mergeRulesのstringは主取引行（同日最初のグループ）、objectのtargetは
+// category指定（同日のそのcategoryの先頭行）。該当しない行は行ごとに
+// 個別の伝票になる（後の処理で行単位に差し替え可能にするため）。
 // 利息行（category='interest'）はテンプレ仕訳になる（booking指定は不要）。
 // 伝票は未承認（承認待ち）で作成する。
 export const bookLines = async (statement, bookings, user, options = {}) => {
@@ -476,10 +481,10 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     return { slips: [] };
   }
   const profile = profiles && profiles.find((p) => p.name === profileName);
-  // mergeRules 該当行（手数料・利息等）は同じ日の主取引行の伝票に合流する。
-  // 主取引行がなければ自分の伝票になる
+  // mergeRules 該当行は同じ日の合流先伝票（string=主取引行、target=category指定）に
+  // 合流する。主取引行がなければ自分の伝票になる
   const groups = [];
-  const byDate = new Map();
+  const groupsByDate = new Map();
   const bookedIds = [];
   // 利息行に同じ日の「国税」行（category=tax。源泉徴収額）が添わる通帳向け。
   // 国税行は利息仕訳の源泉分として飲み込まれ、自分の伝票にはならない
@@ -533,13 +538,21 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       detailEntries = ( await buildLineDetails(line, statement, booking) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
+    // mergeRulesの合流先を探す。stringルール('main')は同日最初のグループ、
+    // target指定は同日のそのcategoryを持つ行から始まるグループ
+    const rule = mergeRuleFor(line, profile);
     let group = null;
-    if ( isMergeable(line, profile) && byDate.has(key) ) {
-      group = byDate.get(key);
-    } else {
-      group = { date: key, entries: [] };
+    if ( rule ) {
+      const candidates = groupsByDate.get(key) || [];
+      group = candidates.find((g) => ( rule.target === 'main' || g.anchorCategory === rule.target )) || null;
+    }
+    if ( !group ) {
+      group = { date: key, anchorCategory: line.category, entries: [] };
       groups.push(group);
-      byDate.set(key, group);
+      if ( !groupsByDate.has(key) ) {
+        groupsByDate.set(key, []);
+      }
+      groupsByDate.get(key).push(group);
     }
     for ( const entry of detailEntries ) {
       group.entries.push(entry);

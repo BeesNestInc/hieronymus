@@ -74,9 +74,11 @@ columns:                    # 列名 → 項目（省略時は既定の名寄せ
   date: 取引日
 categoryRules:              # 摘要パターン → 区分（省略時は既定ルール）
   - { pattern: '^利息', category: interest }
-mergeRules:                 # 主取引行の伝票に合流させる行（摘要パターン）
-  - 手数料                  # 省略時は既定（手数料/利息）
-  - 利息
+mergeRules:                 # 同じ伝票に合流させる行
+  - 手数料                  # string: 同日の主取引行（その日最初の行）の伝票に合流
+  - { pattern: '^国税', target: interest }   # targetで合流先categoryを指定。
+  - 利息                    #   同日のそのcategoryの先頭行の伝票に合流。
+                            # 省略時は既定（手数料/利息）
 cardPatterns:               # カードPDF用の正規表現（省略時は既定パターン）
   total: '支払い合計額([\d,]+)円'
 paymentAccount: '2030000'   # 引落決済の借方科目（未払金）

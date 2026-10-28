@@ -369,6 +369,31 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(taxDetail.debitAmount), 150000);
   });
 
+  it('bookLines: mergeRulesのtargetで合流先categoryを指定できる', async () => {
+    // profile の mergeRules を {pattern, target} 形式にして、
+    // 国税行を同日の利息行の伝票に合流させる（源泉ペア判定の対象外の大額）
+    const profile = {
+      name: '1010010',
+      mergeRules: [ { pattern: '^国税', target: 'interest' } ]
+    };
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-24', rawDescription: '利息', amountIn: 100000, category: 'interest' },
+      { date: '2026-09-24', rawDescription: '国税', amountOut: 15000, category: 'tax' }
+    ]);
+    const result = await bookLines(statement, null, approver, { profiles: [ profile ] });
+    // 利息伝票に国税の明細が合流する（源泉ペア採用は1万円以下の条件外）
+    assert.lengthOf(result.slips, 1);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slips[0].id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    const accounts = details.map((d) => d.debitAccount);
+    assert.includeMembers(accounts, [ '1010010', '1900000' ]);
+    const tempDetail = details.find((d) => ( d.debitAccount === '1900000' ));
+    assert.equal(Number(tempDetail.debitAmount), 15000);
+    assert.equal(tempDetail.statementLineId, lines[1].id);
+  });
+
   it('suggestOpposites: 学習ルールに一致する行だけを表示用に返す', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-09-02', rawDescription: '国税　納期限', amountOut: 60000 },

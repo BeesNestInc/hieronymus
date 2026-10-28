@@ -27,8 +27,15 @@ columns:
 categoryRules:
   - { pattern: '^利息', category: interest }
 
-# 同じ伝票に合流させる行（摘要パターン。手数料・利息の行は同じ日の
-# 主取引行の伝票に明細として合流する）。省略時は既定（手数料/利息）
+# 同じ伝票に合流させる行。書式は2通り:
+#   - 手数料                          （string。同日の主取引行=その日最初の
+#                                      行の伝票に合流する）
+#   - { pattern: '^国税', target: interest }
+#                                     （target: 合流先category。同日の
+#                                      そのcategoryを持つ先頭行の伝票に合流。
+#                                      interest/fee/tax/transfer等）
+# 合流先がその日いなければ、その行は自分の伝票になる
+# 省略時は既定（手数料/利息）
 # mergeRules:
 #   - 手数料
 #   - 利息
