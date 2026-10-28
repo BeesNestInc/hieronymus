@@ -86,6 +86,8 @@ const RULES = [
   // 変更は会計権限のみ
   { match: /^\/bank_statement_rule$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/bank_statement_rule$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/bank_statement_rule\/merge_rules$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
+  { match: /^\/bank_statement_rule\/merge_rules$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/\d+$/, methods: ['DELETE'], access: ['accounting'] },
 
