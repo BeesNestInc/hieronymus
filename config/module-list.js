@@ -32,9 +32,9 @@ export default [
 科目及び補助科目毎の明細が表示されます。<br/>
 ここから直接伝票を修正することも可能です(新規入力はできません)。`
   }, {
-    name: 'bank-ledger',
-    title: '銀行元帳',
-    match: /^\/bank-ledger/,
+    name: 'bank',
+    title: '銀行',
+    match: /^\/bank-ledger|^\/bank-statement/,
     href: (status) => {
       return	(`/bank-ledger`);
     },
@@ -43,22 +43,23 @@ export default [
     },
     icon: { name: 'bi:bank' },
     description: `
-基本的には元帳画面と同じですが、預金通帳を模した表示となっています。<br/>
-主には会計データと預金通帳の整合を確認するためのものです。`
-  }, {
-    name: 'bank-statement',
-    title: '明細取込',
-    match: /^\/bank-statement/,
-    href: (status) => {
-      return	(`/bank-statement`);
-    },
-    authority: (user) => {
-      return ( user.accounting || user.fiscalBrowsing );
-    },
-    icon: { name: 'bi:cash-stack' },
-    description: `
-銀行通帳明細やカード利用明細を取り込みます。<br/>
-既存仕訳と突合し、学習ルールに従って仕訳伝票を起票します（合わないものは仮入科目で起票され、実科目の伝票入力後に自動で差し替わります）。`
+銀行関係の画面です。<br/>
+預金通帳を模した「銀行元帳」と、通帳・カード明細の取込を行う「明細取込」があります。`,
+    submenu: [
+      {
+        title: '銀行元帳',
+        href: (status) => {
+          return	(`/bank-ledger`);
+        },
+        match: /^\/bank-ledger/,
+      }, {
+        title: '明細取込',
+        href: (status) => {
+          return	(`/bank-statement`);
+        },
+        match: /^\/bank-statement/,
+      }
+    ]
   }, {
     name: 'trial-balance',
     title: '残高試算表',
