@@ -35,6 +35,16 @@ const visibleFilter = (user) => {
 };
 
 // 明細行をフロント用に整形する（照合先伝票の情報を添える）
+// 取込の警告はJSON文字列で保持する。APIは配列で返す（破損時は空）
+const warningsOf = (text) => {
+  try {
+    const value = JSON.parse(text);
+    return Array.isArray(value) ? value : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 const lineToJSON = (line) => {
   const plain = line.toJSON();
   const detail = plain.crossSlipDetail || null;
@@ -95,6 +105,16 @@ const attachToStatement = async (existing, parsed, upload, user, params, res) =>
     .filter(Boolean).map(String).sort().slice(-1)[ 0 ] || null;
   const appended = saved.lines.length;
   const skippedDup = saved.skippedDup;
+  // 応答にも残す警告。取込の追加はこの内容で差し替える（追加取込の物が載る）
+  const warnings = [ ...( parsed.warnings || [] ) ];
+  if ( appended === 0 ) {
+    warnings.push('新しい行はありませんでした（既に取り込み済みの取込です）。');
+  } else {
+    warnings.unshift(`既存の取込（${existing.id}）に${appended}行を追加しました。`);
+  }
+  if ( skippedDup > 0 ) {
+    warnings.push(`重複する${skippedDup}行は取り込みませんでした`);
+  }
   const note = [
     existing.note,
     `追加取込 ${upload.fileName}: +${appended}行${( skippedDup > 0 ) ? `、重複${skippedDup}行は除く` : ''}（${new Date().toLocaleDateString('ja-JP')}）`
@@ -108,17 +128,9 @@ const attachToStatement = async (existing, parsed, upload, user, params, res) =>
     lineCount: saved.lines.length,
     note: note,
     profileName: parsed.profileName || existing.profileName,
+    warnings: JSON.stringify(warnings),
     updatedBy: user.id
   });
-  const warnings = [ ...( parsed.warnings || [] ) ];
-  if ( appended === 0 ) {
-    warnings.push('新しい行はありませんでした（既に取り込み済みの取込です）。');
-  } else {
-    warnings.unshift(`既存の取込（${existing.id}）に${appended}行を追加しました。`);
-  }
-  if ( skippedDup > 0 ) {
-    warnings.push(`重複する${skippedDup}行は取り込みませんでした`);
-  }
   const fresh = await getStatement(existing.id);
   res.json({
     code: 0,
@@ -256,14 +268,19 @@ export default {
         updatedBy: user.id
       });
       const saved = await saveLines(statement, parsed);
+      const storeWarnings = [ ...( parsed.warnings || [] ) ];
+      if ( saved.skippedDup > 0 ) {
+        storeWarnings.push(`同口座の既存取込と重複する${saved.skippedDup}行は取り込みませんでした`);
+      }
+      await models.BankStatement.update({
+        lineCount: saved.lines.length,
+        warnings: JSON.stringify(storeWarnings)
+      }, { where: { id: statement.id } });
       const warnings = [ ...( parsed.warnings || [] ) ];
       if ( saved.skippedDup > 0 ) {
         // 重複は挿入しない運用（1項目は1項目）。取り込めた行数だけが事実
         warnings.push(`同口座の既存取込と重複する${saved.skippedDup}行は取り込みませんでした`);
       }
-      await models.BankStatement.update({
-        lineCount: saved.lines.length
-      }, { where: { id: statement.id } });
       res.json({ code: 0, id: statement.id, warnings: warnings, lineCount: saved.lines.length });
     } catch (e) {
       console.log(e);
@@ -304,6 +321,7 @@ export default {
       statement: {
         ...statement.toJSON(),
         fileBody: undefined,
+        warnings: warningsOf(statement.warnings),
         lines: statement.lines.map(lineToJSON)
       },
       oppositeSuggestions: oppositeSuggestions

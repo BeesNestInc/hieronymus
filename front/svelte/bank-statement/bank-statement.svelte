@@ -759,7 +759,8 @@ const applyOppositeSuggestions = (suggestions) => {
 const loadDetail = async (statementId) => {
   const result = await axios.get(`/api/bank_statement/${statementId}`);
   statement = ( result.data && result.data.statement ) || null;
-  warnings = [];
+  // 警告は取込に保存されている（残高整合・重複スキップ・追加取込の結果等）
+  warnings = ( statement && Array.isArray(statement.warnings) ) ? statement.warnings : [];
   cardSuggestions = [];
   applyOppositeSuggestions(result.data.oppositeSuggestions);
   await restoreScroll();

@@ -34,6 +34,9 @@ export default (sequelize, DataTypes) => {
 		fileBody: DataTypes.BLOB,
 		// 取込時に判定した形式プロファイル名（bookRules等の適用に使う）
 		profileName: DataTypes.STRING,
+		// 取込時の警告（残高整合・重複スキップ等。JSON配列で保存。
+		// 取込の最新の物で差し替える）
+		warnings: DataTypes.TEXT,
 		periodFrom: DataTypes.DATEONLY,
 		periodTo: DataTypes.DATEONLY,
 		lineCount: DataTypes.INTEGER,
