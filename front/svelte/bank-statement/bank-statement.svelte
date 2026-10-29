@@ -34,12 +34,7 @@
   <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
   {/if}
   {#if ( warnings && warnings.length > 0 )}
-  <div class="alert alert-warning py-1 px-2 position-relative">
-    <button type="button" class="btn-close position-absolute top-0 end-0 m-1"
-      style="font-size:0.7rem;" title="警告を閉じる（消してよいメッセージのときに使う）"
-      on:click={dismissWarnings}></button>
-    {#each warnings as w}<div>{w}</div>{/each}
-  </div>
+  <MessagePanel messages={warnings} title="取込の警告" on:dismiss={dismissWarnings} />
   {/if}
   {#if ( statement.kind === 'bank' )}
   <div class="d-flex align-items-center mb-2">
@@ -305,9 +300,8 @@
           <div class="text-muted mb-1">
             {preview.lineCount}行 / {preview.periodFrom}〜{preview.periodTo}
           </div>
-          {#each preview.warnings as w}
-          <div class="text-danger">{w}</div>
-          {/each}
+          <MessagePanel messages={preview.warnings} level="danger" dismissible={false} />
+          
           {#each preview.lines.slice(0, 10) as line}
           <div class="d-flex justify-content-between" style="font-size:0.8rem;">
             <span>{line.date || '?'} {line.rawDescription || line.merchant || ''}</span>
@@ -627,6 +621,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
 import Account from '../cross-slip/account.svelte';
+import MessagePanel from '../components/message-panel.svelte';
 
 export let status;
 export let toast;
