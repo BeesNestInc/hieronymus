@@ -86,7 +86,7 @@ const statementParams = (body, user) => {
 // 更新する（取込は「通帳」の集積。ファイル本体は最新の物を基準にする。
 // 取込の来歴はnoteに積んで残す）。追加がゼロ行でも取込自体は生きる
 // （同じファイルの再投入=「何も変わらない」で正しい）
-const attachToStatement = async (existing, parsed, upload, user, params) => {
+const attachToStatement = async (existing, parsed, upload, user, params, res) => {
   const saved = await saveLines(existing, parsed);
   // 期間は取込全体の包絡を取る（「前回から今月末」の重複断片でも正しくなる）
   const periodFrom = [ existing.periodFrom, parsed.periodFrom ]
@@ -238,7 +238,7 @@ export default {
           order: [[ 'id', 'DESC' ]]
         }) : null;
       if ( existing ) {
-        return await attachToStatement(existing, parsed, upload, user, params);
+        return await attachToStatement(existing, parsed, upload, user, params, res);
       }
       const statement = await models.BankStatement.create({
         ...params,
