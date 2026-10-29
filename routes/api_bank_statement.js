@@ -4,6 +4,7 @@ import fs from 'fs';
 import Mime from 'mime';
 import * as parser from '../libs/bank-statement.js';
 import * as reconcile from '../libs/bank-reconcile.js';
+import { findFiscalYearForTerm } from '../libs/fiscal-lock.js';
 import { isLocked, findFiscalYearForDate } from '../libs/fiscal-lock.js';
 
 // 取込は会計権限、個人カードの取込と精算への選択は本人も可
@@ -215,15 +216,14 @@ const previewCacheGet = (id) => {
 };
 
 // 取込明細を就業中の年度内に限定する（過年度・未来の行は処理できないので
-// 警告に落とす）。fyが無い（初期設定直後等）場合はフィルタしない
-const filterFiscalYear = async (parsed) => {
-  const today = new Date();
-  const fy = await models.FiscalYear.findOne({
-    where: {
-      startDate: { [Op.lte]: today },
-      endDate: { [Op.gte]: today }
-    }
-  });
+// 警告に落とす）。年度は「今処理している年度」=ユーザーが選んでいる年度
+// (formのfy=term)で決める（今日の日付の属する年度ではない: 繰り上げ処理や
+// 前年度の締め直しでは暦と処理年度がズレる）。fyが無い場合はフィルタしない
+const filterFiscalYear = async (parsed, term) => {
+  const fy = await findFiscalYearForTerm(term);
+  if ( !fy ) {
+    return parsed;
+  }
   const result = reconcile.fiscalYearFilter(parsed.lines, fy);
   if ( result.dropped > 0 ) {
     parsed.warnings.push(`年度外（${result.range}の範囲外）の${result.dropped}行は取り込みませんでした`);
@@ -250,7 +250,10 @@ export default {
       return;
     }
     try {
-      const parsed = await filterFiscalYear(await parser.parseStatement(upload.buffer, upload.mimeType));
+      const parsed = await filterFiscalYear(
+        await parser.parseStatement(upload.buffer, upload.mimeType),
+        req.body.fy
+      );
       res.json({
         code: 0,
         // AI読取（画像）の解析結果を取り込み時に再利用させるためのハンドル
@@ -292,11 +295,13 @@ export default {
       // プレビューで解析済みならキャッシュを使い、画像の2回読みを避ける
       let parsed = previewCacheGet(req.body && req.body.previewId);
       if ( parsed ) {
-        // キャッシュはプレビュー時のfilter済み。年度固定の内容は変わらないが
-        // 保険として軽く再filterする
-        parsed = await filterFiscalYear(parsed);
+        // キャッシュはプレビュー時のfilter済み。年度指定ずれに備えて再filter
+        parsed = await filterFiscalYear(parsed, req.body.fy);
       } else {
-        parsed = await filterFiscalYear(await parser.parseStatement(upload.buffer, upload.mimeType));
+        parsed = await filterFiscalYear(
+          await parser.parseStatement(upload.buffer, upload.mimeType),
+          req.body.fy
+        );
       }
       // 同じ口座の既存取込があればそこに追加する（カード系は対象外:
       // 1つのファイルが1つの支払総額/支払日を表すため）

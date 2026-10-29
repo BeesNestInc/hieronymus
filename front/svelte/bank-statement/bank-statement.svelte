@@ -868,6 +868,9 @@ const doPreview = async () => {
     const fd = new FormData();
     fd.append('file', form.file);
     fd.append('kind', form.kind);
+    // 取り込む年度。「今処理している年度」=画面で選んでいる年度を使う
+    // （暦の今日が属する年度ではない）
+    fd.append('fy', status.fy.term);
     const result = await axios.post('/api/bank_statement/preview', fd,
       { 'content-type': 'multipart/form-data' });
     if ( result.data && result.data.code === 0 ) {
@@ -893,6 +896,7 @@ const doUpload = async () => {
     const fd = new FormData();
     fd.append('file', form.file);
     fd.append('kind', form.kind);
+    fd.append('fy', status.fy.term);
     if ( previewId ) fd.append('previewId', previewId);
     if ( form.account ) fd.append('account', form.account);
     if ( form.subAccount ) fd.append('subAccount', form.subAccount);
