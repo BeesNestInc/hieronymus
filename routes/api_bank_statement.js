@@ -186,6 +186,34 @@ const saveLines = async (statement, parsed) => {  // 通帳の断片重複運用
   return { lines: lines, skippedDup: skippedDup };
 };
 
+// 画像取り込みはAI読取なので解析に時間がかかる。プレビューと取り込みで
+// 同じ画像を2度読むのを避けるため、プレビューの解析結果を短時間キャッシュ
+// してuploadに再利用させる
+const previewCache = new Map();
+const PREVIEW_TTL = 10 * 60 * 1000;
+const previewCachePut = (parsed) => {
+  // 期限切れの掃除をしてから置く（置きすぎ防止をかねる）
+  for ( const [ key, entry ] of previewCache ) {
+    if ( Date.now() - entry.at > PREVIEW_TTL ) {
+      previewCache.delete(key);
+    }
+  }
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  previewCache.set(id, { parsed: parsed, at: Date.now() });
+  return id;
+};
+const previewCacheGet = (id) => {
+  const entry = ( id && previewCache.get(String(id)) ) || null;
+  if ( !entry || ( Date.now() - entry.at > PREVIEW_TTL ) ) {
+    if ( entry ) {
+      previewCache.delete(String(id));
+    }
+    return null;
+  }
+  previewCache.delete(String(id));
+  return entry.parsed;
+};
+
 export default {
   // 取り込む前にパース結果を確認する（DBには書き込まない）
   preview: async (req, res, next) => {
@@ -203,6 +231,8 @@ export default {
       const parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
       res.json({
         code: 0,
+        // AI読取（画像）の解析結果を取り込み時に再利用させるためのハンドル
+        previewId: previewCachePut(parsed),
         kind: parsed.kind,
         profileName: parsed.profileName,
         periodFrom: parsed.periodFrom,
@@ -222,11 +252,6 @@ export default {
     }
   },
 
-  // 明細の取り込み（DBに登録する）。銀行口座ごとの取込は「通帳」の集積と
-  // みなす: 同じ口座（勘定科目+補助）への取込は既存の最新の取込に追加し、
-  // 重複する行は挿入しない（「前回から前月末」の重複あterm断片も安全）。
-  // 口座が未指定（取込から口座を後で設定する運用）やカード系は従来どおり
-  // ファイル単位で独立した取込になる
   upload: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
@@ -242,7 +267,11 @@ export default {
       return;
     }
     try {
-      const parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      // プレビューで解析済みならキャッシュを使い、画像の2回読みを避ける
+      let parsed = previewCacheGet(req.body && req.body.previewId);
+      if ( !parsed ) {
+        parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      }
       // 同じ口座の既存取込があればそこに追加する（カード系は対象外:
       // 1つのファイルが1つの支払総額/支払日を表すため）
       const existing = ( !isPersonal && params.account && ( parsed.kind === 'bank' ) ) ?
@@ -283,7 +312,6 @@ export default {
       }, { where: { id: statement.id } });
       const warnings = [ ...( parsed.warnings || [] ) ];
       if ( saved.skippedDup > 0 ) {
-        // 重複は挿入しない運用（1項目は1項目）。取り込めた行数だけが事実
         warnings.push(`同口座の既存取込と重複する${saved.skippedDup}行は取り込みませんでした`);
       }
       res.json({ code: 0, id: statement.id, warnings: warnings, lineCount: saved.lines.length });

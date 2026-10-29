@@ -319,6 +319,11 @@
         {#if ( formError )}
         <div class="alert alert-danger py-1 px-2">{formError}</div>
         {/if}
+        {#if ( busy )}
+        <div class="text-muted" style="font-size:0.8rem;">
+          <i class="bi bi-hourglass-split me-1"></i>読み取り中…画像取り込みはAIで読取するため、数十秒〜1分ほどかかることがあります。
+        </div>
+        {/if}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" on:click={closeModal}>キャンセル</button>
@@ -633,6 +638,7 @@ let accounts = [];
 let warnings = [];
 let cardSuggestions = [];
 let preview = null;
+let previewId = null;
 let formError = '';
 let busy = false;
 let form = {};
@@ -830,6 +836,7 @@ $: checkPage($currentPage);
 // モーダルはBootstrapのModalで制御する（開閉時に状態を戻す）
 const openModal = (prefill = {}) => {
   preview = null;
+  previewId = null;
   formError = '';
   form = {
     kind: prefill.kind || 'bank',
@@ -844,6 +851,7 @@ $: uploadModalTitle = ( ( form.kind === 'bank' ) && form.account ) ?
   `この通帳に取り込む（${accountLabel(form.account, form.subAccount)}）` : '明細の取り込み';
 const closeModal = () => {
   preview = null;
+  previewId = null;
   formError = '';
   form = {};
   modal?.hide();
@@ -864,6 +872,7 @@ const doPreview = async () => {
       { 'content-type': 'multipart/form-data' });
     if ( result.data && result.data.code === 0 ) {
       preview = result.data;
+      previewId = result.data.previewId;
     } else {
       formError = result.data.message || '読み取りに失敗しました。';
     }
@@ -884,6 +893,7 @@ const doUpload = async () => {
     const fd = new FormData();
     fd.append('file', form.file);
     fd.append('kind', form.kind);
+    if ( previewId ) fd.append('previewId', previewId);
     if ( form.account ) fd.append('account', form.account);
     if ( form.subAccount ) fd.append('subAccount', form.subAccount);
     if ( form.cardName ) fd.append('cardName', form.cardName);
@@ -892,6 +902,7 @@ const doUpload = async () => {
     if ( result.data && result.data.code === 0 ) {
       modal?.hide();
       preview = null;
+      previewId = null;
       form = {};
       if ( result.data.warnings.length > 0 ) {
         toast.show('明細取込', `取り込みました（警告 ${result.data.warnings.length}件）`, 'warning');
