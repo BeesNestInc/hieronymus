@@ -375,15 +375,17 @@
                   bind:code={newRule.account}
                   bind:sub_code={newRule.subAccount}></Account>
                 {/key}
-                <select class="form-select form-select-sm mt-1" bind:value={newRule.direction}
+              </td>
+              <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
+                placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
+              <td>
+                <select class="form-select form-select-sm" bind:value={newRule.direction}
                   title="どちらの方向（出金/入金）の行に効くルールか。摘要クリックからは自動で入ります">
                   <option value="">両方向</option>
                   <option value="out">出金のみ</option>
                   <option value="in">入金のみ</option>
                 </select>
               </td>
-              <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
-                placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
               <td>
                 {#key 'new-rule-opposite' + ruleModalKey}
                 <Account accounts={oppositeAccounts}
@@ -411,14 +413,8 @@
                   bind:code={editingRule.account}
                   bind:sub_code={editingRule.subAccount}></Account>
                 {/key}
-                <select class="form-select form-select-sm mt-1" bind:value={editingRule.direction}>
-                  <option value="">両方向</option>
-                  <option value="out">出金のみ</option>
-                  <option value="in">入金のみ</option>
-                </select>
                 {:else}
                 {ruleAccountLabel(rule)}
-                <span class="badge bg-light text-dark ms-1">{directionLabel(rule.direction)}</span>
                 {/if}
               </td>
               <td>
@@ -426,6 +422,17 @@
                 <input type="text" class="form-control form-control-sm" bind:value={editingRule.pattern}>
                 {:else}
                 {rule.pattern}
+                {/if}
+              </td>
+              <td>
+                {#if ( editingRule && editingRule.id === rule.id )}
+                <select class="form-select form-select-sm" bind:value={editingRule.direction}>
+                  <option value="">両方向</option>
+                  <option value="out">出金のみ</option>
+                  <option value="in">入金のみ</option>
+                </select>
+                {:else}
+                {directionLabel(rule.direction)}
                 {/if}
               </td>
               <td>
