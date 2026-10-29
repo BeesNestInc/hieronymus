@@ -34,7 +34,10 @@
   <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
   {/if}
   {#if ( warnings && warnings.length > 0 )}
-  <div class="alert alert-warning py-1 px-2">
+  <div class="alert alert-warning py-1 px-2 position-relative">
+    <button type="button" class="btn-close position-absolute top-0 end-0 m-1"
+      style="font-size:0.7rem;" title="警告を閉じる（消してよいメッセージのときに使う）"
+      on:click={dismissWarnings}></button>
     {#each warnings as w}<div>{w}</div>{/each}
   </div>
   {/if}
@@ -791,6 +794,23 @@ const applyOppositeSuggestions = (suggestions) => {
     if ( s && s.learned ) {
       line._oppositeLabel = accountLabel(s.oppositeAccount, s.oppositeSubAccount);
     }
+  }
+};
+
+// 警告ブロックの閉じる（×）。内容が消化済み（重複スキップ等の通帳を
+// 知らせるだけの物）のときに、ずっと出たままにしない
+const dismissWarnings = async () => {
+  warnings = [];
+  try {
+    await axios.put(`/api/bank_statement/${id}`, {
+      account: statement.account,
+      subAccount: statement.subAccount,
+      memo: ( statement.memo === undefined ) ? null : statement.memo,
+      warnings: []
+    });
+  } catch (e) {
+    // 端末ごとの表示は消えている。永続だけ失敗した場合は次回再表示される
+    console.error('dismiss warnings failed', e);
   }
 };
 

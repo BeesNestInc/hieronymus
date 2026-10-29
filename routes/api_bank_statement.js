@@ -604,6 +604,10 @@ export default {
     if ( req.body.memo !== undefined ) {
       statement.memo = ( req.body.memo === null ) ? null : String(req.body.memo);
     }
+    // 通帳の警告。閲覧者が閉じたときはクリア（空配列/null→'[]'）
+    if ( req.body.warnings !== undefined ) {
+      statement.warnings = JSON.stringify(Array.isArray(req.body.warnings) ? req.body.warnings : []);
+    }
     statement.updatedBy = req.session.user.id;
     await statement.save();
     res.json({ code: 0 });
