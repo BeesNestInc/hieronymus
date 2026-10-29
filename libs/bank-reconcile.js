@@ -82,22 +82,32 @@ export const learnOpposite = async (bankSide, application1, oppositeSide) => {
       isTempAccount(oppositeSide.account) || isTempAccount(bankSide.account) ) {
       return;
     }
+    // 呼び出し側の書き方差（sub / subAccount）を吸収する（key不一致だと
+    // subAccount条件がundefinedになり、口座補助違いの兄弟ルールを
+    // 踏む事故になる）
+    const bankSub = ( bankSide.sub !== undefined ) ? bankSide.sub : ( bankSide.subAccount || null );
+    const oppositeSub = ( oppositeSide.sub !== undefined ) ? oppositeSide.sub : ( oppositeSide.subAccount || null );
     const where = {
       account: bankSide.account,
-      subAccount: bankSide.sub || null,
+      subAccount: bankSub || null,
       pattern: pattern
     };
     const existing = await models.BankStatementRule.findOne({ where: where });
     if ( existing ) {
       existing.oppositeAccount = oppositeSide.account;
-      existing.oppositeSubAccount = oppositeSide.sub || null;
+      // 補助の「下げ」（既存のルールが補助を持っていて、新しい事実が補助なし）
+      // は学習しない。再実行で起票した補助なし伝票の学習が、手修正で入れた
+      // 補助付きの学習を消してしまうのを防ぐ（値の変更・追加は上書きする）
+      if ( oppositeSub || !existing.oppositeSubAccount ) {
+        existing.oppositeSubAccount = oppositeSub || null;
+      }
       existing.usageCount += 1;
       await existing.save();
     } else {
       await models.BankStatementRule.create({
         ...where,
         oppositeAccount: oppositeSide.account,
-        oppositeSubAccount: oppositeSide.sub || null,
+        oppositeSubAccount: oppositeSub || null,
         usageCount: 1
       });
     }
@@ -313,13 +323,16 @@ const buildInterestDetails = async (line, statement, profile, taxLine = null) =>
 };
 
 // 学習ルールを摘要パターンで引く（bookLinesの相手方指定が無い行向け）。
-// 正規化後の完全一致。口座単位（subAccountはnull許容）
+// 正規化後の完全一致。口座単位（subAccountはnull許容）。
+// 口座補助（住信SBIなど）が一致するルールを最優先にする。補助なしの
+// 兄弟ルールがusageCountを上回っていても、そちらを採って口座補助を
+// 落とさないようにする（使用の多さより口座の一致を先に見る）
 const findLearnedRule = async (statement, application1) => {
   const pattern = makePattern(application1);
   if ( !pattern || !statement.account ) {
     return null;
   }
-  return models.BankStatementRule.findOne({
+  const candidates = await models.BankStatementRule.findAll({
     where: {
       account: statement.account,
       pattern: pattern,
@@ -330,6 +343,8 @@ const findLearnedRule = async (statement, application1) => {
     },
     order: [[ 'usageCount', 'DESC' ]]
   });
+  const sub = ( statement.subAccount || null );
+  return candidates.find((r) => ( ( r.subAccount || null ) === sub )) || candidates[ 0 ] || null;
 };
 
 // 通常の経費行の仕訳。借方=支払先マッピングの科目、貸方=明細の口座。

@@ -485,6 +485,82 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(after.debitAccount, '1900000');
   });
 
+  it('learnOpposite: 補助の「下げ」は学習しない（再実行の補助なし学習で消えない）', async () => {
+    // 手修正で補助付きの相手方を習ったあと、補助なしの起票（再実行由来の
+    // 明細など）が同じルールに当たっても、既存の補助を消さない
+    await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
+    await learnOpposite(
+      { account: '1010010', sub: 1 },
+      '振込＊テスト取引先',
+      { account: '1130000', sub: 1 }
+    );
+    let rule = await models.BankStatementRule.findOne({ where: { pattern: '振込*テスト取引先' } });
+    assert.equal(rule.oppositeSubAccount, 1);
+    // 補助なしの学習 → 既存の補助を保持する
+    await learnOpposite(
+      { account: '1010010', sub: 1 },
+      '振込＊テスト取引先',
+      { account: '1130000', sub: null }
+    );
+    await rule.reload();
+    assert.equal(rule.oppositeSubAccount, 1);
+    // 補助の変更は取り込む
+    await learnOpposite(
+      { account: '1010010', sub: 1 },
+      '振込＊テスト取引先',
+      { account: '1130000', sub: 2 }
+    );
+    await rule.reload();
+    assert.equal(rule.oppositeSubAccount, 2);
+  });
+
+  it('findLearnedRule: 口座補助が一致するルールを最優先する', async () => {
+    // 住信SBI(sub1)と補助なしの兄弟ルールがあるとき、sub1の取込は
+    // sub1ルールを採用する（usageCountの多さで補助なしに負けない）
+    await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
+    await learnOpposite({ account: '1010010', sub: 1 },
+      '振込＊リンゴさん', { account: '7000001', sub: null });
+    await learnOpposite({ account: '1010010', sub: null },
+      '振込＊リンゴさん', { account: '6000001', sub: null });
+    // 補助なしルールを多めに使った froid状態にする
+    for ( let i = 0; i < 5; i ++ ) {
+      await learnOpposite({ account: '1010010', sub: null },
+        '振込＊リンゴさん', { account: '6000001', sub: null });
+    }
+    const subRule = await models.BankStatementRule.findOne({
+      where: { pattern: '振込*リンゴさん', subAccount: 1 }
+    });
+    const noSubRule = await models.BankStatementRule.findOne({
+      where: { pattern: '振込*リンゴさん', subAccount: null }
+    });
+    assert.isNotNull(subRule);
+    assert.isNotNull(noSubRule);
+    assert.equal(subRule.oppositeAccount, '7000001');
+    assert.equal(noSubRule.oppositeAccount, '6000001');
+    // statement.subAccount=1 の取込はsub1ルールから取る
+    const statement = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: 1, cardName: null, lineCount: 1 });
+    await models.BankStatementLine.create({
+      statementId: statement.id, lineNo: 1, status: 'unmatched',
+      category: 'normal', date: '2026-11-20', rawDescription: '振込＊リンゴさん', amountOut: 1000
+    });
+    await bookLines(statement, null, approver);
+    const line = await models.BankStatementLine.findOne({ where: { statementId: statement.id } });
+    await line.reload();
+    const bookedDetail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
+    assert.equal(bookedDetail.debitAccount, '7000001');
+    // 補助なしの取込は補助なしルールを取る
+    const statement2 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 1 });
+    await models.BankStatementLine.create({
+      statementId: statement2.id, lineNo: 1, status: 'unmatched',
+      category: 'normal', date: '2026-11-21', rawDescription: '振込＊リンゴさん', amountOut: 2000
+    });
+    await bookLines(statement2, null, approver);
+    const line2 = await models.BankStatementLine.findOne({ where: { statementId: statement2.id } });
+    await line2.reload();
+    const bookedDetail2 = await models.CrossSlipDetail.findByPk(line2.crossSlipDetailId);
+    assert.equal(bookedDetail2.debitAccount, '6000001');
+  });
+
   it('rebookStatement: 未承認の仮起票を現行ルールで作り直し、確定済みと精算書由来は守る', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-12-01', rawDescription: '振込＊テスト取引先', amountOut: 20000 }
