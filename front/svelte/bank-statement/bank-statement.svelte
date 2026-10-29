@@ -962,16 +962,6 @@ const ruleAccountLabel = (rule) => {
 const ruleOppositeLabel = (rule) => {
   return accountLabel(rule.oppositeAccount, rule.oppositeSubAccount);
 };
-const applyButtonDisabled = (line) => {
-  const state = originApplyState(line);
-  return ( state === 'locked' || state === 'none' );
-};
-const applyButtonTitle = (line) => {
-  const state = originApplyState(line);
-  return ( state === 'locked' ) ? '確定済み・精算書由来の伝票には触りません' :
-    ( state === 'none' ) ? 'この行の状態では適用できません' :
-    '保存して、この行にルールを即適用する';
-};
 
 // 「適用して保存」の適用先状態。確定済み・精算書由来の伝票には触れない
 // （適用ボタンを無効化して、理由をtitleで出す）
@@ -994,24 +984,51 @@ const originApplyState = (line) => {
   }
   return 'none';
 };
-const applyToOrigin = async () => {
-  if ( !originLine ) {
-    return null;
+// 「適用して保存」。クリックした行だけではなく、表示中の「同摘要の行」の
+// うち適用できる行すべてにまとめて適用する（照合済み・確定済み・精算書由来の
+// 行は触らない。適用できる行がなければボタンは押せない）
+const applyEligibleLines = () => {
+  return patternMatches.filter((line) => {
+    const state = originApplyState(line);
+    return ( state === 'book' || state === 'rebook' );
+  });
+};
+const applyButtonDisabled = (line) => {
+  // originLineは宛先ラベル用。適用の可否は同摘要行全体で判断する
+  const eligible = applyEligibleLines();
+  return ( eligible.length === 0 );
+};
+const applyButtonTitle = (line) => {
+  const eligible = applyEligibleLines();
+  if ( eligible.length === 0 ) {
+    return '適用できる行がありません（照合済み・確定済みなど）';
   }
-  const line = ( statement.lines.find((l) => ( Number(l.id) === Number(originLine.id) )) ) || originLine;
-  const state = originApplyState(line);
-  if ( state === 'book' ) {
+  return `保存して、一致する${eligible.length}行すべてにルールを即適用する（照合済み・確定済みの行は触りません）`;
+};
+const applyRule = async () => {
+  const bookIds = [];
+  const rebookIds = [];
+  for ( const line of applyEligibleLines() ) {
+    const state = originApplyState(line);
+    if ( state === 'book' ) {
+      bookIds.push(line.id);
+    } else if ( state === 'rebook' ) {
+      rebookIds.push(line.id);
+    }
+  }
+  if ( bookIds.length > 0 ) {
     await axios.post(`/api/bank_statement/${id}/book`, {
-      bookings: [ { lineId: line.id } ]
+      bookings: bookIds.map((lineId) => ({ lineId: lineId }))
     });
-  } else if ( state === 'rebook' ) {
+  }
+  if ( rebookIds.length > 0 ) {
     // 行単位の再実行（この伝票に紐づく行だけ。他の行・確定済み伝票に触れない）
     await axios.post(`/api/bank_statement/${id}/rebook`, {
-      lineId: line.id
+      lineIds: rebookIds
     });
   }
   loadDetail(id);
-  return state;
+  return bookIds.length + rebookIds.length;
 };
 const createRule = async (apply = false) => {
   try {
@@ -1026,12 +1043,12 @@ const createRule = async (apply = false) => {
     showAllRulesForm = false;
     let applied = null;
     if ( apply ) {
-      applied = await applyToOrigin();
+      applied = await applyRule();
       closeRulesModal();
     }
     const result = await axios.get('/api/bank_statement_rule');
     rules = ( result.data && result.data.values ) || [];
-    toast.show('学習ルール', ( applied !== null ) ? 'ルールを登録し、この行に適用しました' : 'ルールを登録しました');
+    toast.show('学習ルール', ( applied !== null ) ? `ルールを登録し、一致する${applied}行に適用しました` : 'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '登録に失敗しました';
@@ -1050,12 +1067,12 @@ const saveRule = async (rule, apply = false) => {
     editingRule = null;
     let applied = null;
     if ( apply ) {
-      applied = await applyToOrigin();
+      applied = await applyRule();
       closeRulesModal();
     }
     const result = await axios.get('/api/bank_statement_rule');
     rules = ( result.data && result.data.values ) || [];
-    toast.show('学習ルール', ( applied !== null ) ? 'ルールを更新し、この行に適用しました' : 'ルールを更新しました');
+    toast.show('学習ルール', ( applied !== null ) ? `ルールを更新し、一致する${applied}行に適用しました` : 'ルールを更新しました');
   } catch (e) {
     console.error('save rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '更新に失敗しました';

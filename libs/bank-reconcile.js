@@ -459,8 +459,37 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
   const profileName = statement.cardName || statement.account;
   const bookingMap = new Map(( bookings || [] ).map((b) => [ Number(b.lineId), b ]));
   const where = { statementId: statement.id };
-  if ( ( bookings || [] ).length > 0 ) {
-    where.id = { [Op.in]: bookings.map((b) => Number(b.lineId)) };
+  let targetIds = ( bookings || [] ).map((b) => Number(b.lineId));
+  if ( targetIds.length > 0 ) {
+    // 「摘要から適用」(options.includeMergeAfter): 指定行の直後に続く
+    // 合流摘要行（同じ日の手数料など）も一緒に起票の対象にする
+    // （主取引行だけ載せると、手数料が別伝票で仮起票になってしまう）
+    if ( options.includeMergeAfter ) {
+      const allLines = await models.BankStatementLine.findAll({
+        where: { statementId: statement.id },
+        order: [[ 'lineNo', 'ASC' ]]
+      });
+      for ( const targetId of [ ...targetIds ] ) {
+        const target = allLines.find((l) => ( l.id === targetId ));
+        if ( !target ) {
+          continue;
+        }
+        const index = allLines.indexOf(target);
+        for ( let i = index + 1; i < allLines.length; i ++ ) {
+          const follower = allLines[ i ];
+          if ( toDateString(follower.date || '') !== toDateString(target.date || '') ) {
+            break;
+          }
+          if ( !isMergeable(follower) || follower.status !== 'unmatched' ) {
+            break;
+          }
+          if ( !targetIds.includes(follower.id) ) {
+            targetIds.push(follower.id);
+          }
+        }
+      }
+    }
+    where.id = { [Op.in]: targetIds };
   } else {
     // bookings 未指定は全未照合（+伝票削除で迷子になった起票済み）を対象にする
     where[Op.or] = [
@@ -755,9 +784,12 @@ export const reconcilePlaceholders = async (options = {}) => {
 // 解放して現行ルールで起票し直す。承認済み（確定）伝票・精算書由来伝票・
 // 佩戴中（会計年度ロック中）の伝票は決して触らない
 export const rebookStatement = async (statement, user, options = {}) => {
-  // options.lineId: 「摘要からの適用」用。指定行だけを解放して再起票する
-  // （驚き最小。全文再実行との違い: 「後の処理」を前置で走らせない）
-  const lineIds = options.lineId ? [ Number(options.lineId) ] : null;
+  // options.lineId / options.lineIds: 「摘要から適用」用。指定行だけを
+  // 解放して再起票する（驚き最小。全文再実行との違い: 「後の処理」を
+  // 前置で走らせない）
+  const lineIds = ( options.lineIds && Array.isArray(options.lineIds) ) ?
+    options.lineIds.map(Number) :
+    ( options.lineId ? [ Number(options.lineId) ] : null );
   const where = {
     statementId: statement.id,
     crossSlipDetailId: { [Op.ne]: null },

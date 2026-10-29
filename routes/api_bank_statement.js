@@ -286,7 +286,12 @@ export default {
       return;
     }
     try {
-      const result = await reconcile.bookLines(statement, req.body.bookings || [], user);
+      // 指定行（摘要から適用や単行の起票）のときは、その直後に続く合流
+      // 予備行（手数料など）も一緒に起票する（全部解除で起票すると手数料が
+      // 仮起票に落ちるのを防ぐ）
+      const result = await reconcile.bookLines(statement, req.body.bookings || [], user, {
+        includeMergeAfter: ( req.body.bookings || [] ).length > 0
+      });
       const fresh = await getStatement(statement.id);
       res.json({
         code: 0,
@@ -321,9 +326,10 @@ export default {
     }
     try {
       // 先に仮起票の後突合を流しておく（手作業や他証憑の処理を拾う）。
-      // リーン単位の「適用」（body.lineId）では skim しない（驚き最小）
-      const lineId = req.body ? req.body.lineId : null;
-      if ( !lineId ) {
+      // 行単位の「適用」（body.lineId / body.lineIds）では流さない（驚き最小）
+      const lineIds = ( req.body && Array.isArray(req.body.lineIds) ) ? req.body.lineIds :
+        ( ( req.body && req.body.lineId ) ? [ req.body.lineId ] : null );
+      if ( !lineIds ) {
         try {
           await reconcile.reconcilePlaceholders();
         } catch (e) {
@@ -331,7 +337,7 @@ export default {
         }
       }
       const result = await reconcile.rebookStatement(statement, user,
-        lineId ? { lineId: lineId } : {});
+        lineIds ? { lineIds: lineIds } : {});
       const fresh = await getStatement(statement.id);
       res.json({
         code: 0,

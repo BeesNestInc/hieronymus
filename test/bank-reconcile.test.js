@@ -666,6 +666,58 @@ describe('bank-reconcile (test db)', () => {
     assert.isNotNull(await models.CrossSlip.findByPk(detail.crossSlipId));
   });
 
+  it('rebookStatement(lineIds): 同じ摘要の行をまとめて作り直し、別摘要の行は無傷', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-20', rawDescription: '振込＊テスト取引先', amountOut: 5100 },
+      { date: '2026-11-21', rawDescription: '振込＊テスト取引先', amountOut: 5200 },
+      { date: '2026-11-22', rawDescription: '振込＊そのほか', amountOut: 9000 }
+    ]);
+    // 1回目: 全部仮起票
+    await bookLines(statement, null, approver);
+    await reloadAll(lines);
+    const otherDetail = await models.CrossSlipDetail.findByPk(lines[2].crossSlipDetailId);
+    await learnOpposite(
+      { account: '1010010', sub: null },
+      '振込＊テスト取引先',
+      { account: '7000001', sub: null }
+    );
+    // 同じ摘要の2行だけまとめて適用
+    const result = await rebookStatement(statement, approver, { lineIds: [ lines[0].id, lines[1].id ] });
+    assert.equal(result.rebooked, 2);
+    await reloadAll(lines);
+    // 摘要一致の2行は実科目に、別摘要の行は其のまま（同じ明細に紐付いたまま）
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).debitAccount, '7000001');
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).debitAccount, '7000001');
+    assert.equal(lines[2].crossSlipDetailId, otherDetail.id);
+  });
+
+  it('bookLines(includeMergeAfter): 摘要からの適用は直後の合流行も一緒に載せる', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-25', rawDescription: '振込＊テスト取引先', amountOut: 7000 },
+      { date: '2026-11-25', rawDescription: '振込手数料', amountOut: 140 },
+      { date: '2026-11-26', rawDescription: '振込＊そのほか', amountOut: 3000 }
+    ]);
+    await learnOpposite(
+      { account: '1010010', sub: null },
+      '振込＊テスト取引先',
+      { account: '7000001', sub: null }
+    );
+    // 主取引行だけを指定して起票（includeMergeAfter: 直後の合流行もつれてくる）
+    const result = await bookLines(statement, [ { lineId: lines[0].id } ], approver, { includeMergeAfter: true });
+    assert.lengthOf(result.slips, 1);
+    await reloadAll(lines);
+    // 手数料は主取引行の伝票に合流している（別伝票の仮起票に落ちない）。
+    // 相手方はテストでは学習してないので仮入科目のまま
+    const mainDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const feeDetail = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.equal(mainDetail.crossSlipId, feeDetail.crossSlipId);
+    assert.equal(feeDetail.debitAccount, '1900000');
+    // 別日の行の担当は経由しない
+    await lines[2].reload();
+    assert.isNull(lines[2].crossSlipDetailId);
+    assert.equal(lines[2].status, 'unmatched');
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,
