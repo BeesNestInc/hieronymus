@@ -134,7 +134,7 @@
             <span class="badge {statusColor(line.status)}">{statusLabel(line.status)}</span>
             {/if}
             {:else}
-            <span class="badge {statusColor(line.status)}" title={ line.status === 'duplicate' ? 'この取込と重複する行です（別の取込で既に処理済み。二重起票はされません）' : null }>{statusLabel(line.status)}</span>
+            <span class="badge {statusColor(line.status)}">{statusLabel(line.status)}</span>
             {/if}
           </td>
           <td>
@@ -638,11 +638,11 @@ const CATEGORY_LABELS = {
 };
 const STATUS_LABELS = {
   unmatched: '未照合', matched: '照合済', booked: '起票済',
-  ignored: '対象外', selected: '精算書へ', duplicate: '重複'
+  ignored: '対象外', selected: '精算書へ'
 };
 const STATUS_COLORS = {
   unmatched: 'bg-secondary', matched: 'bg-success', booked: 'bg-primary',
-  ignored: 'bg-dark', selected: 'bg-info', duplicate: 'bg-warning'
+  ignored: 'bg-dark', selected: 'bg-info'
 };
 
 const kindLabel = (kind) => ( KIND_LABELS[ kind ] || kind );

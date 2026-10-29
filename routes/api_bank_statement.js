@@ -84,16 +84,20 @@ const statementParams = (body, user) => {
 // 明細行を保存する（uploadから使う）
 const saveLines = async (statement, parsed) => {
   // 通帳の断片重複運用（「前回から今月末」等の重複込み取込）向け。
-  // 同じ口座の既存取込行と同じ（日付+金額、残高つきなら残高）の行は
-  // 「duplicate」として取り込む（二重起票を防ぐ。行は残るので取り込み
-  // ファイルの保全と誤検出の救済ができる）
+  // 同じ口座の既存取込行と同じ（日付+金額、残高つき形式なら残高）の行は
+  // 挿入しない（1項目は1項目。重複を記録するステータスは設けない）。
+  // 予案数は取り込み結果の警告に乗せる
   const dupKeys = await reconcile.findExistingDuplicateKeys(statement);
   const lines = [];
+  let skippedDup = 0;
   for ( let i = 0; i < parsed.lines.length; i ++ ) {
     const line = parsed.lines[ i ];
     const key = reconcile.duplicateKeyFor(line);
-    const isDuplicate = dupKeys.has(key);
-    const created = await models.BankStatementLine.create({
+    if ( dupKeys.has(key) ) {
+      skippedDup ++;
+      continue;
+    }
+    lines.push(await models.BankStatementLine.create({
       statementId: statement.id,
       lineNo: i + 1,
       date: line.date || null,
@@ -107,14 +111,13 @@ const saveLines = async (statement, parsed) => {
       foreignAmount: line.foreignAmount,
       foreignCurrency: line.foreignCurrency,
       category: line.category || 'normal',
-      status: isDuplicate ? 'duplicate' : 'unmatched',
+      status: 'unmatched',
       memo: line.memo
-    });
-    lines.push(created);
+    }));
     // このファイル内の重複も拾えるように、作った行のキーを集合に足す
     dupKeys.add(key);
   }
-  return lines;
+  return { lines: lines, skippedDup: skippedDup };
 };
 
 export default {
@@ -185,8 +188,16 @@ export default {
         createdBy: user.id,
         updatedBy: user.id
       });
-      const lines = await saveLines(statement, parsed);
-      res.json({ code: 0, id: statement.id, warnings: parsed.warnings, lineCount: lines.length });
+      const saved = await saveLines(statement, parsed);
+      const warnings = [ ...( parsed.warnings || [] ) ];
+      if ( saved.skippedDup > 0 ) {
+        // 重複は挿入しない運用（1項目は1項目）。取り込めた行数だけが事実
+        warnings.push(`同口座の既存取込と重複する${saved.skippedDup}行は取り込みませんでした`);
+      }
+      await models.BankStatement.update({
+        lineCount: saved.lines.length
+      }, { where: { id: statement.id } });
+      res.json({ code: 0, id: statement.id, warnings: warnings, lineCount: saved.lines.length });
     } catch (e) {
       console.log(e);
       res.status(422).json({ code: -1, message: e.message || '取り込みに失敗しました。' });

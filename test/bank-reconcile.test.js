@@ -779,46 +779,44 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).creditAccount, '6000001');
   });
 
-  it('重複検出: 同じ口座の取込を重複ありで2回入れると、後からは重複行になる', async () => {
+  it('重複検出: 同じ口座の取込を重複ありで2回入れると、重複行は挿入しない', async () => {
     // 通帳を「期首から今」で全量入れたあと、「前回から前月末」を重複込みで
-    // 入れる運用。同じ（日付+金額+残高）の行は後発がduplicate(起票対象外)
+    // 入れる運用。同じ（日付+金額+残高）の行は挿入しない（1項目は1項目）。
+    // 取込は「重複していない行だけ」で成立する
     const keyRows = [
       { lineNo: 1, status: 'unmatched', category: 'normal', date: '2026-12-05', rawDescription: '振込＊恐る', amountOut: 5100, balance: 900000 },
       { lineNo: 2, status: 'unmatched', category: 'normal', date: '2026-12-06', rawDescription: '利息', amountIn: 100, balance: 900100 }
     ];
-    // 1本目: 全量。keyRowsに積まれたものが事実上の元部分
     const statement0 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2 });
-    const row0 = [];
     for ( const row of keyRows ) {
-      row0.push(await models.BankStatementLine.create({ statementId: statement0.id, ...row }));
+      await models.BankStatementLine.create({ statementId: statement0.id, ...row });
     }
-    // 2本目: 重複(12-05)+見できる新しい行(12-07)
+    // 2本目取込: 重複(12-05)+新しい行(12-07)。重複は挿入しない
     const statement1 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2 });
-    const newKeys = await findExistingDuplicateKeys(statement1);
+    const keys = await findExistingDuplicateKeys(statement1);
     const insertDefs = [
       { lineNo: 1, category: 'normal', date: '2026-12-05', rawDescription: '振込＊恐る', amountOut: 5100, balance: 900000 },
       { lineNo: 2, category: 'normal', date: '2026-12-07', rawDescription: '振込＊新しい', amountOut: 9100, balance: 891000 }
     ];
-    const inserted = [];
     for ( const def of insertDefs ) {
       const key = duplicateKeyFor(def);
-      const created = await models.BankStatementLine.create({
+      if ( isDuplicateLine(key, keys) ) {
+        continue; // 重複 = 挿入しない（skippedDup++ に相当）
+      }
+      keys.add(key);
+      await models.BankStatementLine.create({
         statementId: statement1.id,
-        status: isDuplicateLine(key, newKeys) ? 'duplicate' : 'unmatched',
+        status: 'unmatched',
         ...def
       });
-      newKeys.add(key);
-      inserted.push(created);
     }
-        await inserted[0].reload();
-    assert.equal(inserted[0].status, 'duplicate');
-    assert.equal(inserted[1].status, 'unmatched');
-    // 重複行は一括起票の対象にならない（bookLinesの対象行はunmatched等のみ）
-    const result = await bookLines(statement1, null, approver);
-    assert.lengthOf(result.bookedIds, 1);
-        await inserted[0].reload();
-    assert.equal(inserted[0].status, 'duplicate');
-    assert.isNull(inserted[0].crossSlipDetailId);
+    const rows = await models.BankStatementLine.findAll({ where: { statementId: statement1.id } });
+    // 12-05は挿入されていない。12-07だけ挿入される
+    assert.lengthOf(rows, 1);
+    assert.equal(rows[0].date, '2026-12-07');
+    // 一本目の行がまるごと生きている（重複分だけを差し引く）
+    const rows0 = await models.BankStatementLine.findAll({ where: { statementId: statement0.id } });
+    assert.lengthOf(rows0, 2);
   });
 
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
