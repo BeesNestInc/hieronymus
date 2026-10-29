@@ -37,6 +37,8 @@ export default (sequelize, DataTypes) => {
 		// 取込時の警告（残高整合・重複スキップ等。JSON配列で保存。
 		// 取込の最新の物で差し替える）
 		warnings: DataTypes.TEXT,
+		// 通帳のメモ（取り込の来歴はnoteに書くので、こちらは入力用メモ）
+		memo: DataTypes.TEXT,
 		periodFrom: DataTypes.DATEONLY,
 		periodTo: DataTypes.DATEONLY,
 		lineCount: DataTypes.INTEGER,

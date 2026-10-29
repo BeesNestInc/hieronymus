@@ -30,6 +30,9 @@
     　カード: {statement.cardName}
     {/if}
   </div>
+  {#if ( statement.note )}
+  <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
+  {/if}
   {#if ( warnings && warnings.length > 0 )}
   <div class="alert alert-warning py-1 px-2">
     {#each warnings as w}<div>{w}</div>{/each}
@@ -52,9 +55,11 @@
       <option value={sub.code}>{sub.name}</option>
       {/each}
     </select>
-    <button type="button" class="btn btn-sm btn-outline-primary" title="この明細の起票に使う銀行口座（勘定科目）を保存します"
+    <input type="text" class="form-control form-control-sm me-1" style="width:auto;flex:1;"
+      placeholder="メモ（この通帳についての書き込み）" bind:value={statement.memo}>
+   <button type="button" class="btn btn-sm btn-outline-primary" title="この明細の起票に使う銀行口座（勘定科目）とメモを保存します"
       on:click={saveAccount}>
-      口座を設定
+      口座・メモを設定
     </button>
   </div>
   {/if}
@@ -194,10 +199,17 @@
         <tr>
           <td>{kindLabel(statement.kind)}</td>
           <td>
+            {#if ( statement.synthetic )}
+            <a class="btn btn-link p-0 text-muted"
+              title="この通帳にはまだ取り込みがありません。クリックで取り込めます"
+              href="#" on:click|preventDefault={() => { openModal({ kind: 'bank', account: statement.account, subAccount: statement.subAccount }); }}>
+              {accountLabel(statement.account, statement.subAccount)}
+            </a>
+            <span class="badge bg-secondary ms-1">未取込</span>
+            {:else}
             <a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}
               on:click|preventDefault={() => { routerLink(`/bank-statement/${statement.id}`); }}>
               {#if ( statement.kind === 'bank' && statement.account )}
-              
               {accountLabel(statement.account, statement.subAccount)}
               {:else}
               {statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}
@@ -206,12 +218,20 @@
             {#if ( statement.kind === 'bank' && statement.account )}
             <div class="text-muted" style="font-size:0.75rem;">最新取込: {statement.fileName}</div>
             {/if}
+            {/if}
           </td>
-          <td>{statement.periodFrom || '?'}〜{statement.periodTo || '?'}</td>
-          <td class="number">{statement.lineCount}</td>
+          <td>{statement.periodFrom || ( statement.synthetic ? '—' : '?' )}〜{statement.periodTo || ( statement.synthetic ? '—' : '?' )}</td>
+          <td class="number">{statement.synthetic ? '—' : statement.lineCount}</td>
           <td>
+            {#if ( statement.synthetic )}
+            <button type="button" class="btn btn-sm btn-outline-primary" title="取り込む"
+              on:click={() => { openModal({ kind: 'bank', account: statement.account, subAccount: statement.subAccount }); }}>
+              <i class="bi bi-upload"></i>
+            </button>
+            {:else}
             <button type="button" class="btn btn-sm btn-outline-danger" title="削除"
               on:click={() => { deleteStatement(statement); }}><i class="bi bi-trash"></i></button>
+            {/if}
           </td>
         </tr>
         {/each}
@@ -225,7 +245,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">明細の取り込み</h5>
+        <h5 class="modal-title">{uploadModalTitle}</h5>
         <button type="button" class="btn-close" on:click={closeModal}></button>
       </div>
       <div class="modal-body">
@@ -808,12 +828,20 @@ onMount(async () => {
 $: checkPage($currentPage);
 
 // モーダルはBootstrapのModalで制御する（開閉時に状態を戻す）
-const openModal = () => {
+const openModal = (prefill = {}) => {
   preview = null;
   formError = '';
-  form = { kind: 'bank' };
+  form = {
+    kind: prefill.kind || 'bank',
+    account: prefill.account || '',
+    subAccount: prefill.subAccount || '',
+    cardName: prefill.cardName || ''
+  };
   modal?.show();
 };
+// 取込モーダルのタイトル。口座が決まっているときは「この通帳に」が分かるように
+$: uploadModalTitle = ( ( form.kind === 'bank' ) && form.account ) ?
+  `この通帳に取り込む（${accountLabel(form.account, form.subAccount)}）` : '明細の取り込み';
 const closeModal = () => {
   preview = null;
   formError = '';
@@ -1307,9 +1335,10 @@ const saveAccount = async () => {
   try {
     await axios.put(`/api/bank_statement/${id}`, {
       account: statement.account,
-      subAccount: statement.subAccount
+      subAccount: statement.subAccount,
+      memo: ( statement.memo === undefined ) ? null : statement.memo
     });
-    toast.show('明細取込', '口座を設定しました');
+    toast.show('明細取込', '口座・メモを設定しました');
   } catch (e) {
     const message = ( e.response && e.response.data && e.response.data.message ) || '口座の設定に失敗しました';
     toast.show('明細取込', message, 'warning');

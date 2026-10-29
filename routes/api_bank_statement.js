@@ -296,13 +296,50 @@ export default {
   // 一覧（ファイル本体は除く）。非会計ユーザーは自分の個人カード明細のみ
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
-    const where = visibleFilter(req.session.user) || {};
+    const user = req.session.user;
+    const where = visibleFilter(user) || {};
     const statements = await models.BankStatement.findAll({
       where: where,
       attributes: { exclude: [ 'fileBody' ] },
       order: [[ 'id', 'DESC' ]]
     });
-    res.json({ code: 0, values: statements });
+    // 口座の取り込み忘れを防ぐ: 銀行系の全ての口座（科目+補助）について
+    // 取込のないものは「未取込」の合成行も返す（各口座には必ず通帳の行が
+    // 存在することになる。取り込むまでの間は行数/期間がunknownで見える）
+    const values = [ ...statements ];
+    if ( canSeeAll(user) ) {
+      const usedKeys = new Set(statements
+        .filter((s) => ( s.kind === 'bank' && s.account ))
+        .map((s) => ( `${s.account}|${s.subAccount || ''}` )));
+      const banks = await models.Account.findAll({
+        where: { accountCode: { [Op.like]: '101%' } },
+        include: [{ model: models.SubAccount, as: 'subAccounts' }],
+        order: [[ 'accountCode', 'ASC' ]]
+      });
+      for ( const bank of banks ) {
+        const variants = [
+          { subAccount: null, label: '' },
+          ...bank.subAccounts.map((sub) => ({ subAccount: sub.subAccountCode, label: String(sub.subAccountCode) }))
+        ];
+        for ( const variant of variants ) {
+          const key = `${bank.accountCode}|${variant.subAccount || ''}`;
+          if ( usedKeys.has(key) ) {
+            continue;
+          }
+          values.push({
+            synthetic: true,
+            kind: 'bank',
+            account: bank.accountCode,
+            subAccount: variant.subAccount,
+            fileName: null,
+            periodFrom: null,
+            periodTo: null,
+            lineCount: null
+          });
+        }
+      }
+    }
+    res.json({ code: 0, values: values });
   },
 
   // 単一取得（明細行と照合結果付き）
@@ -505,6 +542,10 @@ export default {
     }
     statement.account = req.body.account || null;
     statement.subAccount = req.body.subAccount ? parseInt(req.body.subAccount) : null;
+    // 通帳のメモ（取り込の来歴はnoteに積まれるので、こちらは入力用メモ）
+    if ( req.body.memo !== undefined ) {
+      statement.memo = ( req.body.memo === null ) ? null : String(req.body.memo);
+    }
     statement.updatedBy = req.session.user.id;
     await statement.save();
     res.json({ code: 0 });
