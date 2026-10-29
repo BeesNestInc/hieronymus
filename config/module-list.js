@@ -46,6 +46,20 @@ export default [
 基本的には元帳画面と同じですが、預金通帳を模した表示となっています。<br/>
 主には会計データと預金通帳の整合を確認するためのものです。`
   }, {
+    name: 'bank-statement',
+    title: '明細取込',
+    match: /^\/bank-statement/,
+    href: (status) => {
+      return	(`/bank-statement`);
+    },
+    authority: (user) => {
+      return ( user.accounting || user.fiscalBrowsing );
+    },
+    icon: { name: 'bi:cash-stack' },
+    description: `
+銀行通帳明細やカード利用明細を取り込みます。<br/>
+既存仕訳と突合し、学習ルールに従って仕訳伝票を起票します（合わないものは仮入科目で起票され、実科目の伝票入力後に自動で差し替わります）。`
+  }, {
     name: 'trial-balance',
     title: '残高試算表',
     match: /^\/trial-balance/,
