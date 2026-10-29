@@ -183,7 +183,7 @@
       <thead class="table-light">
         <tr>
           <th style="width:110px;">種別</th>
-          <th>ファイル / 対象</th>
+          <th>通帳 / ファイル</th>
           <th style="width:220px;">期間</th>
           <th class="number" style="width:90px;">行数</th>
           <th style="width:60px;"></th>
@@ -193,8 +193,20 @@
         {#each statements as statement}
         <tr>
           <td>{kindLabel(statement.kind)}</td>
-          <td><a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}
-            on:click|preventDefault={() => { routerLink(`/bank-statement/${statement.id}`); }}>{statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}</a></td>
+          <td>
+            <a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}
+              on:click|preventDefault={() => { routerLink(`/bank-statement/${statement.id}`); }}>
+              {#if ( statement.kind === 'bank' && statement.account )}
+              
+              {accountLabel(statement.account, statement.subAccount)}
+              {:else}
+              {statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}
+              {/if}
+            </a>
+            {#if ( statement.kind === 'bank' && statement.account )}
+            <div class="text-muted" style="font-size:0.75rem;">最新取込: {statement.fileName}</div>
+            {/if}
+          </td>
           <td>{statement.periodFrom || '?'}〜{statement.periodTo || '?'}</td>
           <td class="number">{statement.lineCount}</td>
           <td>
