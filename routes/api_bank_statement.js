@@ -82,12 +82,61 @@ const statementParams = (body, user) => {
 };
 
 // 明細行を保存する（uploadから使う）
-const saveLines = async (statement, parsed) => {
-  // 通帳の断片重複運用（「前回から今月末」等の重複込み取込）向け。
+// 同じ口座の既存取込への追加。重複行は挿入せず、期間・行数・ファイル本体を
+// 更新する（取込は「通帳」の集積。ファイル本体は最新の物を基準にする。
+// 取込の来歴はnoteに積んで残す）。追加がゼロ行でも取込自体は生きる
+// （同じファイルの再投入=「何も変わらない」で正しい）
+const attachToStatement = async (existing, parsed, upload, user, params) => {
+  const saved = await saveLines(existing, parsed);
+  // 期間は取込全体の包絡を取る（「前回から今月末」の重複断片でも正しくなる）
+  const periodFrom = [ existing.periodFrom, parsed.periodFrom ]
+    .filter(Boolean).map(String).sort()[ 0 ] || null;
+  const periodTo = [ existing.periodTo, parsed.periodTo ]
+    .filter(Boolean).map(String).sort().slice(-1)[ 0 ] || null;
+  const appended = saved.lines.length;
+  const skippedDup = saved.skippedDup;
+  const note = [
+    existing.note,
+    `追加取込 ${upload.fileName}: +${appended}行${( skippedDup > 0 ) ? `、重複${skippedDup}行は除く` : ''}（${new Date().toLocaleDateString('ja-JP')}）`
+  ].filter(Boolean).join('\n');
+  await existing.update({
+    fileName: upload.fileName,
+    mimeType: upload.mimeType,
+    fileBody: upload.buffer,
+    periodFrom: periodFrom,
+    periodTo: periodTo,
+    lineCount: saved.lines.length,
+    note: note,
+    profileName: parsed.profileName || existing.profileName,
+    updatedBy: user.id
+  });
+  const warnings = [ ...( parsed.warnings || [] ) ];
+  if ( appended === 0 ) {
+    warnings.push('新しい行はありませんでした（既に取り込み済みの取込です）。');
+  } else {
+    warnings.unshift(`既存の取込（${existing.id}）に${appended}行を追加しました。`);
+  }
+  if ( skippedDup > 0 ) {
+    warnings.push(`重複する${skippedDup}行は取り込みませんでした`);
+  }
+  const fresh = await getStatement(existing.id);
+  res.json({
+    code: 0,
+    id: existing.id,
+    lineCount: fresh.lineCount,
+    warnings: warnings
+  });
+};
+
+const saveLines = async (statement, parsed) => {  // 通帳の断片重複運用（「前回から今月末」等の重複込み取込）向け。
   // 同じ口座の既存取込行と同じ（日付+金額、残高つき形式なら残高）の行は
   // 挿入しない（1項目は1項目。重複を記録するステータスは設けない）。
   // 予案数は取り込み結果の警告に乗せる
   const dupKeys = await reconcile.findExistingDuplicateKeys(statement);
+  // 追加取込（既存取込へのattach）では lineNo を既存の続きから振る
+  const baseLineNo = await models.BankStatementLine.max('lineNo', {
+    where: { statementId: statement.id }
+  }) || 0;
   const lines = [];
   let skippedDup = 0;
   for ( let i = 0; i < parsed.lines.length; i ++ ) {
@@ -99,7 +148,7 @@ const saveLines = async (statement, parsed) => {
     }
     lines.push(await models.BankStatementLine.create({
       statementId: statement.id,
-      lineNo: i + 1,
+      lineNo: baseLineNo + i + 1,
       date: line.date || null,
       rawDescription: line.rawDescription || null,
       description: line.description || line.rawDescription || line.merchant || null,
@@ -156,7 +205,11 @@ export default {
     }
   },
 
-  // 明細の取り込み（DBに登録する）
+  // 明細の取り込み（DBに登録する）。銀行口座ごとの取込は「通帳」の集積と
+  // みなす: 同じ口座（勘定科目+補助）への取込は既存の最新の取込に追加し、
+  // 重複する行は挿入しない（「前回から前月末」の重複あterm断片も安全）。
+  // 口座が未指定（取込から口座を後で設定する運用）やカード系は従来どおり
+  // ファイル単位で独立した取込になる
   upload: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
@@ -173,6 +226,20 @@ export default {
     }
     try {
       const parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      // 同じ口座の既存取込があればそこに追加する（カード系は対象外:
+      // 1つのファイルが1つの支払総額/支払日を表すため）
+      const existing = ( !isPersonal && params.account && ( parsed.kind === 'bank' ) ) ?
+        await models.BankStatement.findOne({
+          where: {
+            kind: 'bank',
+            account: params.account,
+            subAccount: ( params.subAccount || null )
+          },
+          order: [[ 'id', 'DESC' ]]
+        }) : null;
+      if ( existing ) {
+        return await attachToStatement(existing, parsed, upload, user, params);
+      }
       const statement = await models.BankStatement.create({
         ...params,
         kind: isPersonal ? 'personal_card' : parsed.kind,
