@@ -317,10 +317,12 @@ export default {
         order: [[ 'accountCode', 'ASC' ]]
       });
       for ( const bank of banks ) {
-        const variants = [
-          { subAccount: null, label: '' },
-          ...bank.subAccounts.map((sub) => ({ subAccount: sub.subAccountCode, label: String(sub.subAccountCode) }))
-        ];
+        // 補助科目ごとに通帳の行を作る。補助を持たない銀行科目のときだけ
+        // 取通帳（補助なし）を1行にする（補助ありなのに「補助なし」の行が
+        // 落ちる、という未取り込み漏れを避けるため）
+        const variants = ( bank.subAccounts && bank.subAccounts.length > 0 ) ?
+          bank.subAccounts.map((sub) => ({ subAccount: sub.subAccountCode })) :
+          [ { subAccount: null } ];
         for ( const variant of variants ) {
           const key = `${bank.accountCode}|${variant.subAccount || ''}`;
           if ( usedKeys.has(key) ) {
