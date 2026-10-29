@@ -317,14 +317,11 @@ export default {
         order: [[ 'accountCode', 'ASC' ]]
       });
       for ( const bank of banks ) {
-        // 補助科目ごとに通帳の行を作る。補助を持たない銀行科目のときだけ
-        // 取通帳（補助なし）を1行にする（補助ありなのに「補助なし」の行が
-        // 落ちる、という未取り込み漏れを避けるため）
-        const variants = ( bank.subAccounts && bank.subAccounts.length > 0 ) ?
-          bank.subAccounts.map((sub) => ({ subAccount: sub.subAccountCode })) :
-          [ { subAccount: null } ];
-        for ( const variant of variants ) {
-          const key = `${bank.accountCode}|${variant.subAccount || ''}`;
+        // 通帳の行は補助科目（各銀行口座）単位のみ。補助のない銀行科目は
+        // そもそも通帳にならない（実務は「補助科目を先に作る」から始まる。
+        // 口座運用の実体がない科目にplaceholderを置くと空の通帳が並ぶだけ）
+        for ( const sub of bank.subAccounts ) {
+          const key = `${bank.accountCode}|${sub.subAccountCode}`;
           if ( usedKeys.has(key) ) {
             continue;
           }
@@ -332,7 +329,7 @@ export default {
             synthetic: true,
             kind: 'bank',
             account: bank.accountCode,
-            subAccount: variant.subAccount,
+            subAccount: sub.subAccountCode,
             fileName: null,
             periodFrom: null,
             periodTo: null,
