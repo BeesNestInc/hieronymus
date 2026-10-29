@@ -310,7 +310,9 @@ const STATEMENT_PROMPT = [
   'dateは西暦YYYY-MM-DD。「令和N」「R N」などの和暦は 西暦YYYY-MM-DD に換算して出す（令和N年=2018+N）。',
   '通帳に年が書かれていない場合は文脈から推測し、不明なら null。',
   'amountOutはお支払（出金）、amountInはお預り（入金）。該当しない側は null。',
-  'balanceは差引残高（なければ null）。descriptionは摘要欄の表記をそのまま。',
+  '通帳の種類によっては、お支払/お預りの金額欄に、金額のあとに振込先・振込元の名前が続けて印字されることがある。名前は必ず数値でない文字列として扱い、descriptionの末尾に空白区切りで付け加える（金額欄に数値と名前が並ぶ行では、金額は数値、名前はdescriptionへ）',
+  'amountOut/amountInは必ず数値。名前は金額に含めない。金額欄に数値がない場合、その側は null。',
+  'balanceは差引残高（なければ null）。descriptionは摘要欄の表記をそのまま。名前を付け加えた場合は「摘要 名前」の順に空白区切りで。',
   'categoryは normal / interest(利息) / fee(手数料) / transfer(振込・振替) / tax(税・国税) のいずれか。',
   'memoにメモ欄や追記があればそのまま入れる。不明項目は null。JSON以外の出力はしないこと。'
 ].join('\n');
