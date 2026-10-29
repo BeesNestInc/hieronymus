@@ -369,34 +369,20 @@
           <tbody>
             <tr style="background-color:rgba(13,110,253,0.05);">
               <td>
-                <select class="form-select form-select-sm" bind:value={newRule.account}>
-                  <option value="">科目</option>
-                  {#each accounts as account}
-                  <option value={account.code}>{account.code} {account.name}</option>
-                  {/each}
-                </select>
-                <select class="form-select form-select-sm" bind:value={newRule.subAccount}>
-                  <option value="">補助</option>
-                  {#each ( ( accounts.find((a) => ( a.code === newRule.account )) || {} ).subAccounts || [] ) as sub}
-                  <option value={sub.code}>{sub.name}</option>
-                  {/each}
-                </select>
+                {#key 'new-rule-account' + ruleModalKey}
+                <Account accounts={bankAccounts}
+                  bind:code={newRule.account}
+                  bind:sub_code={newRule.subAccount}></Account>
+                {/key}
               </td>
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
               <td>
-                <select class="form-select form-select-sm" bind:value={newRule.oppositeAccount}>
-                  <option value="">科目</option>
-                  {#each oppositeAccounts as account}
-                  <option value={account.code}>{account.code} {account.name}</option>
-                  {/each}
-                </select>
-                <select class="form-select form-select-sm" bind:value={newRule.oppositeSubAccount}>
-                  <option value="">補助</option>
-                  {#each ( ( oppositeAccounts.find((a) => ( a.code === newRule.oppositeAccount )) || {} ).subAccounts || [] ) as sub}
-                  <option value={sub.code}>{sub.name}</option>
-                  {/each}
-                </select>
+                {#key 'new-rule-opposite' + ruleModalKey}
+                <Account accounts={oppositeAccounts}
+                  bind:code={newRule.oppositeAccount}
+                  bind:sub_code={newRule.oppositeSubAccount}></Account>
+                {/key}
               </td>
               <td class="text-center">-</td>
               <td class="text-center">
@@ -413,17 +399,11 @@
             <tr class:rule-edit-row={ editingRule && editingRule.id === rule.id }>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
-                <select class="form-select form-select-sm" bind:value={editingRule.account}>
-                  {#each accounts as account}
-                  <option value={account.code}>{account.code} {account.name}</option>
-                  {/each}
-                </select>
-                <select class="form-select form-select-sm" bind:value={editingRule.subAccount}>
-                  <option value="">補助なし</option>
-                  {#each ( ( accounts.find((a) => ( a.code === editingRule.account )) || {} ).subAccounts || [] ) as sub}
-                  <option value={sub.code}>{sub.name}</option>
-                  {/each}
-                </select>
+                {#key 'edit-rule-' + rule.id}
+                <Account accounts={bankAccounts}
+                  bind:code={editingRule.account}
+                  bind:sub_code={editingRule.subAccount}></Account>
+                {/key}
                 {:else}
                 {ruleAccountLabel(rule)}
                 {/if}
@@ -437,18 +417,11 @@
               </td>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
-                <select class="form-select form-select-sm" bind:value={editingRule.oppositeAccount}>
-                  <option value="">科目</option>
-                  {#each oppositeAccounts as account}
-                  <option value={account.code}>{account.code} {account.name}</option>
-                  {/each}
-                </select>
-                <select class="form-select form-select-sm" bind:value={editingRule.oppositeSubAccount}>
-                  <option value="">補助なし</option>
-                  {#each ( ( oppositeAccounts.find((a) => ( a.code === editingRule.oppositeAccount )) || {} ).subAccounts || [] ) as sub}
-                  <option value={sub.code}>{sub.name}</option>
-                  {/each}
-                </select>
+                {#key 'edit-rule-opposite-' + rule.id}
+                <Account accounts={oppositeAccounts}
+                  bind:code={editingRule.oppositeAccount}
+                  bind:sub_code={editingRule.oppositeSubAccount}></Account>
+                {/key}
                 {:else}
                 {ruleOppositeLabel(rule)}
                 {/if}
@@ -565,6 +538,7 @@ import {onMount, tick} from 'svelte';
 import Modal from 'bootstrap/js/dist/modal';
 import {setAccounts} from '../../javascripts/cross-slip';
 import {currentPage, link as routerLink} from '../../javascripts/router.js';
+import Account from '../cross-slip/account.svelte';
 
 export let status;
 export let toast;
@@ -584,6 +558,9 @@ let busy = false;
 let form = {};
 // 学習ルール
 let rulesModalEl;
+// 検索式科目入力(Accountコンポーネント)をモーダルを開くたびに
+// プリセット値で初期化し直すためのキー
+let ruleModalKey = 0;
 let rulesModal;
 let rules = [];
 let editingRule = null;
@@ -938,6 +915,7 @@ const openRulesModal = async (line = null) => {
   originLine = line;
   editingRule = null;
   showAllRulesForm = false;
+  ruleModalKey += 1;
   const pattern = line ? normPattern(line.rawDescription) : '';
   // 口座は勘定科目だけでなく補助（住信SBIなど）まで引き継ぐ
   newRule = {
