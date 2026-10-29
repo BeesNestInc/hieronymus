@@ -119,13 +119,18 @@ const attachToStatement = async (existing, parsed, upload, user, params, res) =>
     existing.note,
     `追加取込 ${upload.fileName}: +${appended}行${( skippedDup > 0 ) ? `、重複${skippedDup}行は除く` : ''}（${new Date().toLocaleDateString('ja-JP')}）`
   ].filter(Boolean).join('\n');
+  // 行数は「この取込の実行数」増える度に数え直す（saved.linesは
+  // 「今回追加した行」なので重複込み取込の結果実行を壊してしまう）
+  const totalLines = await models.BankStatementLine.count({
+    where: { statementId: existing.id }
+  });
   await existing.update({
     fileName: upload.fileName,
     mimeType: upload.mimeType,
     fileBody: upload.buffer,
     periodFrom: periodFrom,
     periodTo: periodTo,
-    lineCount: saved.lines.length,
+    lineCount: totalLines,
     note: note,
     profileName: parsed.profileName || existing.profileName,
     warnings: JSON.stringify(warnings),
