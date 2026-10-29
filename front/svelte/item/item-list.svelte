@@ -6,7 +6,7 @@
     }}
     id="item-info">品目入力&nbsp;<i class="bi bi-pencil-square"></i></button>
 </div>
-<div class="full-height-1 fontsize-12pt">
+<div class="full-height-1 fontsize-12pt scroll-table">
   <table class="table table-bordered">
     <thead class="table-light">
       <tr>

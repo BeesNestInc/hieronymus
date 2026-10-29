@@ -54,7 +54,7 @@
       {/if}
     </li>
   </ul>
-  <div class="full-height-2 fontsize-12pt">
+  <div class="full-height-2 fontsize-12pt scroll-table">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>

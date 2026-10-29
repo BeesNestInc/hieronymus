@@ -30,7 +30,7 @@
 
   {#if summaryBody.length > 0}
     <Line data={chartData} options={{}}/>
-    <div class="summary-list-container">
+    <div class="summary-list-container scroll-table">
       <ProjectSummaryList header={summaryHeader} body={summaryBody} />
     </div>
   {:else}

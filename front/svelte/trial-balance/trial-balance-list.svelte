@@ -1,4 +1,4 @@
-<div class="full-height-2">
+<div class="full-height-2 scroll-table">
   <table class="table table-bordered">
     <thead class="table-light">
       <tr>

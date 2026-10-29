@@ -1,3 +1,4 @@
+@charset "UTF-8";
 :root {
   --bs-body-bg: #f4f4f4;
   --bs-body-color: #333;
@@ -93,6 +94,28 @@ body {
 .change-list {
   height: calc(100vh - 960px);
   overflow-y: auto;
+}
+
+/* 「表だけスクロール+ヘッダ行固定」のページの型。
+   ページ直下のコンテナに .flex-shell（高さはfull-height-Nを併用）、
+   表をくるむdivに .scroll-table を置く */
+.flex-shell {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.flex-shell .scroll-table,
+.scroll-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.scroll-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .btn-link {

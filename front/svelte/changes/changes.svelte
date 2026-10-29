@@ -72,7 +72,7 @@
 </div>
 <Line data={chartData} options={{}}/>
 {/if}
-<div class="change-list">
+<div class="change-list scroll-table">
   <ChangesList
     lines={lines}/>
 </div>

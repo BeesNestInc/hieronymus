@@ -1,4 +1,4 @@
-<div class="full-height-3">
+<div class="full-height-3 scroll-table">
   <table class="table table-bordered journal">
     <thead class="table-light">
       <tr>

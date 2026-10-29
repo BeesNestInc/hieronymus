@@ -8,7 +8,7 @@
         </li>
       </ul>
     </div>
-	  <div class="row full-height" style="overflow-y: scroll;">
+	  <div class="row full-height scroll-table">
 		  <table class="table table-bordered">
         <thead class="table-light">
           <th colspan="2">

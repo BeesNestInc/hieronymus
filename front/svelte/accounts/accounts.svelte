@@ -1,7 +1,7 @@
 <div class="page-title d-flex justify-content-between">
   <h1>科目管理</h1>
 </div>
-<div class="full-height-1 fontsize-12pt">
+<div class="full-height-1 fontsize-12pt scroll-table">
   <AccountsList
     status={status}
     lines={lines}

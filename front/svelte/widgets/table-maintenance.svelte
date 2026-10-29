@@ -1,5 +1,5 @@
 <div class="menu">
-  <div class="body">
+  <div class="body scroll-table">
     <SpreadSheet
       bind:this={spreadsheet}
       columns={columns}

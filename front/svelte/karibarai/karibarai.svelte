@@ -12,7 +12,7 @@
     </ul>
   </div>
   {/if}
-  <div class="full-height-2 fontsize-12pt">
+  <div class="full-height-2 fontsize-12pt scroll-table">
     <div class="container-fluid">
       <h2 class="fs-5">仮払金の残高（立替者別・承認待ち含む）</h2>
       <div class="col-8">

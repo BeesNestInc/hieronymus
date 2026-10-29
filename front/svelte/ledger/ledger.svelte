@@ -65,7 +65,7 @@
     </div>
   </div>
 {/if}
-<div class="full-height-4" style="overflow-y: auto;">
+<div class="full-height-4 scroll-table">
 	<LedgerList
   	account={account}
   	pickup={pickup}

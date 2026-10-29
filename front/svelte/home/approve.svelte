@@ -12,7 +12,7 @@
         </li>
       </ul>
     </div>
-	  <div class="row full-height" style="overflow-y: scroll;">
+	  <div class="row full-height scroll-table">
 		  <table class="table table-bordered">
         <thead class="table-light">
           <th colspan="2">
@@ -75,7 +75,7 @@
     <h3 class="card-title">経費精算の承認待ち</h3>
   </div>
   <div class="card-body">
-    <div class="row full-height" style="overflow-y: scroll;">
+    <div class="row full-height scroll-table">
 		  <table class="table table-bordered">
         <thead class="table-light">
           <th>

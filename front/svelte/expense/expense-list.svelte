@@ -8,7 +8,7 @@
 	  id="expense-entry">精算書入力&nbsp;<i class="bi bi-pencil-square"></i>
     </button>
   </div>
-  <div class="full-height-2 fontsize-12pt">
+  <div class="full-height-2 fontsize-12pt scroll-table">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>
