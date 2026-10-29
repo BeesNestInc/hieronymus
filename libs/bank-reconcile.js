@@ -27,6 +27,53 @@ export const isTempAccount = (account) => (
   ( account === TEMP_ACCOUNTS.OUT ) || ( account === TEMP_ACCOUNTS.IN )
 );
 
+// 重複取込の検出（通帳の断片重複運用向け）。
+// 「期首から現在」「前回から月末」のように重複ありで複数回取り込む運用では、
+// 同じトランザクションが複数の取込に分岐して載る。何もしないと二重起票に
+// なるため、通帳は「残高」が行の識別子として一意であることを利用して
+// 同一トランザクションを検出する（残高カラムのない形式は正規化摘要で代替）。
+// 検出された行は「duplicate」として起票の対象から外す（行は挿入しておく。
+// 取込ファイルを保全し、誤検出のときに手で戻せるようにするため）。
+export const duplicateKeyFor = (line) => {
+  const norm = normalizeText(line.rawDescription || line.description || '');
+  const balance = ( line.balance !== undefined && line.balance !== null ) ? String(line.balance) : null;
+  // nullとundefinedを纏めて空にする（生のSELECTとmodelのcreateで来方が違う）
+  const amountOut = ( line.amountOut !== undefined && line.amountOut !== null ) ? String(line.amountOut) : '';
+  const amountIn = ( line.amountIn !== undefined && line.amountIn !== null ) ? String(line.amountIn) : '';
+  if ( balance ) {
+    return `${line.date}|${amountOut}|${amountIn}|B${balance}`;
+  }
+  return `${line.date}|${amountOut}|${amountIn}|N${norm}`;
+};
+
+export const findExistingDuplicateKeys = async (statement) => {
+  // 同じ口座（勘定科目+補助）の取込行が保有するキーの集合。
+  // 同じ口座の残高と（直前で構築されたセット内）の行は重複定義に使える
+  if ( statement.kind !== 'bank' || !statement.account ) {
+    return new Set();
+  }
+  const statements = await models.BankStatement.findAll({
+    where: {
+      kind: 'bank',
+      account: statement.account,
+      subAccount: ( statement.subAccount || null )
+    },
+    attributes: [ 'id' ],
+    raw: true
+  });
+  const ids = statements.map((s) => s.id);
+  const rows = await models.BankStatementLine.findAll({
+    where: { statementId: { [Op.in]: ids } },
+    raw: true
+  });
+  const keys = new Set();
+  for ( const row of rows ) {
+    keys.add(duplicateKeyFor(row));
+  }
+  return keys;
+};
+export const isDuplicateLine = (key, keySet) => keySet.has(key);
+
 // 「前の行（同じ日）の伝票に合流させる」摘要は config/banks/merge-rules.yaml
 // （明細取込画面の「合流摘要」で加除できる。口座共通のお約束）で定義する
 const isMergeable = (line) => {

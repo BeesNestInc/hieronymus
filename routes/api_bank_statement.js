@@ -83,10 +83,17 @@ const statementParams = (body, user) => {
 
 // 明細行を保存する（uploadから使う）
 const saveLines = async (statement, parsed) => {
+  // 通帳の断片重複運用（「前回から今月末」等の重複込み取込）向け。
+  // 同じ口座の既存取込行と同じ（日付+金額、残高つきなら残高）の行は
+  // 「duplicate」として取り込む（二重起票を防ぐ。行は残るので取り込み
+  // ファイルの保全と誤検出の救済ができる）
+  const dupKeys = await reconcile.findExistingDuplicateKeys(statement);
   const lines = [];
   for ( let i = 0; i < parsed.lines.length; i ++ ) {
     const line = parsed.lines[ i ];
-    lines.push(await models.BankStatementLine.create({
+    const key = reconcile.duplicateKeyFor(line);
+    const isDuplicate = dupKeys.has(key);
+    const created = await models.BankStatementLine.create({
       statementId: statement.id,
       lineNo: i + 1,
       date: line.date || null,
@@ -100,9 +107,12 @@ const saveLines = async (statement, parsed) => {
       foreignAmount: line.foreignAmount,
       foreignCurrency: line.foreignCurrency,
       category: line.category || 'normal',
-      status: 'unmatched',
+      status: isDuplicate ? 'duplicate' : 'unmatched',
       memo: line.memo
-    }));
+    });
+    lines.push(created);
+    // このファイル内の重複も拾えるように、作った行のキーを集合に足す
+    dupKeys.add(key);
   }
   return lines;
 };
