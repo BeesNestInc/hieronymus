@@ -307,7 +307,8 @@ const STATEMENT_PROMPT = [
   'この通帳・明細画像から入出金の明細行をすべて読み取り、',
   '以下のJSON形式（配列）で出力してください:',
   '[{"date":"YYYY-MM-DD","description":"摘要","amountOut":数値,"amountIn":数値,"balance":数値,"category":"...","memo":"..."}]',
-  'dateは西暦YYYY-MM-DD。通帳に年が書かれていない場合は文脈から推測し、不明なら null。',
+  'dateは西暦YYYY-MM-DD。「令和N」「R N」などの和暦は 西暦YYYY-MM-DD に換算して出す（令和N年=2018+N）。',
+  '通帳に年が書かれていない場合は文脈から推測し、不明なら null。',
   'amountOutはお支払（出金）、amountInはお預り（入金）。該当しない側は null。',
   'balanceは差引残高（なければ null）。descriptionは摘要欄の表記をそのまま。',
   'categoryは normal / interest(利息) / fee(手数料) / transfer(振込・振替) / tax(税・国税) のいずれか。',
@@ -335,6 +336,31 @@ const STATEMENT_SCHEMA = jsonSchema({
 
 // 画像・PDFの通帳から入出金明細を配列で抽出する（bank-statement.js から使う）。
 // 証憑OCR（extract）と同じく、構造化出力→テキスト+サルベージの2段構え。
+
+// 日付の補正。AIは通帳の和暦（令和）を西暦のままの小さい数にすることがある
+// （令和7年 → 7-05-10 など。令和元年=2019なので令和N年=2018+N）。20未満の年は
+// +2018 して西暦に直す（平成は現行の通帳に紐付かず、かつ西暦20〜39=2020〜2039が
+// 実日付とぶつかるので触らない）
+export const fixEraDate = (text) => {
+  if ( typeof text !== 'string' ) {
+    return null;
+  }
+  const match = text.match(/^(\d{1,4})-(\d{1,2})-(\d{1,2})/);
+  if ( !match ) {
+    return null;
+  }
+  let year = parseInt(match[1]);
+  const month = match[2];
+  const day = match[3];
+  // 20未満は「令和N」に化けたものとして2018を足す（令和元年=2019）。
+  // 西暦下2桁(20〜39=2020〜2039)が直近の現実の日付と一致するので
+  // 平成(1988+N)この範囲に勝手に適用しない
+  if ( year < 20 ) {
+    year += 2018;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
 export const extractStatement = async (buffer, mimeType) => {
   const setting = settings();
   if ( !isAvailable() ) {
@@ -353,8 +379,7 @@ export const extractStatement = async (buffer, mimeType) => {
   }];
   const normalize = (object) => {
     return ( object || [] ).map((line) => ({
-      date: ( typeof line.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(line.date) )
-        ? line.date.slice(0, 10) : null,
+      date: fixEraDate(line.date),
       rawDescription: line.description || '',
       merchant: line.description || '',
       amountOut: ( line.amountOut === null || line.amountOut === undefined ) ? null : Number(line.amountOut),
@@ -382,5 +407,6 @@ export const extractStatement = async (buffer, mimeType) => {
 export default {
   isAvailable: isAvailable,
   extract: extract,
-  extractStatement: extractStatement
+  extractStatement: extractStatement,
+  fixEraDate: fixEraDate
 };

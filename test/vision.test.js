@@ -42,6 +42,17 @@ const chatCompletion = (content) => ({
   usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
 });
 
+describe('vision.fixEraDate', () => {
+  it('20未満の年は令和として+2018する（西暦そのままの年は触らない）', () => {
+    assert.equal(vision.fixEraDate('7-05-10'), '2025-05-10');
+    assert.equal(vision.fixEraDate('0007-05-10'), '2025-05-10');
+    assert.equal(vision.fixEraDate('2026-05-10'), '2026-05-10');
+    assert.equal(vision.fixEraDate('2025-12-31'), '2025-12-31');
+    assert.isNull(vision.fixEraDate('令和7年5月10日'));
+    assert.isNull(vision.fixEraDate(null));
+  });
+});
+
 describe('vision', () => {
   let origFetch;
   let origEnv;
