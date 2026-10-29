@@ -214,6 +214,28 @@ const previewCacheGet = (id) => {
   return entry.parsed;
 };
 
+// 取込明細を就業中の年度内に限定する（過年度・未来の行は処理できないので
+// 警告に落とす）。fyが無い（初期設定直後等）場合はフィルタしない
+const filterFiscalYear = async (parsed) => {
+  const today = new Date();
+  const fy = await models.FiscalYear.findOne({
+    where: {
+      startDate: { [Op.lte]: today },
+      endDate: { [Op.gte]: today }
+    }
+  });
+  const result = reconcile.fiscalYearFilter(parsed.lines, fy);
+  if ( result.dropped > 0 ) {
+    parsed.warnings.push(`年度外（${result.range}の範囲外）の${result.dropped}行は取り込みませんでした`);
+  }
+  parsed.lines = result.kept;
+  // 期間を残った行から組み直す（年度フィルタで端に落ちる事がある）
+  const dates = result.kept.map((line) => line.date).filter(Boolean).sort();
+  parsed.periodFrom = ( dates.length > 0 ) ? dates[ 0 ] : null;
+  parsed.periodTo = ( dates.length > 1 ) ? dates[ dates.length - 1 ] : dates[ 0 ] || null;
+  return parsed;
+};
+
 export default {
   // 取り込む前にパース結果を確認する（DBには書き込まない）
   preview: async (req, res, next) => {
@@ -228,7 +250,7 @@ export default {
       return;
     }
     try {
-      const parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      const parsed = await filterFiscalYear(await parser.parseStatement(upload.buffer, upload.mimeType));
       res.json({
         code: 0,
         // AI読取（画像）の解析結果を取り込み時に再利用させるためのハンドル
@@ -269,8 +291,12 @@ export default {
     try {
       // プレビューで解析済みならキャッシュを使い、画像の2回読みを避ける
       let parsed = previewCacheGet(req.body && req.body.previewId);
-      if ( !parsed ) {
-        parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      if ( parsed ) {
+        // キャッシュはプレビュー時のfilter済み。年度固定の内容は変わらないが
+        // 保険として軽く再filterする
+        parsed = await filterFiscalYear(parsed);
+      } else {
+        parsed = await filterFiscalYear(await parser.parseStatement(upload.buffer, upload.mimeType));
       }
       // 同じ口座の既存取込があればそこに追加する（カード系は対象外:
       // 1つのファイルが1つの支払総額/支払日を表すため）

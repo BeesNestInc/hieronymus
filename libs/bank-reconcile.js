@@ -74,6 +74,30 @@ export const findExistingDuplicateKeys = async (statement) => {
 };
 export const isDuplicateLine = (key, keySet) => keySet.has(key);
 
+// 取込明細の「年度内フィルタ」。画像OCRは通帳の撮影範囲が広く取り込め、
+// Excelは全期一括の物が来る。処理できるのは就業中の年度に限るので、
+// 期の範囲外の行は警告として落として残さない（過年度は確定済み、
+// 未来は処理対象にならない）。fy{startDate, endDate}が無ければフィルタしない
+export const fiscalYearFilter = (lines, fy) => {
+  if ( ( !fy ) || ( !fy.startDate ) || ( !fy.endDate ) ) {
+    return { kept: lines, dropped: 0, range: null };
+  }
+  const fmt = ( value ) => {
+    if ( value instanceof Date ) {
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+    }
+    return String( value ).slice( 0, 10 );
+  };
+  const start = fmt( fy.startDate );
+  const end = fmt( fy.endDate );
+  const kept = lines.filter((line) => (
+    line.date &&
+    ( line.date.slice( 0, 10 ) >= start ) &&
+    ( line.date.slice( 0, 10 ) <= end )
+  ));
+  return { kept: kept, dropped: ( lines.length - kept.length ), range: `${start}〜${end}` };
+};
+
 // 「前の行（同じ日）の伝票に合流させる」摘要は config/banks/merge-rules.yaml
 // （明細取込画面の「合流摘要」で加除できる。口座共通のお約束）で定義する
 const isMergeable = (line) => {

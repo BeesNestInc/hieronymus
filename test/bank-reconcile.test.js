@@ -6,7 +6,8 @@ import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cros
 import {
   autoMatch, bookLines, selectForExpense, suggestOpposites,
   reconcilePlaceholders, rebookStatement, learnOpposite,
-  duplicateKeyFor, findExistingDuplicateKeys, isDuplicateLine
+  duplicateKeyFor, findExistingDuplicateKeys, isDuplicateLine,
+  fiscalYearFilter
 } from '../libs/bank-reconcile.js';
 
 // 取り込んだ明細の突合・起票のテスト（DB使用。*_test のみで実行可）
@@ -817,6 +818,26 @@ describe('bank-reconcile (test db)', () => {
     // 一本目の行がまるごと生きている（重複分だけを差し引く）
     const rows0 = await models.BankStatementLine.findAll({ where: { statementId: statement0.id } });
     assert.lengthOf(rows0, 2);
+  });
+
+  it('fiscalYearFilter: 期外の行は落とす（fyなしは全行維持）', () => {
+    const fy = { startDate: new Date('2026-04-01'), endDate: new Date('2027-03-31') };
+    const lines = [
+      { date: '2026-03-30', amountOut: 1 },   // 前年度
+      { date: '2026-04-05', amountOut: 2 },
+      { date: '2027-03-30', amountOut: 3 },
+      { date: '2027-04-01', amountOut: 4 },   // 来年度
+      { date: null, amountOut: 5 }
+    ];
+    const result = fiscalYearFilter(lines, fy);
+    assert.lengthOf(result.kept, 2);
+    assert.equal(result.dropped, 3);
+    assert.equal(result.range, '2026-04-01〜2027-03-31');
+    // fyの設定が無ければフィルタしない（初期設定直後は取り込めることを
+    // 壊さないように）
+    const noFy = fiscalYearFilter(lines, null);
+    assert.lengthOf(noFy.kept, lines.length);
+    assert.equal(noFy.dropped, 0);
   });
 
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
