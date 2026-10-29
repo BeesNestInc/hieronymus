@@ -10,7 +10,7 @@ const Op = models.Sequelize.Op;
 import {create as createCrossSlip} from './cross_slip.js';
 import {deriveTaxRuleId} from './expense.js';
 import {isLocked} from './fiscal-lock.js';
-import {normalizeText, loadMergeDescriptions} from './bank-statement.js';
+import {normalizeText, loadMergeDescriptions, loadMatchDescriptions} from './bank-statement.js';
 
 // 利息仕訳テンプレの既定値（config/banks/*.yaml の interest 設定で上書きできる）
 // incomeAccount: 受取利息。withholding: 源泉所得税（借方）。rate: 源泉徴収率
@@ -160,6 +160,12 @@ export const learnFromSlip = async (slip) => {
 // ±days 日以内のものを対応付ける（すでに別行の突合先になっている明細は除く）。
 export const autoMatch = async (statement, options = {}) => {
   const days = ( options.days === undefined ) ? 3 : options.days;
+  // 自動突合は「許可された摘要」だけが対象（match-rules.yamlの完全一致
+  // ホワイトリスト。リストに無い摘要は手動で扱う。定額請求などで
+  // 同一金額が乱造される世界で、緩い自動結合がpaginator事故を起こさないように）
+  const matchList = ( options.matchDescriptions !== undefined ) ? options.matchDescriptions :
+    loadMatchDescriptions();
+  const allowedPatterns = new Set(matchList.map((d) => makePattern(d)));
   const lines = await models.BankStatementLine.findAll({
     where: { statementId: statement.id, status: 'unmatched' }
   });
@@ -189,6 +195,10 @@ export const autoMatch = async (statement, options = {}) => {
     const isOut = ( line.amountOut !== null && line.amountOut !== undefined );
     const targetAmount = isOut ? line.amountOut : line.amountIn;
     if ( targetAmount === null || targetAmount === undefined || !line.date ) {
+      continue;
+    }
+    // 許可リストに無い摘要は自動突合の対象にしない
+    if ( !allowedPatterns.has(makePattern(line.rawDescription)) ) {
       continue;
     }
     const candidates = details.filter((detail) => {
@@ -727,6 +737,12 @@ export const suggestOpposites = async (statement, profiles = null) => {
 // 確定（承認済み）伝票・精算書由来伝票は触らない。
 export const reconcilePlaceholders = async (options = {}) => {
   const days = ( options.days === undefined ) ? 3 : options.days;
+  // 「後の処理」も許可された摘要だけが対象（match-rules.yaml。後の処理の
+  // 「金額一致+±3日」は緩い条件なので、予定外の摘要では誤って結び付けて
+  // 別の取引を食う恐れがある。載っていない摘要は手動に回す）
+  const matchList = ( options.matchDescriptions !== undefined ) ? options.matchDescriptions :
+    loadMatchDescriptions();
+  const allowedPatterns = new Set(matchList.map((d) => makePattern(d)));
   // 仮科目を含む仕訳明細（未承認・精算書由来は除く）
   const tempCandidates = await models.CrossSlipDetail.findAll({
     include: [{ model: models.CrossSlip, as: 'crossSlip' }],
@@ -738,7 +754,8 @@ export const reconcilePlaceholders = async (options = {}) => {
     }
   });
   const temps = tempCandidates.filter((detail) => (
-    detail.crossSlip && !detail.crossSlip.approvedAt && !detail.crossSlip.expenseReportId
+    detail.crossSlip && !detail.crossSlip.approvedAt && !detail.crossSlip.expenseReportId &&
+    allowedPatterns.has(makePattern(detail.application1))
   ));
   if ( temps.length === 0 ) {
     return { replaced: 0 };

@@ -8,9 +8,9 @@
       on:click={() => { openRulesModal(); }}>
       学習ルール&nbsp;<i class="bi bi-mortar-board"></i>
     </button>
-    <button type="button" class="btn btn-outline-secondary me-2" title="前の行の伝票に合流させる摘要（手数料など）の加除"
+    <button type="button" class="btn btn-outline-secondary me-2" title="合流摘要と自動突合の摘要の加除（口座共通の設定）"
       on:click={() => { openMergeModal(); }}>
-      合流摘要&nbsp;<i class="bi bi-collection"></i>
+      取込設定&nbsp;<i class="bi bi-collection"></i>
     </button>
     <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF）を取り込みます"
       on:click={openModal}>
@@ -69,8 +69,8 @@
     <button type="button" class="btn btn-sm btn-outline-secondary me-2" disabled={busy}
       title="学習ルールを更新したあとに、未承認の起票伝票を解放して作り直します（確定済み伝票には触りません）"
       on:click={runRebook}><i class="bi bi-arrow-repeat me-1"></i>再実行</button>
-    <button type="button" class="btn btn-sm btn-outline-secondary" title="前の行の伝票に合流させる摘要（手数料など）の加除"
-      on:click={() => { openMergeModal(); }}><i class="bi bi-collection me-1"></i>合流摘要</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="合流摘要と自動突合の摘要の加除（口座共通の設定）"
+      on:click={() => { openMergeModal(); }}><i class="bi bi-collection me-1"></i>取込設定</button>
     {/if}
   </div>
   {#if ( statement.kind === 'bank' )}
@@ -483,10 +483,11 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">合流摘要（前の行の伝票に合流させる摘要）</h5>
+        <h5 class="modal-title">取込設定（合流摘要と自動突合の摘要）</h5>
         <button type="button" class="btn-close" on:click={closeMergeModal}></button>
       </div>
       <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+        <h6 class="mb-1" style="font-size:0.85rem;">合流摘要（前の行の伝票に載せる）</h6>
         <div class="text-muted mb-2" style="font-size:0.8rem;">
           この摘要の行は、取込順の直前の行（同じ日）の伝票に合流します（振込の次の行の振込手数料など）。
           正規化（全角半角・空白）したうえで完全一致で判定します。前の行がなければ/日付が違えば自分の伝票になります。
@@ -498,7 +499,7 @@
             on:keydown={(e) => { if ( e.key === 'Enter' ) { addMergeDescription(); } }}>
           <button type="button" class="btn btn-primary" on:click={addMergeDescription}>追加</button>
         </div>
-        <ul class="list-group list-group-flush" style="font-size:0.85rem;">
+        <ul class="list-group list-group-flush mb-3" style="font-size:0.85rem;">
           {#each mergeDescriptions as description, i (description + i)}
           <li class="list-group-item d-flex justify-content-between align-items-center py-1">
             <span>{description}</span>
@@ -510,11 +511,38 @@
           {/each}
         </ul>
         {#if ( mergeDescriptions.length === 0 )}
-        <div class="text-muted">合流摘要はありません。</div>
+        <div class="text-muted mb-3">合流摘要はありません。</div>
+        {/if}
+
+        <h6 class="mb-1" style="font-size:0.85rem;">自動突合の摘要（ホワイトリスト）</h6>
+        <div class="text-muted mb-2" style="font-size:0.8rem;">
+          ここに載っている摘要だけが「既存仕訳と突合」と「後の処理」で<b>自動で</b>結び付きます
+          （正規化後の完全一致）。載っていない摘要は自動では結び付かないので、手動の「突合」やルール・修正で扱います。
+          定額請求のように同一金額が乱発するものは誤結合の元なので、載せないこと。
+        </div>
+        <div class="input-group input-group-sm mb-2">
+          <input type="text" class="form-control" placeholder="摘要（例: 国税、口座振替　ミツイスミトモカード）"
+            bind:value={newMatchDescription}
+            on:keydown={(e) => { if ( e.key === 'Enter' ) { addMatchDescription(); } }}>
+          <button type="button" class="btn btn-primary" on:click={addMatchDescription}>追加</button>
+        </div>
+        <ul class="list-group list-group-flush" style="font-size:0.85rem;">
+          {#each matchDescriptions as description, i (matchKey(description, i))}
+          <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+            <span>{description}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0"
+              on:click={() => { matchDescriptions = matchDescriptions.filter((d, j) => ( j !== i )); }}>
+              <i class="bi bi-x"></i>
+            </button>
+          </li>
+          {/each}
+        </ul>
+        {#if ( matchDescriptions.length === 0 )}
+        <div class="text-muted">突合する摘要はありません（自動突合は行われません。手動で扱う分には問題ありません）。</div>
         {/if}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary" on:click={saveMergeDescriptions}>保存</button>
+        <button type="button" class="btn btn-primary" on:click={saveImportSettings}>保存</button>
         <button type="button" class="btn btn-outline-secondary" on:click={closeMergeModal}>閉じる</button>
       </div>
     </div>
@@ -587,11 +615,14 @@ let editingRule = null;
 let showAllRulesForm = false;
 let newRule = {};
 
-// 合流摘要
+// 合流摘要+自動突合摘要（取込設定モーダル）
 let mergeModalEl;
 let mergeModal;
 let mergeDescriptions = [];
 let newMergeDescription = '';
+let matchDescriptions = [];
+let newMatchDescription = '';
+const matchKey = (description, i) => ( `${i}:${description}` );
 
 // 仮入科目（x9xxxxx）
 const TEMP_ACCOUNT_CODES = [ '1900000', '3900000' ];
@@ -1165,7 +1196,7 @@ const deleteRule = async (rule) => {
   }
 };
 
-// 合流摘要のモーダル
+// 合流摘要+突合摘要（取込設定モーダル）
 const openMergeModal = async () => {
   if ( !mergeModal ) {
     mergeModal = new Modal(mergeModalEl);
@@ -1177,7 +1208,15 @@ const openMergeModal = async () => {
     console.error('load merge descriptions failed', e);
     mergeDescriptions = [];
   }
+  try {
+    const result = await axios.get('/api/bank_statement_rule/match_rules');
+    matchDescriptions = ( result.data && result.data.values ) || [];
+  } catch (e) {
+    console.error('load match descriptions failed', e);
+    matchDescriptions = [];
+  }
   newMergeDescription = '';
+  newMatchDescription = '';
   mergeModal.show();
 };
 const closeMergeModal = () => {
@@ -1195,17 +1234,41 @@ const addMergeDescription = () => {
   mergeDescriptions = [ ...mergeDescriptions, description ];
   newMergeDescription = '';
 };
-const saveMergeDescriptions = async () => {
+const addMatchDescription = () => {
+  const description = String(newMatchDescription || '').trim();
+  if ( !description ) {
+    return;
+  }
+  if ( matchDescriptions.includes(description) ) {
+    newMatchDescription = '';
+    return;
+  }
+  matchDescriptions = [ ...matchDescriptions, description ];
+  newMatchDescription = '';
+};
+// 合流摘要と自動突合摘要をまとめて保存する（両方のyamlを差し替える）
+const saveImportSettings = async () => {
   try {
-    const result = await axios.put('/api/bank_statement_rule/merge_rules', {
+    const mergeResult = await axios.put('/api/bank_statement_rule/merge_rules', {
       values: mergeDescriptions
     });
-    mergeDescriptions = ( result.data && result.data.values ) || mergeDescriptions;
-    toast.show('合流摘要', '保存しました');
+    mergeDescriptions = ( mergeResult.data && mergeResult.data.values ) || mergeDescriptions;
   } catch (e) {
     console.error('save merge descriptions failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました';
-    toast.show('合流摘要', message, 'warning');
+    toast.show('取込設定', `合流摘要の保存に失敗しました: ${message}`, 'warning');
+    return;
+  }
+  try {
+    const matchResult = await axios.put('/api/bank_statement_rule/match_rules', {
+      values: matchDescriptions
+    });
+    matchDescriptions = ( matchResult.data && matchResult.data.values ) || matchDescriptions;
+    toast.show('取込設定', '保存しました');
+  } catch (e) {
+    console.error('save match descriptions failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました';
+    toast.show('取込設定', `突合摘要の保存に失敗しました: ${message}`, 'warning');
   }
 };
 

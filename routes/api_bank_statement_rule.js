@@ -1,7 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import { makePattern, isTempAccount } from '../libs/bank-reconcile.js';
-import { loadMergeDescriptions, saveMergeDescriptions } from '../libs/bank-statement.js';
+import { loadMergeDescriptions, saveMergeDescriptions, loadMatchDescriptions, saveMatchDescriptions } from '../libs/bank-statement.js';
 
 // 学習ルール（BankStatementRule）の管理。明細取込で相手方仕訳を決める唯一の
 // 正規ルール置き場（YAML等の外部定義はしない）。操作は会計権限。
@@ -170,5 +170,36 @@ export default {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '保存に失敗しました。' });
     }
-  }
+  },
+
+  // 突合許可摘要の取得（既存仕訳との突合・後の処理が自動で結び付けてよい摘要）
+  matchRulesGet: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) && !req.session.user.fiscalBrowsing ) {
+      res.json({ code: -10 });
+      return;
+    }
+    res.json({ code: 0, values: loadMatchDescriptions() });
+  },
+
+  // 突合許可摘要の保存（リスト全体を差し替える）
+  matchRulesPut: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const values = ( req.body && Array.isArray(req.body.values) ) ? req.body.values : null;
+    if ( !values ) {
+      res.status(422).json({ code: -2, message: 'values（摘要の配列）が未指定です。' });
+      return;
+    }
+    try {
+      const saved = saveMatchDescriptions(values);
+      res.json({ code: 0, values: saved });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '保存に失敗しました。' });
+    }
+  },
 };

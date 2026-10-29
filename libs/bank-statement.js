@@ -52,6 +52,37 @@ export const saveMergeDescriptions = (descriptions) => {
   return list;
 };
 
+// 「既存仕訳と突合・後の処理が自動で結び付けてよい摘要」の設定（口座共通）。
+// 配置は plainly merge-rules.yaml と同じく config/banks/match-rules.yaml。
+// **ブラックリストではなくホワイトリスト**。ここに無い摘要は
+// 自動では結び付かない（定額ビジネスなどで同一金額が乱造される世界で、
+// 曖昧な自動結合を避けるため。リストに載るまで手動で突合する）
+export const matchRulesPath = () => {
+  const dir = process.env.BANK_CONFIG_PATH || 'config/banks';
+  return path.join(dir, 'match-rules.yaml');
+};
+
+export const loadMatchDescriptions = () => {
+  try {
+    const text = fs.readFileSync(matchRulesPath(), 'utf-8');
+    const data = yamlLoad(text);
+    if ( Array.isArray(data) ) {
+      return data.map((d) => ( ( d === null || d === undefined ) ? '' : String(d).trim() )).filter((d) => d);
+    }
+  } catch (e) {
+    // ファイルがなければ空=何も自動突合しない（既定は安全側）
+  }
+  return [];
+};
+
+export const saveMatchDescriptions = (descriptions) => {
+  const list = ( descriptions || [] )
+    .map((d) => ( ( d === null || d === undefined ) ? '' : String(d).trim() ))
+    .filter((d) => d);
+  fs.writeFileSync(matchRulesPath(), yamlDump(list), 'utf-8');
+  return list;
+};
+
 // プロファイル読み込み。テスト時は LLM_CONFIG_PATH 同様 BANK_CONFIG_PATH で指せる
 export const loadProfiles = () => {
   const dir = process.env.BANK_CONFIG_PATH || 'config/banks';

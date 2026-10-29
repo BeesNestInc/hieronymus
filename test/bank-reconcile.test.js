@@ -1,4 +1,5 @@
 import {assert} from 'chai';
+import fs from 'fs';
 import models from '../models/index.js';
 import seed from './seed.js';
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
@@ -24,8 +25,26 @@ describe('bank-reconcile (test db)', () => {
   let bankAccount;
   let payeeMapping;
   let approver;
+  // 自動突合の許可摘要はtest専用の設定ファイルで固定する
+  // （BANK_CONFIG_PATHを代入して、リポジトリのconfigがテストに波及するのを防ぐ）
+  const FIXTURE_DIR = '/tmp/opencode/bank-test-config';
+  const savedConfigPath = process.env.BANK_CONFIG_PATH;
+
+  after(() => {
+    if ( savedConfigPath === undefined ) {
+      delete process.env.BANK_CONFIG_PATH;
+    } else {
+      process.env.BANK_CONFIG_PATH = savedConfigPath;
+    }
+  });
 
   before(async () => {
+    fs.mkdirSync(FIXTURE_DIR, { recursive: true });
+    fs.writeFileSync(`${FIXTURE_DIR}/match-rules.yaml`, [
+      '- デビット４８３３３９',
+      ''
+    ].join('\n'), 'utf-8');
+    process.env.BANK_CONFIG_PATH = FIXTURE_DIR;
     // 実DB（development等）へのテスト実行は実データを破壊するので禁止
     const dbName = models.sequelize.getDatabaseName();
     if ( !/_test$/.test(dbName) ) {
