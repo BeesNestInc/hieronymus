@@ -918,13 +918,41 @@ const openRulesModal = async (line = null) => {
   ruleModalKey += 1;
   const pattern = line ? normPattern(line.rawDescription) : '';
   // 口座は勘定科目だけでなく補助（住信SBIなど）まで引き継ぐ
+  // 起票済みの行から開いた場合は、実際に起票されている仕訳明細の
+  // 相手方（科目+補助）を既定値にする（手修正の結果がそのまま下地になる。
+  // 仮入科目・銀行科目は相手方にならないので、その時は空のまま）
+  let oppositeAccount = '';
+  let oppositeSubAccount = '';
+  let bankSub = ( statement && statement.subAccount ) ? String(statement.subAccount) : '';
+  const detail = ( line && line.crossSlipDetail ) ? line.crossSlipDetail : null;
+  if ( detail && statement ) {
+    let opposite = null;
+    if ( detail.creditAccount === statement.account ) {
+      // 出金（貸方が口座）。相手方は借方側
+      opposite = { account: detail.debitAccount, sub: detail.debitSubAccount };
+      if ( detail.creditSubAccount != null ) {
+        bankSub = String(detail.creditSubAccount);
+      }
+    } else if ( detail.debitAccount === statement.account ) {
+      // 入金（借方が口座）。相手方は貸方側
+      opposite = { account: detail.creditAccount, sub: detail.creditSubAccount };
+      if ( detail.debitSubAccount != null ) {
+        bankSub = String(detail.debitSubAccount);
+      }
+    }
+    if ( opposite && opposite.account &&
+      ( !TEMP_ACCOUNT_CODES.includes(opposite.account) ) &&
+      ( !/^101/.test(opposite.account) ) ) {
+      oppositeAccount = opposite.account;
+      oppositeSubAccount = opposite.sub ? String(opposite.sub) : '';
+    }
+  }
   newRule = {
     account: ( statement && statement.account ) || '',
-    subAccount: ( statement && statement.subAccount ) ? String(statement.subAccount) : '',
+    subAccount: bankSub,
     pattern: pattern,
-    // 仮で起票済みの行から登録する場合は既に起票済み伝票からは引き出せないので空
-    oppositeAccount: '',
-    oppositeSubAccount: ''
+    oppositeAccount: oppositeAccount,
+    oppositeSubAccount: oppositeSubAccount
   };
   if ( !rulesModal ) {
     rulesModal = new Modal(rulesModalEl);
