@@ -361,6 +361,7 @@
             <tr>
               <th style="width:190px;">口座</th>
               <th>摘要（完全一致）</th>
+              <th style="width:80px;">方向</th>
               <th style="width:190px;">相手方</th>
               <th class="number" style="width:60px;">使用</th>
               <th style="width:70px;"></th>
@@ -374,6 +375,12 @@
                   bind:code={newRule.account}
                   bind:sub_code={newRule.subAccount}></Account>
                 {/key}
+                <select class="form-select form-select-sm mt-1" bind:value={newRule.direction}
+                  title="どちらの方向（出金/入金）の行に効くルールか。摘要クリックからは自動で入ります">
+                  <option value="">両方向</option>
+                  <option value="out">出金のみ</option>
+                  <option value="in">入金のみ</option>
+                </select>
               </td>
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
@@ -404,8 +411,14 @@
                   bind:code={editingRule.account}
                   bind:sub_code={editingRule.subAccount}></Account>
                 {/key}
+                <select class="form-select form-select-sm mt-1" bind:value={editingRule.direction}>
+                  <option value="">両方向</option>
+                  <option value="out">出金のみ</option>
+                  <option value="in">入金のみ</option>
+                </select>
                 {:else}
                 {ruleAccountLabel(rule)}
+                <span class="badge bg-light text-dark ms-1">{directionLabel(rule.direction)}</span>
                 {/if}
               </td>
               <td>
@@ -610,8 +623,14 @@ $: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) &&
 // 学習ルールモーダルの「同じ摘要になる行」リスト（勢いでの間違い登録防止）。
 // 編集フォームのpatternに反応する
 $: activePattern = editingRule ? normPattern(editingRule.pattern) : normPattern(newRule.pattern);
+$: activeDirection = editingRule ? ( editingRule.direction || '' ) : ( ( newRule && newRule.direction ) || '' );
+// 表示と適用の範囲は「方向も一致する行」。入金と出金では相手方が
+// 別ルールなので、出金ルールなら出金行だけが候補になる
 $: patternMatches = ( originLine && statement && statement.lines && activePattern ) ?
-  statement.lines.filter((l) => ( normPattern(l.rawDescription) === activePattern )) : [];
+  statement.lines.filter((l) => (
+    ( normPattern(l.rawDescription) === activePattern ) &&
+    ( ( !activeDirection ) || ( lineDirection(l) === activeDirection ) )
+  )) : [];
 
 // 未照合行数（起票対象の内訳表示用）
 $: unmatchedCount = ( statement && statement.lines ) ?
@@ -903,6 +922,13 @@ const runRebook = async () => {
   busy = false;
 };
 
+// 行の方向（出金/入金）。同じ摘要でも入金と出金で相手方は別ルール
+const lineDirection = (line) => (
+  ( line.amountOut !== null && line.amountOut !== undefined ) ? 'out' : 'in'
+);
+const DIRECTION_LABELS = { out: '出金', in: '入金' };
+const directionLabel = (direction) => ( direction ? ( DIRECTION_LABELS[ direction ] || direction ) : '両方' );
+
 // 正規化（サーバのmakePatternと同じ。NFKC+空白潰しの完全一致）
 const normPattern = (text) => (
   String(text || '').normalize('NFKC').replace(/[\s\u3000]+/g, '')
@@ -924,6 +950,8 @@ const openRulesModal = async (line = null) => {
   let oppositeAccount = '';
   let oppositeSubAccount = '';
   let bankSub = ( statement && statement.subAccount ) ? String(statement.subAccount) : '';
+  // 方向は摘要クリックなら行から。手登録（＋新規ルール）は両方向のままで入力できる
+  const direction = line ? lineDirection(line) : '';
   const detail = ( line && line.crossSlipDetail ) ? line.crossSlipDetail : null;
   if ( detail && statement ) {
     let opposite = null;
@@ -950,6 +978,7 @@ const openRulesModal = async (line = null) => {
   newRule = {
     account: ( statement && statement.account ) || '',
     subAccount: bankSub,
+    direction: direction,
     pattern: pattern,
     oppositeAccount: oppositeAccount,
     oppositeSubAccount: oppositeSubAccount
@@ -970,7 +999,13 @@ const openRulesModal = async (line = null) => {
     const existing = rules.find((r) => (
       r.account === newRule.account &&
       ( r.subAccount || null ) === ( newRule.subAccount || null ) &&
-      r.pattern === pattern
+      r.pattern === pattern &&
+      ( ( r.direction || '' ) === ( newRule.direction || '' ) )
+    )) || rules.find((r) => (
+      r.account === newRule.account &&
+      ( r.subAccount || null ) === ( newRule.subAccount || null ) &&
+      r.pattern === pattern &&
+      !r.direction
     ));
     if ( existing ) {
       editingRule = JSON.parse(JSON.stringify(existing));
@@ -1063,6 +1098,7 @@ const createRule = async (apply = false) => {
     await axios.post('/api/bank_statement_rule', {
       account: newRule.account,
       subAccount: newRule.subAccount || null,
+      direction: newRule.direction || null,
       pattern: newRule.pattern,
       oppositeAccount: newRule.oppositeAccount,
       oppositeSubAccount: newRule.oppositeSubAccount || null
@@ -1088,6 +1124,7 @@ const saveRule = async (rule, apply = false) => {
     await axios.put(`/api/bank_statement_rule/${rule.id}`, {
       account: rule.account,
       subAccount: rule.subAccount || null,
+      direction: rule.direction || null,
       pattern: rule.pattern,
       oppositeAccount: rule.oppositeAccount,
       oppositeSubAccount: rule.oppositeSubAccount || null

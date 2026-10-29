@@ -15,6 +15,9 @@ export default (sequelize, DataTypes) => {
 		// 学習元の口座（科目コード + 補助科目。subAccount null は口座全体で共通）
 		account: DataTypes.STRING,
 		subAccount: DataTypes.INTEGER,
+		// 方向（'out' 出金 / 'in' 入金 / null 指定なし=両方向に照合する旧ルール）。
+		// 同じ摘要でも代理店的な取引先では入金と出金で相手方が異なることがある
+		direction: DataTypes.STRING,
 		// 摘要の正規化テンプレート（数字を'#'に置換。完全一致で照合する）
 		pattern: DataTypes.STRING,
 		oppositeAccount: DataTypes.STRING,

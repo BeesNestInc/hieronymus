@@ -71,8 +71,11 @@ export const makePattern = (text) => {
 
 // 学習ルールを作成・更新する（upsert）。同じ口座×摘要パターンのルールが
 // あれば適用回数を進め、なければ作る。学習は伝票起票の副作用として行い、
-// 失敗しても起票自体は失敗させない
-export const learnOpposite = async (bankSide, application1, oppositeSide) => {
+// 失敗しても起票自体は失敗させない。
+// direction: 'out'(出金)/'in'(入金)。同じ摘要でも入金と出金で相手方が
+// 異なることがある（代理店的な取引先）ため、ルールは方向単位で作る。
+// direction省略は指定なし(null)=両方向に照合する旧来の書き方
+export const learnOpposite = async (bankSide, application1, oppositeSide, direction = null) => {
   try {
     const pattern = makePattern(application1);
     if ( ( !pattern ) || ( !bankSide ) || ( !bankSide.account ) ||
@@ -87,10 +90,16 @@ export const learnOpposite = async (bankSide, application1, oppositeSide) => {
     // 踏む事故になる）
     const bankSub = ( bankSide.sub !== undefined ) ? bankSide.sub : ( bankSide.subAccount || null );
     const oppositeSub = ( oppositeSide.sub !== undefined ) ? oppositeSide.sub : ( oppositeSide.subAccount || null );
+    // directionの受け皿。想定外の値はnullに落とす
+    const dir = ( direction === 'out' || direction === 'in' ) ? direction : null;
     const where = {
       account: bankSide.account,
       subAccount: bankSub || null,
-      pattern: pattern
+      pattern: pattern,
+      // 旧ルール(direction null。任意方向)はこのlevelでは照合しない:
+      // 学習の更新は「同方向のルール」に向ける（もしなければ新規作成。
+      // 旧ルールはfindLearnedRuleからだけで参照される）
+      direction: dir
     };
     const existing = await models.BankStatementRule.findOne({ where: where });
     if ( existing ) {
@@ -126,15 +135,20 @@ export const learnFromSlip = async (slip) => {
     for ( const detail of details ) {
       let bankSide = null;
       let oppositeSide = null;
+      let direction = null;
       if ( /^101/.test(detail.debitAccount || '') ) {
+        // 銀行が借方=入金
         bankSide = { account: detail.debitAccount, sub: detail.debitSubAccount };
         oppositeSide = { account: detail.creditAccount, sub: detail.creditSubAccount };
+        direction = 'in';
       } else if ( /^101/.test(detail.creditAccount || '') ) {
+        // 銀行が貸方=出金
         bankSide = { account: detail.creditAccount, sub: detail.creditSubAccount };
         oppositeSide = { account: detail.debitAccount, sub: detail.debitSubAccount };
+        direction = 'out';
       }
       if ( !oppositeSide ) continue;
-      await learnOpposite(bankSide, detail.application1, oppositeSide);
+      await learnOpposite(bankSide, detail.application1, oppositeSide, direction);
     }
   } catch (e) {
     console.log('learnFromSlip failed', e.message);
@@ -323,11 +337,12 @@ const buildInterestDetails = async (line, statement, profile, taxLine = null) =>
 };
 
 // 学習ルールを摘要パターンで引く（bookLinesの相手方指定が無い行向け）。
-// 正規化後の完全一致。口座単位（subAccountはnull許容）。
+// 正規化後の完全一致。口座単位（subAccountはnull許容）＋方向（'in'/'out'。
+// direction null の旧ルールは両方向に照合する）。
 // 口座補助（住信SBIなど）が一致するルールを最優先にする。補助なしの
 // 兄弟ルールがusageCountを上回っていても、そちらを採って口座補助を
 // 落とさないようにする（使用の多さより口座の一致を先に見る）
-const findLearnedRule = async (statement, application1) => {
+const findLearnedRule = async (statement, application1, direction = null) => {
   const pattern = makePattern(application1);
   if ( !pattern || !statement.account ) {
     return null;
@@ -336,15 +351,26 @@ const findLearnedRule = async (statement, application1) => {
     where: {
       account: statement.account,
       pattern: pattern,
-      [Op.or]: [
-        { subAccount: statement.subAccount || null },
-        { subAccount: null }
+      [Op.and]: [
+        {
+          [Op.or]: [
+            { subAccount: statement.subAccount || null },
+            { subAccount: null }
+          ]
+        },
+        // 方向付きルールは同方向だけ。direction nullの旧ルールは両方向に照合する
+        // （IN ('out', null)はSQLではnull行に当たらないのでOp.orで書く）
+        ( direction === 'out' || direction === 'in' ) ?
+          { [Op.or]: [ { direction: direction }, { direction: null } ] } :
+          { direction: null }
       ]
     },
     order: [[ 'usageCount', 'DESC' ]]
   });
   const sub = ( statement.subAccount || null );
-  return candidates.find((r) => ( ( r.subAccount || null ) === sub )) || candidates[ 0 ] || null;
+  const matched = ( candidates.length > 0 ) ?
+    candidates.find((r) => ( ( r.subAccount || null ) === sub )) || candidates[ 0 ] : null;
+  return matched;
 };
 
 // 通常の経費行の仕訳。借方=支払先マッピングの科目、貸方=明細の口座。
@@ -388,7 +414,7 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   let oppositeSide = null;
   if ( !oppositeAccount ) {
     // ルールも指定もない → 学習ルールを引き、それも無ければ仮入科目で起票する
-    const rule = await findLearnedRule(statement, application1);
+    const rule = await findLearnedRule(statement, application1, isOut ? 'out' : 'in');
     if ( rule && !isTempAccount(rule.oppositeAccount) ) {
       oppositeAccount = rule.oppositeAccount;
       oppositeSubAccount = rule.oppositeSubAccount || null;
@@ -411,7 +437,7 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
     await deriveTaxRuleId(oppositeAccount, line.date || new Date()) : null;
   // 実科目で起票するときは学習する（仮入科目は学習対象にしない）
   if ( !isTempAccount(oppositeAccount) ) {
-    await learnOpposite(bankSide, application1, oppositeSide);
+    await learnOpposite(bankSide, application1, oppositeSide, isOut ? 'out' : 'in');
   }
   const detail = isOut ? {
     debitAccount: oppositeAccount,
@@ -675,7 +701,12 @@ export const suggestOpposites = async (statement, profiles = null) => {
     const desc = normalizeDescription(line.rawDescription);
     if ( !desc ) continue;
     const pattern = makePattern(desc);
-    const learned = learnedRules.find((r) => ( r.pattern === pattern ));
+    // 学習候補は方向も一致させる（同摘要でも入金と出金で相手方が違う）
+    const lineDirection = ( line.amountOut !== null && line.amountOut !== undefined ) ? 'out' : 'in';
+    const learned = learnedRules.find((r) => (
+      r.pattern === pattern &&
+      ( ( !r.direction ) || ( r.direction === lineDirection ) )
+    ));
     if ( learned ) {
       suggestions.push({
         lineId: line.id,
@@ -774,7 +805,8 @@ export const reconcilePlaceholders = async (options = {}) => {
             : { account: temp.debitAccount, sub: temp.debitSubAccount },
       temp.application1,
       isOut ? { account: source.debitAccount, sub: source.debitSubAccount }
-            : { account: source.creditAccount, sub: source.creditSubAccount }
+            : { account: source.creditAccount, sub: source.creditSubAccount },
+      isOut ? 'out' : 'in'
     );
   }
   return { replaced: replaced };

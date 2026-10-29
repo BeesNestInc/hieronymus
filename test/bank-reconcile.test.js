@@ -718,6 +718,47 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(lines[2].status, 'unmatched');
   });
 
+  it('ルールは方向単位: 同じ摘要で入金と出金は別の相手方を採る', async () => {
+    // 代理店的な取引先。同じ摘要で入金(売掛金立替)と出金(買取支払)が
+    // 別の相手方になる。学習は方向ごとに行われ、起票も行の方向に合う
+    // ルールを採用する（旧来の方向なしルールは両方向に照合する）
+    await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-30', rawDescription: '振込＊ダイリーセン', amountOut: 11000 },
+      { date: '2026-11-30', rawDescription: '振込＊ダイリーセン', amountIn: 12000 }
+    ]);
+    await bookLines(statement, null, approver);
+    await reloadAll(lines);
+    // 1回目は仮起票（出金/入金とも）
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).debitAccount, '1900000');
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).creditAccount, '3900000');
+    // 手修正の体で方向付き学習。出金→経費、入金→売上
+    await learnOpposite(
+      { account: '1010010', sub: null },
+      '振込＊ダイリーセン',
+      { account: '7000001', sub: null },
+      'out'
+    );
+    await learnOpposite(
+      { account: '1010010', sub: null },
+      '振込＊ダイリーセン',
+      { account: '6000001', sub: null },
+      'in'
+    );
+    // ルールは方向別に2本できる
+    const outRule = await models.BankStatementRule.findOne({ where: { pattern: '振込*ダイリーセン', direction: 'out' } });
+    const inRule = await models.BankStatementRule.findOne({ where: { pattern: '振込*ダイリーセン', direction: 'in' } });
+    assert.isNotNull(outRule);
+    assert.isNotNull(inRule);
+    assert.equal(outRule.oppositeAccount, '7000001');
+    assert.equal(inRule.oppositeAccount, '6000001');
+    // 再実行 → 行の方向に応じたルールで起票される
+    await rebookStatement(statement, approver);
+    await reloadAll(lines);
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).debitAccount, '7000001');
+    assert.equal(( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).creditAccount, '6000001');
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,

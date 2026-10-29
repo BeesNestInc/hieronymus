@@ -11,6 +11,11 @@ const canManage = (user) => {
   return Boolean(user.accounting);
 };
 
+// directionの受け皿。'out'(出金)/'in'(入金)/null(指定なし=両方向)以外はnull
+const cleanDirection = (value) => {
+  return ( value === 'out' || value === 'in' ) ? value : null;
+};
+
 // 補助科目の解決に使うアカウント辞書（口座→補助。セルフの科目名は帳面側で
 // /api/accounts から引くため、ここでは科目コードしか返さない）
 export default {
@@ -51,11 +56,13 @@ export default {
       return;
     }
     try {
+      const direction = cleanDirection(body.direction);
       const [ rule, created ] = await models.BankStatementRule.findOrCreate({
         where: {
           account: account,
           subAccount: body.subAccount ? parseInt(body.subAccount) : null,
-          pattern: pattern
+          pattern: pattern,
+          direction: direction
         },
         defaults: {
           oppositeAccount: body.oppositeAccount,
@@ -110,6 +117,9 @@ export default {
       }
       rule.oppositeAccount = body.oppositeAccount;
       rule.oppositeSubAccount = body.oppositeSubAccount ? parseInt(body.oppositeSubAccount) : null;
+    }
+    if ( body.direction !== undefined ) {
+      rule.direction = cleanDirection(body.direction);
     }
     await rule.save();
     res.json({ code: 0 });
