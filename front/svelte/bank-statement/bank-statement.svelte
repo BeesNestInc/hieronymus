@@ -105,7 +105,15 @@
         <tr class:matched-row={line.status === 'matched'}>
           <td>{line.date || ''}</td>
           <td>
-            {line.description || line.rawDescription || ''}
+            {#if ( line.rawDescription )}
+            <button type="button" class="btn btn-link btn-sm p-0 text-start"
+              title="この摘要の仕分けルールを登録・修正する（同じ摘要は同じ仕分けになります）"
+              on:click={() => { openRulesModal(line); }}>
+              {line.description || line.rawDescription || ''}
+            </button>
+            {:else}
+            {line.description || ''}
+            {/if}
             {#if ( cardSuggestion(line.id) )}
             <div class="text-muted" style="font-size:0.75rem;">
               カード引落候補: {cardSuggestion(line.id).total.toLocaleString()}円（{cardSuggestion(line.id).payDate || '日付不明'}）
@@ -308,6 +316,40 @@
           摘要の完全一致で照合する。実科目が決わっている仕訳から「隙あらば学習」して蓄積されます。
           この画面から手登録・修正・削除もできます。ルールを変えた後は「再実行」で未承認の起票を作り直せます。
         </div>
+        {#if ( originLine )}
+        <div class="alert alert-info py-2 px-3 mb-2" style="font-size:0.8rem;">
+          {#if ( editingRule )}
+          摘要「{activePattern}」には既にルールがあります（修正モード）。変更するとこの摘要の<b>次回起票から</b>すべてに効きます（既に起票済みの伝票には影響しません）。
+          {:else}
+          摘要「{activePattern}」はこの取込内に <b>{patternMatches.length} 行</b>あります。これらの行を同じ仕分けにするなら、相手方を選んで登録してください（<b>次回起票から</b>すべてに効きます）。
+          {/if}
+          <table class="table table-sm table-bordered mb-0 mt-1" style="font-size:0.75rem;">
+            <thead class="table-light">
+              <tr>
+                <th style="width:90px;">日付</th>
+                <th>摘要（元文）</th>
+                <th class="number" style="width:90px;">出金</th>
+                <th class="number" style="width:90px;">入金</th>
+                <th style="width:90px;">状態</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each patternMatches as l (l.id)}
+              <tr>
+                <td>{l.date || ''}</td>
+                <td>{l.description || l.rawDescription || ''}</td>
+                <td class="number">{l.amountOut != null ? Number(l.amountOut).toLocaleString() : ''}</td>
+                <td class="number">{l.amountIn != null ? Number(l.amountIn).toLocaleString() : ''}</td>
+                <td>{statusLabel(l.status)}</td>
+              </tr>
+              {/each}
+              {#if ( patternMatches.length === 0 )}
+              <tr><td colspan="5" class="text-muted">この取込内に一致する行はありません</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+        {/if}
         {#if ( !showAllRulesForm ) }
         <button type="button" class="btn btn-sm btn-outline-primary mb-2"
           on:click={() => { showAllRulesForm = true; }}>
@@ -358,13 +400,19 @@
               </td>
               <td class="text-center">-</td>
               <td class="text-center">
-                <button type="button" class="btn btn-sm btn-primary" on:click={createRule}>登録</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" title="ルールだけ保存する（この行には適用しない）"
+                  on:click={() => { createRule(false); }}>保存</button>
+                {#if ( originLine )}
+                <button type="button" class="btn btn-sm btn-primary" disabled={applyButtonDisabled(originLine)}
+                  title={applyButtonTitle(originLine)}
+                  on:click={() => { createRule(true); }}>適用して保存</button>
+                {/if}
               </td>
             </tr>
             {#each rules as rule (rule.id)}
             <tr class:rule-edit-row={ editingRule && editingRule.id === rule.id }>
               <td>
-                {#if ( editingRule === rule )}
+                {#if ( editingRule && editingRule.id === rule.id )}
                 <select class="form-select form-select-sm" bind:value={editingRule.account}>
                   {#each accounts as account}
                   <option value={account.code}>{account.code} {account.name}</option>
@@ -381,14 +429,14 @@
                 {/if}
               </td>
               <td>
-                {#if ( editingRule === rule )}
+                {#if ( editingRule && editingRule.id === rule.id )}
                 <input type="text" class="form-control form-control-sm" bind:value={editingRule.pattern}>
                 {:else}
                 {rule.pattern}
                 {/if}
               </td>
               <td>
-                {#if ( editingRule === rule )}
+                {#if ( editingRule && editingRule.id === rule.id )}
                 <select class="form-select form-select-sm" bind:value={editingRule.oppositeAccount}>
                   <option value="">科目</option>
                   {#each oppositeAccounts as account}
@@ -407,8 +455,14 @@
               </td>
               <td class="text-center">{rule.usageCount || 0}</td>
               <td class="text-center" style="white-space:nowrap;">
-                {#if ( editingRule === rule )}
-                <button type="button" class="btn btn-sm btn-primary" on:click={() => { saveRule(rule); }}>保存</button>
+                {#if ( editingRule && editingRule.id === rule.id )}
+                <button type="button" class="btn btn-sm btn-outline-primary" title="ルールだけ保存する（この行には適用しない）"
+                  on:click={() => { saveRule(editingRule, false); }}>保存</button>
+                {#if ( originLine )}
+                <button type="button" class="btn btn-sm btn-primary" disabled={applyButtonDisabled(originLine)}
+                  title={applyButtonTitle(originLine)}
+                  on:click={() => { saveRule(editingRule, true); }}>適用して保存</button>
+                {/if}
                 <button type="button" class="btn btn-sm btn-outline-secondary" on:click={() => { editingRule = null; }}>取消</button>
                 {:else}
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="編集"
@@ -575,6 +629,12 @@ $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
 
 // 相手方仕訳の選択肢（銀行口座自身と仮入科目は相手にしない）
 $: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) && a.code !== '1900000' && a.code !== '3900000' ));
+
+// 学習ルールモーダルの「同じ摘要になる行」リスト（勢いでの間違い登録防止）。
+// 編集フォームのpatternに反応する
+$: activePattern = editingRule ? normPattern(editingRule.pattern) : normPattern(newRule.pattern);
+$: patternMatches = ( originLine && statement && statement.lines && activePattern ) ?
+  statement.lines.filter((l) => ( normPattern(l.rawDescription) === activePattern )) : [];
 
 // 未照合行数（起票対象の内訳表示用）
 $: unmatchedCount = ( statement && statement.lines ) ?
@@ -866,15 +926,23 @@ const runRebook = async () => {
   busy = false;
 };
 
-// 学習ルールのモーダル
+// 正規化（サーバのmakePatternと同じ。NFKC+空白潰しの完全一致）
+const normPattern = (text) => (
+  String(text || '').normalize('NFKC').replace(/[\s\u3000]+/g, '')
+);
+
+// 学習ルールのモーダル。摘要クリックで開いたときはoriginLine（適用対象行）を
+// 覚えておき、「適用して保存」でその行に即反映できるようにする
+let originLine = null;
 const openRulesModal = async (line = null) => {
+  originLine = line;
   editingRule = null;
   showAllRulesForm = false;
-  const pattern = line ?
-    String(line.rawDescription || '').normalize('NFKC').replace(/[\s\u3000]+/g, '') : '';
+  const pattern = line ? normPattern(line.rawDescription) : '';
+  // 口座は勘定科目だけでなく補助（住信SBIなど）まで引き継ぐ
   newRule = {
     account: ( statement && statement.account ) || '',
-    subAccount: '',
+    subAccount: ( statement && statement.subAccount ) ? String(statement.subAccount) : '',
     pattern: pattern,
     // 仮で起票済みの行から登録する場合は既に起票済み伝票からは引き出せないので空
     oppositeAccount: '',
@@ -890,9 +958,24 @@ const openRulesModal = async (line = null) => {
     console.error('load rules failed', e);
     rules = [];
   }
+  // 既に同じ口座+摘要のルールがあれば「修正」モードで開く（勢いでの
+  // 二重登録・間違い登録を防ぐ。修正でも「＋新規ルール」で作れる）
+  if ( line ) {
+    const existing = rules.find((r) => (
+      r.account === newRule.account &&
+      ( r.subAccount || null ) === ( newRule.subAccount || null ) &&
+      r.pattern === pattern
+    ));
+    if ( existing ) {
+      editingRule = JSON.parse(JSON.stringify(existing));
+    } else {
+      showAllRulesForm = true;
+    }
+  }
   rulesModal.show();
 };
 const closeRulesModal = () => {
+  originLine = null;
   rulesModal?.hide();
 };
 const ruleAccountLabel = (rule) => {
@@ -901,7 +984,58 @@ const ruleAccountLabel = (rule) => {
 const ruleOppositeLabel = (rule) => {
   return accountLabel(rule.oppositeAccount, rule.oppositeSubAccount);
 };
-const createRule = async () => {
+const applyButtonDisabled = (line) => {
+  const state = originApplyState(line);
+  return ( state === 'locked' || state === 'none' );
+};
+const applyButtonTitle = (line) => {
+  const state = originApplyState(line);
+  return ( state === 'locked' ) ? '確定済み・精算書由来の伝票には触りません' :
+    ( state === 'none' ) ? 'この行の状態では適用できません' :
+    '保存して、この行にルールを即適用する';
+};
+
+// 「適用して保存」の適用先状態。確定済み・精算書由来の伝票には触れない
+// （適用ボタンを無効化して、理由をtitleで出す）
+const originApplyState = (line) => {
+  if ( !line ) {
+    return 'none';
+  }
+  if ( line.status === 'unmatched' ) {
+    return 'book';
+  }
+  if ( line.status === 'booked' && !line.crossSlipDetailId ) {
+    return 'book';  // 伝票消滅。起票し直せばいい
+  }
+  if ( line.status === 'booked' && line.crossSlipDetailId ) {
+    const slip = line.slip;
+    if ( slip && ( slip.approvedAt || slip.expenseReportId ) ) {
+      return 'locked';
+    }
+    return 'rebook';
+  }
+  return 'none';
+};
+const applyToOrigin = async () => {
+  if ( !originLine ) {
+    return null;
+  }
+  const line = ( statement.lines.find((l) => ( Number(l.id) === Number(originLine.id) )) ) || originLine;
+  const state = originApplyState(line);
+  if ( state === 'book' ) {
+    await axios.post(`/api/bank_statement/${id}/book`, {
+      bookings: [ { lineId: line.id } ]
+    });
+  } else if ( state === 'rebook' ) {
+    // 行単位の再実行（この伝票に紐づく行だけ。他の行・確定済み伝票に触れない）
+    await axios.post(`/api/bank_statement/${id}/rebook`, {
+      lineId: line.id
+    });
+  }
+  loadDetail(id);
+  return state;
+};
+const createRule = async (apply = false) => {
   try {
     await axios.post('/api/bank_statement_rule', {
       account: newRule.account,
@@ -912,16 +1046,21 @@ const createRule = async () => {
     });
     newRule = {};
     showAllRulesForm = false;
+    let applied = null;
+    if ( apply ) {
+      applied = await applyToOrigin();
+      closeRulesModal();
+    }
     const result = await axios.get('/api/bank_statement_rule');
     rules = ( result.data && result.data.values ) || [];
-    toast.show('学習ルール', 'ルールを登録しました');
+    toast.show('学習ルール', ( applied !== null ) ? 'ルールを登録し、この行に適用しました' : 'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '登録に失敗しました';
     toast.show('学習ルール', message, 'warning');
   }
 };
-const saveRule = async (rule) => {
+const saveRule = async (rule, apply = false) => {
   try {
     await axios.put(`/api/bank_statement_rule/${rule.id}`, {
       account: rule.account,
@@ -931,9 +1070,14 @@ const saveRule = async (rule) => {
       oppositeSubAccount: rule.oppositeSubAccount || null
     });
     editingRule = null;
+    let applied = null;
+    if ( apply ) {
+      applied = await applyToOrigin();
+      closeRulesModal();
+    }
     const result = await axios.get('/api/bank_statement_rule');
     rules = ( result.data && result.data.values ) || [];
-    toast.show('学習ルール', 'ルールを更新しました');
+    toast.show('学習ルール', ( applied !== null ) ? 'ルールを更新し、この行に適用しました' : 'ルールを更新しました');
   } catch (e) {
     console.error('save rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '更新に失敗しました';

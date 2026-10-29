@@ -522,6 +522,74 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(keptDetail.crossSlipId, newSlip.id);
   });
 
+  it('rebookStatement(lineId): 指定行だけを解放して他の行の伝票は無傷', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-05', rawDescription: '振込＊testsコ', amountOut: 5000 },
+      { date: '2026-11-10', rawDescription: '振込＊そのほか', amountOut: 8000 }
+    ]);
+    // 両方起票（別日付なので別伝票）
+    await bookLines(statement, null, approver);
+    await reloadAll(lines);
+    const detail0 = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const detail1 = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.notEqual(detail0.crossSlipId, detail1.crossSlipId);
+    // 行単位の再実行: 2行目の伝票には触らない
+    const result = await rebookStatement(statement, approver, { lineId: lines[1].id });
+    assert.equal(result.rebooked, 1);
+    // 1行目の伝票は生きたまま
+    assert.isNotNull(await models.CrossSlipDetail.findByPk(detail0.id));
+    await lines[0].reload();
+    assert.equal(lines[0].crossSlipDetailId, detail0.id);
+    // 2行目は新しい明細・新しい伝票に付け替わる
+    await lines[1].reload();
+    const newDetail1 = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.notEqual(newDetail1.id, detail1.id);
+    assert.notEqual(newDetail1.crossSlipId, detail1.crossSlipId);
+    assert.equal(newDetail1.debitAccount, '1900000');
+  });
+
+  it('rebookStatement(lineId): 合流伝票は伝票ごと解放し、合流行も一緒に作り直す', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-12', rawDescription: 'ＡＴＭ出金', amountOut: 30000 },
+      { date: '2026-11-12', rawDescription: 'ＡＴＭ手数料', amountOut: 110 }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 1);
+    await reloadAll(lines);
+    const mainDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const feeDetail = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.equal(mainDetail.crossSlipId, feeDetail.crossSlipId);
+    const slipId = mainDetail.crossSlipId;
+    // 主取引行を指定して再実行 → 合流行も含めて作り直される
+    const rebook = await rebookStatement(statement, approver, { lineId: lines[0].id });
+    assert.equal(rebook.rebooked, 1);
+    // 古い伝票は消えている
+    assert.isNull(await models.CrossSlip.findByPk(slipId));
+    await reloadAll(lines);
+    // 行は両方新しい伝票に付け替わっている
+    const newMainDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const newFeeDetail = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.notEqual(newMainDetail.id, mainDetail.id);
+    assert.notEqual(newFeeDetail.id, feeDetail.id);
+    assert.equal(newMainDetail.crossSlipId, newFeeDetail.crossSlipId);
+  });
+
+  it('rebookStatement(lineId): 承認済みの伝票に紐づく行は再実行の対象外', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-15', rawDescription: '振込＊approvvね', amountOut: 12000 }
+    ]);
+    await bookLines(statement, null, approver);
+    await reloadAll(lines);
+    const detail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    await models.CrossSlip.update({ approvedAt: new Date() }, { where: { id: detail.crossSlipId } });
+    const result = await rebookStatement(statement, approver, { lineId: lines[0].id });
+    assert.equal(result.rebooked, 0);
+    assert.equal(result.skipped, 1);
+    await lines[0].reload();
+    assert.equal(lines[0].crossSlipDetailId, detail.id);
+    assert.isNotNull(await models.CrossSlip.findByPk(detail.crossSlipId));
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,

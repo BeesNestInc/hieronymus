@@ -320,13 +320,18 @@ export default {
       return;
     }
     try {
-      // 先に仮起票の後突合を流しておく（手作業や他証憑の処理を拾う）
-      try {
-        await reconcile.reconcilePlaceholders();
-      } catch (e) {
-        console.error('reconcilePlaceholders failed', e);
+      // 先に仮起票の後突合を流しておく（手作業や他証憑の処理を拾う）。
+      // リーン単位の「適用」（body.lineId）では skim しない（驚き最小）
+      const lineId = req.body ? req.body.lineId : null;
+      if ( !lineId ) {
+        try {
+          await reconcile.reconcilePlaceholders();
+        } catch (e) {
+          console.error('reconcilePlaceholders failed', e);
+        }
       }
-      const result = await reconcile.rebookStatement(statement, user);
+      const result = await reconcile.rebookStatement(statement, user,
+        lineId ? { lineId: lineId } : {});
       const fresh = await getStatement(statement.id);
       res.json({
         code: 0,

@@ -739,15 +739,24 @@ export const reconcilePlaceholders = async (options = {}) => {
 // 「再実行」。ルール追加や手作業修正の後に、取込から起票した未承認伝票を
 // 解放して現行ルールで起票し直す。承認済み（確定）伝票・精算書由来伝票・
 // 佩戴中（会計年度ロック中）の伝票は決して触らない
-export const rebookStatement = async (statement, user) => {
+export const rebookStatement = async (statement, user, options = {}) => {
+  // options.lineId: 「摘要からの適用」用。指定行だけを解放して再起票する
+  // （驚き最小。全文再実行との違い: 「後の処理」を前置で走らせない）
+  const lineIds = options.lineId ? [ Number(options.lineId) ] : null;
+  const where = {
+    statementId: statement.id,
+    crossSlipDetailId: { [Op.ne]: null },
+    status: 'booked'
+  };
+  if ( lineIds ) {
+    where.id = { [Op.in]: lineIds };
+  }
   const lines = await models.BankStatementLine.findAll({
-    where: {
-      statementId: statement.id,
-      crossSlipDetailId: { [Op.ne]: null },
-      status: 'booked'
-    }
+    where: where
   });
   const result = { rebooked: 0, skipped: 0 };
+  // 解放した行（同一伝票に紐づく他の行=合流仲間もともに解放する）
+  const released = new Set();
   for ( const line of lines ) {
     const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
     const slip = detail ? await models.CrossSlip.findByPk(detail.crossSlipId) : null;
@@ -756,6 +765,7 @@ export const rebookStatement = async (statement, user) => {
       line.status = 'unmatched';
       line.crossSlipDetailId = null;
       await line.save();
+      released.add(line.id);
       continue;
     }
     if ( slip.approvedAt || slip.expenseReportId ) {
@@ -767,16 +777,32 @@ export const rebookStatement = async (statement, user) => {
       result.skipped ++;
       continue;
     }
-    // 行を解放して伝票を消す
-    line.status = 'unmatched';
-    line.crossSlipDetailId = null;
-    await line.save();
+    // この伝票に紐づく行をすべて解放する（伝票を消すので、合流された行も
+    // 未照合に戻す。指定行と同一伝票の行=合流仲間を含む）
+    const slipDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id },
+      attributes: [ 'id' ],
+      raw: true
+    });
+    const slipDetailIds = slipDetails.map((d) => d.id);
+    // 紐付けをnull化する前に、伝票に紐づく行を採っておく（解放後は引けない）
+    const slipLines = await models.BankStatementLine.findAll({
+      where: { crossSlipDetailId: { [Op.in]: slipDetailIds } },
+      raw: true
+    });
+    await releaseStatementLines(slipDetailIds);
+    for ( const slipLine of slipLines ) {
+      released.add(slipLine.id);
+    }
+    released.add(line.id);
+    // 伝票を消す
     await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });
     await slip.destroy();
     result.rebooked ++;
   }
-  // 現行ルールで再起票する（合流も施行される）
-  await bookLines(statement, null, user);
+  // 現行ルールで再起票する（合流も施行される）。行単位のときは解放した行だけ
+  // （他の行の伝票に触れない。「後の処理」もここでも前置で走らせない）
+  await bookLines(statement, lineIds ? [ ...released ].map((lineId) => ({ lineId: lineId })) : null, user);
   return result;
 };
 
