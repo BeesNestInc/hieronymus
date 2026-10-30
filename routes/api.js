@@ -37,6 +37,7 @@ import expense_report from './api_expense_report.js';
 import expense_mapping from './api_expense_mapping.js';
 import bank_statement from './api_bank_statement.js';
 import bank_statement_rule from './api_bank_statement_rule.js';
+import financial from './api_financial.js';
 import karibarai from './api_karibarai.js';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
@@ -153,6 +154,9 @@ router.put('/expense_mapping/:kind', expense_mapping.update);
 
 router.get('/karibarai/:term', karibarai.get);
 
+router.get('/financial', financial.list);
+router.post('/financial', financial.create);
+router.put('/financial/:id', financial.update);
 router.get('/bank_statement', bank_statement.list);
 router.get('/bank_statement/:id', bank_statement.get);
 router.get('/bank_statement/file/:id', bank_statement.file);

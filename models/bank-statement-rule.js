@@ -8,11 +8,18 @@ export default (sequelize, DataTypes) => {
 		 * The `models/index` file will call this method automatically.
 		 */
 		static associate(models) {
+			// ルールは口座単位で持つ（通帳・カードごとの摘要→相手方）
+			this.belongsTo(models.Financial, {
+				foreignKey: 'financialId',
+				as: 'financial'
+			});
 		}
 	};
 	// 学習ルール: 摘要パターン → 相手方仕訳（銀行明細からの起票を自動化するために蓄積する）
 	BankStatementRule.init({
-		// 学習元の口座（科目コード + 補助科目。subAccount null は口座全体で共通）
+		// 学習元の口座
+		financialId: DataTypes.INTEGER,
+		// 旧キー（科目コード+補助。Financial導入前の互換。照合はfinancialIdで行う）
 		account: DataTypes.STRING,
 		subAccount: DataTypes.INTEGER,
 		// 方向（'out' 出金 / 'in' 入金 / null 指定なし=両方向に照合する旧ルール）。

@@ -12,6 +12,11 @@ export default (sequelize, DataTypes) => {
 				foreignKey: 'statementId',
 				as: 'lines'
 			});
+			// 口座（通帳・カードの集積体）。取り込の正体
+			this.belongsTo(models.Financial, {
+				foreignKey: 'financialId',
+				as: 'financial'
+			});
 			this.belongsTo(models.Member, {
 				foreignKey: 'memberId',
 				onDelete: 'SET NULL'
@@ -21,6 +26,8 @@ export default (sequelize, DataTypes) => {
 	BankStatement.init({
 		// 'bank' | 'corporate_card' | 'personal_card'
 		kind: DataTypes.STRING,
+		// 口座（Financial）。取り込の正体。account/subAccountはこれのコピー
+		financialId: DataTypes.INTEGER,
 		// 銀行系: 勘定科目コードと補助科目（subAccountCode）
 		account: DataTypes.STRING,
 		subAccount: DataTypes.INTEGER,

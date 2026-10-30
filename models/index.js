@@ -6,6 +6,7 @@ import BankStatement from './bank-statement.js';
 import BankStatementLine from './bank-statement-line.js';
 import BankStatementRule from './bank-statement-rule.js';
 import CrossSlip from './crossslip.js';
+import Financial from './financial.js';
 import CrossSlipDetail from './crossslipdetail.js';
 import Company from './company.js';
 import CompanyClass from './company-class.js';
@@ -61,6 +62,7 @@ if (config.use_env_variable) {
 
 const models = {
   Account: Account(sequelize, DataTypes),
+  Financial: Financial(sequelize, DataTypes),
   AccountClass: AccountClass(sequelize, DataTypes),
   AccountRemaining: AccountRemaining(sequelize, DataTypes),
   BankStatement: BankStatement(sequelize, DataTypes),

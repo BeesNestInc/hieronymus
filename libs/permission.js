@@ -84,6 +84,9 @@ const RULES = [
 
   // 学習ルール（明細取込の相手方仕訳を決める正規ルール）。閲覧は閲覧権限も、
   // 変更は会計権限のみ
+  { match: /^\/financial$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
+  { match: /^\/financial$/, methods: ['POST'], access: ['accounting'] },
+  { match: /^\/financial\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement_rule$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/bank_statement_rule$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/merge_rules$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },

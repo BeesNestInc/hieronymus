@@ -57,13 +57,18 @@ const lineToJSON = (line) => {
 
 const getStatement = (id) => {
   return models.BankStatement.findByPk(id, {
-    include: [{
-      model: models.BankStatementLine, as: 'lines',
-      include: [{
-        model: models.CrossSlipDetail, as: 'crossSlipDetail',
-        include: [{ model: models.CrossSlip, as: 'crossSlip' }]
-      }]
-    }],
+    include: [
+      {
+        model: models.Financial, as: 'financial'
+      },
+      {
+        model: models.BankStatementLine, as: 'lines',
+        include: [{
+          model: models.CrossSlipDetail, as: 'crossSlipDetail',
+          include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+        }]
+      }
+    ],
     order: [[ { model: models.BankStatementLine, as: 'lines' }, 'lineNo', 'ASC' ]]
   });
 };
@@ -97,7 +102,7 @@ const statementParams = (body, user) => {
 // 更新する（取込は「通帳」の集積。ファイル本体は最新の物を基準にする。
 // 取込の来歴はnoteに積んで残す）。追加がゼロ行でも取込自体は生きる
 // （同じファイルの再投入=「何も変わらない」で正しい）
-const attachToStatement = async (existing, parsed, upload, user, params, res) => {
+const attachToStatement = async (existing, parsed, upload, user, res) => {
   const saved = await saveLines(existing, parsed);
   // 期間は取込全体の包絡を取る（「前回から今月末」の重複断片でも正しくなる）
   const periodFrom = [ existing.periodFrom, parsed.periodFrom ]
@@ -280,7 +285,21 @@ export default {
   upload: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
-    const params = statementParams(req.body, user);
+    // 取込の紐付先は 口座（Financial）。口座の指定は必須（銀行・カードとも）
+    const financial = ( req.body.financialId ) ?
+      await models.Financial.findByPk(parseInt(req.body.financialId, 10)) : null;
+    if ( !financial ) {
+      res.status(422).json({ code: -2, message: '口座（通帳）を選択してください。' });
+      return;
+    }
+    // 取込の種別は口座に従う（frontのkind選択はあくまで解析方法の手がかり）。
+    // 個人カードの口座は立替者ごとのものなので、提出者の口座であることも検証する
+    if ( ( financial.kind === 'personal_card' ) && financial.memberId &&
+      ( user.member && ( user.member.id !== financial.memberId ) ) &&
+      !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
     const isPersonal = ( params.kind === 'personal_card' );
     if ( !canManage(user) && !isPersonal ) {
       res.json({ code: -10 });
@@ -303,24 +322,24 @@ export default {
           req.body.fy
         );
       }
-      // 同じ口座の既存取込があればそこに追加する（カード系は対象外:
-      // 1つのファイルが1つの支払総額/支払日を表すため）
-      const existing = ( !isPersonal && params.account && ( parsed.kind === 'bank' ) ) ?
-        await models.BankStatement.findOne({
-          where: {
-            kind: 'bank',
-            account: params.account,
-            subAccount: ( params.subAccount || null )
-          },
-          order: [[ 'id', 'DESC' ]]
-        }) : null;
+      // 同じ口座の既存取込に追加する（口座単位の集積。重複行は挿入しない）
+      const existing = await models.BankStatement.findOne({
+        where: { financialId: financial.id },
+        order: [[ 'id', 'DESC' ]]
+      });
       if ( existing ) {
-        return await attachToStatement(existing, parsed, upload, user, params, res);
+        return await attachToStatement(existing, parsed, upload, user, res);
       }
       const statement = await models.BankStatement.create({
-        ...params,
-        kind: isPersonal ? 'personal_card' : parsed.kind,
-        profileName: parsed.profileName,
+        // 口座の写し込み（account/subAccount améliorer 折نىに使えるようにする。
+        // 取り込の種別は口座に従う）
+        financialId: financial.id,
+        kind: financial.kind,
+        account: financial.accountCode,
+        subAccount: financial.subAccountCode,
+        cardName: ( financial.kind !== 'bank' ) ? financial.name : null,
+        profileName: financial.profileName || parsed.profileName,
+        memberId: financial.memberId,
         fileName: upload.fileName,
         mimeType: upload.mimeType,
         fileBody: upload.buffer,
@@ -353,49 +372,45 @@ export default {
   },
 
   // 一覧（ファイル本体は除く）。非会計ユーザーは自分の個人カード明細のみ
+  // 一覧は口座（Financial）単位。取込が無い口座も行として出す（取り込忘れの備忘）。
+  // 「もう使わない」（closedAt）の口座は出さない。middle: extra filter by user type
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
-    const where = visibleFilter(user) || {};
-    const statements = await models.BankStatement.findAll({
-      where: where,
-      attributes: { exclude: [ 'fileBody' ] },
-      order: [[ 'id', 'DESC' ]]
+    // 会計権限のないユーザーは自分の個人カード口座の取り込だけを読める
+    const mineOnly = ( !canSeeAll(user) );
+    const personalFinancialIds = mineOnly ?
+      ( await models.Financial.findAll({
+        where: { kind: 'personal_card', memberId: ( user.member ? user.member.id : null ) },
+        attributes: [ 'id' ],
+        raw: true
+      }) ).map(( f ) => f.id) : [];
+    const financials = await models.Financial.findAll({
+      where: ( mineOnly ) ?
+        { closedAt: null, id: { [Op.in]: personalFinancialIds } } :
+        { closedAt: null },
+      order: [[ 'id', 'ASC' ]],
+      include: [{ model: models.BankStatement, as: 'statements' }]
     });
-    // 口座の取り込み忘れを防ぐ: 銀行系の全ての口座（科目+補助）について
-    // 取込のないものは「未取込」の合成行も返す（各口座には必ず通帳の行が
-    // 存在することになる。取り込むまでの間は行数/期間がunknownで見える）
-    const values = [ ...statements ];
-    if ( canSeeAll(user) ) {
-      const usedKeys = new Set(statements
-        .filter((s) => ( s.kind === 'bank' && s.account ))
-        .map((s) => ( `${s.account}|${s.subAccount || ''}` )));
-      const banks = await models.Account.findAll({
-        where: { accountCode: { [Op.like]: '101%' } },
-        include: [{ model: models.SubAccount, as: 'subAccounts' }],
-        order: [[ 'accountCode', 'ASC' ]]
+    const values = [];
+    for ( const financial of financials ) {
+      const statements = financial.statements || [];
+      const latest = statements.slice().sort(( a, b ) => ( b.id - a.id ))[ 0 ] || null;
+      const lineCount = statements.reduce(( sum, s2 ) => ( sum + ( s2.lineCount || 0 ) ), 0);
+      values.push({
+        id: financial.id,
+        name: financial.name,
+        kind: financial.kind,
+        accountCode: financial.accountCode,
+        subAccountCode: financial.subAccountCode,
+        memberId: financial.memberId,
+        // 詳細表示/取り込予定はこの口座の最新取り込
+        statementId: latest ? latest.id : null,
+        fileName: latest ? latest.fileName : null,
+        periodFrom: latest ? latest.periodFrom : null,
+        periodTo: latest ? latest.periodTo : null,
+        lineCount: lineCount
       });
-      for ( const bank of banks ) {
-        // 通帳の行は補助科目（各銀行口座）単位のみ。補助のない銀行科目は
-        // そもそも通帳にならない（実務は「補助科目を先に作る」から始まる。
-        // 口座運用の実体がない科目にplaceholderを置くと空の通帳が並ぶだけ）
-        for ( const sub of bank.subAccounts ) {
-          const key = `${bank.accountCode}|${sub.subAccountCode}`;
-          if ( usedKeys.has(key) ) {
-            continue;
-          }
-          values.push({
-            synthetic: true,
-            kind: 'bank',
-            account: bank.accountCode,
-            subAccount: sub.subAccountCode,
-            fileName: null,
-            periodFrom: null,
-            periodTo: null,
-            lineCount: null
-          });
-        }
-      }
     }
     res.json({ code: 0, values: values });
   },
@@ -598,9 +613,9 @@ export default {
       res.json({ code: -1 });
       return;
     }
-    statement.account = req.body.account || null;
-    statement.subAccount = req.body.subAccount ? parseInt(req.body.subAccount) : null;
-    // 通帳のメモ（取り込の来歴はnoteに積まれるので、こちらは入力用メモ）
+    // 通帳のメモ（取り込の来歴はnoteに積まれるので、こちらは入力用メモ）。
+    // 口座の変更は口座側（/financial）で行う（取り込を消さずに付け替える必要
+    // ができたら考える）
     if ( req.body.memo !== undefined ) {
       statement.memo = ( req.body.memo === null ) ? null : String(req.body.memo);
     }

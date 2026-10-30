@@ -5,10 +5,24 @@ import seed from './seed.js';
 import {create as createCrossSlip, update as updateCrossSlip} from '../libs/cross_slip.js';
 import {
   autoMatch, bookLines, selectForExpense, suggestOpposites,
-  reconcilePlaceholders, rebookStatement, learnOpposite,
+  reconcilePlaceholders, rebookStatement,
   duplicateKeyFor, findExistingDuplicateKeys, isDuplicateLine,
   fiscalYearFilter
 } from '../libs/bank-reconcile.js';
+import { learnOpposite as learnOppositeRaw } from '../libs/bank-reconcile.js';
+// テストは旧bankSideシグニチャのまま回るラッパー（口座=Financialを解決して渡す）
+const learnOpposite = async (bankSide, application1, oppositeSide, direction) => {
+  const financial = await models.Financial.findOne({
+    where: {
+      accountCode: bankSide.account,
+      subAccountCode: ( bankSide.sub !== undefined ) ? ( bankSide.sub || null ) : ( bankSide.subAccount || null )
+    }
+  });
+  if ( !financial ) {
+    throw new Error(`financial fixture missing for ${bankSide.account}/${bankSide.sub}`);
+  }
+  await learnOppositeRaw(financial.id, application1, oppositeSide, direction);
+};
 
 // 取り込んだ明細の突合・起票のテスト（DB使用。*_test のみで実行可）
 // 起票は「学習ルール → 仮入科目（出金仮1900000/入金仮3900000）」で決まり、
@@ -165,7 +179,19 @@ describe('bank-reconcile (test db)', () => {
     }
   };
 
-  const createStatement = async (kind, lines, profileName = null) => {    const statement = await models.BankStatement.create({
+  const createStatement = async (kind, lines, profileName = null) => {
+    // 口座（Financial）を紐付ける（mochaのfixture）。銀行テストは1010010/sub null
+    const financial = ( kind === 'bank' ) ? await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    }) : null;
+    // デバッグフック
+    // console.log('DBG createStatement financial', financial && financial.id);
+    const statement = await models.BankStatement.create({
+      financialId: ( financial ) ? financial.id : null,
       kind: kind,
       account: ( kind === 'bank' ) ? '1010010' : null,
       subAccount: null,
@@ -476,7 +502,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.debitAccount, '7000001');
     // 差し替えたときに学習する（正規化パターン: NFKCで半角化+空白潰し）
     const rule = await models.BankStatementRule.findOne({
-      where: { account: '1010010', pattern: 'デビット483339' }
+      where: { pattern: 'デビット483339' }
     });
     assert.isNotNull(rule);
     assert.equal(rule.oppositeAccount, '7000001');
@@ -511,7 +537,7 @@ describe('bank-reconcile (test db)', () => {
     // 明細など）が同じルールに当たっても、既存の補助を消さない
     await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
     await learnOpposite(
-      { account: '1010010', sub: 1 },
+      { account: '1010010', sub: null },
       '振込＊テスト取引先',
       { account: '1130000', sub: 1 }
     );
@@ -519,7 +545,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(rule.oppositeSubAccount, 1);
     // 補助なしの学習 → 既存の補助を保持する
     await learnOpposite(
-      { account: '1010010', sub: 1 },
+      { account: '1010010', sub: null },
       '振込＊テスト取引先',
       { account: '1130000', sub: null }
     );
@@ -527,7 +553,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(rule.oppositeSubAccount, 1);
     // 補助の変更は取り込む
     await learnOpposite(
-      { account: '1010010', sub: 1 },
+      { account: '1010010', sub: null },
       '振込＊テスト取引先',
       { account: '1130000', sub: 2 }
     );
@@ -535,51 +561,29 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(rule.oppositeSubAccount, 2);
   });
 
-  it('findLearnedRule: 口座補助が一致するルールを最優先する', async () => {
-    // 住信SBI(sub1)と補助なしの兄弟ルールがあるとき、sub1の取込は
-    // sub1ルールを採用する（usageCountの多さで補助なしに負けない）
+  it('findLearnedRule: ルールは口座単位（他口座のルールは適用しない）', async () => {
     await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
-    await learnOpposite({ account: '1010010', sub: 1 },
-      '振込＊リンゴさん', { account: '7000001', sub: null });
     await learnOpposite({ account: '1010010', sub: null },
-      '振込＊リンゴさん', { account: '6000001', sub: null });
-    // 補助なしルールを多めに使った froid状態にする
-    for ( let i = 0; i < 5; i ++ ) {
-      await learnOpposite({ account: '1010010', sub: null },
-        '振込＊リンゴさん', { account: '6000001', sub: null });
-    }
-    const subRule = await models.BankStatementRule.findOne({
-      where: { pattern: '振込*リンゴさん', subAccount: 1 }
+      '振込＊リンゴさん', { account: '7000001', sub: null });
+    const rule = await models.BankStatementRule.findOne({
+      where: { pattern: '振込*リンゴさん' }
     });
-    const noSubRule = await models.BankStatementRule.findOne({
-      where: { pattern: '振込*リンゴさん', subAccount: null }
+    assert.isNotNull(rule);
+    assert.equal(rule.oppositeAccount, '7000001');
+    // この口座の取り込ではルールが効いて、実科目で起票する
+    const statement = await models.BankStatement.create({
+      financialId: rule.financialId,
+      kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 1
     });
-    assert.isNotNull(subRule);
-    assert.isNotNull(noSubRule);
-    assert.equal(subRule.oppositeAccount, '7000001');
-    assert.equal(noSubRule.oppositeAccount, '6000001');
-    // statement.subAccount=1 の取込はsub1ルールから取る
-    const statement = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: 1, cardName: null, lineCount: 1 });
     await models.BankStatementLine.create({
       statementId: statement.id, lineNo: 1, status: 'unmatched',
-      category: 'normal', date: '2026-11-20', rawDescription: '振込＊リンゴさん', amountOut: 1000
+      category: 'normal', date: '2026-11-21', rawDescription: '振込＊リンゴさん', amountOut: 2000
     });
     await bookLines(statement, null, approver);
     const line = await models.BankStatementLine.findOne({ where: { statementId: statement.id } });
     await line.reload();
     const bookedDetail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
     assert.equal(bookedDetail.debitAccount, '7000001');
-    // 補助なしの取込は補助なしルールを取る
-    const statement2 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 1 });
-    await models.BankStatementLine.create({
-      statementId: statement2.id, lineNo: 1, status: 'unmatched',
-      category: 'normal', date: '2026-11-21', rawDescription: '振込＊リンゴさん', amountOut: 2000
-    });
-    await bookLines(statement2, null, approver);
-    const line2 = await models.BankStatementLine.findOne({ where: { statementId: statement2.id } });
-    await line2.reload();
-    const bookedDetail2 = await models.CrossSlipDetail.findByPk(line2.crossSlipDetailId);
-    assert.equal(bookedDetail2.debitAccount, '6000001');
   });
 
   it('rebookStatement: 未承認の仮起票を現行ルールで作り直し、確定済みと精算書由来は守る', async () => {
@@ -788,12 +792,24 @@ describe('bank-reconcile (test db)', () => {
       { lineNo: 1, status: 'unmatched', category: 'normal', date: '2026-12-05', rawDescription: '振込＊恐る', amountOut: 5100, balance: 900000 },
       { lineNo: 2, status: 'unmatched', category: 'normal', date: '2026-12-06', rawDescription: '利息', amountIn: 100, balance: 900100 }
     ];
-    const statement0 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2 });
+    const fin0 = await findOrCreate(models.Financial, {
+      accountCode: '1010010', subAccountCode: null
+    }, { name: 'テスト通帳', kind: 'bank', accountCode: '1010010', subAccountCode: null });
+    const statement0 = await models.BankStatement.create({
+      financialId: fin0.id,
+      kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2
+    });
     for ( const row of keyRows ) {
       await models.BankStatementLine.create({ statementId: statement0.id, ...row });
     }
     // 2本目取込: 重複(12-05)+新しい行(12-07)。重複は挿入しない
-    const statement1 = await models.BankStatement.create({ kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2 });
+    const financial = await findOrCreate(models.Financial, {
+      accountCode: '1010010', subAccountCode: null
+    }, { name: 'テスト通帳', kind: 'bank', accountCode: '1010010', subAccountCode: null });
+    const statement1 = await models.BankStatement.create({
+      financialId: financial.id,
+      kind: 'bank', account: '1010010', subAccount: null, cardName: null, lineCount: 2
+    });
     const keys = await findExistingDuplicateKeys(statement1);
     const insertDefs = [
       { lineNo: 1, category: 'normal', date: '2026-12-05', rawDescription: '振込＊恐る', amountOut: 5100, balance: 900000 },

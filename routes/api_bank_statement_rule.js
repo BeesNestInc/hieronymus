@@ -19,7 +19,7 @@ const cleanDirection = (value) => {
 // 補助科目の解決に使うアカウント辞書（口座→補助。セルフの科目名は帳面側で
 // /api/accounts から引くため、ここでは科目コードしか返さない）
 export default {
-  // 一覧。口座（勘定科目）単位
+  // 一覧。口座（Financial）単位
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     if ( !canManage(req.session.user) && !req.session.user.fiscalBrowsing ) {
@@ -27,14 +27,27 @@ export default {
       return;
     }
     const where = {};
-    if ( req.query.account ) {
-      where.account = req.query.account;
+    if ( req.query.financialId ) {
+      where.financialId = parseInt(req.query.financialId, 10);
     }
     const rules = await models.BankStatementRule.findAll({
       where: where,
-      order: [[ 'account', 'ASC' ], [ 'usageCount', 'DESC' ]]
+      include: [{ model: models.Financial, as: 'financial' }],
+      order: [[ 'financialId', 'ASC' ], [ 'usageCount', 'DESC' ]]
     });
-    res.json({ code: 0, values: rules });
+    res.json({
+      code: 0,
+      values: rules.map((rule) => ({
+        id: rule.id,
+        financialId: rule.financialId,
+        financialName: ( rule.financial ) ? rule.financial.name : null,
+        direction: rule.direction,
+        pattern: rule.pattern,
+        oppositeAccount: rule.oppositeAccount,
+        oppositeSubAccount: rule.oppositeSubAccount,
+        usageCount: rule.usageCount
+      }))
+    });
   },
 
   // 新規登録（手動）。pattern は正規化済み摘要の完全一致で保存する
@@ -45,13 +58,13 @@ export default {
       return;
     }
     const body = req.body || {};
-    const account = body.account;
+    const financialId = body.financialId ? parseInt(body.financialId, 10) : null;
     const pattern = makePattern(body.pattern);
-    if ( !account || !pattern || !body.oppositeAccount ) {
+    if ( !financialId || !pattern || !body.oppositeAccount ) {
       res.status(422).json({ code: -2, message: '口座・摘要・相手方科目が未指定です。' });
       return;
     }
-    if ( isTempAccount(body.oppositeAccount) || isTempAccount(account) ) {
+    if ( isTempAccount(body.oppositeAccount) ) {
       res.status(422).json({ code: -2, message: '仮入科目はルールの相手方に指定できません。' });
       return;
     }
@@ -59,8 +72,7 @@ export default {
       const direction = cleanDirection(body.direction);
       const [ rule, created ] = await models.BankStatementRule.findOrCreate({
         where: {
-          account: account,
-          subAccount: body.subAccount ? parseInt(body.subAccount) : null,
+          financialId: financialId,
           pattern: pattern,
           direction: direction
         },

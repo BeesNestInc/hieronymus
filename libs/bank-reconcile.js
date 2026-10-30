@@ -47,16 +47,14 @@ export const duplicateKeyFor = (line) => {
 };
 
 export const findExistingDuplicateKeys = async (statement) => {
-  // 同じ口座（勘定科目+補助）の取込行が保有するキーの集合。
-  // 同じ口座の残高と（直前で構築されたセット内）の行は重複定義に使える
-  if ( statement.kind !== 'bank' || !statement.account ) {
+  // 同じ口座（Financial）の取込行が保有するキーの集合。同口座間で
+  // 重複する行（断片取り込の兼ね合い由来）を検出する
+  if ( !statement.financialId ) {
     return new Set();
   }
   const statements = await models.BankStatement.findAll({
     where: {
-      kind: 'bank',
-      account: statement.account,
-      subAccount: ( statement.subAccount || null )
+      financialId: statement.financialId
     },
     attributes: [ 'id' ],
     raw: true
@@ -143,29 +141,29 @@ export const makePattern = (text) => {
 // 学習ルールを作成・更新する（upsert）。同じ口座×摘要パターンのルールが
 // あれば適用回数を進め、なければ作る。学習は伝票起票の副作用として行い、
 // 失敗しても起票自体は失敗させない。
+// financialId: ルールの紐付先 口座（Financial）。口座が登録されていない
+// 取り込みは学習しない（ルールは口座単位の施行データだが、Financialは
+// 次年度以降も使う「現役ルール」として口座に紐づく）
 // direction: 'out'(出金)/'in'(入金)。同じ摘要でも入金と出金で相手方が
 // 異なることがある（代理店的な取引先）ため、ルールは方向単位で作る。
 // direction省略は指定なし(null)=両方向に照合する旧来の書き方
-export const learnOpposite = async (bankSide, application1, oppositeSide, direction = null) => {
+export const learnOpposite = async (financialId, application1, oppositeSide, direction = null) => {
   try {
     const pattern = makePattern(application1);
-    if ( ( !pattern ) || ( !bankSide ) || ( !bankSide.account ) ||
+    if ( ( !pattern ) || ( !financialId ) ||
       ( !oppositeSide ) || ( !oppositeSide.account ) ||
-      ( bankSide.account === oppositeSide.account ) ||
       // 仮入科目は実科目として扱えない（仮で起票した仕訳は学習しない）
-      isTempAccount(oppositeSide.account) || isTempAccount(bankSide.account) ) {
+      isTempAccount(oppositeSide.account) ) {
       return;
     }
-    // 呼び出し側の書き方差（sub / subAccount）を吸収する（key不一致だと
-    // subAccount条件がundefinedになり、口座補助違いの兄弟ルールを
+    // opposite側の書き方差（sub / subAccount）を吸収する（key不一致だと
+    // subAccount条件がundefinedになり、補助違いの兄弟ルールを
     // 踏む事故になる）
-    const bankSub = ( bankSide.sub !== undefined ) ? bankSide.sub : ( bankSide.subAccount || null );
     const oppositeSub = ( oppositeSide.sub !== undefined ) ? oppositeSide.sub : ( oppositeSide.subAccount || null );
     // directionの受け皿。想定外の値はnullに落とす
     const dir = ( direction === 'out' || direction === 'in' ) ? direction : null;
     const where = {
-      account: bankSide.account,
-      subAccount: bankSub || null,
+      financialId: financialId,
       pattern: pattern,
       // 旧ルール(direction null。任意方向)はこのlevelでは照合しない:
       // 学習の更新は「同方向のルール」に向ける（もしなければ新規作成。
@@ -198,6 +196,17 @@ export const learnOpposite = async (bankSide, application1, oppositeSide, direct
 
 // 伝票入力からの学習。銀行科目（預金系101xxx）を含む伝票行の摘要と
 // 相手方科目からルールを蓄積する（createCrossSlip/updateCrossSlipから呼ぶ）
+// 学習ルールの紐付先口座を(科目+補助)から引く（法的な解決は1か所）。
+// 学習は口座単位なので、伝票の銀行側科目から通帳(Financial)を突き止める
+const findFinancialBySide = async (account, subAccount) => {
+  return models.Financial.findOne({
+    where: {
+      accountCode: account,
+      subAccountCode: subAccount || null
+    }
+  });
+};
+
 export const learnFromSlip = async (slip) => {
   try {
     const details = await models.CrossSlipDetail.findAll({
@@ -219,7 +228,12 @@ export const learnFromSlip = async (slip) => {
         direction = 'out';
       }
       if ( !oppositeSide ) continue;
-      await learnOpposite(bankSide, detail.application1, oppositeSide, direction);
+      const financial = await findFinancialBySide(bankSide.account, bankSide.sub);
+      if ( !financial ) {
+        // 口座登録のない科目からの起票は学習しない（ルールは口座単位）
+        continue;
+      }
+      await learnOpposite(financial.id, detail.application1, oppositeSide, direction);
     }
   } catch (e) {
     console.log('learnFromSlip failed', e.message);
@@ -425,22 +439,17 @@ const buildInterestDetails = async (line, statement, profile, taxLine = null) =>
 // 落とさないようにする（使用の多さより口座の一致を先に見る）
 const findLearnedRule = async (statement, application1, direction = null) => {
   const pattern = makePattern(application1);
-  if ( !pattern || !statement.account ) {
+  if ( ( !pattern ) || ( !statement.financialId ) ) {
+    // 口座（通帳）未登録の取り込みにはルールを適用しない
     return null;
   }
   const candidates = await models.BankStatementRule.findAll({
     where: {
-      account: statement.account,
+      financialId: statement.financialId,
       pattern: pattern,
+      // 方向付きルールは同方向だけ。direction nullの旧ルールは両方向に照合する
+      // （IN ('out', null)はSQLではnull行に当たらないのでOp.orで書く）
       [Op.and]: [
-        {
-          [Op.or]: [
-            { subAccount: statement.subAccount || null },
-            { subAccount: null }
-          ]
-        },
-        // 方向付きルールは同方向だけ。direction nullの旧ルールは両方向に照合する
-        // （IN ('out', null)はSQLではnull行に当たらないのでOp.orで書く）
         ( direction === 'out' || direction === 'in' ) ?
           { [Op.or]: [ { direction: direction }, { direction: null } ] } :
           { direction: null }
@@ -448,10 +457,7 @@ const findLearnedRule = async (statement, application1, direction = null) => {
     },
     order: [[ 'usageCount', 'DESC' ]]
   });
-  const sub = ( statement.subAccount || null );
-  const matched = ( candidates.length > 0 ) ?
-    candidates.find((r) => ( ( r.subAccount || null ) === sub )) || candidates[ 0 ] : null;
-  return matched;
+  return candidates[ 0 ] || null;
 };
 
 // 通常の経費行の仕訳。借方=支払先マッピングの科目、貸方=明細の口座。
@@ -465,8 +471,11 @@ const findLearnedRule = async (statement, application1, direction = null) => {
 // 他の証憑との突合によって差し替える（仮科目の仕訳は学習しない）。
 // detail に statementLineId を入れて、起票済み伝票の更新で紐付けを復元できるようにする
 const buildLineDetails = async (line, statement, booking, options = {}) => {
-  const isOut = ( line.amountOut !== null && line.amountOut !== undefined );
-  const amount = Number(isOut ? line.amountOut : line.amountIn);
+  // カード系の行は利用額(amount)のみ。金額カラムの見た目は「出金」
+  const isCard = ( statement.kind === 'corporate_card' );
+  const isOut = ( line.amountOut !== null && line.amountOut !== undefined ) ||
+    ( isCard && line.amount !== null && line.amount !== undefined );
+  const amount = Number(isOut ? ( ( line.amountOut !== null && line.amountOut !== undefined ) ? line.amountOut : line.amount ) : line.amountIn);
   let oppositeAccount = booking.oppositeAccount || booking.debitAccount || null;
   let oppositeSubAccount = ( booking.oppositeSubAccount !== undefined ) ?
     booking.oppositeSubAccount : booking.debitSubAccount || null;
@@ -516,9 +525,10 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   // 仮入科目でのお預かりは税.Rulesを付けない（後の処理での差し替えに任せる）
   const taxRuleId = ( isOut && !isTempAccount(oppositeAccount) ) ?
     await deriveTaxRuleId(oppositeAccount, line.date || new Date()) : null;
-  // 実科目で起票するときは学習する（仮入科目は学習対象にしない）
-  if ( !isTempAccount(oppositeAccount) ) {
-    await learnOpposite(bankSide, application1, oppositeSide, isOut ? 'out' : 'in');
+  // 実科目で起票するときは学習する（仮入科目は学習対象にしない）。
+  // 学習は口座（Financial）単位。口座が登録されている取り込みのみが対象
+  if ( statement.financialId && !isTempAccount(oppositeAccount) ) {
+    await learnOpposite(statement.financialId, application1, oppositeSide, isOut ? 'out' : 'in');
   }
   const detail = isOut ? {
     debitAccount: oppositeAccount,
@@ -764,13 +774,9 @@ export const releaseStatementLines = async (detailIds) => {
 // 判断材料。学習ルールに完全一致する行だけを対象にする）
 // 戻り値は {lineId, oppositeAccount, oppositeSubAccount, learned:true} の配列
 export const suggestOpposites = async (statement, profiles = null) => {
-  const learnedRules = statement.account ? await models.BankStatementRule.findAll({
+  const learnedRules = statement.financialId ? await models.BankStatementRule.findAll({
     where: {
-      account: statement.account,
-      [Op.or]: [
-        { subAccount: statement.subAccount || null },
-        { subAccount: null }
-      ]
+      financialId: statement.financialId
     },
     order: [[ 'usageCount', 'DESC' ]]
   }) : [];
@@ -887,15 +893,21 @@ export const reconcilePlaceholders = async (options = {}) => {
     usedIds.add(source.id);
     replaced ++;
     // このままでは学習が効かない（learnFromSlip は伝票作成/更新時フック）ので、
-    // 差し替えた時点で摘要→相手方を覚える
-    await learnOpposite(
-      isOut ? { account: temp.creditAccount, sub: temp.creditSubAccount }
-            : { account: temp.debitAccount, sub: temp.debitSubAccount },
-      temp.application1,
-      isOut ? { account: source.debitAccount, sub: source.debitSubAccount }
-            : { account: source.creditAccount, sub: source.creditSubAccount },
-      isOut ? 'out' : 'in'
+    // 差し替えた時点で摘要→相手方を覚える。学習は口座単位:
+    // 仮側の反対（銀行側=101）で口座を引く（カードは203側が口座）
+    const sideFinancial = await findFinancialBySide(
+      isOut ? temp.creditAccount : temp.debitAccount,
+      isOut ? temp.creditSubAccount : temp.debitSubAccount
     );
+    if ( sideFinancial ) {
+      await learnOpposite(
+        sideFinancial.id,
+        temp.application1,
+        isOut ? { account: source.debitAccount, sub: source.debitSubAccount }
+              : { account: source.creditAccount, sub: source.creditSubAccount },
+        isOut ? 'out' : 'in'
+      );
+    }
   }
   return { replaced: replaced };
 };
