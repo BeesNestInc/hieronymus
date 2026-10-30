@@ -117,9 +117,9 @@
             </div>
             {/if}
           </td>
-          <td class="number">{line.amountOut != null ? Number(line.amountOut).toLocaleString() : ''}</td>
+          <td class="number">{( ( line.amountOut != null ) ? line.amountOut : ( ( statement.kind !== 'bank' ) ? line.amount : null ) ) != null ? Number(( line.amountOut != null ) ? line.amountOut : line.amount).toLocaleString() : ''}</td>
           <td class="number">{line.amountIn != null ? Number(line.amountIn).toLocaleString() : ''}</td>
-          <td class="number">{line.balance != null ? Number(line.balance).toLocaleString() : ( line.amount != null ? Number(line.amount).toLocaleString() : '' )}</td>
+          <td class="number">{( statement.kind === 'bank' && line.balance != null ) ? Number(line.balance).toLocaleString() : ''}</td>
           <td>{categoryLabel(line.category)}</td>
           <td>
             {#if ( line.status === 'booked' && !line.crossSlipDetailId )}
