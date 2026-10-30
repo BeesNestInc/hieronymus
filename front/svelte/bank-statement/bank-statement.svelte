@@ -23,12 +23,21 @@
 {#if ( id )}
 <div class="body">
   {#if ( statement )}
-  <div class="mb-1 text-muted">
-    {kindLabel(statement.kind)} / {statement.fileName} /
-    {statement.periodFrom || '?'}〜{statement.periodTo || '?'} / {statement.lines.length}行
-    {#if ( statement.kind === 'corporate_card' && statement.cardName )}
-    　カード: {statement.cardName}
-    {/if}
+  <div class="mb-1 text-muted d-flex align-items-center">
+    <span class="fs-5 text-dark fw-bold me-2">{ ( statement.financial || {}).name || statement.fileName }</span>
+    <span>{statement.fileName} / {statement.periodFrom || '?'}〜{statement.periodTo || '?'} / {statement.lines.length}行</span>
+    <a class="btn btn-link btn-sm ms-2" href={`/api/bank_statement/file/${statement.id}`}
+      download title="取り込んだファイル（通帳の原典）をダウンロードします（申告で「通帳出せ」のときに）">
+      <i class="bi bi-download"></i>取得済みファイル
+    </a>
+    <button type="button" class="btn btn-sm btn-outline-primary ms-2"
+      on:click={() => { openModal({ financialId: statement.financialId, kind: statement.kind }); }}>
+      取り込む&nbsp;<i class="bi bi-upload"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+      on:click={loadDetail} title="最新の状態に更新">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
   </div>
   {#if ( statement.note )}
   <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
@@ -36,31 +45,16 @@
   {#if ( warnings && warnings.length > 0 )}
   <MessagePanel messages={warnings} title="取込の警告" on:dismiss={dismissWarnings} />
   {/if}
-  {#if ( statement.kind === 'bank' )}
-  <div class="d-flex align-items-center mb-2">
-    <label class="me-2">口座</label>
-    <select class="form-select form-select-sm me-1" style="width:auto;"
-      bind:value={statement.account}>
-      <option value="">科目</option>
-      {#each bankAccounts as account}
-      <option value={account.code}>{account.name}</option>
-      {/each}
-    </select>
-    <select class="form-select form-select-sm me-1" style="width:auto;"
-      bind:value={statement.subAccount}>
-      <option value="">補助</option>
-      {#each detailSubAccounts as sub}
-      <option value={sub.code}>{sub.name}</option>
-      {/each}
-    </select>
+  <div class="d-flex align-items-center mb-2" title="この通帳のメモ（科目管理でどの口座かの参照を含めて表示する）">
+    <label class="me-2" style="font-size:0.85rem;">メモ</label>
     <input type="text" class="form-control form-control-sm me-1" style="width:auto;flex:1;"
-      placeholder="メモ（この通帳についての書き込み）" bind:value={statement.memo}>
-   <button type="button" class="btn btn-sm btn-outline-primary" title="この明細の起票に使う銀行口座（勘定科目）とメモを保存します"
+      placeholder="この通帳についての書き込み"
+      bind:value={statement.memo}>
+   <button type="button" class="btn btn-sm btn-outline-primary" title="通帳のメモを保存します"
       on:click={saveAccount}>
-      口座・メモを設定
+      メモを保存
     </button>
   </div>
-  {/if}
   <div class="d-flex align-items-center mb-1">
     {#if ( statement.kind === 'bank' )}
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
@@ -181,6 +175,17 @@
 </div>
 {:else}
 <div class="body">
+  <div class="d-flex align-items-center mb-2">
+    <button type="button" class="btn btn-outline-primary btn-sm me-2"
+      on:click={() => { openFinancialModal(null); }}>
+      ＋口座を追加&nbsp;<i class="bi bi-plus-lg"></i>
+    </button>
+    <div class="form-check form-check-inline me-2">
+      <input type="checkbox" class="form-check-input" id="showClosed"
+        bind:checked={showClosedFinancials} on:change={loadList}>
+      <label class="form-check-label" style="font-size:0.85rem;" for="showClosed">「もう使わない」口座も表示</label>
+    </div>
+  </div>
   <div class="table-responsive table-scroll">
     <table class="table table-striped table-bordered">
       <thead class="table-light">
@@ -193,43 +198,32 @@
         </tr>
       </thead>
       <tbody>
-        {#each statements as statement}
+        {#each statements as row}
         <tr>
-          <td>{kindLabel(statement.kind)}</td>
+          <td>{kindLabel(row.kind)}</td>
           <td>
-            {#if ( statement.synthetic )}
-            <a class="btn btn-link p-0 text-muted"
-              title="この通帳にはまだ取り込みがありません。クリックで取り込めます"
-              href="#" on:click|preventDefault={() => { openModal({ kind: 'bank', account: statement.account, subAccount: statement.subAccount }); }}>
-              {accountLabel(statement.account, statement.subAccount)}
+            {#if ( row.statementId )}
+            <a class="btn btn-link p-0" href={`/bank-statement/${row.statementId}`}
+              on:click|preventDefault={() => { routerLink(`/bank-statement/${row.statementId}`); }}>
+              {row.name}
             </a>
-            <span class="badge bg-secondary ms-1">未取込</span>
+            <div class="text-muted" style="font-size:0.75rem;">{row.fileName}</div>
             {:else}
-            <a class="btn btn-link p-0" href={`/bank-statement/${statement.id}`}
-              on:click|preventDefault={() => { routerLink(`/bank-statement/${statement.id}`); }}>
-              {#if ( statement.kind === 'bank' && statement.account )}
-              {accountLabel(statement.account, statement.subAccount)}
-              {:else}
-              {statement.fileName}{statement.cardName ? `（${statement.cardName}）` : ''}
-              {/if}
-            </a>
-            {#if ( statement.kind === 'bank' && statement.account )}
-            <div class="text-muted" style="font-size:0.75rem;">最新取込: {statement.fileName}</div>
-            {/if}
+            <span class="text-muted">{row.name}</span>
+            <span class="badge bg-secondary ms-1">未取込</span>
             {/if}
           </td>
-          <td>{statement.periodFrom || ( statement.synthetic ? '—' : '?' )}〜{statement.periodTo || ( statement.synthetic ? '—' : '?' )}</td>
-          <td class="number">{statement.synthetic ? '—' : statement.lineCount}</td>
-          <td>
-            {#if ( statement.synthetic )}
+          <td>{row.periodFrom || '—'}〜{row.periodTo || '—'}</td>
+          <td class="number">{row.lineCount != null ? row.lineCount : '—'}</td>
+          <td class="text-center" style="white-space:nowrap;">
             <button type="button" class="btn btn-sm btn-outline-primary" title="取り込む"
-              on:click={() => { openModal({ kind: 'bank', account: statement.account, subAccount: statement.subAccount }); }}>
+              on:click={() => { openModal({ financialId: row.id, kind: row.kind }); }}>
               <i class="bi bi-upload"></i>
             </button>
-            {:else}
-            <button type="button" class="btn btn-sm btn-outline-danger" title="削除"
-              on:click={() => { deleteStatement(statement); }}><i class="bi bi-trash"></i></button>
-            {/if}
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="通帳名・メモ・勘定科目を編集、または「もう使わない」にする"
+              on:click={() => { editFinancial(row); }}>
+              <i class="bi bi-gear"></i>
+            </button>
           </td>
         </tr>
         {/each}
@@ -238,6 +232,91 @@
   </div>
 </div>
 {/if}
+
+<div class="modal" bind:this={financialModalEl} tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{ financialEdit.id ? '口座を編集' : '口座を追加' }</h5>
+        <button type="button" class="btn-close" on:click={closeFinancialModal}></button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-2">
+          <label class="col-4 col-form-label">通帳名</label>
+          <div class="col-8">
+            <input type="text" class="form-control" bind:value={financialEdit.name}
+              placeholder="例: 住信SBI、三井住友カード">
+          </div>
+        </div>
+        {#if ( !financialEdit.id )}
+        <div class="row mb-2">
+          <label class="col-4 col-form-label">種別</label>
+          <div class="col-8">
+            <select class="form-select" bind:value={financialEdit.kind}
+              on:change={() => { financialEdit.accountCode = ''; }}>
+              <option value="bank">銀行通帳</option>
+              <option value="corporate_card">法人カード</option>
+              <option value="personal_card">個人カード（立替）</option>
+            </select>
+          </div>
+        </div>
+        <div class="row mb-2">
+          <label class="col-4 col-form-label">勘定科目+補助</label>
+          <div class="col-4">
+            <select class="form-select" bind:value={financialEdit.accountCode}>
+              <option value="">科目</option>
+              {#each ( financialEdit.kind === 'bank' ) ? bankAccounts :
+                ( financialEdit.kind === 'corporate_card' ) ? accounts.filter((a) => a.code === '2030000') :
+                accounts.filter((a) => a.code === '1130000') as account}
+              <option value={account.code}>{account.code} {account.name}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="col-4">
+            <select class="form-select" bind:value={financialEdit.subAccountCode}>
+              <option value="">補助</option>
+              {#each ( ( accounts.find((a) => ( a.code === financialEdit.accountCode )) || {} ).subAccounts || [] ) as sub}
+              <option value={sub.code}>{sub.name}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+        {/if}
+        {#if ( financialEdit.kind === 'personal_card' )}
+        <div class="row mb-2">
+          <label class="col-4 col-form-label">立替者（メンバー）</label>
+          <div class="col-8">
+            <select class="form-select" bind:value={financialEdit.memberId}>
+              <option value="">立替者を選択</option>
+              {#each members as member}
+              <option value={member.id}>{member.tradingName || member.legalName}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+        {/if}
+        <div class="row mb-2">
+          <label class="col-4 col-form-label">メモ</label>
+          <div class="col-8">
+            <input type="text" class="form-control" bind:value={financialEdit.memo}
+              placeholder="カード番号下4桁や契約メモなど">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        {#if ( financialEdit.id )}
+        <button type="button" class="btn btn-outline-secondary me-auto"
+          title="この口座を「もう使わない」にする（一覧からは消えます。削除はしないので再開できます）"
+          on:click={closeFinancial}>
+          もう使わない
+        </button>
+        {/if}
+        <button type="button" class="btn btn-primary" on:click={saveFinancial}>保存</button>
+        <button type="button" class="btn btn-outline-secondary" on:click={closeFinancialModal}>閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="modal" bind:this={modalEl} tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-lg">
@@ -248,45 +327,16 @@
       </div>
       <div class="modal-body">
         <div class="row mb-2">
-          <label class="col-4 col-form-label">種別</label>
+          <label class="col-4 col-form-label">口座（通帳）</label>
           <div class="col-8">
-            <select class="form-select" bind:value={form.kind}>
-              <option value="bank">銀行通帳（Excel/CSV/画像）</option>
-              <option value="corporate_card">カード明細（PDF）</option>
-              <option value="personal_card">個人カード明細（立替用）</option>
-            </select>
-          </div>
-        </div>
-        {#if ( form.kind === 'bank' )}
-        <div class="row mb-2">
-          <label class="col-4 col-form-label">口座</label>
-          <div class="col-4">
-            <select class="form-select" bind:value={form.account}>
-              <option value="">科目</option>
-              {#each bankAccounts as account}
-              <option value={account.code}>{account.name}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="col-4">
-            <select class="form-select" bind:value={form.subAccount}>
-              <option value="">補助</option>
-              {#each bankSubAccounts as sub}
-              <option value={sub.code}>{sub.name}</option>
+            <select class="form-select" bind:value={form.financialId}>
+              <option value="">口座を選択してください</option>
+              {#each financials as fin}
+              <option value={fin.id}>{kindLabel(fin.kind)} / {fin.name}</option>
               {/each}
             </select>
           </div>
         </div>
-        {/if}
-        {#if ( form.kind !== 'bank' )}
-        <div class="row mb-2">
-          <label class="col-4 col-form-label">カード名</label>
-          <div class="col-8">
-            <input type="text" class="form-control" bind:value={form.cardName}
-              placeholder="銀行側の引落摘要に含まれる名称（例: ミツイスミトモカード）">
-          </div>
-        </div>
-        {/if}
         <div class="row mb-2">
           <label class="col-4 col-form-label">ファイル</label>
           <div class="col-8">
@@ -404,11 +454,7 @@
           <tbody>
             <tr style="background-color:rgba(13,110,253,0.05);">
               <td>
-                {#key 'new-rule-account' + ruleModalKey}
-                <Account accounts={bankAccounts}
-                  bind:code={newRule.account}
-                  bind:sub_code={newRule.subAccount}></Account>
-                {/key}
+                {( statement && statement.financial ) ? statement.financial.name : '—'}
               </td>
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
@@ -441,15 +487,7 @@
             {#each rules as rule (rule.id)}
             <tr class:rule-edit-row={ editingRule && editingRule.id === rule.id }>
               <td>
-                {#if ( editingRule && editingRule.id === rule.id )}
-                {#key 'edit-rule-' + rule.id}
-                <Account accounts={bankAccounts}
-                  bind:code={editingRule.account}
-                  bind:sub_code={editingRule.subAccount}></Account>
-                {/key}
-                {:else}
-                {ruleAccountLabel(rule)}
-                {/if}
+                {rule.financialName || ''}
               </td>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
@@ -630,7 +668,16 @@ let id = null;
 let modalEl;
 let modal;
 let tableScrollEl;
-let statements = [];
+// 一覧の行は 口座（Financial）単位。クリックはその口座の最新取り込へ
+let statements = [];   // (/api/financial のvalues。口座情報+最新取り込サマリ)
+let showClosedFinancials = false;   // 「もう使わない」口座も表示するか
+// 取込モーダルの口座セレクト用（一覧と別に読む。closed排除はしない=未取込も選べる）
+let financials = [];
+// 口座モーダル（追加/編集/「もう使わない」）
+let financialModalEl;
+let financialModal;
+let financialEdit = {};
+let members = [];
 let statement = null;
 let accounts = [];
 let warnings = [];
@@ -746,8 +793,86 @@ const goList = () => {
 };
 
 const loadList = async () => {
-  const result = await axios.get('/api/bank_statement');
+  const result = await axios.get(`/api/financial${ showClosedFinancials ? '?closed=1' : '' }`);
   statements = ( result.data && result.data.values ) || [];
+};
+// 口座セレクト用。全使用中の口座
+const loadFinancials = async () => {
+  const result = await axios.get('/api/financial');
+  financials = ( result.data && result.data.values ) || [];
+};
+// メンバー一覧（個人カードの立替者選択用）
+const loadMembers = async () => {
+  try {
+    const result = await axios.get('/api/member');
+    members = ( result.data && result.data.values ) || [];
+  } catch (e) {
+    console.error('load members failed', e);
+    members = [];
+  }
+};
+const openFinancialModal = async (row) => {
+  financialEdit = row ? {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    accountCode: row.accountCode,
+    subAccountCode: ( row.subAccountCode ) ? String(row.subAccountCode) : '',
+    memberId: row.memberId || '',
+    memo: row.memo || ''
+  } : { name: '', kind: 'bank', accountCode: '', subAccountCode: '', memberId: '', memo: '' };
+  await loadMembers();
+  if ( !financialModal ) {
+    financialModal = new Modal(financialModalEl);
+  }
+  financialModal.show();
+};
+const closeFinancialModal = () => {
+  financialModal?.hide();
+};
+const saveFinancial = async () => {
+  if ( !financialEdit.name ) {
+    toast.show('口座', '通帳名を入力してください', 'warning');
+    return;
+  }
+  const body = {
+    name: financialEdit.name,
+    kind: financialEdit.kind,
+    accountCode: financialEdit.accountCode,
+    subAccountCode: financialEdit.subAccountCode || null,
+    memberId: financialEdit.memberId || null,
+    memo: financialEdit.memo || null
+  };
+  try {
+    if ( financialEdit.id ) {
+      await axios.put(`/api/financial/${financialEdit.id}`, body);
+      toast.show('口座', '口座を更新しました');
+    } else {
+      await axios.post('/api/financial', body);
+      toast.show('口座', '口座を追加しました');
+    }
+    closeFinancialModal();
+    loadList();
+  } catch (e) {
+    console.error('save financial failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました';
+    toast.show('口座', message, 'warning');
+  }
+};
+// 「もう使わない」。closedAtで非活性化（一行列挙から消える。削除はしない）
+const closeFinancial = async () => {
+  if ( !window.confirm('この口座を「もう使わない」にします。よろしいですか？') ) {
+    return;
+  }
+  try {
+    await axios.put(`/api/financial/${financialEdit.id}`, { closed: true });
+    closeFinancialModal();
+    loadList();
+    toast.show('口座', '「もう使わない」にしました');
+  } catch (e) {
+    console.error('close financial failed', e);
+    toast.show('口座', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
+  }
 };
 
 // 詳細画面のスクロール位置。伝票を開いて戻ってきたときに復元する
@@ -849,21 +974,19 @@ onMount(async () => {
 $: checkPage($currentPage);
 
 // モーダルはBootstrapのModalで制御する（開閉時に状態を戻す）
-const openModal = (prefill = {}) => {
+const openModal = async (prefill = {}) => {
   preview = null;
   previewId = null;
   formError = '';
-  form = {
-    kind: prefill.kind || 'bank',
-    account: prefill.account || '',
-    subAccount: prefill.subAccount || '',
-    cardName: prefill.cardName || ''
-  };
+  form = { kind: prefill.kind || 'bank', financialId: prefill.financialId || '' };
+  await loadFinancials();
   modal?.show();
 };
 // 取込モーダルのタイトル。口座が決まっているときは「この通帳に」が分かるように
-$: uploadModalTitle = ( ( form.kind === 'bank' ) && form.account ) ?
-  `この通帳に取り込む（${accountLabel(form.account, form.subAccount)}）` : '明細の取り込み';
+// 取込モーダルタイトル。選ばれた口座が見えるように
+$: uploadModalTitle = ( form.financialId ) ?
+  `「${( financials.find((f) => ( String(f.id) === String(form.financialId) )) || {}).name || ''}」に取り込む` :
+  '明細の取り込み';
 const closeModal = () => {
   preview = null;
   previewId = null;
@@ -880,9 +1003,14 @@ const doPreview = async () => {
   busy = true;
   formError = '';
   try {
+    if ( !form.financialId ) {
+      formError = '口座（通帳）を選択してください。';
+      return;
+    }
     const fd = new FormData();
     fd.append('file', form.file);
     fd.append('kind', form.kind);
+    fd.append('financialId', form.financialId);
     // 取り込む年度。「今処理している年度」=画面で選んでいる年度を使う
     // （暦の今日が属する年度ではない）
     fd.append('fy', status.fy.term);
@@ -901,8 +1029,8 @@ const doPreview = async () => {
 };
 
 const doUpload = async () => {
-  if ( form.kind === 'bank' && !form.account ) {
-    formError = '科目を選択してください。';
+  if ( !form.financialId ) {
+    formError = '口座（通帳）を選択してください。';
     return;
   }
   busy = true;
@@ -911,11 +1039,9 @@ const doUpload = async () => {
     const fd = new FormData();
     fd.append('file', form.file);
     fd.append('kind', form.kind);
+    fd.append('financialId', form.financialId);
     fd.append('fy', status.fy.term);
     if ( previewId ) fd.append('previewId', previewId);
-    if ( form.account ) fd.append('account', form.account);
-    if ( form.subAccount ) fd.append('subAccount', form.subAccount);
-    if ( form.cardName ) fd.append('cardName', form.cardName);
     const result = await axios.post('/api/bank_statement/upload', fd,
       { 'content-type': 'multipart/form-data' });
     if ( result.data && result.data.code === 0 ) {
@@ -1052,30 +1178,23 @@ const openRulesModal = async (line = null) => {
   showAllRulesForm = false;
   ruleModalKey += 1;
   const pattern = line ? normPattern(line.rawDescription) : '';
-  // 口座は勘定科目だけでなく補助（住信SBIなど）まで引き継ぐ
   // 起票済みの行から開いた場合は、実際に起票されている仕訳明細の
   // 相手方（科目+補助）を既定値にする（手修正の結果がそのまま下地になる。
   // 仮入科目・銀行科目は相手方にならないので、その時は空のまま）
   let oppositeAccount = '';
   let oppositeSubAccount = '';
-  let bankSub = ( statement && statement.subAccount ) ? String(statement.subAccount) : '';
   // 方向は摘要クリックなら行から。手登録（＋新規ルール）は両方向のままで入力できる
   const direction = line ? lineDirection(line) : '';
   const detail = ( line && line.crossSlipDetail ) ? line.crossSlipDetail : null;
   if ( detail && statement ) {
     let opposite = null;
-    if ( detail.creditAccount === statement.account ) {
+    const sideAccount = ( statement && statement.account ) || '';
+    if ( detail.creditAccount === sideAccount ) {
       // 出金（貸方が口座）。相手方は借方側
       opposite = { account: detail.debitAccount, sub: detail.debitSubAccount };
-      if ( detail.creditSubAccount != null ) {
-        bankSub = String(detail.creditSubAccount);
-      }
-    } else if ( detail.debitAccount === statement.account ) {
+    } else if ( detail.debitAccount === sideAccount ) {
       // 入金（借方が口座）。相手方は貸方側
       opposite = { account: detail.creditAccount, sub: detail.creditSubAccount };
-      if ( detail.debitSubAccount != null ) {
-        bankSub = String(detail.debitSubAccount);
-      }
     }
     if ( opposite && opposite.account &&
       ( !TEMP_ACCOUNT_CODES.includes(opposite.account) ) &&
@@ -1085,8 +1204,7 @@ const openRulesModal = async (line = null) => {
     }
   }
   newRule = {
-    account: ( statement && statement.account ) || '',
-    subAccount: bankSub,
+    financialId: ( statement && statement.financialId ) || '',
     direction: direction,
     pattern: pattern,
     oppositeAccount: oppositeAccount,
@@ -1096,7 +1214,7 @@ const openRulesModal = async (line = null) => {
     rulesModal = new Modal(rulesModalEl);
   }
   try {
-    const result = await axios.get('/api/bank_statement_rule');
+    const result = await axios.get(`/api/bank_statement_rule${ statement ? `?financialId=${statement.financialId}` : '' }`);
     rules = ( result.data && result.data.values ) || [];
   } catch (e) {
     console.error('load rules failed', e);
@@ -1106,13 +1224,11 @@ const openRulesModal = async (line = null) => {
   // 二重登録・間違い登録を防ぐ。修正でも「＋新規ルール」で作れる）
   if ( line ) {
     const existing = rules.find((r) => (
-      r.account === newRule.account &&
-      ( r.subAccount || null ) === ( newRule.subAccount || null ) &&
+      String(r.financialId) === String(newRule.financialId) &&
       r.pattern === pattern &&
       ( ( r.direction || '' ) === ( newRule.direction || '' ) )
     )) || rules.find((r) => (
-      r.account === newRule.account &&
-      ( r.subAccount || null ) === ( newRule.subAccount || null ) &&
+      String(r.financialId) === String(newRule.financialId) &&
       r.pattern === pattern &&
       !r.direction
     ));
@@ -1128,9 +1244,7 @@ const closeRulesModal = () => {
   originLine = null;
   rulesModal?.hide();
 };
-const ruleAccountLabel = (rule) => {
-  return accountLabel(rule.account, rule.subAccount);
-};
+
 const ruleOppositeLabel = (rule) => {
   return accountLabel(rule.oppositeAccount, rule.oppositeSubAccount);
 };
@@ -1205,8 +1319,7 @@ const applyRule = async () => {
 const createRule = async (apply = false) => {
   try {
     await axios.post('/api/bank_statement_rule', {
-      account: newRule.account,
-      subAccount: newRule.subAccount || null,
+      financialId: newRule.financialId || null,
       direction: newRule.direction || null,
       pattern: newRule.pattern,
       oppositeAccount: newRule.oppositeAccount,
@@ -1231,8 +1344,6 @@ const createRule = async (apply = false) => {
 const saveRule = async (rule, apply = false) => {
   try {
     await axios.put(`/api/bank_statement_rule/${rule.id}`, {
-      account: rule.account,
-      subAccount: rule.subAccount || null,
       direction: rule.direction || null,
       pattern: rule.pattern,
       oppositeAccount: rule.oppositeAccount,
@@ -1364,11 +1475,9 @@ const saveAccount = async () => {
   }
   try {
     await axios.put(`/api/bank_statement/${id}`, {
-      account: statement.account,
-      subAccount: statement.subAccount,
       memo: ( statement.memo === undefined ) ? null : statement.memo
     });
-    toast.show('明細取込', '口座・メモを設定しました');
+    toast.show('明細取込', 'メモを保存しました');
   } catch (e) {
     const message = ( e.response && e.response.data && e.response.data.message ) || '口座の設定に失敗しました';
     toast.show('明細取込', message, 'warning');
