@@ -93,7 +93,7 @@
           <th style="width:110px;">伝票</th>
           {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
           <th style="width:180px;">相手方</th>
-          <th style="width:90px;"></th>
+          <th style="width:170px;"></th>
           {/if}
         </tr>
       </thead>
@@ -152,17 +152,17 @@
           </td>
           <td style="white-space:nowrap;">
             {#if ( canBookLine(line) )}
-            <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけ起票"
-              on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="この摘要の学習ルールを追加・編集"
-              on:click={() => { openRulesModal(line); }}><i class="bi bi-mortar-board"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-primary py-0" title="この明細だけで伝票を起票します（伝票画面に移動します）"
+              on:click={() => { bookLine(line); }}>起票</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="この摘要の仕分けルールを登録・編集します（同じ摘要は同じ仕分けになります）"
+              on:click={() => { openRulesModal(line); }}>ルール</button>
             {/if}
             {#if ( line.status === 'unmatched' )}
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="対象外にする"
-              on:click={() => { setIgnored(line, true); }}><i class="bi bi-slash-circle"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="この行を起票対象から外します（対象外）"
+              on:click={() => { setIgnored(line, true); }}>対象外</button>
             {:else if ( line.status === 'ignored' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="未照合に戻す"
-              on:click={() => { restoreLine(line); }}><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="対象外を解除して未照合に戻します"
+              on:click={() => { restoreLine(line); }}>戻す</button>
             {/if}
           </td>
           {/if}
