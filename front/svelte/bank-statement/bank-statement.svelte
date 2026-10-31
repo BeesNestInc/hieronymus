@@ -56,7 +56,7 @@
     </button>
   </div>
   <div class="d-flex align-items-center mb-1">
-    {#if ( statement.kind === 'bank' )}
+    {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
       title="金額が一致し日付が近い既存の伝票明細と、この明細を自動で対応付けます"
       on:click={runMatch}>既存仕訳と突合</button>
@@ -70,7 +70,7 @@
       on:click={() => { openMergeModal(); }}><i class="bi bi-collection me-1"></i>取込設定</button>
     {/if}
   </div>
-  {#if ( statement.kind === 'bank' )}
+  {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
   <div class="mb-1" style="font-size:0.85rem;">
     全{statement.lines.length}行:
     <span class="badge bg-success">照合済 {statusCounts.matched}</span>
@@ -91,7 +91,7 @@
           <th style="width:90px;">区分</th>
           <th style="width:110px;">状態</th>
           <th style="width:110px;">伝票</th>
-          {#if ( statement.kind === 'bank' )}
+          {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
           <th style="width:180px;">相手方</th>
           <th style="width:90px;"></th>
           {/if}
@@ -142,7 +142,7 @@
             </button>
             {/if}
           </td>
-          {#if ( statement.kind === 'bank' )}
+          {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
           <td>
             {#if ( line.status === 'booked' && line.crossSlipDetailId )}
             <span class={ isTentative(line) ? 'text-warning' : 'text-muted' }>{bookedOppositeLabel(line)}</span>

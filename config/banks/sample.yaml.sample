@@ -52,5 +52,5 @@ categoryRules:
 # cardPatterns:                  # カードPDFから総額・支払日を取る正規表現（省略時は既定パターン）
 #   total: '支払い合計額([\d,]+)円'
 #   payDate: '支払い日(\d{4})年(\d{1,2})月(\d{1,2})日'
-# paymentAccount: '2030000'      # 引落決済伝票の借方科目（未払金）
+# paymentAccount: '3020000'      # 引落決済伝票の借方科目（未払金）
 # paymentSubAccount: 1

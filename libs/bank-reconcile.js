@@ -491,14 +491,15 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
     oppositeSubAccount = mapping.subAccount || null;
     application1 = line.description || mapping.name;
   }
-  // 銀行科目（口座）は必須
-  if ( !statement.account ) {
+  // 口座の勘定科目は、statementの写し（account）が無ければ口座(Financial)から引く
+  const bankAccount = statement.account || ( ( statement.financial ) ? statement.financial.accountCode : null );
+  if ( !bankAccount ) {
     const err = new Error(`${line.lineNo}行目の明細に口座（勘定科目）が設定されていません。`);
     err.name = 'BankReconcileError';
     throw err;
   }
   const bankSide = {
-    account: statement.account,
+    account: bankAccount,
     subAccount: statement.subAccount
   };
   let oppositeSide = null;

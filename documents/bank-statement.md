@@ -77,7 +77,7 @@ categoryRules:              # 摘要パターン → 区分（省略時は既定
   - { pattern: '^利息', category: interest }
 cardPatterns:               # カードPDF用の正規表現（省略時は既定パターン）
   total: '支払い合計額([\d,]+)円'
-paymentAccount: '2030000'   # 引落決済の借方科目（未払金）
+paymentAccount: '3020000'   # 引落決済の借方科目（未払金）
 paymentSubAccount: 1
 interest:                   # 利息仕訳テンプレ（bank種別のみ）
   incomeAccount: '8000000'  # 受取利息

@@ -501,7 +501,7 @@ export default {
       res.json({ code: -10 });
       return;
     }
-    const statement = await models.BankStatement.findByPk(parseInt(req.params.id));
+    const statement = await getStatement(parseInt(req.params.id));
     if ( !statement ) {
       res.json({ code: -1 });
       return;
@@ -535,7 +535,7 @@ export default {
       res.json({ code: -10 });
       return;
     }
-    const statement = await models.BankStatement.findByPk(parseInt(req.params.id));
+    const statement = await getStatement(parseInt(req.params.id));
     if ( !statement ) {
       res.json({ code: -1 });
       return;

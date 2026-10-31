@@ -92,12 +92,12 @@ module.exports = {
           const profile = profiles.find((p) => ( p.cardName === s.cardName )) ||
             profiles.find((p) => ( p.name === s.profileName || p.name === s.cardName ));
           if ( profile ) {
-            accountCode = profile.paymentAccount || '2030000';
+            accountCode = profile.paymentAccount || '3020000';
             subAccountCode = profile.paymentSubAccount || null;
             profileName = profile.name;
             name = profile.name;
           } else {
-            accountCode = '2030000';
+            accountCode = '3020000';
             name = s.cardName;
           }
         } else if ( kind === 'personal_card' ) {

@@ -856,6 +856,29 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(noFy.dropped, 0);
   });
 
+  it('bookLines: 法人カード行は貸方=口座科目(未払金)で起票する', async () => {
+    // カード明細の行は amount（利用額）のみ。貸方=口座の勘定科目(未払金)、
+    // 借方=学習ルール→仮入科目（銀行フローと同じ土俵）
+    const cardFin = await findOrCreate(models.Financial, {
+      accountCode: '3020000', subAccountCode: null
+    }, { name: 'テストカード', kind: 'corporate_card', accountCode: '3020000' });
+    const statement = await models.BankStatement.create({
+      financialId: cardFin.id, kind: 'corporate_card',
+      account: cardFin.accountCode, subAccount: null,
+      cardName: 'テストカード', lineCount: 1
+    });
+    const line = await models.BankStatementLine.create({
+      statementId: statement.id, lineNo: 1, status: 'unmatched',
+      category: 'normal', date: '2026-12-05', rawDescription: 'マクドナルド', amount: 1000
+    });
+    await bookLines(statement, null, approver);
+    await line.reload();
+    const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
+    assert.equal(detail.creditAccount, '3020000');
+    // ルール未命中なので借方は仮入科目
+    assert.equal(detail.debitAccount, '1900000');
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,
