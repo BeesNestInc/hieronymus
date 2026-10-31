@@ -57,6 +57,7 @@ export default {
         subAccountCode: financial.subAccountCode,
         memberId: financial.memberId,
         profileName: financial.profileName,
+        closedAt: financial.closedAt,
         statementId: latest ? latest.id : null,
         fileName: latest ? latest.fileName : null,
         periodFrom: latest ? latest.periodFrom : null,

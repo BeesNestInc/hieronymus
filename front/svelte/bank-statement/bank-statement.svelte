@@ -237,7 +237,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">{ financialEdit.id ? '口座を編集' : '口座を追加' }</h5>
+        <h5 class="modal-title">{ financialEdit.id ? `口座を編集${ financialEdit.closedAt ? '（停止中）' : '' }` : '口座を追加' }</h5>
         <button type="button" class="btn-close" on:click={closeFinancialModal}></button>
       </div>
       <div class="modal-body">
@@ -313,11 +313,19 @@
           on:click={deleteFinancial}>
           削除
         </button>
+        {#if ( financialEdit.closedAt )}
+        <button type="button" class="btn btn-outline-primary"
+          title="この口座をもう使う状態に戻します（一覧に戻ります）"
+          on:click={reopenFinancial}>
+          再開する
+        </button>
+        {:else}
         <button type="button" class="btn btn-outline-secondary"
           title="この口座を「もう使わない」にする（一覧からは消えます。削除はしないので再開できます）"
           on:click={closeFinancial}>
           もう使わない
         </button>
+        {/if}
         {/if}
         <button type="button" class="btn btn-primary" on:click={saveFinancial}>保存</button>
         <button type="button" class="btn btn-outline-secondary" on:click={closeFinancialModal}>閉じる</button>
@@ -828,8 +836,9 @@ const openFinancialModal = async (row) => {
     subAccountCode: ( row.subAccountCode ) ? String(row.subAccountCode) : '',
     memberId: row.memberId || '',
     memo: row.memo || '',
+    closedAt: row.closedAt || null,
     statementCount: row.statementCount || 0
-  } : { name: '', kind: 'bank', accountCode: '', subAccountCode: '', memberId: '', memo: '', statementCount: 0 };
+  } : { name: '', kind: 'bank', accountCode: '', subAccountCode: '', memberId: '', memo: '', closedAt: null, statementCount: 0 };
   await loadMembers();
   if ( !financialModal ) {
     financialModal = new Modal(financialModalEl);
@@ -882,6 +891,19 @@ const deleteFinancial = async () => {
     console.error('delete financial failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '削除に失敗しました';
     toast.show('口座', message, 'warning');
+  }
+};
+
+// 「もう使わない」からの復活（再開）。closedAtをnullに戻す
+const reopenFinancial = async () => {
+  try {
+    await axios.put(`/api/financial/${financialEdit.id}`, { closed: false });
+    closeFinancialModal();
+    loadList();
+    toast.show('口座', '口座を再開しました');
+  } catch (e) {
+    console.error('reopen financial failed', e);
+    toast.show('口座', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
   }
 };
 
