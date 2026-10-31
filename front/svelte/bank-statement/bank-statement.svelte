@@ -949,6 +949,8 @@ const applyOppositeSuggestions = (suggestions) => {
     const s = ( suggestions || [] ).find((sug) => ( sug.lineId === line.id ));
     if ( s && s.learned ) {
       line._oppositeLabel = accountLabel(s.oppositeAccount, s.oppositeSubAccount);
+      line._oppositeAccount = s.oppositeAccount;
+      line._oppositeSubAccount = s.oppositeSubAccount;
     }
   }
 };
@@ -1171,9 +1173,35 @@ const runBook = async (givenBookings = null) => {
   busy = false;
 };
 
-// この明細だけ単独で起票する
+// この明細の伝票を作る。「起票」は伝票画面を開く（下書き）で、
+// 伝票ができるのは伝票画面の「登録」を押したとき（驚き最小:
+// もどるを押したら何も起きない）
 const bookLine = (line) => {
-  return runBook([{ lineId: line.id }]);
+  const isOut = ( line.amountOut !== null && line.amountOut !== undefined ) ||
+    ( statement.kind !== 'bank' && line.amount != null );
+  const amount = ( isOut ) ? ( line.amountOut != null ? line.amountOut : line.amount ) : line.amountIn;
+  const dateParts = line.date ? line.date.split('-').map(Number) : [];
+  const params = new URLSearchParams({
+    year: dateParts[0] || status.fy.startDate.getFullYear(),
+    month: dateParts[1] || ( status.fy.startDate.getMonth() + 1 ),
+    day: dateParts[2] || '',
+    statementLineId: line.id,
+    application: line.description || line.rawDescription || '',
+    amount: amount || ''
+  });
+  if ( isOut ) {
+    params.append('debitAccount', line._oppositeAccount || '');
+    params.append('debitSubAccount', line._oppositeSubAccount || '');
+    params.append('creditAccount', statement.account || '');
+    params.append('creditSubAccount', statement.subAccount || '');
+  } else {
+    params.append('debitAccount', statement.account || '');
+    params.append('debitSubAccount', statement.subAccount || '');
+    params.append('creditAccount', line._oppositeAccount || '');
+    params.append('creditSubAccount', line._oppositeSubAccount || '');
+  }
+  saveScroll();
+  routerLink(`/slip/new?${params.toString()}`);
 };
 
 // 「再実行」。未承認の起票伝票を解放して現行ルールで作り直す

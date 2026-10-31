@@ -296,7 +296,16 @@ const parsePage = (pageUrl) => {
     return {
       year: parseInt(url.searchParams.get('year')),
       month: parseInt(url.searchParams.get('month')),
-      day: parseInt(url.searchParams.get('day'))
+      day: parseInt(url.searchParams.get('day')),
+      // 明細取込からのドラフト起票（この行の内容で下書きを作る。
+      // 伝票ができるのは「登録」を押したとき）
+      statementLineId: url.searchParams.get('statementLineId') ? parseInt(url.searchParams.get('statementLineId')) : null,
+      application: url.searchParams.get('application'),
+      amount: url.searchParams.get('amount') ? parseInt(url.searchParams.get('amount')) : null,
+      debitAccount: url.searchParams.get('debitAccount'),
+      debitSubAccount: url.searchParams.get('debitSubAccount') ? parseInt(url.searchParams.get('debitSubAccount')) : null,
+      creditAccount: url.searchParams.get('creditAccount'),
+      creditSubAccount: url.searchParams.get('creditSubAccount') ? parseInt(url.searchParams.get('creditSubAccount')) : null
     };
   }
   isNew = false;
@@ -399,6 +408,22 @@ const loadSlip = async (params) => {
     await loadFyAndTax(year, month);
     slip = blankSlip(year, month, day);
     slip.year = year < 100 ? slip.year : year;
+    // 明細取込からのドラフト。取込行の内容で下書きする（保存で伝票になる。
+    // statementLineId が付いたまま保存すると、取り込行は起票済みに紐付く）
+    if ( params.statementLineId ) {
+      const line = slip.lines[0];
+      line.statementLineId = params.statementLineId;
+      line.debitAccount = params.debitAccount || '';
+      line.debitSubAccount = params.debitSubAccount || 0;
+      line.debitAmount = params.amount || '';
+      line.creditAccount = params.creditAccount || '';
+      line.creditSubAccount = params.creditSubAccount || 0;
+      line.creditAmount = params.amount || '';
+      line.application1 = params.application || '';
+      if ( params.day ) {
+        slip.day = params.day;
+      }
+    }
   }
   loading = false;
 };
@@ -446,6 +471,7 @@ const save = (event) => {
       slip.lines[i].description2 = slip.lines[i].description2 || '';
       slip.lines[i].debitVoucher = undefined;
       slip.lines[i].creditVoucher = undefined;
+      // 取込明細との紐付け（明細取込からのドラフト起票）
       sums.debit += slip.lines[i].debitAmount;
       sums.credit += slip.lines[i].creditAmount;
       if (( !slip.lines[i].debitAccount ) &&

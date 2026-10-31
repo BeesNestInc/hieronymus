@@ -879,6 +879,28 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.debitAccount, '1900000');
   });
 
+  it('伝票の登録で取込行が起票済みになる（ドラフト起票）', async () => {
+    // 「起票」ボタンは伝票画面の下書きを開くだけ。伝票の登録時に
+    // 取込行が起票済みに紐付く（登録せずにもどれば何も起きない）
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-12-10', rawDescription: '振込＊テスト取引先', amountOut: 33000 }
+    ]);
+    await createCrossSlip({
+      year: 2026, month: 12, day: 10,
+      lines: [{
+        debitAccount: '7000001', debitAmount: 33000,
+        creditAccount: '1010010', creditAmount: 33000,
+        application1: '振込＊テスト取引先',
+        statementLineId: lines[0].id
+      }]
+    }, approver, { forceUnapproved: true });
+    await lines[0].reload();
+    assert.equal(lines[0].status, 'booked');
+    const detail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    assert.equal(detail.statementLineId, lines[0].id);
+    assert.equal(detail.debitAccount, '7000001');
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,

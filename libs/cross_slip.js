@@ -109,9 +109,10 @@ export const create = async (body, user, options = {}) => {
       await ml.save({ transaction: t });
 
       let lines = [];
+      const detailIds = [];
       for ( let i = 0; i < body.lines.length ; i ++ ) {
         let line = body.lines[i];
-        await models.CrossSlipDetail.create({
+        const detailRow = await models.CrossSlipDetail.create({
           crossSlipId: slip.id,
           lineNo: i,
           debitAccount: line.debitAccount,
@@ -132,9 +133,24 @@ export const create = async (body, user, options = {}) => {
           // 取込明細行との紐付け（明細取込からの起票で渡る）
           statementLineId: line.statementLineId || null
         }, { transaction: t });
+        detailIds.push(detailRow.id);
         lines.push(line);
       }
       await t.commit();
+      // 取込明細から起票した行（statementLineIdを持つ明細）は、取り込行を
+      // 「起票済み」に紐付ける（明細取込からのドラフト起票: 伝票画面の
+      // 「登録」で伝票ができるタイミングで取り込行も確定する）
+      for ( let i = 0; i < body.lines.length ; i ++ ) {
+        if ( body.lines[ i ].statementLineId && detailIds[ i ] ) {
+          await models.BankStatementLine.update({
+            status: 'booked',
+            crossSlipDetailId: detailIds[ i ]
+          }, { where: {
+            id: body.lines[ i ].statementLineId,
+            crossSlipDetailId: null
+          } });
+        }
+      }
       // 銀行科目を含む伝票から摘要→相手方仕訳のルールを学習する（副作用。失敗しない）
       await learnFromSlip(slip);
       return  ({
