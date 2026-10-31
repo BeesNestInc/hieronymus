@@ -1019,10 +1019,8 @@ const openModal = async (prefill = {}) => {
   modal?.show();
 };
 // 取込モーダルのタイトル。口座が決まっているときは「この通帳に」が分かるように
-// 口座モーダルの科目候補（種別に応じて絞る: 銀行=101系/法人カード=203系/個人カード=113系）
-$: financialAccountOptions = ( financialEdit.kind === 'bank' ) ? bankAccounts :
-  ( financialEdit.kind === 'corporate_card' ) ? accounts.filter((a) => ( a.code === '2030000' )) :
-  accounts.filter((a) => ( a.code === '1130000' ));
+// 口座モーダルの科目候補は全科目（種別での絞り込みはしない。連動先は運用者が選ぶ）
+$: financialAccountOptions = accounts;
 
 // 取込モーダルタイトル。選ばれた口座が見えるように
 $: uploadModalTitle = ( form.financialId ) ?
