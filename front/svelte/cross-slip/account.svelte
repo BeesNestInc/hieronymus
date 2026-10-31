@@ -24,7 +24,7 @@
     bind:value={inputSubAccount}
     on:input={onSubAccountInput}
     on:keydown={subCheck}>
-    {#if ( account && account.subAccounts )}
+    {#if ( currentAccount && currentAccount.subAccounts )}
     {#if ( sub_list.length > 0 ) }
     <select bind:value={sub_code}
       on:focusout={subAccountSelect}>
@@ -57,6 +57,8 @@ export	let	sub_code;
 export	let	accounts;
 
 let account;
+// 入力中のcodeから解決する現在の科目（科目候補の確定前に補助欄を打つ操作向け）
+$: currentAccount = account || findAccount(code);
 let accountKey;
 let inputAccount = '';
 let isInitialInput = true;
@@ -136,19 +138,22 @@ const accountSelect = (event) => {
 const onSubAccountInput = (event) => {
   isInitialSubInput = false;
   subAccountKey = inputSubAccount;
-  if  ( !account ) {
+  // 科目候補の確定（focusout）を待たずに補助欄を打てるようにする
+  // （候補selectが開いたまま隣の補助欄を打つ操作で補助が機能しなくなるのを防ぐ）
+  const current = currentAccount;
+  if ( !current || ( !current.subAccounts ) ) {
     sub_list = [];
     sub_code = undefined;
     return;
   }
-  if  ( !subAccountKey ) {
+  if ( !subAccountKey ) {
     // キー未入力時は「入力しない」を選択できるよう空を先頭にする
-    sub_list = searchSubAccountByKey(account, '');
+    sub_list = searchSubAccountByKey(current, '');
     sub_code = undefined;
     sub_account = undefined;
     return;
   }
-  sub_list = searchSubAccountByKey(account, subAccountKey);
+  sub_list = searchSubAccountByKey(current, subAccountKey);
   sub_code = ( sub_list && sub_list.length > 0 ) ? sub_list[0].code : undefined;
 }
 const clearSubInput = () => {
