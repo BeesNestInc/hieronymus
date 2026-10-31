@@ -67,7 +67,16 @@ app.set('view engine', 'spy');
 //app.engine('ejs', ejs);
 app.set('view engine', 'ejs');
 
-app.use('/dist', express.static(path.join(__dirname, './dist')));
+// distのJS/CSSはビルドのたびに差し替わる（ファイル名はハッシュ化しない運用）。
+// ブラウザのヒューリスティックキャッシュで古いbundleを掴まないよう、
+// 常に再検証させる（304を返すので転送量は変わらない）
+app.use('/dist', express.static(path.join(__dirname, './dist'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 app.use('/style', express.static(path.join(__dirname, './front/stylesheets')));
 app.use('/public', express.static(path.join(__dirname, './public')));
 
