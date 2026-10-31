@@ -9,9 +9,13 @@ const canManage = ( user ) => ( Boolean(user.accounting) );
 
 const KINDS = [ 'bank', 'corporate_card', 'personal_card' ];
 
+// 部分更新に耐える入力整形（未指定=undefined は触らない。「もう使わない」
+// のclosedだけのPUTで種別/科目が消えないようにする）
 const cleanInput = ( body ) => {
-  const kind = ( KINDS.includes(body.kind) ) ? body.kind : null;
-  const accountCode = body.accountCode ? String(body.accountCode) : null;
+  const kind = ( body.kind === undefined ) ? undefined :
+    ( ( KINDS.includes(body.kind) ) ? body.kind : null );
+  const accountCode = ( body.accountCode === undefined ) ? undefined :
+    ( body.accountCode ? String(body.accountCode) : null );
   const subAccountCode = ( body.subAccountCode !== undefined ) ?
     ( body.subAccountCode ? parseInt(body.subAccountCode, 10) : null ) : undefined;
   return {
