@@ -191,24 +191,25 @@ const checkPage = (page) => {
   }
 }
 
-// 表示中のURL(科目/補助)に対応する口座を引く（dropdownの表示用）
+// 口座一覧を読む（銀行元帳の選択肢。取込の有無に関係なく全口座を出す）。
+// 表示中のURL(科目/補助)に対応する口座も引いてdropdown表示に反映する
 const resolveFinancial = async () => {
+  try {
+    const result = await axios.get('/api/financial');
+    financials = ( ( result.data && result.data.values ) || [] )
+      .filter((f) => ( f.kind === 'bank' ));
+  } catch (e) {
+    console.error('load financials failed', e);
+    financials = [];
+  }
   if ( !accountCode ) {
     currentFinancial = null;
     return;
   }
-  try {
-    const result = await axios.get('/api/financial');
-    financials = ( result.data && result.data.values ) || [];
-    currentFinancial = financials.find((f) => (
-      f.accountCode === accountCode &&
-      ( f.subAccountCode || undefined ) === ( subAccountCode || undefined )
-    )) || null;
-  } catch (e) {
-    console.error('load financials failed', e);
-    financials = [];
-    currentFinancial = null;
-  }
+  currentFinancial = financials.find((f) => (
+    f.accountCode === accountCode &&
+    ( f.subAccountCode || undefined ) === ( subAccountCode || undefined )
+  )) || null;
 }
 
 onMount(async () => {
