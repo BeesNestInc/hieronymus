@@ -191,13 +191,14 @@ const checkPage = (page) => {
   }
 }
 
-// 口座一覧を読む（銀行元帳の選択肢。取込の有無に関係なく全口座を出す）。
+// 口座一覧を読む（銀行元帳の選択肢。取込の有無に関係なく全口座を出す。
+// 法人カード（未払金の口座）も出す。個人カードは精算フロー専用なので出さない）
 // 表示中のURL(科目/補助)に対応する口座も引いてdropdown表示に反映する
 const resolveFinancial = async () => {
   try {
     const result = await axios.get('/api/financial');
     financials = ( ( result.data && result.data.values ) || [] )
-      .filter((f) => ( f.kind === 'bank' ));
+      .filter((f) => ( f.kind === 'bank' || f.kind === 'corporate_card' ));
   } catch (e) {
     console.error('load financials failed', e);
     financials = [];
