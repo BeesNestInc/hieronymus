@@ -248,12 +248,10 @@
               placeholder="例: 住信SBI、三井住友カード">
           </div>
         </div>
-        {#if ( !financialEdit.id )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">種別</label>
           <div class="col-8">
-            <select class="form-select" bind:value={financialEdit.kind}
-              on:change={() => { financialEdit.accountCode = ''; }}>
+            <select class="form-select" bind:value={financialEdit.kind}>
               <option value="bank">銀行通帳</option>
               <option value="corporate_card">法人カード</option>
               <option value="personal_card">個人カード（立替）</option>
@@ -263,7 +261,8 @@
         <div class="row mb-2">
           <label class="col-4 col-form-label">勘定科目+補助</label>
           <div class="col-4">
-            <select class="form-select" bind:value={financialEdit.accountCode}>
+            <select class="form-select" bind:value={financialEdit.accountCode}
+              title="この通帳の行が載る勘定科目（銀行=101系、法人カード=203系未払金、個人カード=113系仮払金）">
               <option value="">科目</option>
               {#each ( financialEdit.kind === 'bank' ) ? bankAccounts :
                 ( financialEdit.kind === 'corporate_card' ) ? accounts.filter((a) => a.code === '2030000') :
@@ -273,7 +272,8 @@
             </select>
           </div>
           <div class="col-4">
-            <select class="form-select" bind:value={financialEdit.subAccountCode}>
+            <select class="form-select" bind:value={financialEdit.subAccountCode}
+              title="この通帳の補助科目（銀行口座・カード・立替者の区別）">
               <option value="">補助</option>
               {#each ( ( accounts.find((a) => ( a.code === financialEdit.accountCode )) || {} ).subAccounts || [] ) as sub}
               <option value={sub.code}>{sub.name}</option>
@@ -281,7 +281,6 @@
             </select>
           </div>
         </div>
-        {/if}
         {#if ( financialEdit.kind === 'personal_card' )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">立替者（メンバー）</label>

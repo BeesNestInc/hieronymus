@@ -131,7 +131,17 @@ export default {
     if ( body.closed !== undefined ) {
       financial.closedAt = body.closed ? new Date() : null;
     }
-    await financial.save();
+    try {
+      await financial.save();
+    } catch (e) {
+      if ( e && e.name === 'SequelizeUniqueConstraintError' ) {
+        res.status(422).json({ code: -2, message: '同じ勘定科目+補助の口座が既にあります。' });
+        return;
+      }
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '保存に失敗しました。' });
+      return;
+    }
     res.json({ code: 0, id: financial.id });
   },
 
