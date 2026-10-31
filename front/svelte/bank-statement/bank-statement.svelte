@@ -1187,7 +1187,9 @@ const bookLine = (line) => {
     day: dateParts[2] || '',
     statementLineId: line.id,
     application: line.description || line.rawDescription || '',
-    amount: amount || ''
+    amount: amount || '',
+    // もどるは取込の詳細に戻る（仕訳日記帳ではなく）
+    returnTo: `/bank-statement/${id}`
   });
   if ( isOut ) {
     params.append('debitAccount', line._oppositeAccount || '');
