@@ -221,7 +221,7 @@
               <i class="bi bi-upload"></i>
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" title="通帳名・メモ・勘定科目を編集、または「もう使わない」にする"
-              on:click={() => { editFinancial(row); }}>
+              on:click={() => { openFinancialModal(row); }}>
               <i class="bi bi-gear"></i>
             </button>
           </td>
