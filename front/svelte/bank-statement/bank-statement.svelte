@@ -1151,6 +1151,11 @@ const runBook = async (givenBookings = null) => {
       cardSuggestions = cardSuggestions.filter((s) => !bookedLineIds.includes(s.lineId));
       // 仮起票の伝票を確認できた分だけ「後の処理」で差し替わる（次回の突合時）
       toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち。ルール未命中は仮入科目になります）`);
+      // 単行起票のときは、作った伝票の画面へ直接行く（確認・修正・証憑紐付け）
+      if ( bookings.length === 1 && result.data.slips.length > 0 ) {
+        const slip = result.data.slips[ 0 ];
+        routerLink(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${encodeURIComponent('/bank-statement/' + id)}`);
+      }
     } else {
       // code≠0はサイレントに来る（権限等）。原因がわかるように表示する
       const detail = result.data ? `（code=${result.data.code}）` : '';
