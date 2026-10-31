@@ -6,7 +6,7 @@
     {:else}
     <button type="button" class="btn btn-outline-secondary me-2" title="学習ルール（摘要→相手方仕訳）の閲覧・編集"
       on:click={() => { openRulesModal(); }}>
-      学習ルール&nbsp;<i class="bi bi-mortar-board"></i>
+      学習ルール&nbsp;<i class="bi bi-mortarboard"></i>
     </button>
     <button type="button" class="btn btn-outline-secondary me-2" title="合流摘要と自動突合の摘要の加除（口座共通の設定）"
       on:click={() => { openMergeModal(); }}>
@@ -93,7 +93,7 @@
           <th style="width:110px;">伝票</th>
           {#if ( statement.kind === 'bank' || statement.kind === 'corporate_card' )}
           <th style="width:180px;">相手方</th>
-          <th style="width:170px;"></th>
+          <th style="width:90px;"></th>
           {/if}
         </tr>
       </thead>
@@ -147,22 +147,22 @@
             {#if ( line.status === 'booked' && line.crossSlipDetailId )}
             <span class={ isTentative(line) ? 'text-warning' : 'text-muted' }>{bookedOppositeLabel(line)}</span>
             {:else if ( line._oppositeLabel )}
-            <span class="text-info"><i class="bi bi-mortar-board-fill me-1" title="学習済みのルールから起票します"></i>{line._oppositeLabel}</span>
+            <span class="text-info"><i class="bi bi-mortarboard-fill me-1" title="学習済みのルールから起票します"></i>{line._oppositeLabel}</span>
             {/if}
           </td>
           <td style="white-space:nowrap;">
             {#if ( canBookLine(line) )}
-            <button type="button" class="btn btn-sm btn-outline-primary py-0" title="この明細だけで伝票を起票します（伝票画面に移動します）"
-              on:click={() => { bookLine(line); }}>起票</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="この摘要の仕分けルールを登録・編集します（同じ摘要は同じ仕分けになります）"
-              on:click={() => { openRulesModal(line); }}>ルール</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけで伝票を起票します（伝票画面に移動します）"
+              on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="この摘要の仕分けルールを登録・編集します（同じ摘要は同じ仕分けになります）"
+              on:click={() => { openRulesModal(line); }}><i class="bi bi-mortarboard"></i></button>
             {/if}
             {#if ( line.status === 'unmatched' )}
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="この行を起票対象から外します（対象外）"
-              on:click={() => { setIgnored(line, true); }}>対象外</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="この行を起票対象から外します（対象外）"
+              on:click={() => { setIgnored(line, true); }}><i class="bi bi-slash-circle"></i></button>
             {:else if ( line.status === 'ignored' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="対象外を解除して未照合に戻します"
-              on:click={() => { restoreLine(line); }}>戻す</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="対象外を解除して未照合に戻します"
+              on:click={() => { restoreLine(line); }}><i class="bi bi-arrow-counterclockwise"></i></button>
             {/if}
           </td>
           {/if}
