@@ -241,7 +241,7 @@ import axios from 'axios';
 import {onMount} from 'svelte';
 import CrossSlip from './cross-slip.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
-import {currentPage, link} from '../../javascripts/router.js';
+import {currentPage, link, goBack} from '../../javascripts/router.js';
 
 export let status;
 
@@ -276,8 +276,9 @@ const defaultReturnTo = () => {
   return '/home';
 };
 
+// もどるは遷移スタックで戻る（returnToは直リンク時のフォールバック）
 const back = () => {
-  link(returnTo || defaultReturnTo());
+  goBack(returnTo || defaultReturnTo());
 };
 
 const onDragStart = (event) => {
