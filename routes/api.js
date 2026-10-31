@@ -157,6 +157,7 @@ router.get('/karibarai/:term', karibarai.get);
 router.get('/financial', financial.list);
 router.post('/financial', financial.create);
 router.put('/financial/:id', financial.update);
+router.delete('/financial/:id', financial.delete);
 router.get('/bank_statement', bank_statement.list);
 router.get('/bank_statement/:id', bank_statement.get);
 router.get('/bank_statement/file/:id', bank_statement.file);

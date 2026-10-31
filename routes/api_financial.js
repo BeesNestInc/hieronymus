@@ -128,5 +128,37 @@ export default {
     }
     await financial.save();
     res.json({ code: 0, id: financial.id });
+  },
+
+  // 削除は取り込の紐付いていない口座だけ（誤登録の掃除用）。
+  // 取込が紐付いている口座は「もう使わない」(closedAt)を使う。
+  // ルールが紐付いている場合も消さない（ルールは口座単位の施行データ）
+  delete: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const financial = await models.Financial.findByPk(parseInt(req.params.id));
+    if ( !financial ) {
+      res.status(404).json({ code: -1 });
+      return;
+    }
+    const statementCount = await models.BankStatement.count({
+      where: { financialId: financial.id }
+    });
+    if ( statementCount > 0 ) {
+      res.status(422).json({ code: -2, message: '取り込みのある口座は削除できません。「もう使わない」を使ってください。' });
+      return;
+    }
+    const ruleCount = await models.BankStatementRule.count({
+      where: { financialId: financial.id }
+    });
+    if ( ruleCount > 0 ) {
+      res.status(422).json({ code: -2, message: '学習ルールのある口座は削除できません。ルールを削除してからにしてください。' });
+      return;
+    }
+    await financial.destroy();
+    res.json({ code: 0 });
   }
 };

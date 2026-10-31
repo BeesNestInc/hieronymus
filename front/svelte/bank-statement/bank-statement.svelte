@@ -305,7 +305,15 @@
       </div>
       <div class="modal-footer">
         {#if ( financialEdit.id )}
-        <button type="button" class="btn btn-outline-secondary me-auto"
+        <button type="button" class="btn btn-outline-danger me-auto"
+          title={ financialEdit.statementCount > 0 ?
+            '取り込みのある口座は削除できません。「もう使わない」を使ってください' :
+            'この口座を削除します（取り込み・ルールのない口座のみ）' }
+          disabled={ financialEdit.statementCount > 0 }
+          on:click={deleteFinancial}>
+          削除
+        </button>
+        <button type="button" class="btn btn-outline-secondary"
           title="この口座を「もう使わない」にする（一覧からは消えます。削除はしないので再開できます）"
           on:click={closeFinancial}>
           もう使わない
@@ -819,8 +827,9 @@ const openFinancialModal = async (row) => {
     accountCode: row.accountCode,
     subAccountCode: ( row.subAccountCode ) ? String(row.subAccountCode) : '',
     memberId: row.memberId || '',
-    memo: row.memo || ''
-  } : { name: '', kind: 'bank', accountCode: '', subAccountCode: '', memberId: '', memo: '' };
+    memo: row.memo || '',
+    statementCount: row.statementCount || 0
+  } : { name: '', kind: 'bank', accountCode: '', subAccountCode: '', memberId: '', memo: '', statementCount: 0 };
   await loadMembers();
   if ( !financialModal ) {
     financialModal = new Modal(financialModalEl);
@@ -859,6 +868,23 @@ const saveFinancial = async () => {
     toast.show('口座', message, 'warning');
   }
 };
+// 口座の削除（取り込み・ルールのない口座のみ。サーバ側でも検証される）
+const deleteFinancial = async () => {
+  if ( !window.confirm('この口座を削除しますか？') ) {
+    return;
+  }
+  try {
+    await axios.delete(`/api/financial/${financialEdit.id}`);
+    closeFinancialModal();
+    loadList();
+    toast.show('口座', '口座を削除しました');
+  } catch (e) {
+    console.error('delete financial failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '削除に失敗しました';
+    toast.show('口座', message, 'warning');
+  }
+};
+
 // 「もう使わない」。closedAtで非活性化（一行列挙から消える。削除はしない）
 const closeFinancial = async () => {
   if ( !window.confirm('この口座を「もう使わない」にします。よろしいですか？') ) {
