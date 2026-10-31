@@ -9,44 +9,28 @@
         class="btn nav-link dropdown-toggle"
         style="background-color:var(--bs-primary);color:white;"
         rolw="button" data-bs-toggle="dropdown" aria-expanded="false">
-        {#if accountCode}
-        {BANK_ACCOUNTS.find((el) => el[0] == accountCode)[1]}
+        {#if currentFinancial}
+        {currentFinancial.name}
         {:else}
-        科目
+        口座
         {/if}
       </button>
       <ul class="dropdown-menu" aria-labelledby="field">
-        {#each BANK_ACCOUNTS as account}
+        {#each financials as financial}
         <li>
           <button type="button" class="btn btn-link dropdown-item"
             on:click={() => {
-              openAccount(account[0])}
+              openFinancial(financial)}
             }>
-            {account[1]}
+            {financial.name}
           </button>
         </li>
         {/each}
+        {#if ( financials.length === 0 )}
+        <li><span class="dropdown-item-text text-muted">口座がありません（明細取込で口座を追加してください）</span></li>
+        {/if}
       </ul>
     </li>
-    {#each bank_list.subAccounts as bank}
-      <li class="nav-item">
-        {#if ( subAccountCode === bank.subAccountCode )}
-        <button type="button" class="btn btn-info"
-          on:click|preventDefault={() => {
-            openBank(bank.subAccountCode);
-          }}>
-          {bank.name}
-        </button>
-        {:else}
-        <button type="button" class="btn btn-outline-info"
-          on:click|preventDefault={() => {
-            openBank(bank.subAccountCode);
-          }}>
-          {bank.name}
-        </button>
-        {/if}
-      </li>
-    {/each}
     </div>
     <div>
     	<button type="button" class="btn btn-outline-secondary" id="open-bank-statement"
@@ -170,15 +154,11 @@ export let status;
 let	bank_list = { subAccounts: []};
 let	lines = [];
 let	accounts;
+// 口座（Financial）。銀行元帳の表示単位は「科目」ではなく口座（通帳）
+let financials = [];
+let currentFinancial = null;
 
 $: checkPage($currentPage);
-
-const BANK_ACCOUNTS = [
-  [ '1010000',	'当座預金' ],
-  [ '1010010',	'普通預金' ],
-  [ '1010020',	'定期預金' ],
-  [ '1010030',	'定期積立' ]
-];
 
 const link = (href) => {
   window.history.pushState({ page: href }, "", href);
@@ -188,14 +168,14 @@ const link = (href) => {
 let accountCode;
 let subAccountCode;
 
-const openAccount = (_account) => {
-  accountCode = _account;
-  subAccountCode = undefined;
-  link(`/bank-ledger/${accountCode}`);
-}
-const openBank = (id) => {
-  subAccountCode = id;
-  link(`/bank-ledger/${accountCode}/${subAccountCode}`);
+// 口座（通帳）を指定して開く。URLは従来どおり科目/補助をキープ
+// （直リンク・履歴からの戻りも同じ形で動く）
+const openFinancial = (financial) => {
+  if ( financial.subAccountCode ) {
+    link(`/bank-ledger/${financial.accountCode}/${financial.subAccountCode}`);
+  } else {
+    link(`/bank-ledger/${financial.accountCode}`);
+  }
 }
 
 const checkPage = (page) => {
@@ -203,12 +183,31 @@ const checkPage = (page) => {
   const args = page.split('/');
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
-  console.log('checkPage', args, accountCode, subAccountCode);
   updateAccount();
   if ( subAccountCode ) {
     updateList();
   } else {
     lines = [];
+  }
+}
+
+// 表示中のURL(科目/補助)に対応する口座を引く（dropdownの表示用）
+const resolveFinancial = async () => {
+  if ( !accountCode ) {
+    currentFinancial = null;
+    return;
+  }
+  try {
+    const result = await axios.get('/api/financial');
+    financials = ( result.data && result.data.values ) || [];
+    currentFinancial = financials.find((f) => (
+      f.accountCode === accountCode &&
+      ( f.subAccountCode || undefined ) === ( subAccountCode || undefined )
+    )) || null;
+  } catch (e) {
+    console.error('load financials failed', e);
+    financials = [];
+    currentFinancial = null;
   }
 }
 
@@ -219,6 +218,7 @@ onMount(async () => {
   accounts = result.data;
   setAccounts(accounts);
 
+  await resolveFinancial();
   checkPage();
 
 });
@@ -231,6 +231,7 @@ const updateAccount = () => {
   } else {
     bank_list = { subAccounts: [] };
   }
+  resolveFinancial();
 }
 
 const updateList = () => {
