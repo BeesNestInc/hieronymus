@@ -260,25 +260,12 @@
         </div>
         <div class="row mb-2">
           <label class="col-4 col-form-label">勘定科目+補助</label>
-          <div class="col-4">
-            <select class="form-select" bind:value={financialEdit.accountCode}
-              title="この通帳の行が載る勘定科目（銀行=101系、法人カード=203系未払金、個人カード=113系仮払金）">
-              <option value="">科目</option>
-              {#each ( financialEdit.kind === 'bank' ) ? bankAccounts :
-                ( financialEdit.kind === 'corporate_card' ) ? accounts.filter((a) => a.code === '2030000') :
-                accounts.filter((a) => a.code === '1130000') as account}
-              <option value={account.code}>{account.code} {account.name}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="col-4">
-            <select class="form-select" bind:value={financialEdit.subAccountCode}
-              title="この通帳の補助科目（銀行口座・カード・立替者の区別）">
-              <option value="">補助</option>
-              {#each ( ( accounts.find((a) => ( a.code === financialEdit.accountCode )) || {} ).subAccounts || [] ) as sub}
-              <option value={sub.code}>{sub.name}</option>
-              {/each}
-            </select>
+          <div class="col-8">
+            {#key 'financial-account-' + financialModalKey}
+            <Account accounts={financialAccountOptions}
+              bind:code={financialEdit.accountCode}
+              bind:sub_code={financialEdit.subAccountCode}></Account>
+            {/key}
           </div>
         </div>
         {#if ( financialEdit.kind === 'personal_card' )}
@@ -692,6 +679,7 @@ let financials = [];
 let financialModalEl;
 let financialModal;
 let financialEdit = {};
+let financialModalKey = 0;
 let members = [];
 let statement = null;
 let accounts = [];
@@ -827,6 +815,7 @@ const loadMembers = async () => {
   }
 };
 const openFinancialModal = async (row) => {
+  financialModalKey += 1;
   financialEdit = row ? {
     id: row.id,
     name: row.name,
@@ -1030,6 +1019,11 @@ const openModal = async (prefill = {}) => {
   modal?.show();
 };
 // 取込モーダルのタイトル。口座が決まっているときは「この通帳に」が分かるように
+// 口座モーダルの科目候補（種別に応じて絞る: 銀行=101系/法人カード=203系/個人カード=113系）
+$: financialAccountOptions = ( financialEdit.kind === 'bank' ) ? bankAccounts :
+  ( financialEdit.kind === 'corporate_card' ) ? accounts.filter((a) => ( a.code === '2030000' )) :
+  accounts.filter((a) => ( a.code === '1130000' ));
+
 // 取込モーダルタイトル。選ばれた口座が見えるように
 $: uploadModalTitle = ( form.financialId ) ?
   `「${( financials.find((f) => ( String(f.id) === String(form.financialId) )) || {}).name || ''}」に取り込む` :
