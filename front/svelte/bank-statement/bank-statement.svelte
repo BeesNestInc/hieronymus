@@ -457,6 +457,7 @@
             </tr>
           </thead>
           <tbody>
+            {#if ( showAllRulesForm )}
             <tr style="background-color:rgba(13,110,253,0.05);">
               <td>
                 {( statement && statement.financial ) ? statement.financial.name : '—'}
@@ -496,6 +497,7 @@
                 {/if}
               </td>
             </tr>
+            {/if}
             {#each rules as rule (rule.id)}
             <tr class:rule-edit-row={ editingRule && editingRule.id === rule.id }>
               <td>
@@ -1262,9 +1264,11 @@ const runRebook = async () => {
   busy = false;
 };
 
-// 行の方向（出金/入金）。同じ摘要でも入金と出金で相手方は別ルール
+// 行の方向（出金/入金）。同じ摘要でも入金と出金で相手方は別ルール。
+// カード系の行は利用額(amount)のみで載るので常に方向=出金
 const lineDirection = (line) => (
-  ( line.amountOut !== null && line.amountOut !== undefined ) ? 'out' : 'in'
+  ( ( line.amountOut !== null && line.amountOut !== undefined ) ||
+    ( ( line.amount !== null && line.amount !== undefined ) ) ) ? 'out' : 'in'
 );
 const DIRECTION_LABELS = { out: '出金', in: '入金' };
 const directionLabel = (direction) => ( direction ? ( DIRECTION_LABELS[ direction ] || direction ) : '両方' );
