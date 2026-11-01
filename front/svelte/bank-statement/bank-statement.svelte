@@ -1334,10 +1334,30 @@ const openRulesModal = async (line = null) => {
     newRule.creditAccount = statement.financial.accountCode;
     newRule.creditSubAccount = statement.subAccount;
   }
-  // 摘要クリックは「新規登録」の流れ: 新規フォームを開く（既存の行は
-  // 一覧に並るので、必要なら編集・削除できる）
+  // 完全に同じ摘要+方向のルールが既にあれば「修正」で開く。
+  // 二重登録は害しかない（DB側はfindOrCreateのupsertで二重行は作られないが、
+  // 適用時どちらが使われるかが分からなくなる）。
+  // 違う方向（同じ摘要の入金と出金）は別ルールなので新規登録になる
   if ( line ) {
-    showAllRulesForm = true;
+    const existing = rules.find((r) => (
+      String(r.financialId) === String(newRule.financialId) &&
+      r.pattern === pattern &&
+      ( ( r.direction || '' ) === ( newRule.direction || '' ) )
+    )) || rules.find((r) => (
+      String(r.financialId) === String(newRule.financialId) &&
+      r.pattern === pattern &&
+      !r.direction
+    ));
+    if ( existing ) {
+      editingRule = JSON.parse(JSON.stringify(existing));
+      // 貸方の指定が無い既存ルールは、この口座の科目で見せる
+      if ( statement && statement.financial && !editingRule.creditAccount ) {
+        editingRule.creditAccount = statement.financial.accountCode;
+        editingRule.creditSubAccount = statement.subAccount;
+      }
+    } else {
+      showAllRulesForm = true;
+    }
   }
   rulesModal.show();
 };
