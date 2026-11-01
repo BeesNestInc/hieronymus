@@ -292,15 +292,9 @@ export default {
       res.status(422).json({ code: -2, message: '口座（通帳）を選択してください。' });
       return;
     }
-    // 取込の種別は口座に従う（frontのkind選択はあくまで解析方法の手がかり）。
-    // 個人カードの口座は立替者ごとのものなので、提出者の口座であることも検証する
-    if ( ( financial.kind === 'personal_card' ) && financial.memberId &&
-      ( user.member && ( user.member.id !== financial.memberId ) ) &&
-      !canManage(user) ) {
-      res.json({ code: -10 });
-      return;
-    }
-    const isPersonal = ( params.kind === 'personal_card' );
+    // 取込の種別は口座に従う。会計権限がなければ自分の個人カード（精算用）の
+    // 口座への取り込だけを許す
+    const isPersonal = ( financial.kind === 'personal_card' );
     if ( !canManage(user) && !isPersonal ) {
       res.json({ code: -10 });
       return;
