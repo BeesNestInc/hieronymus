@@ -1041,8 +1041,8 @@ const closeModal = () => {
 };
 
 const doPreview = async () => {
-  if ( form.kind === 'bank' && !form.account ) {
-    formError = '科目を選択してください。';
+  if ( !form.financialId ) {
+    formError = '口座（通帳）を選択してください。';
     return;
   }
   busy = true;
@@ -1099,7 +1099,13 @@ const doUpload = async () => {
       } else {
         toast.show('明細取込', '取り込みました');
       }
-      routerLink(`/bank-statement/${result.data.id}`);
+      // この口座の詳細から取り込んだ場合（同じURLへの追加取り込み）は
+      // 画面を再読み込みして結果を見えるようにする（遷移しないと更新されない）
+      if ( String(result.data.id) === String(id) ) {
+        await loadDetail(id);
+      } else {
+        routerLink(`/bank-statement/${result.data.id}`);
+      }
     } else {
       formError = result.data.message || '取り込みに失敗しました。';
     }

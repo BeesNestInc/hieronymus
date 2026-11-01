@@ -34,7 +34,7 @@ export const show = (title, description, type='success') => {
     uid: uid,
     title: title,
     description: description,
-    duration: 3000,
+    duration: 5000,
     placement: 'top-center',
     type: type,
     theme: 'dark',
