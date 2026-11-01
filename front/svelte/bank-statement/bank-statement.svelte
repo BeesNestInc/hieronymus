@@ -1329,36 +1329,15 @@ const openRulesModal = async (line = null) => {
     console.error('load rules failed', e);
     rules = [];
   }
-  // 既に同じ口座+摘要のルールがあれば「修正」モードで開く（勢いでの
-  // 二重登録・間違い登録を防ぐ。修正でも「＋新規ルール」で作れる）
+  // 貸方の既定=この口座の科目（見えているほうが間違いが怖くない）
+  if ( statement && statement.financial && newRule && !newRule.creditAccount ) {
+    newRule.creditAccount = statement.financial.accountCode;
+    newRule.creditSubAccount = statement.subAccount;
+  }
+  // 摘要クリックは「新規登録」の流れ: 新規フォームを開く（既存の行は
+  // 一覧に並るので、必要なら編集・削除できる）
   if ( line ) {
-    const existing = rules.find((r) => (
-      String(r.financialId) === String(newRule.financialId) &&
-      r.pattern === pattern &&
-      ( ( r.direction || '' ) === ( newRule.direction || '' ) )
-    )) || rules.find((r) => (
-      String(r.financialId) === String(newRule.financialId) &&
-      r.pattern === pattern &&
-      !r.direction
-    ));
-    if ( existing ) {
-      editingRule = JSON.parse(JSON.stringify(existing));
-    } else {
-      showAllRulesForm = true;
-    }
-    // 貸方の指定が無いルールの既定=この口座の科目（見えているほうが間違いが怖くない）
-    if ( statement && statement.financial ) {
-      if ( editingRule ) {
-        if ( !editingRule.creditAccount ) {
-          editingRule.creditAccount = statement.financial.accountCode;
-          editingRule.creditSubAccount = statement.subAccount;
-        }
-      }
-      if ( newRule && !newRule.creditAccount ) {
-        newRule.creditAccount = statement.financial.accountCode;
-        newRule.creditSubAccount = statement.subAccount;
-      }
-    }
+    showAllRulesForm = true;
   }
   rulesModal.show();
 };
