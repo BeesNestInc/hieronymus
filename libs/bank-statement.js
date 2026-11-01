@@ -463,13 +463,13 @@ const parseCardPdf = async (buffer, profile) => {
     }
     const lines = cardRowsToLines(pdfLines, profile);
     const warnings = [];
-    if ( total !== null ) {
-      const sum = lines.reduce((acc, l) => acc + ( l.amount || 0 ), 0);
-      if ( Math.abs(sum - total) > 0.009 ) {
-        warnings.push(`利用行の合計（${sum}円）が支払総額（${total}円）と一致しません。`);
-      }
-    } else {
-      warnings.push('支払総額を読み取れませんでした。');
+    // 支払総額と利用行の合計を照合するのはやめる。
+    // Web明細PDFは昔の利用明細も同じページに載ることがあり（複数回請求が
+    // 混在する）、合計が支払総額と一致するとは限らない。
+    // 支払総額の用途は銀行側の引落行との照合（suggestCardPayments）で、
+    // 合わなければ照合候補が出ないだけ（誤照合はしない）。
+    if ( total === null ) {
+      warnings.push('支払総額を読み取れませんでした。銀行側の引落行との自動照合は行われません。');
     }
     if ( lines.length === 0 ) {
       warnings.push('利用明細行を読み取れませんでした。');
