@@ -453,7 +453,7 @@
               <th style="width:170px;">相手方(借)</th>
               <th style="width:170px;">貸方</th>
               <th class="number" style="width:50px;">使用</th>
-              <th style="width:70px;"></th>
+              <th style="width:210px;"></th>
             </tr>
           </thead>
           <tbody>
@@ -551,6 +551,8 @@
                   title={applyButtonTitle(originLine)}
                   on:click={() => { saveRule(editingRule, true); }}>適用して保存</button>
                 {/if}
+                <button type="button" class="btn btn-sm btn-outline-danger" title="このルールを削除する（同じ摘要に不要なものができたとき）"
+                  on:click={() => { deleteRule(rule); editingRule = null; }}>削除</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" on:click={() => { editingRule = null; }}>取消</button>
                 {:else}
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="編集"
