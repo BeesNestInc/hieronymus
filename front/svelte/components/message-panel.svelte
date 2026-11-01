@@ -1,3 +1,4 @@
+{#if ( messages && messages.length > 0 )}
 <div class="alert alert-{level} py-1 px-2 position-relative">
   {#if ( dismissible )}
   <button type="button" class="btn-close position-absolute top-0 end-0 m-1"
@@ -11,6 +12,7 @@
   <div style="font-size:0.85rem;">{message}</div>
   {/each}
 </div>
+{/if}
 
 <style>
 </style>
