@@ -505,7 +505,9 @@ export default {
       // 予備行（手数料など）も一緒に起票する（全部解除で起票すると手数料が
       // 仮起票に落ちるのを防ぐ）
       const result = await reconcile.bookLines(statement, req.body.bookings || [], user, {
-        includeMergeAfter: ( req.body.bookings || [] ).length > 0
+        includeMergeAfter: ( req.body.bookings || [] ).length > 0,
+        // 「適用して保存」で選ばれたルールがあればusageCountに頼らず強制適用
+        applyRuleId: ( req.body && req.body.applyRuleId ) ? req.body.applyRuleId : null
       });
       const fresh = await getStatement(statement.id);
       res.json({
@@ -552,7 +554,10 @@ export default {
         }
       }
       const result = await reconcile.rebookStatement(statement, user,
-        lineIds ? { lineIds: lineIds } : {});
+        Object.assign(
+          lineIds ? { lineIds: lineIds } : {},
+          ( req.body && req.body.applyRuleId ) ? { applyRuleId: req.body.applyRuleId } : {}
+        ));
       const fresh = await getStatement(statement.id);
       res.json({
         code: 0,

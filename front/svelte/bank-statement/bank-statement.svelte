@@ -1392,7 +1392,7 @@ const applyButtonTitle = (line) => {
   }
   return `保存して、一致する${eligible.length}行すべてにルールを即適用する（照合済み・確定済みの行は触りません）`;
 };
-const applyRule = async () => {
+const applyRule = async (ruleId = null) => {
   const bookIds = [];
   const rebookIds = [];
   for ( const line of applyEligibleLines() ) {
@@ -1405,13 +1405,16 @@ const applyRule = async () => {
   }
   if ( bookIds.length > 0 ) {
     await axios.post(`/api/bank_statement/${id}/book`, {
-      bookings: bookIds.map((lineId) => ({ lineId: lineId }))
+      bookings: bookIds.map((lineId) => ({ lineId: lineId })),
+      // usageCountに頼らない: ユーザーが選んだ（いま保存した）ルールを強制適用
+      applyRuleId: ruleId
     });
   }
   if ( rebookIds.length > 0 ) {
     // 行単位の再実行（この伝票に紐づく行だけ。他の行・確定済み伝票に触れない）
     await axios.post(`/api/bank_statement/${id}/rebook`, {
-      lineIds: rebookIds
+      lineIds: rebookIds,
+      applyRuleId: ruleId
     });
   }
   loadDetail(id);
@@ -1419,7 +1422,7 @@ const applyRule = async () => {
 };
 const createRule = async (apply = false) => {
   try {
-    await axios.post('/api/bank_statement_rule', {
+    const result = await axios.post('/api/bank_statement_rule', {
       financialId: newRule.financialId || null,
       direction: newRule.direction || null,
       pattern: newRule.pattern,
@@ -1432,11 +1435,11 @@ const createRule = async (apply = false) => {
     showAllRulesForm = false;
     let applied = null;
     if ( apply ) {
-      applied = await applyRule();
+      applied = await applyRule(result.data.id);
       closeRulesModal();
     }
-    const result = await axios.get('/api/bank_statement_rule');
-    rules = ( result.data && result.data.values ) || [];
+    const result2 = await axios.get('/api/bank_statement_rule');
+    rules = ( result2.data && result2.data.values ) || [];
     toast.show('学習ルール', ( applied !== null ) ? `ルールを登録し、一致する${applied}行に適用しました` : 'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
@@ -1457,7 +1460,7 @@ const saveRule = async (rule, apply = false) => {
     editingRule = null;
     let applied = null;
     if ( apply ) {
-      applied = await applyRule();
+      applied = await applyRule(rule.id);
       closeRulesModal();
     }
     const result = await axios.get('/api/bank_statement_rule');

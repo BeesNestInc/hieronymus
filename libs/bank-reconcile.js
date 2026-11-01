@@ -471,6 +471,8 @@ const findLearnedRule = async (statement, application1, direction = null) => {
 // 他の証憑との突合によって差し替える（仮科目の仕訳は学習しない）。
 // detail に statementLineId を入れて、起票済み伝票の更新で紐付けを復元できるようにする
 const buildLineDetails = async (line, statement, booking, options = {}) => {
+  // 適用して保存: ユーザーが選んだルールがあればusageCountに頼らずそれを使う
+  const forcedRule = options.forcedRule || null;
   // カード系の行は利用額(amount)のみ。金額カラムの見た目は「出金」
   const isCard = ( statement.kind === 'corporate_card' );
   const isOut = ( line.amountOut !== null && line.amountOut !== undefined ) ||
@@ -508,7 +510,8 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   let oppositeSide = null;
   if ( !oppositeAccount ) {
     // ルールも指定もない → 学習ルールを引き、それも無ければ仮入科目で起票する
-    const rule = await findLearnedRule(statement, application1, isOut ? 'out' : 'in');
+    const rule = ( forcedRule && makePattern(forcedRule.pattern) === makePattern(application1) ) ?
+      forcedRule : await findLearnedRule(statement, application1, isOut ? 'out' : 'in');
     if ( rule && !isTempAccount(rule.oppositeAccount) ) {
       oppositeAccount = rule.oppositeAccount;
       oppositeSubAccount = rule.oppositeSubAccount || null;
@@ -588,6 +591,10 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
 // 伝票は未承認（承認待ち）で作成する。
 export const bookLines = async (statement, bookings, user, options = {}) => {
   const profiles = options.profiles || null;
+  // 「適用して保存」で選ばれたルール。usageCountに頼らずこれを強制適用する
+  // （再実行経由ではoptions.forcedRuleに渡ってくる）
+  const forcedRule = options.forcedRule || ( options.applyRuleId ?
+    await models.BankStatementRule.findByPk(parseInt(options.applyRuleId, 10)) : null );
   const profileName = statement.cardName || statement.account;
   const bookingMap = new Map(( bookings || [] ).map((b) => [ Number(b.lineId), b ]));
   const where = { statementId: statement.id };
@@ -682,7 +689,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
         detailEntries = details.map((detail) => ({ detail: detail, line: line }));
       }
     } else {
-      detailEntries = ( await buildLineDetails(line, statement, booking) ).map((detail) => ({ detail: detail, line: line }));
+      detailEntries = ( await buildLineDetails(line, statement, booking, { forcedRule: forcedRule }) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
     // 完全一致の合流摘要なら前の行（同じ日）の伝票に合流する
@@ -995,8 +1002,10 @@ export const rebookStatement = async (statement, user, options = {}) => {
     result.rebooked ++;
   }
   // 現行ルールで再起票する（合流も施行される）。行単位のときは解放した行だけ
-  // （他の行の伝票に触れない。「後の処理」もここでも前置で走らせない）
-  await bookLines(statement, lineIds ? [ ...released ].map((lineId) => ({ lineId: lineId })) : null, user);
+  // （他の行の伝票に触れない。「後の処理」もここでも前置で走らせない）。
+  // 「適用して保存」(options.applyRuleId)では、選ばれたルールを強制適用する
+  await bookLines(statement, lineIds ? [ ...released ].map((lineId) => ({ lineId: lineId })) : null, user,
+    options.applyRuleId ? { forcedRule: await models.BankStatementRule.findByPk(parseInt(options.applyRuleId, 10)) } : {});
   return result;
 };
 
