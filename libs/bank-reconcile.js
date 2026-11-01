@@ -502,6 +502,9 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
     account: bankAccount,
     subAccount: statement.subAccount
   };
+  // この行の貸方。ルールに貸方の指定があればそれ、なければ口座の科目
+  let creditAccount = null;
+  let creditSubAccount = null;
   let oppositeSide = null;
   if ( !oppositeAccount ) {
     // ルールも指定もない → 学習ルールを引き、それも無ければ仮入科目で起票する
@@ -509,6 +512,12 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
     if ( rule && !isTempAccount(rule.oppositeAccount) ) {
       oppositeAccount = rule.oppositeAccount;
       oppositeSubAccount = rule.oppositeSubAccount || null;
+      // ルールに貸方の指定があれば口座の科目の代わりにそれを使う
+      // （キャッシングリボ→短期借入金など。指定なしなら口座の科目）
+      if ( rule.creditAccount ) {
+        creditAccount = rule.creditAccount;
+        creditSubAccount = rule.creditSubAccount || null;
+      }
       if ( options.onRule ) {
         options.onRule(rule);
       }
@@ -531,14 +540,19 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   if ( statement.financialId && !isTempAccount(oppositeAccount) ) {
     await learnOpposite(statement.financialId, application1, oppositeSide, isOut ? 'out' : 'in');
   }
+  // 貸方の指定が未定なら口座の科目。税ルールは貸方の指定があっても借方（経費側）基準
+  if ( !creditAccount ) {
+    creditAccount = bankSide.account;
+    creditSubAccount = bankSide.subAccount;
+  }
   const detail = isOut ? {
     debitAccount: oppositeAccount,
     debitSubAccount: oppositeSubAccount,
     debitAmount: amount,
     debitTax: 0,
     debitTaxRuleId: taxRuleId,
-    creditAccount: bankSide.account,
-    creditSubAccount: bankSide.subAccount,
+    creditAccount: creditAccount,
+    creditSubAccount: creditSubAccount,
     creditAmount: amount,
     creditTax: 0,
     creditTaxRuleId: null,

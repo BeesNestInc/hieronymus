@@ -447,11 +447,12 @@
         <table class="table table-sm table-striped table-bordered" style="font-size:0.85rem;">
           <thead class="table-light">
             <tr>
-              <th style="width:190px;">口座</th>
+              <th style="width:160px;">口座</th>
               <th>摘要（完全一致）</th>
-              <th style="width:80px;">方向</th>
-              <th style="width:190px;">相手方</th>
-              <th class="number" style="width:60px;">使用</th>
+              <th style="width:70px;">方向</th>
+              <th style="width:170px;">相手方(借)</th>
+              <th style="width:170px;">貸方</th>
+              <th class="number" style="width:50px;">使用</th>
               <th style="width:70px;"></th>
             </tr>
           </thead>
@@ -475,6 +476,13 @@
                 <Account accounts={oppositeAccounts}
                   bind:code={newRule.oppositeAccount}
                   bind:sub_code={newRule.oppositeSubAccount}></Account>
+                {/key}
+              </td>
+              <td>
+                {#key 'new-rule-credit' + ruleModalKey}
+                <Account accounts={accounts}
+                  bind:code={newRule.creditAccount}
+                  bind:sub_code={newRule.creditSubAccount}></Account>
                 {/key}
               </td>
               <td class="text-center">-</td>
@@ -520,6 +528,17 @@
                 {/key}
                 {:else}
                 {ruleOppositeLabel(rule)}
+                {/if}
+              </td>
+              <td>
+                {#if ( editingRule && editingRule.id === rule.id )}
+                {#key 'edit-rule-credit-' + rule.id}
+                <Account accounts={accounts}
+                  bind:code={editingRule.creditAccount}
+                  bind:sub_code={editingRule.creditSubAccount}></Account>
+                {/key}
+                {:else}
+                {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : '（口座科目）'}
                 {/if}
               </td>
               <td class="text-center">{rule.usageCount || 0}</td>
@@ -1407,7 +1426,9 @@ const createRule = async (apply = false) => {
       direction: newRule.direction || null,
       pattern: newRule.pattern,
       oppositeAccount: newRule.oppositeAccount,
-      oppositeSubAccount: newRule.oppositeSubAccount || null
+      oppositeSubAccount: newRule.oppositeSubAccount || null,
+      creditAccount: newRule.creditAccount || null,
+      creditSubAccount: newRule.creditSubAccount || null
     });
     newRule = {};
     showAllRulesForm = false;
@@ -1431,7 +1452,9 @@ const saveRule = async (rule, apply = false) => {
       direction: rule.direction || null,
       pattern: rule.pattern,
       oppositeAccount: rule.oppositeAccount,
-      oppositeSubAccount: rule.oppositeSubAccount || null
+      oppositeSubAccount: rule.oppositeSubAccount || null,
+      creditAccount: rule.creditAccount || null,
+      creditSubAccount: rule.creditSubAccount || null
     });
     editingRule = null;
     let applied = null;

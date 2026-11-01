@@ -29,6 +29,9 @@ export default (sequelize, DataTypes) => {
 		pattern: DataTypes.STRING,
 		oppositeAccount: DataTypes.STRING,
 		oppositeSubAccount: DataTypes.INTEGER,
+		// 貸方の指定（任意。null=口座の科目。キャッシングリボ等の特殊行向け）
+		creditAccount: DataTypes.STRING,
+		creditSubAccount: DataTypes.INTEGER,
 		// 適用回数（多いものを優先）
 		usageCount: DataTypes.INTEGER
 	}, {

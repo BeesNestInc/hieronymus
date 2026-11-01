@@ -45,6 +45,8 @@ export default {
         pattern: rule.pattern,
         oppositeAccount: rule.oppositeAccount,
         oppositeSubAccount: rule.oppositeSubAccount,
+        creditAccount: rule.creditAccount,
+        creditSubAccount: rule.creditSubAccount,
         usageCount: rule.usageCount
       }))
     });
@@ -79,6 +81,8 @@ export default {
         defaults: {
           oppositeAccount: body.oppositeAccount,
           oppositeSubAccount: body.oppositeSubAccount ? parseInt(body.oppositeSubAccount) : null,
+          creditAccount: body.creditAccount || null,
+          creditSubAccount: body.creditSubAccount ? parseInt(body.creditSubAccount) : null,
           usageCount: 1
         }
       });
@@ -86,6 +90,8 @@ export default {
         // 既に同じキーのルールがあれば内容を上書きする
         rule.oppositeAccount = body.oppositeAccount;
         rule.oppositeSubAccount = body.oppositeSubAccount ? parseInt(body.oppositeSubAccount) : null;
+        rule.creditAccount = body.creditAccount || null;
+        rule.creditSubAccount = body.creditSubAccount ? parseInt(body.creditSubAccount) : null;
         await rule.save();
       }
       res.json({ code: 0, id: rule.id, created: created });
@@ -132,6 +138,10 @@ export default {
     }
     if ( body.direction !== undefined ) {
       rule.direction = cleanDirection(body.direction);
+    }
+    if ( body.creditAccount !== undefined ) {
+      rule.creditAccount = body.creditAccount || null;
+      rule.creditSubAccount = body.creditSubAccount ? parseInt(body.creditSubAccount) : null;
     }
     await rule.save();
     res.json({ code: 0 });

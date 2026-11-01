@@ -901,6 +901,39 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.debitAccount, '7000001');
   });
 
+  it('ルールの貸方指定: キャッシングリボの行は貸方=短期借入金で起票する', async () => {
+    // ルールに貸方の指定があれば口座の科目の代わりにそれを使う
+    const cardFin = await findOrCreate(models.Financial, {
+      accountCode: '3020000', subAccountCode: null
+    }, { name: 'テストカード', kind: 'corporate_card', accountCode: '3020000' });
+    // 銀行口座側のfinancial(つぎに各testsのものとは別)
+    const rule = await models.BankStatementRule.create({
+      financialId: cardFin.id,
+      pattern: 'キャッシングリボ', direction: 'out',
+      oppositeAccount: '1010010', oppositeSubAccount: 1,
+      creditAccount: '3010000', creditSubAccount: 1,
+      usageCount: 1
+    });
+    const statement = await models.BankStatement.create({
+      financialId: cardFin.id, kind: 'corporate_card',
+      account: cardFin.accountCode, subAccount: null,
+      cardName: 'テストカード', lineCount: 1
+    });
+    const line = await models.BankStatementLine.create({
+      statementId: statement.id, lineNo: 1, status: 'unmatched',
+      category: 'normal', date: '2026-12-05', rawDescription: 'キャッシングリボ', amount: 200000
+    });
+    await bookLines(statement, null, approver);
+    await line.reload();
+    const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
+    // 借方=ルールの相手方（金を受けた銀行口座）/ 貸方=ルールの指定（短期借入金）
+    assert.equal(detail.debitAccount, '1010010');
+    assert.equal(detail.debitSubAccount, 1);
+    assert.equal(detail.creditAccount, '3010000');
+    assert.equal(detail.creditSubAccount, 1);
+    void rule;
+  });
+
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {
     const report = await models.ExpenseReport.create({
       submittedBy: data.creator.id,
