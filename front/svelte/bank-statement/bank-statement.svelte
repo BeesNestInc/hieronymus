@@ -328,6 +328,7 @@
         <button type="button" class="btn-close" on:click={closeModal}></button>
       </div>
       <div class="modal-body">
+        {#if ( !form.lockFinancial )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">口座（通帳）</label>
           <div class="col-8">
@@ -339,6 +340,7 @@
             </select>
           </div>
         </div>
+        {/if}
         <div class="row mb-2">
           <label class="col-4 col-form-label">ファイル</label>
           <div class="col-8">
@@ -1017,6 +1019,8 @@ const openModal = async (prefill = {}) => {
   previewId = null;
   formError = '';
   form = { kind: prefill.kind || 'bank', financialId: prefill.financialId || '' };
+  // 口座が決まっている（詳細や未取込行からの取込）ときは選択欄を出さない
+  form.lockFinancial = Boolean(prefill.financialId);
   await loadFinancials();
   modal?.show();
 };
