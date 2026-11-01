@@ -538,7 +538,7 @@
                   bind:sub_code={editingRule.creditSubAccount}></Account>
                 {/key}
                 {:else}
-                {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : '（口座科目）'}
+                {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : ( ( statement && statement.financial ) ? statement.financial.name + '（口座）' : '（口座科目）' )}
                 {/if}
               </td>
               <td class="text-center">{rule.usageCount || 0}</td>
@@ -1311,7 +1311,11 @@ const openRulesModal = async (line = null) => {
     direction: direction,
     pattern: pattern,
     oppositeAccount: oppositeAccount,
-    oppositeSubAccount: oppositeSubAccount
+    oppositeSubAccount: oppositeSubAccount,
+    // 貸方の既定=この口座の科目（未払金等）。空欄のまま献上すると
+    // 何が入るか見えないので、既定値を見せておく（変えたければ操作）
+    creditAccount: ( statement && statement.account ) || '',
+    creditSubAccount: ( statement && statement.subAccount ) || ''
   };
   if ( !rulesModal ) {
     rulesModal = new Modal(rulesModalEl);
@@ -1339,6 +1343,19 @@ const openRulesModal = async (line = null) => {
       editingRule = JSON.parse(JSON.stringify(existing));
     } else {
       showAllRulesForm = true;
+    }
+    // 貸方の指定が無いルールの既定=この口座の科目（見えているほうが間違いが怖くない）
+    if ( statement && statement.financial ) {
+      if ( editingRule ) {
+        if ( !editingRule.creditAccount ) {
+          editingRule.creditAccount = statement.financial.accountCode;
+          editingRule.creditSubAccount = statement.subAccount;
+        }
+      }
+      if ( newRule && !newRule.creditAccount ) {
+        newRule.creditAccount = statement.financial.accountCode;
+        newRule.creditSubAccount = statement.subAccount;
+      }
     }
   }
   rulesModal.show();
