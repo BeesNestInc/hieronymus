@@ -148,8 +148,6 @@
             {#if ( canBookLine(line) )}
             <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけで伝票を起票します（伝票画面に移動します）"
               on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="この摘要の仕分けルールを登録・編集します（同じ摘要は同じ仕分けになります）"
-              on:click={() => { openRulesModal(line); }}><i class="bi bi-mortarboard"></i></button>
             {/if}
             {#if ( line.status === 'unmatched' )}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="この行を起票対象から外します（対象外）"
