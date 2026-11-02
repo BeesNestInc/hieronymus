@@ -3,6 +3,10 @@
   <div>
     {#if ( id )}
     <button type="button" class="btn btn-outline-secondary" on:click={goList}>一覧へ戻る</button>
+    <button type="button" class="btn btn-outline-secondary me-2" title="この口座の学習ルール（摘要→相手方仕訳）の閲覧・編集"
+      on:click={() => { openRulesModal(); }}>
+      学習ルール&nbsp;<i class="bi bi-mortarboard"></i>
+    </button>
     {:else}
     <button type="button" class="btn btn-outline-secondary me-2" title="学習ルール（摘要→相手方仕訳）の閲覧・編集"
       on:click={() => { openRulesModal(); }}>
@@ -404,6 +408,16 @@
           摘要の完全一致で照合する。実科目が決わっている仕訳から「隙あらば学習」して蓄積されます。
           この画面から手登録・修正・削除もできます。ルールを変えた後は「再実行」で未承認の起票を作り直せます。
         </div>
+        {#if ( !originLine && statement && statement.financialId )}
+        <div class="mb-2" style="font-size:0.8rem;">
+          <label class="form-check-label me-1">口座:</label>
+          <select class="form-select form-select-sm d-inline-block" style="width:auto;"
+            bind:value={ruleFinancialFilter} on:change={reloadRules}>
+            <option value="">全ての口座</option>
+            <option value={statement.financialId}>{ ( statement.financial || {}).name }</option>
+          </select>
+        </div>
+        {/if}
         {#if ( originLine )}
         <div class="alert alert-info py-2 px-3 mb-2" style="font-size:0.8rem;">
           {#if ( editingRule )}
@@ -465,12 +479,7 @@
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
               <td>
-                <select class="form-select form-select-sm" bind:value={newRule.direction}
-                  title="どちらの方向（出金/入金）の行に効くルールか。摘要クリックからは自動で入ります">
-                  <option value="">両方向</option>
-                  <option value="out">出金のみ</option>
-                  <option value="in">入金のみ</option>
-                </select>
+                {directionLabel(newRule.direction)}
               </td>
               <td>
                 {#key 'new-rule-opposite' + ruleModalKey}
@@ -480,11 +489,15 @@
                 {/key}
               </td>
               <td>
+                {#if ( newRule.direction !== 'in' )}
                 {#key 'new-rule-credit' + ruleModalKey}
                 <Account accounts={accounts}
                   bind:code={newRule.creditAccount}
                   bind:sub_code={newRule.creditSubAccount}></Account>
                 {/key}
+                {:else}
+                <span class="text-muted">（口座科目）</span>
+                {/if}
               </td>
               <td class="text-center">-</td>
               <td class="text-center">
@@ -511,15 +524,7 @@
                 {/if}
               </td>
               <td>
-                {#if ( editingRule && editingRule.id === rule.id )}
-                <select class="form-select form-select-sm" bind:value={editingRule.direction}>
-                  <option value="">両方向</option>
-                  <option value="out">出金のみ</option>
-                  <option value="in">入金のみ</option>
-                </select>
-                {:else}
                 {directionLabel(rule.direction)}
-                {/if}
               </td>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
@@ -534,11 +539,15 @@
               </td>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
-                {#key 'edit-rule-credit-' + rule.id}
-                <Account accounts={accounts}
-                  bind:code={editingRule.creditAccount}
-                  bind:sub_code={editingRule.creditSubAccount}></Account>
-                {/key}
+                  {#if ( editingRule.direction !== 'in' )}
+                  {#key 'edit-rule-credit-' + rule.id}
+                  <Account accounts={accounts}
+                    bind:code={editingRule.creditAccount}
+                    bind:sub_code={editingRule.creditSubAccount}></Account>
+                  {/key}
+                  {:else}
+                  <span class="text-muted">（口座科目）</span>
+                  {/if}
                 {:else}
                 {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : ( ( statement && statement.financial ) ? statement.financial.name + '（口座）' : '（口座科目）' )}
                 {/if}
@@ -725,6 +734,7 @@ let rules = [];
 let editingRule = null;
 let showAllRulesForm = false;
 let newRule = {};
+let ruleFinancialFilter = '';
 
 // 合流摘要+自動突合摘要（取込設定モーダル）
 let mergeModalEl;
@@ -1281,6 +1291,18 @@ const normPattern = (text) => (
 // 学習ルールのモーダル。摘要クリックで開いたときはoriginLine（適用対象行）を
 // 覚えておき、「適用して保存」でその行に即反映できるようにする
 let originLine = null;
+// ルール一覧の読み込み。filter（口座）があれば絞る
+const reloadRules = async () => {
+  try {
+    const fid = ( originLine ) ? ( statement && statement.financialId ) : ruleFinancialFilter;
+    const result = await axios.get(`/api/bank_statement_rule${ fid ? `?financialId=${fid}` : '' }`);
+    rules = ( result.data && result.data.values ) || [];
+  } catch (e) {
+    console.error('load rules failed', e);
+    rules = [];
+  }
+};
+
 const openRulesModal = async (line = null) => {
   originLine = line;
   editingRule = null;
@@ -1326,21 +1348,16 @@ const openRulesModal = async (line = null) => {
   if ( !rulesModal ) {
     rulesModal = new Modal(rulesModalEl);
   }
-  try {
-    const result = await axios.get(`/api/bank_statement_rule${ statement ? `?financialId=${statement.financialId}` : '' }`);
-    rules = ( result.data && result.data.values ) || [];
-  } catch (e) {
-    console.error('load rules failed', e);
-    rules = [];
-  }
+  // ルール一覧の初期filter: 詳細から開いたらその口座、一覧からなら全部
+  ruleFinancialFilter = ( statement && statement.financialId ) ? String(statement.financialId) : '';
+  await reloadRules();
   // 貸方の既定=この口座の科目（見えているほうが間違いが怖くない）
   if ( statement && statement.financial && newRule && !newRule.creditAccount ) {
     newRule.creditAccount = statement.financial.accountCode;
     newRule.creditSubAccount = statement.subAccount;
   }
-  // 完全に同じ摘要のルールが既にあれば「修正」で開く（二重登録は害しかない）。
-  // 優先順: 同方向 → 方向なし（旧ルール）→ 違う方向のもの（方向は編集で直せる。
-  // 代理店的な取引先で入出金別ルールを足したいときは「＋新規ルール」から）
+  // 完全に同じ摘要+方向のルールが既にあれば「修正」で開く。
+  // 方向違い（同じ摘要の入金と出金）は「別物」= 新規登録になる
   if ( line ) {
     const existing = rules.find((r) => (
       String(r.financialId) === String(newRule.financialId) &&
@@ -1350,9 +1367,6 @@ const openRulesModal = async (line = null) => {
       String(r.financialId) === String(newRule.financialId) &&
       r.pattern === pattern &&
       !r.direction
-    )) || rules.find((r) => (
-      String(r.financialId) === String(newRule.financialId) &&
-      r.pattern === pattern
     ));
     if ( existing ) {
       editingRule = JSON.parse(JSON.stringify(existing));
