@@ -83,26 +83,30 @@ export default {
       return;
     }
     try {
-      const [ financial, created ] = await models.Financial.findOrCreate({
+      // (勘定科目, 補助)は口座の実体（元帳の科目と学習ルールのスコープ）で
+      // unique制約がかかっている。衝突は「追加」を「既存口座の上書き」に
+      // しない（昔はfindOrCreateで黙って戻っていた。追加が既存口座を
+      // 変更するのは驚きが大きすぎるので明示的に拒否する）
+      const existing = await models.Financial.findOne({
         where: {
           accountCode: clean.accountCode,
           subAccountCode: ( clean.subAccountCode === undefined ) ? null : clean.subAccountCode
-        },
-        defaults: {
-          name: clean.name,
-          kind: clean.kind,
-          memberId: clean.memberId || null,
-          profileName: clean.profileName || null,
-          memo: clean.memo || null
         }
       });
-      if ( !created ) {
-        // 同じ口座が既にある（closedAtを解除して使えるように戻す）
-        financial.name = clean.name;
-        financial.closedAt = null;
-        await financial.save();
+      if ( existing ) {
+        res.status(422).json({ code: -3, message: `勘定科目+補助の口座が既にあります: ${existing.name}。別の補助科目を選んでください。` });
+        return;
       }
-      res.json({ code: 0, id: financial.id, created: created });
+      const financial = await models.Financial.create({
+        name: clean.name,
+        kind: clean.kind,
+        accountCode: clean.accountCode,
+        subAccountCode: clean.subAccountCode,
+        memberId: clean.memberId || null,
+        profileName: clean.profileName || null,
+        memo: clean.memo || null
+      });
+      res.json({ code: 0, id: financial.id, created: true });
     } catch (e) {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '登録に失敗しました。' });
@@ -122,6 +126,22 @@ export default {
     }
     const body = req.body || {};
     const clean = cleanInput(body);
+    // 変更後の(勘定科目, 補助)が他の口座とぶつかるなら拒否する
+    if ( clean.accountCode !== undefined || clean.subAccountCode !== undefined ) {
+      const targetAccount = ( clean.accountCode !== undefined ) ? clean.accountCode : financial.accountCode;
+      const targetSub = ( clean.subAccountCode !== undefined ) ? clean.subAccountCode : financial.subAccountCode;
+      const clash = await models.Financial.findOne({
+        where: {
+          accountCode: targetAccount,
+          subAccountCode: targetSub,
+          id: { [Op.ne]: financial.id }
+        }
+      });
+      if ( clash ) {
+        res.status(422).json({ code: -3, message: `勘定科目+補助の口座が既にあります: ${clash.name}。別の補助科目を選んでください。` });
+        return;
+      }
+    }
     for ( const field of [ 'name', 'kind', 'accountCode', 'subAccountCode', 'memberId', 'profileName', 'memo' ] ) {
       if ( clean[ field ] !== undefined ) {
         financial[ field ] = ( clean[ field ] === '' ) ? null : clean[ field ];
