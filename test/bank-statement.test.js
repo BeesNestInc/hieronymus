@@ -103,6 +103,37 @@ describe('bank-statement (parser)', () => {
     assert.equal(lines[1].foreignCurrency, 'USD');
   });
 
+  it('カード明細PDF: 郵送明細書（YYYY/MM/DD・注記行を含む）から利用行を組み立てる', () => {
+    // JCB発行「カードご利用代金明細書」と同じトークン列。日付が4桁年、
+    // 「実質年率…/リボ/支払方法変更」の注記が行の間に独立したYで印字される
+    const items = ( tokens ) => tokens.map((str, i) => {
+      return { str: str, transform: [ 1, 0, 0, 1, 100 + i * 100, 400 ] };
+    });
+    const pdfLines = [
+      { y: 530, tokens: [ '≪ショッピング取組（国内）≫' ], text: '' },
+      { y: 519, tokens: [ '2025/08/16', '出光〔アポロステーション〕', '3,820', '１回', '3,820' ], text: '' },
+      { y: 496, tokens: [ '2025/09/02', 'アドプリント', '5,260', '5,260' ], text: '' },
+      { y: 488, tokens: [ 'リボ', '実質年率１５．０００％' ], text: '' },
+      { y: 485, tokens: [ '2025/09/02', 'ＡＷＳ', 'Ｊａｐａｎ', '29,664', '支払方法変更' ], text: '' },
+      { y: 474, tokens: [ '2025/09/06', 'ウェルネス', '988', '988' ], text: '' },
+      { y: 460, tokens: [ 'CLAUDE.AI SUBSCRIPTION (ANTHROPIC.C' ], text: '' },
+      { y: 456, tokens: [ '2025/09/08', '3,634', '４回', '3,634', '22.00', 'USD', '165.206', '04 22', '◎' ], text: '' },
+      { y: 450, tokens: [ 'OM)' ], text: '' }
+    ];
+    const lines = parser.cardRowsToLines(pdfLines, null);
+    assert.lengthOf(lines, 5);
+    assert.equal(lines[0].date, '2025-08-16');
+    assert.equal(lines[0].merchant, '出光〔アポロステーション〕');
+    assert.equal(lines[0].amount, 3820);
+    // 注記行（実質年率/リボ）を店名に取り込まない
+    assert.equal(lines[2].merchant, 'ＡＷＳＪａｐａｎ');
+    assert.equal(lines[2].amount, 29664);
+    // 折り返して分断された店名が統合される
+    assert.equal(lines[4].date, '2025-09-08');
+    assert.equal(lines[4].merchant, 'CLAUDE.AI SUBSCRIPTION (ANTHROPIC.COM)');
+    assert.equal(lines[4].foreignCurrency, 'USD');
+  });
+
   it('pdfItemsToLines: Y座標で行に束ね、X座標順にソートする', () => {
     const items = [
       { str: 'b', transform: [ 1, 0, 0, 1, 200, 100 ] },

@@ -355,9 +355,14 @@ const pdfItemsToLines = (items) => {
   });
 };
 
-// 「26/04/02」形式（カードWeb明細の日付）をYYYY-MM-DD文字列に
+// 日付トークン。Web明細は「26/04/02」（YY/MM/DD）、発行会社の郵送明細書
+// （カードご利用代金明細書）は「2025/08/16」（YYYY/MM/DD）の4桁年。
 const parseCardDate = (token) => {
-  const m = String(token || '').match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+  let m = String(token || '').match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if ( m ) {
+    return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  }
+  m = String(token || '').match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
   if ( !m ) return null;
   return `20${m[1]}-${m[2]}-${m[3]}`;
 };
@@ -378,8 +383,16 @@ const cardRowsToLines = (pdfLines, profile) => {
     const joined = normalizeText(tokens.join(''));
     return /ご利用日|ご利用店名|支払い金額/.test(joined);
   };
-  // 折り返し断片の集約（pdfLinesはY降順。上断片→日付行→下断片の順に並ぶ）。
-  // 断片は日付トークンを壊さないよう、行オブジェクトの別枠に控える
+// 「カードご利用代金明細書」様式（JCB発行等）の注記行。店名の断片ではない
+// （実質年率・支払方法変更・区分/回数の単独表記。回数の由来は郵送明細書の
+// 支払区分欄で、行の間に独立したYで印字される）。これらは断片として
+// 吸収しない（走査を打ち切る）
+const isFragmentNoise = (text) => (
+  /^(実質年率|支払方法変更|リボ|支払区分|回数|[０-９]{1,2}回|ボ[０-９]+$|海Ｃ|Ｓ[０-９])/.test(String(text || ''))
+);
+
+// 折り返し断片の集約（pdfLinesはY降順。上断片→日付行→下断片の順に並ぶ）。
+// 断片は日付トークンを壊さないよう、行オブジェクトの別枠に控える
   const merged = pdfLines.map((pdfLine) => {
     return { tokens: [ ...pdfLine.tokens ], y: pdfLine.y, upper: [], lower: [] };
   });
@@ -391,7 +404,7 @@ const cardRowsToLines = (pdfLines, profile) => {
       let upperY = row.y;
       for ( let j = i - 1; j >= 0; j -- ) {
         const up = pdfLines[ j ];
-        if ( startsWithDate(up.tokens) || hasAmount(up.tokens) || isHeader(up.tokens) ) break;
+        if ( startsWithDate(up.tokens) || hasAmount(up.tokens) || isHeader(up.tokens) || isFragmentNoise(up.tokens.join('')) ) break;
         if ( up.y - upperY > 8 ) break;
         row.upper.unshift(up.tokens.join(''));
         upperY = up.y;
@@ -401,7 +414,7 @@ const cardRowsToLines = (pdfLines, profile) => {
       let lowerY = row.y;
       for ( let j = i + 1; j < pdfLines.length; j ++ ) {
         const down = pdfLines[ j ];
-        if ( startsWithDate(down.tokens) || hasAmount(down.tokens) || isHeader(down.tokens) ) break;
+        if ( startsWithDate(down.tokens) || hasAmount(down.tokens) || isHeader(down.tokens) || isFragmentNoise(down.tokens.join('')) ) break;
         if ( lowerY - down.y > 8 ) break;
         row.lower.push(down.tokens.join(''));
         lowerY = down.y;
@@ -453,11 +466,11 @@ const parseCardPdf = async (buffer, profile) => {
     const patterns = ( profile && profile.cardPatterns ) || {};
     let total = null;
     let payDate = null;
-    const totalMatch = flat.match(new RegExp(patterns.total || '支払い合計額([\\d,]+)円'));
+    const totalMatch = flat.match(new RegExp(patterns.total || '(?:支払い合計額|今回のお支払金額総合計|今回のお支払金額合計)([\\d,]+)(?!口)'));
     if ( totalMatch ) {
       total = toNumber(totalMatch[1]);
     }
-    const dateMatch = flat.match(new RegExp(patterns.payDate || '支払い日(\\d{4})年(\\d{1,2})月(\\d{1,2})日'));
+    const dateMatch = flat.match(new RegExp(patterns.payDate || '(?:支払い日|今回のお支払日)(\\d{4})年(\\d{1,2})月(\\d{1,2})日'));
     if ( dateMatch ) {
       payDate = `${dateMatch[1]}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[3]).padStart(2, '0')}`;
     }
