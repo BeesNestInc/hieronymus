@@ -9,7 +9,7 @@ import {
   duplicateKeyFor, findExistingDuplicateKeys, isDuplicateLine,
   fiscalYearFilter
 } from '../libs/bank-reconcile.js';
-import { learnOpposite as learnOppositeRaw } from '../libs/bank-reconcile.js';
+import { learnOpposite as learnOppositeRaw, makePattern } from '../libs/bank-reconcile.js';
 // テストは旧bankSideシグニチャのまま回るラッパー（口座=Financialを解決して渡す）
 const learnOpposite = async (bankSide, application1, oppositeSide, direction) => {
   const financial = await models.Financial.findOne({
@@ -43,24 +43,13 @@ describe('bank-reconcile (test db)', () => {
   let approver;
   // 自動突合の許可摘要はtest専用の設定ファイルで固定する
   // （BANK_CONFIG_PATHを代入して、リポジトリのconfigがテストに波及するのを防ぐ）
-  const FIXTURE_DIR = '/tmp/opencode/bank-test-config';
-  const savedConfigPath = process.env.BANK_CONFIG_PATH;
 
-  after(() => {
-    if ( savedConfigPath === undefined ) {
-      delete process.env.BANK_CONFIG_PATH;
-    } else {
-      process.env.BANK_CONFIG_PATH = savedConfigPath;
-    }
+
+  beforeEach(async () => {
+    await seedFixtureRules();
   });
 
   before(async () => {
-    fs.mkdirSync(FIXTURE_DIR, { recursive: true });
-    fs.writeFileSync(`${FIXTURE_DIR}/match-rules.yaml`, [
-      '- デビット４８３３３９',
-      ''
-    ].join('\n'), 'utf-8');
-    process.env.BANK_CONFIG_PATH = FIXTURE_DIR;
     // 実DB（development等）へのテスト実行は実データを破壊するので禁止
     const dbName = models.sequelize.getDatabaseName();
     if ( !/_test$/.test(dbName) ) {
@@ -83,6 +72,16 @@ describe('bank-reconcile (test db)', () => {
     await models.CrossSlip.destroy({ where: {} });
     await models.ExpenseMapping.destroy({ where: {} });
     await models.BankStatementRule.destroy({ where: {} });
+    // 取込設定（合流/突合）はルールフラグで管理するので、
+    // 銀行口座の financial に合流/突合ルールを用意しておく
+    const fixtureFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    });
+    await seedFixtureRules();
     // 本番と同じ科目クラス構造(klass=field+adding2桁)で揃える
     const ensureClass = async (def) => {
       return findOrCreate(models.AccountClass, {
@@ -176,6 +175,32 @@ describe('bank-reconcile (test db)', () => {
   const reloadAll = async (lines) => {
     for ( const line of lines ) {
       await line.reload();
+    }
+  };
+
+  // 合流/突合のfixtureルール（ルールを壊すテストがあるのでbeforeEachで再播種する）
+  const seedFixtureRules = async () => {
+    const fixtureFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    });
+    for ( const pattern of [ 'デビット４８３３３９', '手数料', '振込手数料', 'ＡＴＭ手数料' ] ) {
+      const isMatch = ( pattern === 'デビット４８３３３９' );
+      const isMerge = ( pattern !== 'デビット４８３３３９' );
+      await findOrCreate(models.BankStatementRule, {
+        financialId: fixtureFinancial.id,
+        pattern: makePattern(pattern),
+        direction: null
+      }, {
+        financialId: fixtureFinancial.id,
+        pattern: makePattern(pattern),
+        merge: isMerge,
+        match: isMatch,
+        usageCount: 0
+      });
     }
   };
 
@@ -502,10 +527,9 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.debitAccount, '7000001');
     // 差し替えたときに学習する（正規化パターン: NFKCで半角化+空白潰し）
     const rule = await models.BankStatementRule.findOne({
-      where: { pattern: 'デビット483339' }
+      where: { pattern: 'デビット483339', oppositeAccount: '7000001' }
     });
     assert.isNotNull(rule);
-    assert.equal(rule.oppositeAccount, '7000001');
     // 次回から同じ摘要はルールで起票する（仮にならない）
     const { statement: s2, lines: lines2 } = await createStatement('bank', [
       { date: '2026-10-20', rawDescription: 'デビット　４８３３３９', amountOut: 12345 }

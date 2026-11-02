@@ -27,11 +27,16 @@ export default (sequelize, DataTypes) => {
 		direction: DataTypes.STRING,
 		// 摘要の正規化テンプレート（数字を'#'に置換。完全一致で照合する）
 		pattern: DataTypes.STRING,
+		// 合流/突合専用ルールは相手方を持たない（仮入科目で載る）
 		oppositeAccount: DataTypes.STRING,
 		oppositeSubAccount: DataTypes.INTEGER,
 		// 貸方の指定（任意。null=口座の科目。キャッシングリボ等の特殊行向け）
 		creditAccount: DataTypes.STRING,
 		creditSubAccount: DataTypes.INTEGER,
+		// この摘要の行を前の行（同じ日）の伝票に合流させる
+		merge: DataTypes.BOOLEAN,
+		// この摘要の行は自動突合を許す
+		match: DataTypes.BOOLEAN,
 		// 適用回数（多いものを優先）
 		usageCount: DataTypes.INTEGER
 	}, {

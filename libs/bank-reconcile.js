@@ -10,7 +10,7 @@ const Op = models.Sequelize.Op;
 import {create as createCrossSlip} from './cross_slip.js';
 import {deriveTaxRuleId} from './expense.js';
 import {isLocked} from './fiscal-lock.js';
-import {normalizeText, loadMergeDescriptions, loadMatchDescriptions} from './bank-statement.js';
+import {normalizeText} from './bank-statement.js';
 
 // 利息仕訳テンプレの既定値（config/banks/*.yaml の interest 設定で上書きできる）
 // incomeAccount: 受取利息。withholding: 源泉所得税（借方）。rate: 源泉徴収率
@@ -96,14 +96,14 @@ export const fiscalYearFilter = (lines, fy) => {
   return { kept: kept, dropped: ( lines.length - kept.length ), range: `${start}〜${end}` };
 };
 
-// 「前の行（同じ日）の伝票に合流させる」摘要は config/banks/merge-rules.yaml
-// （明細取込画面の「合流摘要」で加除できる。口座共通のお約束）で定義する
-const isMergeable = (line) => {
+// 「前の行（同じ日）の伝票に合流させる」摘要はこの口座のルール（merge=true）
+// で定義する（明細取込のルールモーダルで管理。mergeRules.yamlは廃止）
+const isMergeable = (line, mergePatterns) => {
   const desc = normalizeText(line.description || line.rawDescription);
   if ( !desc ) {
     return false;
   }
-  return loadMergeDescriptions().some((d) => ( normalizeText(d) === desc ));
+  return mergePatterns.has(desc);
 };
 
 const dayDiff = (dateA, dateB) => {
@@ -245,12 +245,14 @@ export const learnFromSlip = async (slip) => {
 // ±days 日以内のものを対応付ける（すでに別行の突合先になっている明細は除く）。
 export const autoMatch = async (statement, options = {}) => {
   const days = ( options.days === undefined ) ? 3 : options.days;
-  // 自動突合は「許可された摘要」だけが対象（match-rules.yamlの完全一致
-  // ホワイトリスト。リストに無い摘要は手動で扱う。定額請求などで
-  // 同一金額が乱造される世界で、緩い自動結合がpaginator事故を起こさないように）
-  const matchList = ( options.matchDescriptions !== undefined ) ? options.matchDescriptions :
-    loadMatchDescriptions();
-  const allowedPatterns = new Set(matchList.map((d) => makePattern(d)));
+  // 自動突合は「許可された摘要」だけが対象（口座のルール match=true の
+  // 完全一致ホワイトリスト。リストに無い摘要は手動で扱う。定額請求などで
+  // 同一金額が乱造される世界で、緩い自動結合が誤結合を起こさないように）
+  const allowedPatterns = ( statement.financialId ) ?
+    new Set(( await models.BankStatementRule.findAll({
+      where: { financialId: statement.financialId, match: true },
+      raw: true
+    }) ).map((r) => r.pattern)) : new Set();
   const lines = await models.BankStatementLine.findAll({
     where: { statementId: statement.id, status: 'unmatched' }
   });
@@ -435,28 +437,18 @@ const buildInterestDetails = async (line, statement, profile, taxLine = null) =>
 // 正規化後の完全一致。口座単位（subAccountはnull許容）＋方向（'in'/'out'。
 // direction null の旧ルールは両方向に照合する）。
 // 口座補助（住信SBIなど）が一致するルールを最優先にする。補助なしの
-// 兄弟ルールがusageCountを上回っていても、そちらを採って口座補助を
-// 落とさないようにする（使用の多さより口座の一致を先に見る）
-const findLearnedRule = async (statement, application1, direction = null) => {
+// 口座のルールから、摘要に一致するものを引く（メモリ内選択）。
+// 方向なしの旧ルール（両方向に照合する）があれば同方向の次に優先。
+// 補助の分離は口座（Financial）が担うのでルール側の判定はここまで
+const findLearnedRule = (rules, application1, direction = null) => {
   const pattern = makePattern(application1);
-  if ( ( !pattern ) || ( !statement.financialId ) ) {
-    // 口座（通帳）未登録の取り込みにはルールを適用しない
+  if ( !pattern ) {
     return null;
   }
-  const candidates = await models.BankStatementRule.findAll({
-    where: {
-      financialId: statement.financialId,
-      pattern: pattern,
-      // 方向付きルールは同方向だけ。direction nullの旧ルールは両方向に照合する
-      // （IN ('out', null)はSQLではnull行に当たらないのでOp.orで書く）
-      [Op.and]: [
-        ( direction === 'out' || direction === 'in' ) ?
-          { [Op.or]: [ { direction: direction }, { direction: null } ] } :
-          { direction: null }
-      ]
-    },
-    order: [[ 'usageCount', 'DESC' ]]
-  });
+  const candidates = rules
+    .filter((r) => ( r.pattern === pattern ))
+    .filter((r) => ( !r.direction || r.direction === direction ))
+    .sort((a, b) => ( ( b.usageCount || 0 ) - ( a.usageCount || 0 ) ));
   return candidates[ 0 ] || null;
 };
 
@@ -507,11 +499,13 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   // この行の貸方。ルールに貸方の指定があればそれ、なければ口座の科目
   let creditAccount = null;
   let creditSubAccount = null;
+  // この口座のルール（bookLinesから一括で渡る）
+  const financialRules = options.financialRules || [];
   let oppositeSide = null;
   if ( !oppositeAccount ) {
     // ルールも指定もない → 学習ルールを引き、それも無ければ仮入科目で起票する
     const rule = ( forcedRule && makePattern(forcedRule.pattern) === makePattern(application1) ) ?
-      forcedRule : await findLearnedRule(statement, application1, isOut ? 'out' : 'in');
+      forcedRule : findLearnedRule(financialRules, application1, isOut ? 'out' : 'in');
     if ( rule && !isTempAccount(rule.oppositeAccount) ) {
       oppositeAccount = rule.oppositeAccount;
       oppositeSubAccount = rule.oppositeSubAccount || null;
@@ -595,6 +589,12 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
   // （再実行経由ではoptions.forcedRuleに渡ってくる）
   const forcedRule = options.forcedRule || ( options.applyRuleId ?
     await models.BankStatementRule.findByPk(parseInt(options.applyRuleId, 10)) : null );
+  // この口座のルールを一括で読む（合流判定/相手方解決はメモリ内で行う）
+  const financialRules = statement.financialId ?
+    await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
+  const mergePatterns = new Set(financialRules
+    .filter((r) => r.merge)
+    .map((r) => normalizeText(r.pattern)));
   const profileName = statement.cardName || statement.account;
   const bookingMap = new Map(( bookings || [] ).map((b) => [ Number(b.lineId), b ]));
   const where = { statementId: statement.id };
@@ -619,7 +619,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
           if ( toDateString(follower.date || '') !== toDateString(target.date || '') ) {
             break;
           }
-          if ( !isMergeable(follower) || follower.status !== 'unmatched' ) {
+          if ( !isMergeable(follower, mergePatterns) || follower.status !== 'unmatched' ) {
             break;
           }
           if ( !targetIds.includes(follower.id) ) {
@@ -689,12 +689,12 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
         detailEntries = details.map((detail) => ({ detail: detail, line: line }));
       }
     } else {
-      detailEntries = ( await buildLineDetails(line, statement, booking, { forcedRule: forcedRule }) ).map((detail) => ({ detail: detail, line: line }));
+      detailEntries = ( await buildLineDetails(line, statement, booking, { forcedRule: forcedRule, financialRules: financialRules }) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
     // 完全一致の合流摘要なら前の行（同じ日）の伝票に合流する
     let group = null;
-    if ( isMergeable(line) && prevGroup && ( prevDate === key ) ) {
+    if ( isMergeable(line, mergePatterns) && prevGroup && ( prevDate === key ) ) {
       group = prevGroup;
     } else {
       group = { date: key, entries: [] };
@@ -836,12 +836,10 @@ export const suggestOpposites = async (statement, profiles = null) => {
 // 確定（承認済み）伝票・精算書由来伝票は触らない。
 export const reconcilePlaceholders = async (options = {}) => {
   const days = ( options.days === undefined ) ? 3 : options.days;
-  // 「後の処理」も許可された摘要だけが対象（match-rules.yaml。後の処理の
+  // 「後の処理」も許可された摘要だけが対象（口座のルール match=true。
   // 「金額一致+±3日」は緩い条件なので、予定外の摘要では誤って結び付けて
-  // 別の取引を食う恐れがある。載っていない摘要は手動に回す）
-  const matchList = ( options.matchDescriptions !== undefined ) ? options.matchDescriptions :
-    loadMatchDescriptions();
-  const allowedPatterns = new Set(matchList.map((d) => makePattern(d)));
+  // 別の取引を食う恐れがある。載っていない摘要は手動に回す）。
+  // 仮の銀行側（out=credit/in=debit）から口座を解決し、その口座の許可摘要で絞る
   // 仮科目を含む仕訳明細（未承認・精算書由来は除く）
   const tempCandidates = await models.CrossSlipDetail.findAll({
     include: [{ model: models.CrossSlip, as: 'crossSlip' }],
@@ -852,10 +850,32 @@ export const reconcilePlaceholders = async (options = {}) => {
       ]
     }
   });
-  const temps = tempCandidates.filter((detail) => (
-    detail.crossSlip && !detail.crossSlip.approvedAt && !detail.crossSlip.expenseReportId &&
-    allowedPatterns.has(makePattern(detail.application1))
-  ));
+  const temps = [];
+  const matchPatternsByFinancial = new Map();
+  for ( const detail of tempCandidates ) {
+    if ( ( !detail.crossSlip ) || detail.crossSlip.approvedAt || detail.crossSlip.expenseReportId ) {
+      continue;
+    }
+    const isOut = ( detail.debitAccount === TEMP_ACCOUNTS.OUT );
+    const financial = await findFinancialBySide(
+      isOut ? detail.creditAccount : detail.debitAccount,
+      isOut ? detail.creditSubAccount : detail.debitSubAccount
+    );
+    if ( !financial ) {
+      continue;
+    }
+    if ( !matchPatternsByFinancial.has(financial.id) ) {
+      matchPatternsByFinancial.set(financial.id, new Set(
+        ( await models.BankStatementRule.findAll({
+          where: { financialId: financial.id, match: true },
+          raw: true
+        }) ).map((r) => r.pattern)
+      ));
+    }
+    if ( matchPatternsByFinancial.get(financial.id).has(makePattern(detail.application1)) ) {
+      temps.push(detail);
+    }
+  }
   if ( temps.length === 0 ) {
     return { replaced: 0 };
   }

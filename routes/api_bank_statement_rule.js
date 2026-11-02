@@ -47,6 +47,8 @@ export default {
         oppositeSubAccount: rule.oppositeSubAccount,
         creditAccount: rule.creditAccount,
         creditSubAccount: rule.creditSubAccount,
+        merge: rule.merge,
+        match: rule.match,
         usageCount: rule.usageCount
       }))
     });
@@ -62,11 +64,12 @@ export default {
     const body = req.body || {};
     const financialId = body.financialId ? parseInt(body.financialId, 10) : null;
     const pattern = makePattern(body.pattern);
-    if ( !financialId || !pattern || !body.oppositeAccount ) {
+    // 合流専用ルール（merge=true）は相手方を持たない（仮入科目で載る）
+    if ( !financialId || !pattern || ( !body.oppositeAccount && !body.merge ) ) {
       res.status(422).json({ code: -2, message: '口座・摘要・相手方科目が未指定です。' });
       return;
     }
-    if ( isTempAccount(body.oppositeAccount) ) {
+    if ( body.oppositeAccount && isTempAccount(body.oppositeAccount) ) {
       res.status(422).json({ code: -2, message: '仮入科目はルールの相手方に指定できません。' });
       return;
     }
@@ -79,19 +82,23 @@ export default {
           direction: direction
         },
         defaults: {
-          oppositeAccount: body.oppositeAccount,
+          oppositeAccount: body.oppositeAccount || null,
           oppositeSubAccount: body.oppositeSubAccount ? parseInt(body.oppositeSubAccount) : null,
           creditAccount: body.creditAccount || null,
           creditSubAccount: body.creditSubAccount ? parseInt(body.creditSubAccount) : null,
+          merge: Boolean(body.merge),
+          match: Boolean(body.match),
           usageCount: 1
         }
       });
       if ( !created ) {
         // 既に同じキーのルールがあれば内容を上書きする
-        rule.oppositeAccount = body.oppositeAccount;
+        rule.oppositeAccount = body.oppositeAccount || null;
         rule.oppositeSubAccount = body.oppositeSubAccount ? parseInt(body.oppositeSubAccount) : null;
         rule.creditAccount = body.creditAccount || null;
         rule.creditSubAccount = body.creditSubAccount ? parseInt(body.creditSubAccount) : null;
+        rule.merge = Boolean(body.merge);
+        rule.match = Boolean(body.match);
         await rule.save();
       }
       res.json({ code: 0, id: rule.id, created: created });
@@ -142,6 +149,12 @@ export default {
     if ( body.creditAccount !== undefined ) {
       rule.creditAccount = body.creditAccount || null;
       rule.creditSubAccount = body.creditSubAccount ? parseInt(body.creditSubAccount) : null;
+    }
+    if ( body.merge !== undefined ) {
+      rule.merge = Boolean(body.merge);
+    }
+    if ( body.match !== undefined ) {
+      rule.match = Boolean(body.match);
     }
     await rule.save();
     res.json({ code: 0 });
