@@ -1339,9 +1339,10 @@ const openRulesModal = async (line = null) => {
     await loadFinancials();
   }
   await reloadRules();
-  // ルール候補（取り込の未ルール摘要。詳細画面でしか出ない）
+  // ルール候補は「学習ルール」ボタンから開いたときだけ（摘要クリックの
+  // 登録フローの邪魔になるので）
   ruleCandidates = [];
-  if ( statement && statement.financialId ) {
+  if ( !line && statement && statement.financialId ) {
     try {
       const result = await axios.get(`/api/bank_statement_rule/candidates?statementId=${statement.id}`);
       ruleCandidates = ( result.data && result.data.values ) || [];
