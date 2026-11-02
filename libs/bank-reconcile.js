@@ -465,8 +465,9 @@ const findLearnedRule = (rules, application1, direction = null) => {
 const buildLineDetails = async (line, statement, booking, options = {}) => {
   // 適用して保存: ユーザーが選んだルールがあればusageCountに頼らずそれを使う
   const forcedRule = options.forcedRule || null;
-  // カード系の行は利用額(amount)のみ。金額カラムの見た目は「出金」
-  const isCard = ( statement.kind === 'corporate_card' );
+  // カード系の行は利用額(amount)のみ。個人カードも同じ扱い
+  // （貸方=口座の科目=立替を表す勘定。借方は学習ルール→仮入科目）
+  const isCard = ( statement.kind === 'corporate_card' ) || ( statement.kind === 'personal_card' );
   const isOut = ( line.amountOut !== null && line.amountOut !== undefined ) ||
     ( isCard && line.amount !== null && line.amount !== undefined );
   const amount = Number(isOut ? ( ( line.amountOut !== null && line.amountOut !== undefined ) ? line.amountOut : line.amount ) : line.amountIn);

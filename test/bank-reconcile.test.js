@@ -903,6 +903,30 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.debitAccount, '1900000');
   });
 
+  it('bookLines: 個人カード行は貸方=口座科目(立替)で起票する', async () => {
+    // 個人カードも法人カードと同じカード系の起票（Web明細/郵送明細書の
+    // 利用額amountで、貸方=口座の勘定科目）
+    const cardFin = await findOrCreate(models.Financial, {
+      accountCode: '1210000', subAccountCode: null
+    }, { name: 'テスト個人カード', kind: 'personal_card', accountCode: '1210000' });
+    const statement = await models.BankStatement.create({
+      financialId: cardFin.id, kind: 'personal_card',
+      account: cardFin.accountCode, subAccount: null,
+      cardName: 'テスト個人カード', lineCount: 1
+    });
+    const line = await models.BankStatementLine.create({
+      statementId: statement.id, lineNo: 1, status: 'unmatched',
+      category: 'normal', date: '2026-12-05', rawDescription: 'ウェルネス', amount: 988
+    });
+    await bookLines(statement, null, approver);
+    await line.reload();
+    const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId);
+    assert.equal(detail.creditAccount, '1210000');
+    // ルール未命中なので借方は仮入科目
+    assert.equal(detail.debitAccount, '1900000');
+    assert.equal(Number(detail.debitAmount), 988);
+  });
+
   it('伝票の登録で取込行が起票済みになる（ドラフト起票）', async () => {
     // 「起票」ボタンは伝票画面の下書きを開くだけ。伝票の登録時に
     // 取込行が起票済みに紐付く（登録せずにもどれば何も起きない）
