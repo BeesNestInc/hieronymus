@@ -1338,10 +1338,9 @@ const openRulesModal = async (line = null) => {
     newRule.creditAccount = statement.financial.accountCode;
     newRule.creditSubAccount = statement.subAccount;
   }
-  // 完全に同じ摘要+方向のルールが既にあれば「修正」で開く。
-  // 二重登録は害しかない（DB側はfindOrCreateのupsertで二重行は作られないが、
-  // 適用時どちらが使われるかが分からなくなる）。
-  // 違う方向（同じ摘要の入金と出金）は別ルールなので新規登録になる
+  // 完全に同じ摘要のルールが既にあれば「修正」で開く（二重登録は害しかない）。
+  // 優先順: 同方向 → 方向なし（旧ルール）→ 違う方向のもの（方向は編集で直せる。
+  // 代理店的な取引先で入出金別ルールを足したいときは「＋新規ルール」から）
   if ( line ) {
     const existing = rules.find((r) => (
       String(r.financialId) === String(newRule.financialId) &&
@@ -1351,6 +1350,9 @@ const openRulesModal = async (line = null) => {
       String(r.financialId) === String(newRule.financialId) &&
       r.pattern === pattern &&
       !r.direction
+    )) || rules.find((r) => (
+      String(r.financialId) === String(newRule.financialId) &&
+      r.pattern === pattern
     ));
     if ( existing ) {
       editingRule = JSON.parse(JSON.stringify(existing));
