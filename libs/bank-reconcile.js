@@ -795,6 +795,80 @@ export const releaseStatementLines = async (detailIds) => {
 // 未照合行の相手方仕訳の候補を表示用に返す（起票時の仮入科目に置かれる前の
 // 判断材料。学習ルールに完全一致する行だけを対象にする）
 // 戻り値は {lineId, oppositeAccount, oppositeSubAccount, learned:true} の配列
+// ルール候補の生成（承認制）。
+// この取り込の行を正規化摘要+方向でグルーピングし、まだルールの無い
+// 摘要を候補として返す。相手方の提案は「同じ口座側に載る過去の仕訳明細
+// （application1の正規化一致）の最も新しいもの」から引く（判じものではなく
+// 候補提示。ユーザーが確認して登録する）
+export const suggestRuleCandidates = async (statement) => {
+  if ( !statement.financialId ) {
+    return [];
+  }
+  const financial = statement.financial ||
+    await models.Financial.findByPk(statement.financialId);
+  if ( !financial ) {
+    return [];
+  }
+  const rules = await models.BankStatementRule.findAll({
+    where: { financialId: statement.financialId }
+  });
+  const ruledPatterns = new Set(rules.map((r) => ( r.pattern )));
+  const lines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id }
+  });
+  // 未処理の行（未照合・仮起票）だけが候補のネタになる
+  const groups = new Map();
+  for ( const line of lines ) {
+    if ( line.status === 'matched' || line.status === 'ignored' || line.status === 'selected' ) {
+      continue;
+    }
+    const pattern = makePattern(line.rawDescription || line.description);
+    if ( !pattern || ruledPatterns.has(pattern) ) {
+      continue;
+    }
+    const isOut = ( line.amountOut !== null && line.amountOut !== undefined ) ||
+      ( statement.kind !== 'bank' && line.amount !== null && line.amount !== undefined );
+    const key = `${pattern}|${isOut ? 'out' : 'in'}`;
+    if ( !groups.has(key) ) {
+      groups.set(key, { pattern: pattern, direction: isOut ? 'out' : 'in', count: 0 });
+    }
+    groups.get(key).count += 1;
+  }
+  // 提案元: この口座側の科目で載っている過去の仕訳明細（直近300件）。
+  // 出金行なら貸方が口座、入金行なら借方が口座
+  const recentDetails = await models.CrossSlipDetail.findAll({
+    where: {
+      [Op.or]: [
+        { creditAccount: financial.accountCode },
+        { debitAccount: financial.accountCode }
+      ]
+    },
+    order: [[ 'id', 'DESC' ]],
+    limit: 300
+  });
+  const candidates = [];
+  for ( const group of groups.values() ) {
+    const isOut = ( group.direction === 'out' );
+    const sideAccountAttribute = isOut ? 'creditAccount' : 'debitAccount';
+    const counterpartAttribute = isOut ? 'debitAccount' : 'creditAccount';
+    const counterpartSub = isOut ? 'debitSubAccount' : 'creditSubAccount';
+    // 過去の仕訳に同じ摘要があるか（正規化一致）。あればその相手方を提案
+    const history = recentDetails.find((detail) => (
+      ( detail[sideAccountAttribute] === financial.accountCode ) &&
+      makePattern(detail.application1) === group.pattern &&
+      detail[counterpartAttribute]
+    ));
+    candidates.push({
+      pattern: group.pattern,
+      direction: group.direction,
+      count: group.count,
+      suggestAccount: history ? history[counterpartAttribute] : null,
+      suggestSubAccount: history ? ( history[counterpartSub] || null ) : null
+    });
+  }
+  return candidates;
+};
+
 export const suggestOpposites = async (statement, profiles = null) => {
   const learnedRules = statement.financialId ? await models.BankStatementRule.findAll({
     where: {

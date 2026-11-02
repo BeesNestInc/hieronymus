@@ -1,6 +1,6 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
-import { makePattern, isTempAccount } from '../libs/bank-reconcile.js';
+import { makePattern, isTempAccount, suggestRuleCandidates } from '../libs/bank-reconcile.js';
 import { loadMergeDescriptions, saveMergeDescriptions, loadMatchDescriptions, saveMatchDescriptions } from '../libs/bank-statement.js';
 
 // 学習ルール（BankStatementRule）の管理。明細取込で相手方仕訳を決める唯一の
@@ -205,6 +205,23 @@ export default {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '保存に失敗しました。' });
     }
+  },
+
+  // ルール候補（承認制）。この取り込の未ルール摘要を、過去の仕訳実績の
+  // 相手方候補つきで返す
+  candidates: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) && !req.session.user.fiscalBrowsing ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statement = await models.BankStatement.findByPk(parseInt(req.query.statementId, 10));
+    if ( !statement ) {
+      res.json({ code: 0, values: [] });
+      return;
+    }
+    const values = await suggestRuleCandidates(statement);
+    res.json({ code: 0, values: values });
   },
 
   // 突合許可摘要の取得（既存仕訳との突合・後の処理が自動で結び付けてよい摘要）

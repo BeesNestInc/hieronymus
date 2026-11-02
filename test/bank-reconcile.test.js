@@ -7,7 +7,7 @@ import {
   autoMatch, bookLines, selectForExpense, suggestOpposites,
   reconcilePlaceholders, rebookStatement,
   duplicateKeyFor, findExistingDuplicateKeys, isDuplicateLine,
-  fiscalYearFilter
+  fiscalYearFilter, suggestRuleCandidates
 } from '../libs/bank-reconcile.js';
 import { learnOpposite as learnOppositeRaw, makePattern } from '../libs/bank-reconcile.js';
 // テストは旧bankSideシグニチャのまま回るラッパー（口座=Financialを解決して渡す）
@@ -956,6 +956,53 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(detail.creditAccount, '3010000');
     assert.equal(detail.creditSubAccount, 1);
     void rule;
+  });
+
+  it('suggestRuleCandidates: 未ルール摘要の候補を過去実績の相手方付きで返す', async () => {
+    // カード口座は学習が自動で回らない（learnFromSlipは銀行科目しか見ない）ので、
+    // カード明細の「仮でしかない行」こそがルール候補の主な供給源
+    await models.BankStatementRule.destroy({ where: { pattern: { [models.Sequelize.Op.ne]: '利息' } } });
+    const cardFin = await findOrCreate(models.Financial, {
+      accountCode: '3020000', subAccountCode: null
+    }, { name: 'テストカード', kind: 'corporate_card', accountCode: '3020000' });
+    const statement = await models.BankStatement.create({
+      financialId: cardFin.id, kind: 'corporate_card',
+      account: cardFin.accountCode, subAccount: null,
+      cardName: 'テストカード', lineCount: 3
+    });
+    const lines = [];
+    const defs = [
+      { date: '2026-12-15', rawDescription: 'サブスク月額', amount: 1500 },
+      { date: '2026-12-20', rawDescription: 'サブスク月額', amount: 1500 },
+      { date: '2026-12-21', rawDescription: '謎の摘要', amount: 900 }
+    ];
+    for ( let i = 0; i < defs.length; i ++ ) {
+      lines.push(await models.BankStatementLine.create({
+        statementId: statement.id, lineNo: i + 1,
+        status: 'unmatched', category: 'normal', ...defs[ i ]
+      }));
+    }
+    // 過去実績: 同じ摘要をカードで払った明細（借=通信費/貸=未払金）
+    await createCrossSlip({
+      year: 2026, month: 11, day: 15,
+      lines: [{
+        debitAccount: '7030050', debitAmount: 1500,
+        creditAccount: '3020000', creditAmount: 1500,
+        application1: 'サブスク月額'
+      }]
+    }, approver, { forceUnapproved: true });
+    const candidates = await suggestRuleCandidates(statement);
+    // 未ルール摘要2種（'謎の摘要'は1行だけど候補になる）
+    assert.lengthOf(candidates, 2);
+    const sub = candidates.find((c) => ( c.pattern === 'サブスク月額' ));
+    assert.isNotNull(sub);
+    assert.equal(sub.direction, 'out');
+    assert.equal(sub.count, 2);
+    // 過去実績から提案される
+    assert.equal(sub.suggestAccount, '7030050');
+    const mystery = candidates.find((c) => ( c.pattern === '謎の摘要' ));
+    assert.isNotNull(mystery);
+    assert.isNull(mystery.suggestAccount);
   });
 
   it('selectForExpense: 個人カード明細の選択行を精算書の明細にする', async () => {

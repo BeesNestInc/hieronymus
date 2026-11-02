@@ -446,6 +446,32 @@
           </table>
         </div>
         {/if}
+        {#if ( ruleCandidates.length > 0 )}
+        <div class="border rounded p-2 mb-2" style="background-color:rgba(25,135,84,0.05);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span style="font-size:0.85rem;" class="fw-bold">ルール候補（この取り込の摘要から。確認して登録してください）</span>
+            <button type="button" class="btn btn-sm btn-outline-primary"
+              title="相手方の提案がある候補をすべて登録します（提案がない候補は手で選んでください）"
+              on:click={registerAllCandidates}>すべて登録</button>
+          </div>
+          {#each ruleCandidates as candidate (candidate.pattern + '/' + candidate.direction)}
+          <div class="d-flex align-items-center mb-1" style="font-size:0.8rem;">
+            <span style="width:40%;">{candidate.pattern}</span>
+            <span class="me-2" style="width:3em;">{directionLabel(candidate.direction)}</span>
+            <span class="me-2 text-muted" style="width:3em;">{candidate.count}行</span>
+            {#key 'cand-' + candidate.pattern + '-' + candidate.direction}
+            <div style="flex:1;">
+              <Account accounts={oppositeAccounts}
+                bind:code={candidate.suggestAccount}
+                bind:sub_code={candidate.suggestSubAccount}></Account>
+            </div>
+            {/key}
+            <button type="button" class="btn btn-sm btn-outline-primary ms-1" title="この候補をルールとして登録します"
+              on:click={() => { registerCandidate(candidate); }}>登録</button>
+          </div>
+          {/each}
+        </div>
+        {/if}
         {#if ( !showAllRulesForm ) }
         <button type="button" class="btn btn-sm btn-outline-primary mb-2"
           on:click={() => { showAllRulesForm = true; }}>
@@ -699,6 +725,8 @@ let editingRule = null;
 let showAllRulesForm = false;
 let newRule = {};
 let ruleFinancialFilter = '';
+// ルール候補（承認制: この取り込の未ルール摘要+過去実績からの相手方提案）
+let ruleCandidates = [];
 
 
 // 仮入科目（x9xxxxx）
@@ -1311,6 +1339,16 @@ const openRulesModal = async (line = null) => {
     await loadFinancials();
   }
   await reloadRules();
+  // ルール候補（取り込の未ルール摘要。詳細画面でしか出ない）
+  ruleCandidates = [];
+  if ( statement && statement.financialId ) {
+    try {
+      const result = await axios.get(`/api/bank_statement_rule/candidates?statementId=${statement.id}`);
+      ruleCandidates = ( result.data && result.data.values ) || [];
+    } catch (e) {
+      console.error('load rule candidates failed', e);
+    }
+  }
   // 貸方の既定=この口座の科目（見えているほうが間違いが怖くない）
   if ( statement && statement.financial && newRule && !newRule.creditAccount ) {
     newRule.creditAccount = statement.financial.accountCode;
@@ -1474,6 +1512,42 @@ const saveRule = async (rule, apply = false) => {
     toast.show('学習ルール', message, 'warning');
   }
 };
+// 候補をルールとして登録する（承認）。登録後は候補一覧から外す
+const registerCandidate = async (candidate) => {
+  if ( !candidate.suggestAccount ) {
+    toast.show('学習ルール', '相手方を選んでください', 'warning');
+    return;
+  }
+  try {
+    await axios.post('/api/bank_statement_rule', {
+      financialId: statement.financialId,
+      direction: candidate.direction,
+      pattern: candidate.pattern,
+      oppositeAccount: candidate.suggestAccount,
+      oppositeSubAccount: candidate.suggestSubAccount || null
+    });
+    ruleCandidates = ruleCandidates.filter((c) => (
+      !( c.pattern === candidate.pattern && c.direction === candidate.direction )
+    ));
+    await reloadRules();
+    toast.show('学習ルール', '候補をルールとして登録しました');
+  } catch (e) {
+    console.error('register candidate failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) || '登録に失敗しました';
+    toast.show('学習ルール', message, 'warning');
+  }
+};
+// 提案のある候補をすべて登録する（提案がない候補は残る）
+const registerAllCandidates = async () => {
+  const withSuggestion = ruleCandidates.filter((c) => ( c.suggestAccount ));
+  for ( const candidate of withSuggestion ) {
+    await registerCandidate(candidate);
+  }
+  if ( withSuggestion.length === 0 ) {
+    toast.show('学習ルール', '提案のある候補がありません', 'warning');
+  }
+};
+
 const deleteRule = async (rule) => {
   if ( !window.confirm('このルールを削除しますか？') ) {
     return;
