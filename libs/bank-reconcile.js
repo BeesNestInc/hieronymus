@@ -852,11 +852,14 @@ export const suggestRuleCandidates = async (statement) => {
     const sideAccountAttribute = isOut ? 'creditAccount' : 'debitAccount';
     const counterpartAttribute = isOut ? 'debitAccount' : 'creditAccount';
     const counterpartSub = isOut ? 'debitSubAccount' : 'creditSubAccount';
-    // 過去の仕訳に同じ摘要があるか（正規化一致）。あればその相手方を提案
+    // 過去の仕訳に同じ摘要があるか（正規化一致）。あればその相手方を提案。
+    // **仮起票（仮入科目で載っている未確定の明細）は実績として使わない**
+    // （仮を相手方に学習すると、そのルールで永遠に仮のままになる）
     const history = recentDetails.find((detail) => (
       ( detail[sideAccountAttribute] === financial.accountCode ) &&
       makePattern(detail.application1) === group.pattern &&
-      detail[counterpartAttribute]
+      detail[counterpartAttribute] &&
+      !isTempAccount(detail[counterpartAttribute])
     ));
     candidates.push({
       pattern: group.pattern,

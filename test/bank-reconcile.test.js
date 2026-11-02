@@ -991,6 +991,16 @@ describe('bank-reconcile (test db)', () => {
         application1: 'サブスク月額'
       }]
     }, approver, { forceUnapproved: true });
+    // より新しい「仮起票」（借=出金仮/貸=未払金）があっても提案してはいけない
+    // （仮を学習すると、そのルールで永遠に仮のままになる）
+    await createCrossSlip({
+      year: 2026, month: 11, day: 20,
+      lines: [{
+        debitAccount: '1900000', debitAmount: 1500,
+        creditAccount: '3020000', creditAmount: 1500,
+        application1: 'サブスク月額'
+      }]
+    }, approver, { forceUnapproved: true });
     const candidates = await suggestRuleCandidates(statement);
     // 未ルール摘要2種（'謎の摘要'は1行だけど候補になる）
     assert.lengthOf(candidates, 2);
@@ -998,7 +1008,7 @@ describe('bank-reconcile (test db)', () => {
     assert.isNotNull(sub);
     assert.equal(sub.direction, 'out');
     assert.equal(sub.count, 2);
-    // 過去実績から提案される
+    // 過去実績から提案される（仮起票の明細は提案元にしない）
     assert.equal(sub.suggestAccount, '7030050');
     const mystery = candidates.find((c) => ( c.pattern === '謎の摘要' ));
     assert.isNotNull(mystery);
