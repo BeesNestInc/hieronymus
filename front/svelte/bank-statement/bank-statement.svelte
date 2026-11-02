@@ -465,18 +465,16 @@
                 on:click={registerAllCandidates}>すべて登録</button>
             </div>
           </div>
-          {#each ruleCandidates as candidate (candidate.pattern + '/' + candidate.direction)}
+          {#each ruleCandidates as candidate (candidate)}
           <div class="d-flex align-items-center mb-1" style="font-size:0.8rem;">
             <span style="width:40%;" title={candidate.aiReason || ''}>{candidate.pattern}{#if ( candidate.ai )}&nbsp;<span class="badge text-bg-info">AI</span>{/if}</span>
             <span class="me-2" style="width:3em;">{directionLabel(candidate.direction)}</span>
             <span class="me-2 text-muted" style="width:3em;">{candidate.count}行</span>
-            {#key 'cand-' + candidate.pattern + '-' + candidate.direction}
             <div style="flex:1;">
               <Account accounts={oppositeAccounts}
                 bind:code={candidate.suggestAccount}
                 bind:sub_code={candidate.suggestSubAccount}></Account>
             </div>
-            {/key}
             <button type="button" class="btn btn-sm btn-outline-primary ms-1" title="この候補をルールとして登録します"
               on:click={() => { registerCandidate(candidate); }}>登録</button>
           </div>
