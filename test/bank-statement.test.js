@@ -199,6 +199,66 @@ describe('bank-statement (pdf fallback)', () => {
   });
 });
 
+describe('bank-statement (profile draft)', () => {
+  const TEST_DIR = '/tmp/opencode/profile-draft-test';
+
+  it('validateProfileYaml: 空欄yaml・name無し・type不備を検出する', () => {
+    assert.isString(parser.validateProfileYaml('a: [b').error);
+    assert.isString(parser.validateProfileYaml('type: bank\ndetect: [日付]').error);
+    assert.isString(parser.validateProfileYaml('name: X\ntype: magical').error);
+    assert.isString(parser.validateProfileYaml('name: X\ntype: bank').error);
+    const ok = parser.validateProfileYaml('name: テスト\ntype: bank\ndetect: [日付, 金額]');
+    assert.isUndefined(ok.error);
+    assert.equal(ok.profile.name, 'テスト');
+    const okCard = parser.validateProfileYaml('name: X\ntype: card\ncardName: テストカード');
+    assert.isUndefined(okCard.error);
+  });
+
+  it('profileAgreement: 日付+金額が全行一致ならagree', () => {
+    const aiLines = [
+      { date: '2026-01-05', amountOut: 1000 },
+      { date: '2026-01-07', amountIn: 200 }
+    ];
+    const same = { lines: [ { date: '2026-01-05', amountOut: 1000 }, { date: '2026-01-07', amountIn: 200 } ] };
+    assert.isTrue(parser.profileAgreement(null, same, aiLines).agree);
+    const other = { lines: [ { date: '2026-01-05', amountOut: 999 } ] };
+    assert.isFalse(parser.profileAgreement(null, other, aiLines).agree);
+    const partial = { lines: [ { date: '2026-01-05', amountOut: 1000 } ] };
+    assert.isFalse(parser.profileAgreement(null, partial, aiLines).agree);
+  });
+
+  it('saveProfileYaml: 名前からファイル名を作って書き込む（BANK_CONFIG_PATH）', () => {
+    if ( !fs.existsSync(TEST_DIR) ) {
+      fs.mkdirSync(TEST_DIR, { recursive: true });
+    }
+    const orig = process.env.BANK_CONFIG_PATH;
+    process.env.BANK_CONFIG_PATH = TEST_DIR;
+    try {
+      const yamlText = [
+        'name: テスト/口座 X',
+        'type: bank',
+        'detect:',
+        '  - 日付',
+        '  - 出金金額'
+      ].join('\n');
+      const saved = parser.saveProfileYaml(yamlText);
+      assert.isUndefined(saved.error);
+      assert.match(saved.file, /テスト-口座-X\.yaml$/);
+      assert.isTrue(fs.existsSync(saved.file));
+      // 読み直すとプロファイルとして載る（loadProfilesは*.yamlを読む）
+      const loaded = parser.loadProfiles();
+      assert.isTrue(loaded.some((p) => ( p.name === 'テスト/口座 X' )));
+      fs.unlinkSync(saved.file);
+    } finally {
+      if ( orig === undefined ) {
+        delete process.env.BANK_CONFIG_PATH;
+      } else {
+        process.env.BANK_CONFIG_PATH = orig;
+      }
+    }
+  });
+});
+
 describe('bank-statement (merge rules)', () => {
   const TEST_DIR = '/tmp/opencode/merge-rules-test';
 

@@ -568,10 +568,83 @@ export const suggestRuleAccounts = async (candidates, options = {}) => {
   }
 };
 
+// 明細の書式からプロファイルyamlを起草させる（AI読取の次の一手）。
+// 「書式が増えるたびパーサーを追従させる」をやめる仕組み:
+// AIが読めたら、同じ書式を次回以降は決定的に解析できるyamlを書かせる。
+// 出来上がったプロファイルの検証は呼び出し側が行う（同じファイルを
+// プロファイルで再解析し、AIの読みと一致すること。壊れたyamlは保存しない）
+const PROFILE_DRAFT_PROMPT = [
+  'これは明細カード（通帳・カード明細）の取り込みデータと、AIによる読取り結果です。',
+  '次回以降の同じ書式の取り込みを「決定的に」解析するためのyamlプロファイルを起草してください。',
+  'yamlの様式:',
+  '  name: プロファイル名（銀行名やカード名。40字まで）',
+  '  type: bank   # CSV/Excelの銀行明細。または card: カード明細PDF',
+  '  # type: bank の場合:',
+  '  detect:      # ヘッダ行に全部含まれていたらこの形式とみなす語の配列',
+  '    - 日付',
+  '  columns:     # 列名→項目。項目は date/description/amountOut/amountIn/balance/amount/merchant/memo',
+  '    date: お取引日',
+  '  # type: card の場合:',
+  '  cardName: ミツイスミトモカード   # 銀行側の引落摘要に含まれる名称',
+  '  cardPatterns:',
+  '    # 総額と支払日を取る正規表現（グループで取り出す部分だけ）',
+  '    total: \'支払い合計額([\\d,]+)円\'',
+  '    payDate: \'支払い日(\\d{4})年(\\d{1,2})月(\\d{1,2})日\'',
+  'ルール:',
+  '- 与えた読取り結果の各列の意味からcolumns/cardPatternsを推定すること。',
+  '- 正規表現は過度に一般化しない（この書式に合う最小限）。',
+  '- 決めない部分は省略すること（yamlのdefaultsを模倣しない）。',
+  '- yamlそのものだけを出力すること（説明やコードフェンスを付けない）。'
+].join('\n');
+
+const PROFILE_DRAFT_SCHEMA = jsonSchema({
+  type: 'object',
+  properties: {
+    profile: { type: 'string' }
+  },
+  required: [ 'profile' ],
+  additionalProperties: false
+});
+
+// プロファイルyamlの起草。options.aiLines（AI読取の結果）と options.kindHint
+// （'bank'/'card'）を渡す。evidenceは取り込みファイルから採ったテキスト。
+export const draftStatementProfile = async (evidence, options = {}) => {
+  const setting = settings();
+  if ( !isAvailable() ) {
+    const err = new Error('AIの設定がありません（config/llms.yaml）。');
+    err.name = 'AiNotConfigured';
+    throw err;
+  }
+  const model = makeModel(setting);
+  const lines = [
+    PROFILE_DRAFT_PROMPT,
+    `書式の種類のヒント: ${options.kindHint || '不明'}`,
+    `取り込みデータの材料（先頭から）:`,
+    String(evidence || '').slice(0, 12000),
+    'AI読取の結果（列の意味の根拠。これと同じことが決定的に取れるようにする）:',
+    JSON.stringify(( options.aiLines || [] ).slice(0, 40))
+  ];
+  const messages = [{ role: 'user', content: [{ type: 'text', text: lines.join('\n') }] }];
+  let object = null;
+  try {
+    const result = await generateObject({ model: model, schema: PROFILE_DRAFT_SCHEMA, messages: messages, maxRetries: 1 });
+    object = result.object;
+  } catch (e) {
+    if ( e && (( e.name === 'AI_APICallError' ) || e.statusCode || e.status ) ) {
+      throw aiApiError(e);
+    }
+    const result = await generateText({ model: model, messages: messages, maxRetries: 1 });
+    const extracted = extractJson(result.text);
+    object = ( extracted && ( extracted.profile !== undefined ) ) ? extracted : { profile: result.text };
+  }
+  return { yaml: String(( object && object.profile ) || '') };
+};
+
 export default {
   isAvailable: isAvailable,
   extract: extract,
   extractStatement: extractStatement,
   suggestRuleAccounts: suggestRuleAccounts,
+  draftStatementProfile: draftStatementProfile,
   fixEraDate: fixEraDate
 };

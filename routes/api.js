@@ -162,6 +162,8 @@ router.get('/bank_statement', bank_statement.list);
 router.get('/bank_statement/:id', bank_statement.get);
 router.get('/bank_statement/file/:id', bank_statement.file);
 router.post('/bank_statement/preview', bank_statement.preview);
+router.post('/bank_statement/profile_draft', bank_statement.profileDraft);
+router.put('/bank_statement/profile', bank_statement.profileSave);
 router.post('/bank_statement/upload', bank_statement.upload);
 router.post('/bank_statement/:id/match', bank_statement.match);
 router.post('/bank_statement/:id/book', bank_statement.book);

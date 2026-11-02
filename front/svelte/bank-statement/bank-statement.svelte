@@ -363,6 +363,40 @@
           {/if}
         </div>
         {/if}
+        {#if ( preview && canDraftProfile )}
+        <details class="border rounded p-2 mb-2">
+          <summary style="font-size:0.85rem;">この書式を学習する（AIプロファイル。承認すると次回から決定的に読める）</summary>
+          <button type="button" class="btn btn-sm btn-outline-info mt-1" disabled={profileBusy}
+            title="AIがこの書式のyamlプロファイルを書き、同じファイルでの再解析が一致するか自動検証します"
+            on:click={draftProfile}>プロファイルを起草</button>
+          {#if ( profileBusy )}
+          <span class="text-muted ms-2" style="font-size:0.8rem;">AIで起草中…</span>
+          {/if}
+          {#if ( profileDraftError )}
+          <div class="alert alert-danger py-1 px-2 mt-1" style="font-size:0.8rem;">{profileDraftError}</div>
+          {/if}
+          {#if ( profileDraft )}
+          <div class="mt-1" style="font-size:0.8rem;">
+            {#if ( profileDraft.agreement )}
+              {#if ( profileDraft.agreement.agree )}
+              <span class="badge bg-success">検証OK</span>
+              <span class="text-muted">プロファイルで再解析した {profileDraft.profileLines}行 = AI読取 {profileDraft.aiLines}行（日付+金額が全行一致）</span>
+              {:else}
+              <span class="badge bg-warning text-dark">相違あり</span>
+              <span class="text-muted">一致 {profileDraft.agreement.matched} / プロファイル{profileDraft.agreement.ofProfile}行 / AI{profileDraft.agreement.ofAi}行（使うかどうかは確認してください）</span>
+              {/if}
+            {:else}
+            <span class="badge bg-warning text-dark">yamlの検証に失敗</span>
+            {/if}
+          </div>
+          <textarea class="form-control mt-1" rows="10" style="font-size:0.75rem;font-family:monospace;"
+            bind:value={profileDraft.yaml}></textarea>
+          <button type="button" class="btn btn-sm btn-primary mt-1" disabled={profileBusy}
+            title="このプロファイルをconfig/banksに保存します（保存前にyamlは検証されます）"
+            on:click={saveProfile}>プロファイルを保存</button>
+          {/if}
+        </details>
+        {/if}
         {#if ( formError )}
         <div class="alert alert-danger py-1 px-2">{formError}</div>
         {/if}
@@ -692,6 +726,13 @@ let warnings = [];
 let cardSuggestions = [];
 let preview = null;
 let previewId = null;
+// AIプロファイル起草（書式学習。承認制でconfig/banksにyamlを置く）
+let profileDraft = null;
+let profileDraftError = '';
+let profileBusy = false;
+// テキスト層のある書式だけがプロファイル化できる（画像は対象外）
+$: canDraftProfile = ( status && status.user.accounting && status.aiAvailable &&
+  form.file && /^(application\/pdf|application\/vnd\.openxmlformats|text\/csv|text\/plain|application\/vnd\.ms-excel)/.test(form.file.type || '') );
 let formError = '';
 let busy = false;
 let form = {};
@@ -1070,6 +1111,52 @@ const doPreview = async () => {
     formError = ( e.response && e.response.data && e.response.data.message ) || '読み取りに失敗しました。';
   }
   busy = false;
+};
+
+// AIにプロファイルyamlを起草させる。応答は自動検証（同じファイルでの
+// 再解析がAIの読みと一致するか）まで済ませて出す
+const draftProfile = async () => {
+  if ( !form.file || profileBusy ) {
+    return;
+  }
+  profileBusy = true;
+  profileDraftError = '';
+  profileDraft = null;
+  try {
+    const fd = new FormData();
+    fd.append('file', form.file);
+    if ( previewId ) fd.append('previewId', previewId);
+    const result = await axios.post('/api/bank_statement/profile_draft', fd,
+      { 'content-type': 'multipart/form-data' });
+    profileDraft = ( result.data && result.data.code === 0 ) ? result.data : null;
+    if ( !profileDraft ) {
+      profileDraftError = ( result.data && result.data.message ) || '起草に失敗しました。';
+    } else if ( profileDraft.error ) {
+      profileDraftError = profileDraft.error;
+    }
+  } catch (e) {
+    profileDraftError = ( e.response && e.response.data && e.response.data.message ) || '起草に失敗しました。';
+  }
+  profileBusy = false;
+};
+
+// 承認したプロファイルyamlを保存する（次の取り込から決定的に読める）
+const saveProfile = async () => {
+  if ( !profileDraft || profileBusy ) {
+    return;
+  }
+  profileBusy = true;
+  try {
+    const result = await axios.put('/api/bank_statement/profile', { yaml: profileDraft.yaml });
+    if ( result.data && result.data.code === 0 ) {
+      toast.show('明細取込', `プロファイル「${result.data.name}」を保存しました（次回の取込からこの書式は決定的に読めます）`);
+    } else {
+      toast.show('明細取込', ( result.data && result.data.message ) || '保存に失敗しました', 'warning');
+    }
+  } catch (e) {
+    toast.show('明細取込', ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました', 'warning');
+  }
+  profileBusy = false;
 };
 
 const doUpload = async () => {

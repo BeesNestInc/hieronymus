@@ -560,6 +560,121 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
   };
 };
 
+// === AIによるプロファイル起草（書式学習。承認制） ===
+// 「アドホックなパーサー追従をやめる」ための仕組み。
+// 取込をAIで読めたら、その書式のyamlプロファイル（config/banks/*.yamlの
+// 形）をAIに起草させる。起草したプロファイルで**同じファイルを決定的に
+// 再解析**し、AIの読みと1行も違わなければ候補（一致判定は自動）。
+// 人が確認して保存 → 次回以降はAIなしで高速・無料に読める。
+
+// プロファイルの再解析に使う「材料」。テキスト層のある書式
+// （PDF/Excel/CSV）だけが対象。画像はプロファイル化の材料にならない
+const EVIDENCE_MAX_LINES = 150;
+export const evidenceText = async (buffer, mimeType) => {
+  const type = String(mimeType || '').toLowerCase();
+  if ( /pdf/.test(type) ) {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const loadingTask = getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
+    const doc = await loadingTask.promise;
+    try {
+      const out = [];
+      for ( let p = 1; p <= Math.min(doc.numPages, 5); p ++ ) {
+        const page = await doc.getPage(p);
+        const content = await page.getTextContent();
+        for ( const pdfLine of pdfItemsToLines(content.items) ) {
+          if ( pdfLine.text.trim() ) {
+            out.push(pdfLine.text);
+          }
+        }
+      }
+      return out.slice(0, EVIDENCE_MAX_LINES).join('\n');
+    } finally {
+      await loadingTask.destroy();
+    }
+  }
+  // Excel/CSVは表のまま渡す（プロファイルのdetect/columnsの材料になる順序）
+  const rows = ( /excel|spreadsheet|sheet/.test(type) || ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4b ) )
+    ? await parseExcel(buffer) : parseCsv(buffer);
+  return rows.slice(0, EVIDENCE_MAX_LINES).map((row) => row.map((cell) => ( cell === null || cell === undefined ) ? '' : String(cell)).join('\t')).join('\n');
+};
+
+// 起草されたyamlの検証（保存前に必ず通る。壊れたyamlを書き込まない）
+export const validateProfileYaml = (text) => {
+  let profile = null;
+  try {
+    profile = yamlLoad(text);
+  } catch (e) {
+    return { error: `YAMLとして解釈できません: ${e.message}` };
+  }
+  if ( !profile || typeof profile !== 'object' ) {
+    return { error: '空のプロファイルです。' };
+  }
+  if ( !profile.name || typeof profile.name !== 'string' ) {
+    return { error: 'name（プロファイル名）が必要です。' };
+  }
+  if ( ![ 'bank', 'card' ].includes(profile.type) ) {
+    return { error: `type は bank か card で指定してください（現在: ${profile.type}）。` };
+  }
+  if ( profile.type === 'bank' ) {
+    if ( !profile.detect || !Array.isArray(profile.detect) || profile.detect.length === 0 ) {
+      return { error: 'type: bank のプロファイルには detect（ヘッダ語の配列）が必要です。' };
+    }
+  }
+  return { profile: profile };
+};
+
+// 決定的に保存できるプロファイルの検証: 同じファイルを起草プロファイルで
+// 再解析し、AI読取の行と一致するか（日付+金額の完全一致で照合）。相違が
+// あるものはおすすめしない（人は見るが、ulptutputが多い）
+export const profileAgreement = (profile, parsedWithProfile, aiLines) => {
+  const keyOf = (line) => (
+    JSON.stringify([
+      line.date || null,
+      ( line.amountIn ?? line.amountOut ?? line.amount ?? null )
+    ])
+  );
+  void profile;
+  const aiKeys = new Set(aiLines.map(keyOf));
+  const bothKeys = parsedWithProfile.lines.map(keyOf);
+  let matched = 0;
+  for ( const key of bothKeys ) {
+    if ( aiKeys.has(key) ) {
+      matched ++;
+      aiKeys.delete(key);
+    }
+  }
+  return {
+    agree: ( bothKeys.length === aiLines.length ) && ( matched === aiLines.length ),
+    matched: matched,
+    ofProfile: bothKeys.length,
+    ofAi: aiLines.length
+  };
+};
+
+const PROFILE_DIR = () => ( process.env.BANK_CONFIG_PATH || 'config/banks' );
+
+// ファイル名にできない文字を除く（profile.nameは取込結果にも出る名前）
+const profileFileBase = (name) => (
+  String(name || '').replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'profile'
+);
+
+// 承認されたプロファイルをyamlとして保存する（既存ファイルは更新）。
+// 書き込むのはここだけ。yamlの内容は保存前にvalidateProfileYamlを通す
+export const saveProfileYaml = (yamlText) => {
+  const check = validateProfileYaml(String(yamlText || ''));
+  if ( check.error ) {
+    return check;
+  }
+  const dir = PROFILE_DIR();
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+  }
+  const file = path.join(dir, `${profileFileBase(check.profile.name)}.yaml`);
+  fs.writeFileSync(file, yamlText, 'utf-8');
+  return { profile: check.profile, file: file };
+};
+
 export default {
   parseStatement: parseStatement,
   classifyCategory: classifyCategory,
@@ -567,5 +682,10 @@ export default {
   pdfItemsToLines: pdfItemsToLines,
   cardRowsToLines: cardRowsToLines,
   loadMergeDescriptions: loadMergeDescriptions,
-  saveMergeDescriptions: saveMergeDescriptions
+  saveMergeDescriptions: saveMergeDescriptions,
+  evidenceText: evidenceText,
+  validateProfileYaml: validateProfileYaml,
+  profileAgreement: profileAgreement,
+  saveProfileYaml: saveProfileYaml,
+  loadProfiles: loadProfiles
 };

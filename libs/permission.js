@@ -76,6 +76,9 @@ const RULES = [
   { match: /^\/bank_statement(\/\d+)?$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement\/file\/\d+$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement\/(preview|upload)$/, methods: ['POST'], access: ANY },
+  // プロファイル起草と保存は会計権限（config/banksへの書き込みを伴う）
+  { match: /^\/bank_statement\/profile$/, methods: ['PUT'], access: ['accounting'] },
+  { match: /^\/bank_statement\/profile_draft$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/(match|book|rebook)$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/select$/, methods: ['POST'], access: ANY },
   { match: /^\/bank_statement\/\d+$/, methods: ['PUT'], access: ['accounting'] },
