@@ -474,7 +474,16 @@
             {#if ( showAllRulesForm )}
             <tr style="background-color:rgba(13,110,253,0.05);">
               <td>
-                {( statement && statement.financial ) ? statement.financial.name : '—'}
+                {#if ( statement && statement.financial )}
+                {statement.financial.name}
+                {:else}
+                <select class="form-select form-select-sm" bind:value={newRule.financialId}>
+                  <option value="">口座</option>
+                  {#each financials as fin}
+                  <option value={fin.id}>{kindLabel(fin.kind)} / {fin.name}</option>
+                  {/each}
+                </select>
+                {/if}
               </td>
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
@@ -1350,6 +1359,10 @@ const openRulesModal = async (line = null) => {
   }
   // ルール一覧の初期filter: 詳細から開いたらその口座、一覧からなら全部
   ruleFinancialFilter = ( statement && statement.financialId ) ? String(statement.financialId) : '';
+  if ( !statement ) {
+    // 一覧（複数口座）から：新規登録行の口座select用
+    await loadFinancials();
+  }
   await reloadRules();
   // 貸方の既定=この口座の科目（見えているほうが間違いが怖くない）
   if ( statement && statement.financial && newRule && !newRule.creditAccount ) {
@@ -1478,8 +1491,7 @@ const createRule = async (apply = false) => {
       applied = await applyRule(result.data.id);
       closeRulesModal();
     }
-    const result2 = await axios.get('/api/bank_statement_rule');
-    rules = ( result2.data && result2.data.values ) || [];
+    await reloadRules();
     toast.show('学習ルール', ( applied !== null ) ? `ルールを登録し、一致する${applied}行に適用しました` : 'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
@@ -1503,8 +1515,7 @@ const saveRule = async (rule, apply = false) => {
       applied = await applyRule(rule.id);
       closeRulesModal();
     }
-    const result = await axios.get('/api/bank_statement_rule');
-    rules = ( result.data && result.data.values ) || [];
+    await reloadRules();
     toast.show('学習ルール', ( applied !== null ) ? `ルールを更新し、一致する${applied}行に適用しました` : 'ルールを更新しました');
   } catch (e) {
     console.error('save rule failed', e);
