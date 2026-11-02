@@ -200,6 +200,8 @@ onMount(async () => {
   // currentPage.set(location.pathname);
   const res = await axios.get('/api/user');
   status.user = res.data.user;
+  // AIの設定有無。AI前提のボタンを見せない(視覚ノイズを減らす)ために使う
+  status.aiAvailable = res.data.aiAvailable;
   status.company = await getCompanyInfo();
   axios.get(`/api/term/${term}`).then((res) => {
     let fy = res.data;

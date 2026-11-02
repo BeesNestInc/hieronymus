@@ -450,13 +450,24 @@
         <div class="border rounded p-2 mb-2" style="background-color:rgba(25,135,84,0.05);">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span style="font-size:0.85rem;" class="fw-bold">ルール候補（この取り込の摘要から。確認して登録してください）</span>
-            <button type="button" class="btn btn-sm btn-outline-primary"
-              title="相手方の提案がある候補をすべて登録します（提案がない候補は手で選んでください）"
-              on:click={registerAllCandidates}>すべて登録</button>
+            <div>
+              {#if ( status && status.aiAvailable )}
+                {#if ( aiBusy )}
+                <span class="text-muted me-2" style="font-size:0.8rem;">AIで候補を作成中…</span>
+                {:else}
+                <button type="button" class="btn btn-sm btn-outline-info me-1"
+                  title="提案のない候補に、AIが売上原価系科目の相手方を付けます（実績のある候補は変えません）"
+                  on:click={fillCandidatesByAI}>AIで候補を埋める</button>
+                {/if}
+              {/if}
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                title="相手方の提案がある候補をすべて登録します（提案がない候補は手で選んでください）"
+                on:click={registerAllCandidates}>すべて登録</button>
+            </div>
           </div>
           {#each ruleCandidates as candidate (candidate.pattern + '/' + candidate.direction)}
           <div class="d-flex align-items-center mb-1" style="font-size:0.8rem;">
-            <span style="width:40%;">{candidate.pattern}</span>
+            <span style="width:40%;" title={candidate.aiReason || ''}>{candidate.pattern}{#if ( candidate.ai )}&nbsp;<span class="badge text-bg-info">AI</span>{/if}</span>
             <span class="me-2" style="width:3em;">{directionLabel(candidate.direction)}</span>
             <span class="me-2 text-muted" style="width:3em;">{candidate.count}行</span>
             {#key 'cand-' + candidate.pattern + '-' + candidate.direction}
@@ -727,6 +738,8 @@ let newRule = {};
 let ruleFinancialFilter = '';
 // ルール候補（承認制: この取り込の未ルール摘要+過去実績からの相手方提案）
 let ruleCandidates = [];
+// AI提案（明示ボタンで発火。実績提案のある候補は変えない）
+let aiBusy = false;
 
 
 // 仮入科目（x9xxxxx）
@@ -1539,6 +1552,31 @@ const registerCandidate = async (candidate) => {
   }
 };
 // 提案のある候補をすべて登録する（提案がない候補は残る）
+// AIで候補の相手方を提案する（明示ボタンで発火。実績のある候補はサーバが変えない）。
+// 応答は候補への充填のみ。登録は人が確認して行う
+const fillCandidatesByAI = async () => {
+  if ( !statement || aiBusy ) {
+    return;
+  }
+  aiBusy = true;
+  try {
+    const result = await axios.post('/api/bank_statement_rule/ai_candidates', {
+      statementId: statement.id
+    });
+    ruleCandidates = ( result.data && result.data.values ) || [];
+    const filled = ruleCandidates.filter((c) => ( c.ai )).length;
+    toast.show('学習ルール',
+      filled > 0 ?
+        `AIが${filled}件の候補に科目を提案しました（確認して登録してください）` :
+        'AIの提案はありませんでした（わからない候補は手で選んでください）');
+  } catch (e) {
+    const message = ( e && e.response && e.response.data && e.response.data.message ) || 'AIで候補を生成できませんでした。';
+    toast.show('学習ルール', message, 'warning');
+  } finally {
+    aiBusy = false;
+  }
+};
+
 const registerAllCandidates = async () => {
   const withSuggestion = ruleCandidates.filter((c) => ( c.suggestAccount ));
   for ( const candidate of withSuggestion ) {

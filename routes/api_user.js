@@ -69,7 +69,7 @@ export default {
       });
     }
   },
-  get: (req, res, next) => {
+  get: async (req, res, next) => {
     let id = req.params.id;
     if  ( id )  {
       models.User.findByPk(id).then((user) => {
@@ -79,8 +79,12 @@ export default {
       });
     } else {
       //console.log(req.session.user);
+      // AIの設定有無。AI前提の機能のUI（ボタン自体を見せない）と /home の案内に使う。
+      // 動的import（AI SDKのロードを他の起動経路に広げない）
+      const vision = await import('../libs/vision.js');
       res.json({
-        user: req.session.user
+        user: req.session.user,
+        aiAvailable: vision.isAvailable()
       });
     }
   },

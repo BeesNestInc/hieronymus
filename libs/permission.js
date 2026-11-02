@@ -91,6 +91,7 @@ const RULES = [
   { match: /^\/bank_statement_rule$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/bank_statement_rule$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/candidates$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
+  { match: /^\/bank_statement_rule\/ai_candidates$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/merge_rules$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/bank_statement_rule\/merge_rules$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement_rule\/match_rules$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },

@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 import { makePattern, isTempAccount, suggestRuleCandidates } from '../libs/bank-reconcile.js';
+// suggestRuleAccounts は動的importで使う(AI SDKのロードを起動時に広げない)
 import { loadMergeDescriptions, saveMergeDescriptions, loadMatchDescriptions, saveMatchDescriptions } from '../libs/bank-statement.js';
 
 // 学習ルール（BankStatementRule）の管理。明細取込で相手方仕訳を決める唯一の
@@ -221,6 +222,81 @@ export default {
       return;
     }
     const values = await suggestRuleCandidates(statement);
+    res.json({ code: 0, values: values });
+  },
+
+  // AIでルール候補の相手方を提案する（明示的な操作で発火。金がかかる）。
+  // 実績提案（過去の仕訳）のある候補はそのまま（実績 > AI）。AIが対象にするのは
+  // 出金の提案なし候補だけ（売上原価系のカタログで分類する。入金の借方は
+  // 経費ではないので対象にしない）。登録は人の確認（既存の登録経路）を経る。
+  aiCandidates: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statementId = parseInt(( req.body && req.body.statementId ) || 0, 10);
+    const statement = await models.BankStatement.findByPk(statementId);
+    if ( !statement ) {
+      res.json({ code: 0, values: [] });
+      return;
+    }
+    const vision = await import('../libs/vision.js');
+    if ( !vision.isAvailable() ) {
+      res.status(422).json({ code: -1, message: 'AIの設定がありません（config/llms.yaml）。' });
+      return;
+    }
+    const values = await suggestRuleCandidates(statement);
+    const needAI = values.filter((v) => ( v.direction === 'out' && !v.suggestAccount ));
+    if ( needAI.length > 0 ) {
+      // カタログは売上原価系（7番台）+ 補助。提案の選択肢をここに限定する
+      const accounts = await models.Account.findAll({
+        where: { accountCode: { [Op.like]: '7%' } },
+        include: [{ model: models.SubAccount, as: 'subAccounts' }]
+      });
+      const catalog = accounts.map((a) => ({
+        accountCode: a.accountCode,
+        name: a.name,
+        subAccounts: ( a.subAccounts || [] ).map((sub) => ({
+          subAccountCode: sub.subAccountCode,
+          name: sub.name
+        }))
+      }));
+      // 同じ口座の既存ルールを仕分け例にする（分類の慣行を踏襲させる）
+      const rules = await models.BankStatementRule.findAll({
+        where: {
+          financialId: statement.financialId,
+          oppositeAccount: { [Op.ne]: null }
+        }
+      });
+      const examples = rules.map((r) => ({
+        pattern: r.pattern,
+        account: r.oppositeAccount,
+        sub: r.oppositeSubAccount
+      }));
+      try {
+        const proposals = await vision.suggestRuleAccounts(needAI, {
+          catalog: catalog,
+          examples: examples,
+          financialName: statement.financial ? statement.financial.name : null
+        });
+        for ( const proposal of proposals ) {
+          for ( const candidate of needAI ) {
+            if ( candidate.pattern !== proposal.pattern ) {
+              continue;
+            }
+            candidate.suggestAccount = proposal.account;
+            candidate.suggestSubAccount = proposal.subAccount;
+            candidate.ai = true;
+            candidate.aiReason = proposal.reason;
+          }
+        }
+      } catch (e) {
+        console.error('ai candidates failed', e);
+        res.status(422).json({ code: -3, message: ( e && e.message ) || 'AIで候補を生成できませんでした。' });
+        return;
+      }
+    }
     res.json({ code: 0, values: values });
   },
 

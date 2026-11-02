@@ -171,6 +171,7 @@ router.put('/bank_statement/:id', bank_statement.update);
 router.put('/bank_statement/line/:id', bank_statement.updateLine);
 router.delete('/bank_statement/:id', bank_statement.delete);
 router.get('/bank_statement_rule/candidates', bank_statement_rule.candidates);
+router.post('/bank_statement_rule/ai_candidates', bank_statement_rule.aiCandidates);
 router.get('/bank_statement_rule/merge_rules', bank_statement_rule.mergeRulesGet);
 router.put('/bank_statement_rule/merge_rules', bank_statement_rule.mergeRulesPut);
 router.get('/bank_statement_rule/match_rules', bank_statement_rule.matchRulesGet);

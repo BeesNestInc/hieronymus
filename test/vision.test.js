@@ -205,6 +205,94 @@ describe('vision', () => {
   });
 });
 
+describe('vision.suggestRuleAccounts with catalog', () => {
+  let origEnv;
+  beforeEach(() => {
+    origEnv = {
+      LLM_PROVIDER: process.env.LLM_PROVIDER,
+      LLM_MODEL: process.env.LLM_MODEL,
+      LLM_BASE_URL: process.env.LLM_BASE_URL,
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH
+    };
+    process.env.LLM_PROVIDER = 'openai-compatible';
+    process.env.LLM_MODEL = 'test-vision';
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    delete process.env.LLM_API_KEY;
+  });
+  afterEach(() => {
+    for ( const k of Object.keys(origEnv) ) {
+      if ( origEnv[k] === undefined ) {
+        delete process.env[k];
+      } else {
+        process.env[k] = origEnv[k];
+      }
+    }
+  });
+
+  const CATALOG = [
+    { accountCode: '7030050', name: '通信費', subAccounts: [{ subAccountCode: 401, name: '携帯電話' }] },
+    { accountCode: '7030060', name: '消耗品費', subAccounts: [] }
+  ];
+
+  it('カタログと仕分け例をプロンプトに載せ、カタログ外の提案は捨てる', async () => {
+    const { server, port, requests } = await startStub(() => {
+      return [200, chatCompletion(JSON.stringify({
+        proposals: [
+          { pattern: 'サブスク月額', account: '7030050', subAccount: null, reason: 'クラウドサービスの月額利用料のため' },
+          { pattern: '幻覚', account: '9999999', subAccount: null, reason: '存在しない科目' },
+          { pattern: 'CD', account: '7030050', subAccount: 401, reason: '通信費の携帯電話補助が正当' },
+          { pattern: '変な補助', account: '7030060', subAccount: 401, reason: '排出補助は消耗品費に無い' }
+        ]
+      }))];
+    });
+    try {
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      assert.isTrue(vision.isAvailable());
+      const proposals = await vision.suggestRuleAccounts(
+        [{ pattern: 'サブスク月額', direction: 'out', count: 2 }, { pattern: 'CD', direction: 'out', count: 1 }],
+        { catalog: CATALOG, examples: [{ pattern: '振込手数料', account: '7030060', sub: null }], financialName: 'テストカード' }
+      );
+      assert.strictEqual(requests.length, 1);
+      // openai互換トランスポートはテキストを文字列に平坦化する
+      const content0 = requests[0].body.messages[0].content;
+      const prompt = ( typeof content0 === 'string' ) ? content0 : content0[0].text;
+      // わからないなら提案しない冶令・カタログ・例がプロンプトに載る
+      assert.include(prompt, '提案しないこと');
+      assert.include(prompt, '7030050 通信費');
+      assert.include(prompt, '補助: 401 携帯電話');
+      assert.include(prompt, '振込手数料 → 7030060');
+      assert.include(prompt, '口座: テストカード');
+      // 応答はマッピングされ、カタログ外の科目コード・
+      // その科目に存在しない補助の提案は捨てられる
+      assert.lengthOf(proposals, 2);
+      assert.strictEqual(proposals[0].pattern, 'サブスク月額');
+      assert.strictEqual(proposals[0].account, '7030050');
+      assert.strictEqual(proposals[0].subAccount, null);
+      assert.strictEqual(proposals[1].pattern, 'CD');
+      assert.strictEqual(proposals[1].subAccount, 401);
+      assert.include(proposals[0].reason, 'クラウド');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('提案のない候補（方向null）をそのまま返しても fatalErrorにはならない', async () => {
+    const { server, port } = await startStub(() => {
+      return [200, chatCompletion(JSON.stringify({ proposals: [] }))];
+    });
+    try {
+      process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
+      const proposals = await vision.suggestRuleAccounts(
+        [{ pattern: '謎の摘要', direction: 'out', count: 1 }],
+        { catalog: CATALOG }
+      );
+      assert.lengthOf(proposals, 0);
+    } finally {
+      server.close();
+    }
+  });
+});
+
 describe('vision.extract with companies', () => {
   let origEnv;
   beforeEach(() => {

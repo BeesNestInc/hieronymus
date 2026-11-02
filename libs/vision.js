@@ -406,9 +406,117 @@ export const extractStatement = async (buffer, mimeType) => {
   }
 };
 
+// ルール候補に付けるAI提案。正規化済みの摘要（未ルールの行をグルーピングした
+// もの）を売上原価系（勘定科目コードが7番台）の科目に分類させる。
+// 提案は候補として人の確認（登録）を経るので多少大胆さは許されるが、
+// 姿勢としては「よくわからないものは提案しない」を入れておく（精度>楽）。
+// カタログは提案の選択肢そのものを絞る（経費の分類を7番台に任せる）。
+const RULE_SUGGEST_PROMPT = [
+  'これは通帳・カード明細から取り込んだ摘要（正規化済み）の一覧です。',
+  '各摘要を、最もふさわしい経費科目（売上原価系。勘定科目コードが7で始まるもの）に分類してください。',
+  '以下のルールに従ってください:',
+  '- 科目は提示したカタログの中から選ぶこと（存在しない科目コードを作らないこと）。',
+  '- カタログに補助科目がある場合は、内容に最も合う補助科目を選ぶこと（合うものがなければ null）。',
+  '- 仕分け例があればそれを踏襲すること（似た摘要は同じ科目）。',
+  '- わからない・自信がない・当てはまる科目がカタログに無い場合は提案しないこと（その摘要を proposals に入れない）。',
+  '- reasonには、その科目にした理由を日本語で一行（12〜30字程度）書くこと。',
+  'JSON以外の出力はしないこと。'
+].join('\n');
+
+// 提案のスキーマ（構造化出力用）
+const RULE_SUGGEST_SCHEMA = jsonSchema({
+  type: 'object',
+  properties: {
+    proposals: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string' },
+          account: { type: 'string' },
+          subAccount: { type: ['number', 'null'] },
+          reason: { type: 'string' }
+        },
+        required: ['pattern', 'account', 'subAccount', 'reason'],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ['proposals'],
+  additionalProperties: false
+});
+
+// 候補（[{pattern, direction, count}]）に対して相手方（借方）の提案を返す。
+// options.catalog は7番台の [{accountCode, name, subAccounts:[{subAccountCode, name}]}]、
+// options.examples は同じ口座の既存ルール [{pattern, account, sub}]（分類の慣行を
+// 踏襲させるfew-shot）。options.financialName は口座名（通帳・カードの種別の文脈）。
+// 戻り値は [{pattern, account, subAccount, reason}]。
+// 応答はカタログの検証に通す（幻覚で存在しない科目コードを出しても落とす）。
+export const suggestRuleAccounts = async (candidates, options = {}) => {
+  const setting = settings();
+  if ( !isAvailable() ) {
+    const err = new Error('AIの設定がありません（config/llms.yaml）。');
+    err.name = 'AiNotConfigured';
+    throw err;
+  }
+  const model = makeModel(setting);
+  const catalog = ( options.catalog || [] ).filter((a) => ( a && a.accountCode ));
+  const examples = ( options.examples || [] ).filter((r) => ( r && r.pattern && r.account ));
+  const lines = [
+    RULE_SUGGEST_PROMPT,
+    `口座: ${options.financialName || '不明'}`,
+    '科目カタログ（提案はここから選ぶ）:',
+    ...catalog.map((a) => {
+      const subs = ( a.subAccounts || [] ).map((s) => ( s ? `${s.subAccountCode} ${s.name}` : '' )).filter(Boolean);
+      return `  ${a.accountCode} ${a.name}${subs.length > 0 ? `（補助: ${subs.join('、')}）` : ''}`;
+    }),
+    ...( examples.length > 0 ? [
+      'この口座の既存の仕分け例（踏襲すること）:',
+      ...examples.map((r) => `  ${r.pattern} → ${r.account}${r.sub ? `（補助${r.sub}）` : ''}`)
+    ] : [] ),
+    '摘要一覧（pattern, direction, count）:',
+    JSON.stringify(candidates.map((c) => ({ pattern: c.pattern, direction: c.direction, count: c.count })))
+  ];
+  const messages = [{ role: 'user', content: [{ type: 'text', text: lines.join('\n') }] }];
+  const normalize = (object) => {
+    const codes = new Set(catalog.map((a) => String(a.accountCode)));
+    const subCodes = new Map(catalog.map((a) => [
+      String(a.accountCode),
+      new Set(( a.subAccounts || [] ).map((s) => Number(s.subAccountCode)))
+    ]));
+    return ( ( object && object.proposals ) || [] )
+      .filter((p) => ( p && p.pattern && codes.has(String(p.account)) ))
+      .filter((p) => (
+        p.subAccount === null || p.subAccount === undefined ||
+        ( subCodes.get(String(p.account)) || new Set() ).has(Number(p.subAccount))
+      ))
+      .map((p) => ({
+        pattern: String(p.pattern),
+        account: String(p.account),
+        subAccount: ( p.subAccount === null || p.subAccount === undefined ) ? null : Number(p.subAccount),
+        reason: p.reason || ''
+      }));
+  };
+  try {
+    const result = await generateObject({ model: model, schema: RULE_SUGGEST_SCHEMA, messages: messages, maxRetries: 1 });
+    return normalize(result.object);
+  } catch (e) {
+    if ( e && (( e.name === 'AI_APICallError' ) || e.statusCode || e.status ) ) {
+      throw aiApiError(e);
+    }
+    try {
+      const result = await generateText({ model: model, messages: messages, maxRetries: 1 });
+      return normalize(extractJson(result.text));
+    } catch (e2) {
+      throw aiApiError(e2);
+    }
+  }
+};
+
 export default {
   isAvailable: isAvailable,
   extract: extract,
   extractStatement: extractStatement,
+  suggestRuleAccounts: suggestRuleAccounts,
   fixEraDate: fixEraDate
 };
