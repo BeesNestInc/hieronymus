@@ -512,6 +512,19 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
     // カード明細PDF。プロファイルは全カード分から検出に使える
     profile = profiles.find((p) => ( p.type === 'card' )) || null;
     parsed = await parseCardPdf(buffer, profile);
+    // テキスト層が実質ないPDF（ベクタ字形・数字だけのエポスカード等）は
+    // 利用行が組み立てられない。AIが使えるなら画像へ落として通帳OCRにまわす
+    if ( parsed.lines.length === 0 ) {
+      const vision = await import('./vision.js');
+      if ( vision.isAvailable() ) {
+        const ocr = await vision.extractStatement(buffer, mimeType);
+        parsed = { lines: ocr.lines, total: null, payDate: null,
+          warnings: [ ...parsed.warnings, ...ocr.warnings ] };
+        parsed.warnings.push('PDFのテキストが取れないため、画像としてAI読み取りしました。');
+      } else {
+        parsed.warnings.push('PDFのテキストが取れず、AIも未設定のため読み取れません（config/llms.yaml）。');
+      }
+    }
   } else if ( /^image\//.test(type) ) {
     // 通帳スキャン等はAI読取（libs/vision.js）
     const vision = await import('./vision.js');

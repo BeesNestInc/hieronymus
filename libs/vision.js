@@ -151,28 +151,83 @@ const extractJson = (text) => {
   }
 };
 
-// PDFはそのままでは渡せないため、最初のページをPNGに変換する（Playwright）。
+// PDFはそのままでは渡せないため、最初のページをPNGに変換する。
+// pdf.jsをPlaywrightのページに組み込んでCanvasに描画する。
+// data:application/pdfを<img>に載せる手法はブラウザがPDFを解釈できず
+// onerrorになるので使えない。ライブラリはnode_modulesの実物を使う（CDNに出さない）。
 const pdfToPng = async (buffer) => {
+  const path = ( await import('path') );
+  const url = ( await import('url') );
+  const http = ( await import('http') );
+  const here = path.dirname(url.fileURLToPath(import.meta.url));
+  const libSrc = fs.readFileSync(path.join(here, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.min.mjs'), 'utf-8');
+  const workerSrc = fs.readFileSync(path.join(here, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.min.mjs'), 'utf-8');
+  // 日本語PDFはCIDフォント/cMapと標準フォントを必要とする。pdfjs-dist同梱の
+  // cmaps/standard_fontsを一時HTTPサーバで出してブラウザに読ませる
+  // （ローカル限定・使用後即閉じ。どこへも公開しない）
+  const root = path.join(here, '..', 'node_modules', 'pdfjs-dist');
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(String(req.url || '')).replace(/\/+$/, '');
+    const filePath = path.join(root, rel.replace(/\.\./g, ''));
+    if ( !filePath.startsWith(root) ) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    fs.readFile(filePath, (err, data) => {
+      if ( err ) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        'content-type': /(\.mjs|\.js)$/.test(rel) ? 'text/javascript' : 'application/octet-stream',
+        'access-control-allow-origin': '*'
+      });
+      res.end(data);
+    });
+  });
+  await new Promise((resolve) => { server.listen(0, '127.0.0.1', resolve); });
+  const port = server.address().port;
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1240, height: 1754 }, deviceScaleFactor: 2 });
-    await page.setContent('<html><body style="margin:0;"></body></html>');
-    const dataUrl = `data:application/pdf;base64,${buffer.toString('base64')}`;
-    await page.evaluate(async (url) => {
-      const img = document.createElement('img');
-      img.src = url;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-      document.body.appendChild(img);
-    }, dataUrl);
-    await page.waitForTimeout(500);
-    const png = await page.screenshot({ fullPage: true });
-    return png;
+    const page = await browser.newPage();
+    const dataUrl = await page.evaluate(async (args) => {
+      const libUrl = URL.createObjectURL(new Blob([ args.lib ], { type: 'text/javascript' }));
+      const pdfjs = await import(libUrl);
+      pdfjs.GlobalWorkerOptions.workerSrc = args.workerUrl;
+      const bin = atob(args.pdf);
+      const bytes = new Uint8Array(bin.length);
+      for ( let i = 0; i < bin.length; i ++ ) {
+        bytes[ i ] = bin.charCodeAt(i);
+      }
+      // cMap/標準フォントはHTTPサーバから。日本語フォントがこれで描画される
+      const doc = await pdfjs.getDocument({
+        data: bytes,
+        cMapUrl: args.baseUrl + '/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: args.baseUrl + '/standard_fonts/',
+        useSystemFonts: true
+      }).promise;
+      const pdfPage = await doc.getPage(1);
+      const viewport = pdfPage.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round( viewport.width );
+      canvas.height = Math.round( viewport.height );
+      const context = canvas.getContext('2d');
+      await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
+      return canvas.toDataURL('image/png');
+    }, {
+      lib: libSrc,
+      workerUrl: `http://127.0.0.1:${port}/legacy/build/pdf.worker.min.mjs`,
+      baseUrl: `http://127.0.0.1:${port}`,
+      pdf: buffer.toString('base64')
+    });
+    return Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64');
   } finally {
     await browser.close();
+    server.close();
   }
 };
 

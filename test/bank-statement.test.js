@@ -147,6 +147,58 @@ describe('bank-statement (parser)', () => {
   });
 });
 
+describe('bank-statement (pdf fallback)', () => {
+  let origEnv;
+  beforeEach(() => {
+    origEnv = {
+      LLM_CONFIG_PATH: process.env.LLM_CONFIG_PATH,
+      LLM_API_KEY: process.env.LLM_API_KEY,
+      LLM_BASE_URL: process.env.LLM_BASE_URL
+    };
+    // OCRフォールバックの分岐を見るため、AIを確実に未設定にする
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_BASE_URL;
+  });
+  afterEach(() => {
+    for ( const k of Object.keys(origEnv) ) {
+      if ( origEnv[ k ] === undefined ) {
+        delete process.env[ k ];
+      } else {
+        process.env[ k ] = origEnv[ k ];
+      }
+    }
+  });
+
+  // テキストを持たない最小のPDF（xrefは正しく作る）
+  const minimalPdf = () => {
+    const objects = [];
+    objects.push('1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj');
+    objects.push('2 0 obj <</Type/Pages/Kids[3 0 R]/Count 1>> endobj');
+    objects.push('3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>> endobj');
+    let out = '%PDF-1.4\n';
+    const offsets = [];
+    for ( const obj of objects ) {
+      offsets.push(out.length);
+      out += `${obj}\n`;
+    }
+    const xrefPos = out.length;
+    out += 'xref\n0 4\n';
+    out += '0000000000 65535 f \n';
+    for ( const offset of offsets ) {
+      out += String(offset).padStart(10, '0') + ' 00000 n \n';
+    }
+    out += 'trailer <</Size 4/Root 1 0 R>>\nstartxref\n' + xrefPos + '\n%%EOF\n';
+    return Buffer.from(out, 'latin1');
+  };
+
+  it('テキストが取れないPDFはAI未設定なら警告で教える', async () => {
+    const parsed = await parser.parseStatement(minimalPdf(), 'application/pdf');
+    assert.lengthOf(parsed.lines, 0);
+    assert.include(parsed.warnings.join('\n'), 'PDFのテキストが取れず');
+  });
+});
+
 describe('bank-statement (merge rules)', () => {
   const TEST_DIR = '/tmp/opencode/merge-rules-test';
 
