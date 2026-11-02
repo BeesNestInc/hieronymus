@@ -485,16 +485,16 @@
               <td>
                 {directionLabel(newRule.direction)}
               </td>
-              <td class="text-center">
-                <div class="form-check form-check-inline m-0">
+              <td class="text-center" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など） / 突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
+                <div class="form-check form-check-inline m-0" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">
                   <input type="checkbox" class="form-check-input" bind:checked={newRule.merge}
-                    title="この摘要の行は前の行（同じ日）の伝票に合流させます">
-                  <label class="form-check-label" style="font-size:0.75rem;">合流</label>
+                    title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">
+                  <label class="form-check-label" style="font-size:0.75rem;" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">合流</label>
                 </div>
-                <div class="form-check form-check-inline m-0">
+                <div class="form-check form-check-inline m-0" title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
                   <input type="checkbox" class="form-check-input" bind:checked={newRule.match}
-                    title="この摘要の行は自動突合（既存仕訳との照合・後の処理）を許可します">
-                  <label class="form-check-label" style="font-size:0.75rem;">突合</label>
+                    title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
+                  <label class="form-check-label" style="font-size:0.75rem;" title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">突合</label>
                 </div>
               </td>
               <td>
@@ -542,19 +542,21 @@
               <td>
                 {directionLabel(rule.direction)}
               </td>
-              <td class="text-center">
+              <td class="text-center" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など） / 突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
                 {#if ( editingRule && editingRule.id === rule.id )}
-                <div class="form-check form-check-inline m-0">
-                  <input type="checkbox" class="form-check-input" bind:checked={editingRule.merge}>
-                  <label class="form-check-label" style="font-size:0.75rem;">合流</label>
+                <div class="form-check form-check-inline m-0" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">
+                  <input type="checkbox" class="form-check-input" bind:checked={editingRule.merge}
+                    title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">
+                  <label class="form-check-label" style="font-size:0.75rem;" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">合流</label>
                 </div>
-                <div class="form-check form-check-inline m-0">
-                  <input type="checkbox" class="form-check-input" bind:checked={editingRule.match}>
-                  <label class="form-check-label" style="font-size:0.75rem;">突合</label>
+                <div class="form-check form-check-inline m-0" title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
+                  <input type="checkbox" class="form-check-input" bind:checked={editingRule.match}
+                    title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
+                  <label class="form-check-label" style="font-size:0.75rem;" title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">突合</label>
                 </div>
                 {:else}
-                {#if ( rule.merge )}<span class="badge bg-secondary" style="font-size:0.7rem;">合流</span>{/if}
-                {#if ( rule.match )}<span class="badge bg-info text-dark ms-1" style="font-size:0.7rem;">突合</span>{/if}
+                {#if ( rule.merge )}<span class="badge bg-secondary" style="font-size:0.7rem;" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">合流</span>{/if}
+                {#if ( rule.match )}<span class="badge bg-info text-dark ms-1" style="font-size:0.7rem;" title="突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">突合</span>{/if}
               {/if}
               </td>
               <td>
