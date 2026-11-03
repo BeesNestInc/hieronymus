@@ -105,9 +105,9 @@
           {:else}
           <Icon class="nav-icon" icon="bi:circle"></Icon>
           {/if}
-          {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ isOpen(entry) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
+          {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ menuOpenState.get(entry.name) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
         </a>
-        {#if ( entry.submenu && isOpen(entry) )}
+        {#if ( entry.submenu && menuOpenState.get(entry.name) )}
         <ul>
           {#each entry.submenu as subentry}
           <li class="nav-item">
@@ -165,7 +165,10 @@ let isMenuEditMode = false;
 let menuTemplates = [];
 
 // 下位階層ある親メニューはクリックで開閉する（遷移しない）。
-// 手動トグルの状態+「今いるページが下位に当たるなら自動で開く」
+// 手動トグルの状態+「今いるページが下位に当たるなら自動で開く」。
+// **テンプレートからはこの$:式を通して参照する**（Svelte4はテンプレート
+// から関数呼び出しの中身を追跡しないので、関数で包むと開閉の再描画が
+// 起きない）
 let openSubmenus = new Set();
 const toggleSubmenu = (name) => {
   if ( openSubmenus.has(name) ) {
@@ -173,13 +176,14 @@ const toggleSubmenu = (name) => {
   } else {
     openSubmenus.add(name);
   }
-  // Setの入れ差えを検知させないため参照を差し替える
+  // Setの中身の変更を検知させるため参照を差し替える
   openSubmenus = new Set(openSubmenus);
 };
-const isOpen = (entry) => {
-  return openSubmenus.has(entry.name) ||
-    Boolean( $currentPage && $currentPage.match(entry.match) );
-};
+$: menuOpenState = new Map(menu.map((entry) => [
+  entry.name,
+  openSubmenus.has(entry.name) ||
+    Boolean( $currentPage && $currentPage.match(entry.match) )
+]));
 
 const newMenu = (template) => {
   currentMenu.set({
