@@ -1,0 +1,3 @@
+[submodule "ai/manifest-engine"]
+	path = ai/manifest-engine
+	url = /home/ogochan/git/legion-manifest-engine
