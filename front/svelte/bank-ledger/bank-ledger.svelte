@@ -1,6 +1,6 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>銀行元帳</h1>
+    <h1>口座元帳</h1>
   </div>
   <ul class="page-subtitle d-flex justify-content-between">
     <div class="nav">
@@ -154,7 +154,7 @@ export let status;
 let	bank_list = { subAccounts: []};
 let	lines = [];
 let	accounts;
-// 口座（Financial）。銀行元帳の表示単位は「科目」ではなく口座（通帳）
+// 口座（Financial）。口座元帳の表示単位は「科目」ではなく口座（通帳）
 let financials = [];
 let currentFinancial = null;
 
@@ -191,7 +191,7 @@ const checkPage = (page) => {
   }
 }
 
-// 口座一覧を読む（銀行元帳の選択肢。取込の有無に関係なく全口座を出す。
+// 口座一覧を読む（口座元帳の選択肢。取込の有無に関係なく全口座を出す。
 // 法人カード（未払金の口座）も出す。個人カードは精算フロー専用なので出さない）
 // 表示中のURL(科目/補助)に対応する口座も引いてdropdown表示に反映する
 const resolveFinancial = async () => {

@@ -101,7 +101,7 @@
           {/if}
           {entry.title}
         </a>
-        {#if ( entry.submenu && ( status.pathname.match(entry.match) ) )}
+        {#if ( entry.submenu && ( ( $currentPage || '' ).match(entry.match) ) )}
         <ul>
           {#each entry.submenu as subentry}
           <li class="nav-item">
