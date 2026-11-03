@@ -1341,7 +1341,9 @@ export const suggestSettlementDeposits = async (statement) => {
   if ( settlementStatements.length === 0 ) {
     return [];
   }
-  const transferPattern = new RegExp('振込');
+  // 振込行の特定は計算書側と同じ既定語（AI読取の揺れ「純利益」を見る）
+  const { DEFAULT_TRANSFER_PATTERN } = await import('./bank-statement.js');
+  const transferPattern = new RegExp(DEFAULT_TRANSFER_PATTERN);
   const detailIds = new Set();
   for ( const s of settlementStatements ) {
     const slines = await models.BankStatementLine.findAll({

@@ -609,9 +609,15 @@ export const evidenceText = async (buffer, mimeType) => {
 //   危うきは勝手に推測しない）
 // 検算（売上合計 = 振込 + 費用合計）が合わないときは警告する（食い違いは
 // 分類の想定違いの兆候。伝票は作らず人に確認させる）
+
+// 振込行を引く既定語。Amazon計算書は「純利益の振込み」だが、AI読取の揺れで
+// 「純利益」だけに切れることがある（実データ2025-07-29で発生）ので両方を見る
+export const DEFAULT_TRANSFER_PATTERN = '振込|純利益';
 export const settlementBreakdown = (lines, profile = null) => {
   const salePattern = String( ( profile && profile.salePattern ) || '^売上' ).trim() || '^売上';
-  const transferPattern = String( ( profile && profile.transferPattern ) || '振込' ).trim() || '振込';
+  // 振込行を引く既定語。Amazon計算書は「純利益の振込み」だが、AI読取の揺れで
+  // 「純利益」だけに切れることがある（実データ2025-07-29で発生）ので両方を見る
+  const transferPattern = String( ( profile && profile.transferPattern ) || DEFAULT_TRANSFER_PATTERN ).trim() || DEFAULT_TRANSFER_PATTERN;
   const labelOf = (line) => normalizeText(line.rawDescription || line.merchant || line.description || '');
   const tryPattern = (line, pattern) => {
     try {
