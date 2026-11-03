@@ -242,6 +242,90 @@ const filterFiscalYear = async (parsed, term) => {
 };
 
 export default {
+  // AIによるプロファイル起草（書式学習）。プレビューで読めた書式を
+  // 次回から決定的に解析するためのyamlを起草+自動検証する。
+  // 検証=同じファイルを起草プロファイルで再解析し、AIの読みと
+  // 「日付+金額」の1行も違わないこと。違ったら相違あり（使うかどうかは人判断）
+  profileDraft: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const upload = readUpload(req);
+    if ( !upload ) {
+      res.status(422).json({ code: -2, message: 'ファイルがありません。' });
+      return;
+    }
+    const vision = await import('../libs/vision.js');
+    if ( !vision.isAvailable() ) {
+      res.status(422).json({ code: -1, message: 'AIの設定がありません（config/llms.yaml）。' });
+      return;
+    }
+    try {
+      // プレビュー済み（previewId）ならAI読取を2度やらない
+      let parsed = previewCacheGet(req.body && req.body.previewId);
+      if ( !parsed ) {
+        parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+      }
+      if ( parsed.lines.length === 0 ) {
+        res.status(422).json({ code: -3, message: 'この取り込みはまだ読み取れていません（先にプレビューしてください）。' });
+        return;
+      }
+      const evidence = await parser.evidenceText(upload.buffer, upload.mimeType);
+      if ( !evidence ) {
+        res.status(422).json({ code: -3, message: 'この書式はプロファイル化できません（テキストが取れない画像のみ）。' });
+        return;
+      }
+      const kindHint = ( parsed.kind === 'corporate_card' || parsed.kind === 'personal_card' ) ? 'card' : 'bank';
+      const draft = await vision.draftStatementProfile(evidence, {
+        aiLines: parsed.lines,
+        kindHint: kindHint
+      });
+      // 起草したyamlで同じファイルを決定的に再解析して照合する（AI読取と一致判定）
+      const check = parser.validateProfileYaml(draft.yaml);
+      if ( check.error ) {
+        res.json({ code: 0, yaml: draft.yaml, error: check.error, agreement: null });
+        return;
+      }
+      const recheck = await parser.parseStatement(upload.buffer, upload.mimeType, { profiles: [ check.profile ] });
+      const agreement = parser.profileAgreement(check.profile, recheck, parsed.lines);
+      res.json({
+        code: 0,
+        yaml: draft.yaml,
+        error: null,
+        agreement: agreement,
+        profileName: check.profile.name,
+        aiLines: parsed.lines.length,
+        profileLines: recheck.lines.length
+      });
+    } catch (e) {
+      console.error('profile draft failed', e);
+      res.status(422).json({ code: -4, message: e.message || 'プロファイルの起草に失敗しました。' });
+    }
+  },
+
+  // 承認したプロファイルyamlを保存する（config/banks/<name>.yaml）。
+  // 保存前にyamlを検証する。これを書き込んだ次の取り込から決定的に読める
+  profileSave: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const yamlText = String(( req.body && req.body.yaml ) || '');
+    if ( !yamlText ) {
+      res.status(422).json({ code: -2, message: 'yamlがありません。' });
+      return;
+    }
+    const saved = parser.saveProfileYaml(yamlText);
+    if ( saved.error ) {
+      res.status(422).json({ code: -3, message: saved.error });
+      return;
+    }
+    res.json({ code: 0, name: saved.profile.name, file: saved.file });
+  },
+
   // 取り込む前にパース結果を確認する（DBには書き込まない）
   preview: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
