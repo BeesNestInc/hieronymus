@@ -87,6 +87,12 @@
           data-type={entry.name}
           on:dragstart={startDrag}
           on:click|preventDefault={() => {
+            // 下位階層のある親はここでは遷移しない（クリックで開閉。
+            //遷移は下位の項目から。下位のない親は従来どおり遷移）
+            if ( entry.submenu ) {
+              toggleSubmenu(entry.name);
+              return;
+            }
             link(entry.href(status));
           }}
           href="#">
@@ -99,9 +105,9 @@
           {:else}
           <Icon class="nav-icon" icon="bi:circle"></Icon>
           {/if}
-          {entry.title}
+          {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ isOpen(entry) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
         </a>
-        {#if ( entry.submenu && ( ( $currentPage || '' ).match(entry.match) ) )}
+        {#if ( entry.submenu && isOpen(entry) )}
         <ul>
           {#each entry.submenu as subentry}
           <li class="nav-item">
@@ -157,6 +163,23 @@ export let mainCount;
 let menuItems;
 let isMenuEditMode = false;
 let menuTemplates = [];
+
+// 下位階層ある親メニューはクリックで開閉する（遷移しない）。
+// 手動トグルの状態+「今いるページが下位に当たるなら自動で開く」
+let openSubmenus = new Set();
+const toggleSubmenu = (name) => {
+  if ( openSubmenus.has(name) ) {
+    openSubmenus.delete(name);
+  } else {
+    openSubmenus.add(name);
+  }
+  // Setの入れ差えを検知させないため参照を差し替える
+  openSubmenus = new Set(openSubmenus);
+};
+const isOpen = (entry) => {
+  return openSubmenus.has(entry.name) ||
+    Boolean( $currentPage && $currentPage.match(entry.match) );
+};
 
 const newMenu = (template) => {
   currentMenu.set({
