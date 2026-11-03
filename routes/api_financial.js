@@ -129,7 +129,7 @@ export default {
       await financial.save();
     } catch (e) {
       if ( e && e.name === 'SequelizeUniqueConstraintError' ) {
-        res.status(422).json({ code: -2, message: '同じ勘定科目+補助の口座が既にあります。' });
+        res.status(422).json({ code: -2, message: '同じ勘定科目+補助の通帳が既にあります。' });
         return;
       }
       console.error(e);
@@ -157,14 +157,14 @@ export default {
       where: { financialId: financial.id }
     });
     if ( statementCount > 0 ) {
-      res.status(422).json({ code: -2, message: '取り込みのある口座は削除できません。「もう使わない」を使ってください。' });
+      res.status(422).json({ code: -2, message: '取り込みのある通帳は削除できません。「もう使わない」を使ってください。' });
       return;
     }
     const ruleCount = await models.BankStatementRule.count({
       where: { financialId: financial.id }
     });
     if ( ruleCount > 0 ) {
-      res.status(422).json({ code: -2, message: '学習ルールのある口座は削除できません。ルールを削除してからにしてください。' });
+      res.status(422).json({ code: -2, message: '学習ルールのある通帳は削除できません。ルールを削除してからにしてください。' });
       return;
     }
     await financial.destroy();

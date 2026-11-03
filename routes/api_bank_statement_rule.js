@@ -67,7 +67,7 @@ export default {
     const pattern = makePattern(body.pattern);
     // 合流専用ルール（merge=true）は相手方を持たない（仮入科目で載る）
     if ( !financialId || !pattern || ( !body.oppositeAccount && !body.merge ) ) {
-      res.status(422).json({ code: -2, message: '口座・摘要・相手方科目が未指定です。' });
+      res.status(422).json({ code: -2, message: '通帳・摘要・相手方科目が未指定です。' });
       return;
     }
     if ( body.oppositeAccount && isTempAccount(body.oppositeAccount) ) {

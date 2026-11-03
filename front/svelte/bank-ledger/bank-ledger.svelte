@@ -1,6 +1,6 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>口座元帳</h1>
+    <h1>通帳元帳</h1>
   </div>
   <ul class="page-subtitle d-flex justify-content-between">
     <div class="nav">
@@ -12,7 +12,7 @@
         {#if currentFinancial}
         {currentFinancial.name}
         {:else}
-        口座
+        通帳
         {/if}
       </button>
       <ul class="dropdown-menu" aria-labelledby="field">
@@ -27,7 +27,7 @@
         </li>
         {/each}
         {#if ( financials.length === 0 )}
-        <li><span class="dropdown-item-text text-muted">口座がありません（明細取込で口座を追加してください）</span></li>
+        <li><span class="dropdown-item-text text-muted">通帳がありません（明細取込で通帳を追加してください）</span></li>
         {/if}
       </ul>
     </li>
@@ -154,7 +154,7 @@ export let status;
 let	bank_list = { subAccounts: []};
 let	lines = [];
 let	accounts;
-// 口座（Financial）。口座元帳の表示単位は「科目」ではなく口座（通帳）
+// 通帳（Financial）。通帳元帳の表示単位は「科目」ではなく通帳（口座）
 let financials = [];
 let currentFinancial = null;
 
@@ -168,7 +168,7 @@ const link = (href) => {
 let accountCode;
 let subAccountCode;
 
-// 口座（通帳）を指定して開く。URLは従来どおり科目/補助をキープ
+// 通帳（口座）を指定して開く。URLは従来どおり科目/補助をキープ
 // （直リンク・履歴からの戻りも同じ形で動く）
 const openFinancial = (financial) => {
   if ( financial.subAccountCode ) {
@@ -191,9 +191,9 @@ const checkPage = (page) => {
   }
 }
 
-// 口座一覧を読む（口座元帳の選択肢。取込の有無に関係なく全口座を出す。
+// 通帳一覧を読む（通帳元帳の選択肢。取込の有無に関係なく全部を出す。
 // 法人カード（未払金の口座）も出す。個人カードは精算フロー専用なので出さない）
-// 表示中のURL(科目/補助)に対応する口座も引いてdropdown表示に反映する
+// 表示中のURL(科目/補助)に対応する通帳も引いてdropdown表示に反映する
 const resolveFinancial = async () => {
   try {
     const result = await axios.get('/api/financial');

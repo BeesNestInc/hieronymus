@@ -489,7 +489,7 @@ const buildLineDetails = async (line, statement, booking, options = {}) => {
   // 口座の勘定科目は、statementの写し（account）が無ければ口座(Financial)から引く
   const bankAccount = statement.account || ( ( statement.financial ) ? statement.financial.accountCode : null );
   if ( !bankAccount ) {
-    const err = new Error(`${line.lineNo}行目の明細に口座（勘定科目）が設定されていません。`);
+    const err = new Error(`${line.lineNo}行目の明細に通帳（勘定科目）が設定されていません。`);
     err.name = 'BankReconcileError';
     throw err;
   }

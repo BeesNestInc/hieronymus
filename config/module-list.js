@@ -33,7 +33,7 @@ export default [
 ここから直接伝票を修正することも可能です(新規入力はできません)。`
   }, {
     name: 'bank',
-    title: '口座',
+    title: '通帳',
     match: /^\/bank-ledger|^\/bank-statement/,
     href: (status) => {
       return	(`/bank-ledger`);
@@ -43,11 +43,11 @@ export default [
     },
     icon: { name: 'bi:bank' },
     description: `
-口座（通帳・カード）の画面です。<br/>
-預金通帳を模した「口座元帳」と、通帳・カード明細の取込を行う「明細取込」があります。`,
+通帳（銀行・カード・計算書）など、外部の帳簿を扱う画面です。<br/>
+預金通帳を模した「通帳元帳」と、通帳・カード・計算書の取込を行う「明細取込」があります。`,
     submenu: [
       {
-        title: '口座元帳',
+        title: '通帳元帳',
         href: (status) => {
           return	(`/bank-ledger`);
         },

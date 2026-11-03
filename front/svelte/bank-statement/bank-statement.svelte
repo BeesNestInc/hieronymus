@@ -3,12 +3,12 @@
   <div>
     {#if ( id )}
     <button type="button" class="btn btn-outline-secondary" on:click={goList}>一覧へ戻る</button>
-    <button type="button" class="btn btn-outline-secondary me-2" title="この口座の学習ルール（摘要→相手方仕訳）の閲覧・編集"
+    <button type="button" class="btn btn-outline-secondary me-2" title="この通帳の学習ルール（摘要→相手方仕訳）の閲覧・編集"
       on:click={() => { openRulesModal(); }}>
       学習ルール&nbsp;<i class="bi bi-mortarboard"></i>
     </button>
     {:else}
-    <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF）を取り込みます"
+    <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF/計算書）を取り込みます"
       on:click={openModal}>
       取り込む&nbsp;<i class="bi bi-upload"></i>
     </button>
@@ -41,7 +41,7 @@
   {#if ( warnings && warnings.length > 0 )}
   <MessagePanel messages={warnings} title="取込の警告" on:dismiss={dismissWarnings} />
   {/if}
-  <div class="d-flex align-items-center mb-2" title="この通帳のメモ（科目管理でどの口座かの参照を含めて表示する）">
+  <div class="d-flex align-items-center mb-2" title="この通帳のメモ（科目管理でどの通帳かの参照を含めて表示する）">
     <label class="me-2" style="font-size:0.85rem;">メモ</label>
     <input type="text" class="form-control form-control-sm me-1" style="width:auto;flex:1;"
       placeholder="この通帳についての書き込み"
@@ -170,12 +170,12 @@
   <div class="d-flex align-items-center mb-2">
     <button type="button" class="btn btn-outline-primary btn-sm me-2"
       on:click={() => { openFinancialModal(null); }}>
-      ＋口座を追加&nbsp;<i class="bi bi-plus-lg"></i>
+      ＋通帳を追加&nbsp;<i class="bi bi-plus-lg"></i>
     </button>
     <div class="form-check form-check-inline me-2">
       <input type="checkbox" class="form-check-input" id="showClosed"
         bind:checked={showClosedFinancials} on:change={loadList}>
-      <label class="form-check-label" style="font-size:0.85rem;" for="showClosed">「もう使わない」口座も表示</label>
+      <label class="form-check-label" style="font-size:0.85rem;" for="showClosed">「もう使わない」通帳も表示</label>
     </div>
   </div>
   <div class="table-responsive table-scroll">
@@ -212,7 +212,7 @@
               on:click={() => { openModal({ financialId: row.id, kind: row.kind }); }}>
               <i class="bi bi-upload"></i>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" title="この口座の学習ルール（摘要→相手方仕訳）の閲覧・編集"
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="この通帳の学習ルール（摘要→相手方仕訳）の閲覧・編集"
               on:click={() => { openRulesModal(null, row); }}>
               <i class="bi bi-mortarboard"></i>
             </button>
@@ -233,7 +233,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">{ financialEdit.id ? `口座を編集${ financialEdit.closedAt ? '（停止中）' : '' }` : '口座を追加' }</h5>
+        <h5 class="modal-title">{ financialEdit.id ? `通帳を編集${ financialEdit.closedAt ? '（停止中）' : '' }` : '通帳を追加' }</h5>
         <button type="button" class="btn-close" on:click={closeFinancialModal}></button>
       </div>
       <div class="modal-body">
@@ -289,21 +289,21 @@
         {#if ( financialEdit.id )}
         <button type="button" class="btn btn-outline-danger me-auto"
           title={ financialEdit.statementCount > 0 ?
-            '取り込みのある口座は削除できません。「もう使わない」を使ってください' :
-            'この口座を削除します（取り込み・ルールのない口座のみ）' }
+            '取り込みのある通帳は削除できません。「もう使わない」を使ってください' :
+            'この通帳を削除します（取り込み・ルールのない通帳のみ）' }
           disabled={ financialEdit.statementCount > 0 }
           on:click={deleteFinancial}>
           削除
         </button>
         {#if ( financialEdit.closedAt )}
         <button type="button" class="btn btn-outline-primary"
-          title="この口座をもう使う状態に戻します（一覧に戻ります）"
+          title="この通帳をもう使う状態に戻します（一覧に戻ります）"
           on:click={reopenFinancial}>
           再開する
         </button>
         {:else}
         <button type="button" class="btn btn-outline-secondary"
-          title="この口座を「もう使わない」にする（一覧からは消えます。削除はしないので再開できます）"
+          title="この通帳を「もう使わない」にする（一覧からは消えます。削除はしないので再開できます）"
           on:click={closeFinancial}>
           もう使わない
         </button>
@@ -326,10 +326,10 @@
       <div class="modal-body">
         {#if ( !form.lockFinancial )}
         <div class="row mb-2">
-          <label class="col-4 col-form-label">口座（通帳）</label>
+          <label class="col-4 col-form-label">通帳</label>
           <div class="col-8">
             <select class="form-select" bind:value={form.financialId}>
-              <option value="">口座を選択してください</option>
+              <option value="">通帳を選択してください</option>
               {#each financials as fin}
               <option value={fin.id}>{kindLabel(fin.kind)} / {fin.name}</option>
               {/each}
@@ -556,7 +556,7 @@
                   bind:sub_code={newRule.creditSubAccount}></Account>
                 {/key}
                 {:else}
-                <span class="text-muted">（口座科目）</span>
+                <span class="text-muted">（通帳科目）</span>
                 {/if}
               </td>
               <td class="text-center">-</td>
@@ -620,10 +620,10 @@
                     bind:sub_code={editingRule.creditSubAccount}></Account>
                   {/key}
                   {:else}
-                  <span class="text-muted">（口座科目）</span>
+                  <span class="text-muted">（通帳科目）</span>
                   {/if}
                 {:else}
-                {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : ( ( rulesFinancialLabel ) ? rulesFinancialLabel + '（口座）' : '（口座科目）' )}
+                {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : ( ( rulesFinancialLabel ) ? rulesFinancialLabel + '（通帳）' : '（通帳科目）' )}
                 {/if}
               </td>
               <td class="text-center">{rule.usageCount || 0}</td>
@@ -709,12 +709,12 @@ let id = null;
 let modalEl;
 let modal;
 let tableScrollEl;
-// 一覧の行は 口座（Financial）単位。クリックはその口座の最新取り込へ
-let statements = [];   // (/api/financial のvalues。口座情報+最新取り込サマリ)
-let showClosedFinancials = false;   // 「もう使わない」口座も表示するか
-// 取込モーダルの口座セレクト用（一覧と別に読む。closed排除はしない=未取込も選べる）
+// 一覧の行は 通帳（Financial）単位。クリックはその通帳の最新取り込へ
+let statements = [];   // (/api/financial のvalues。通帳情報+最新取り込サマリ)
+let showClosedFinancials = false;   // 「もう使わない」通帳も表示するか
+// 取込モーダルの通帳セレクト用（一覧と別に読む。closed排除はしない=未取込も選べる）
 let financials = [];
-// 口座モーダル（追加/編集/「もう使わない」）
+// 通帳モーダル（追加/編集/「もう使わない」）
 let financialModalEl;
 let financialModal;
 let financialEdit = {};
@@ -783,7 +783,7 @@ $: bankSubAccounts = ( ( bankAccounts.find((a) => ( a.code === form.account )) |
 $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
   ( ( bankAccounts.find((a) => ( a.code === statement.account )) || {} ).subAccounts || [] ) : [];
 
-// 相手方仕訳の選択肢（銀行口座自身と仮入科目は相手にしない）
+// 相手方仕訳の選択肢（通帳自身の科目と仮入科目は相手にしない）
 $: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) && a.code !== '1900000' && a.code !== '3900000' ));
 
 // 学習ルールモーダルの「同じ摘要になる行」リスト（勢いでの間違い登録防止）。
@@ -841,7 +841,7 @@ const loadList = async () => {
   const result = await axios.get(`/api/financial${ showClosedFinancials ? '?closed=1' : '' }`);
   statements = ( result.data && result.data.values ) || [];
 };
-// 口座セレクト用。全使用中の口座
+// 通帳セレクト用。全使用中の通帳
 const loadFinancials = async () => {
   const result = await axios.get('/api/financial');
   financials = ( result.data && result.data.values ) || [];
@@ -880,7 +880,7 @@ const closeFinancialModal = () => {
 };
 const saveFinancial = async () => {
   if ( !financialEdit.name ) {
-    toast.show('口座', '通帳名を入力してください', 'warning');
+    toast.show('通帳', '通帳名を入力してください', 'warning');
     return;
   }
   const body = {
@@ -894,33 +894,33 @@ const saveFinancial = async () => {
   try {
     if ( financialEdit.id ) {
       await axios.put(`/api/financial/${financialEdit.id}`, body);
-      toast.show('口座', '口座を更新しました');
+      toast.show('通帳', '通帳を更新しました');
     } else {
       await axios.post('/api/financial', body);
-      toast.show('口座', '口座を追加しました');
+      toast.show('通帳', '通帳を追加しました');
     }
     closeFinancialModal();
     loadList();
   } catch (e) {
     console.error('save financial failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '保存に失敗しました';
-    toast.show('口座', message, 'warning');
+    toast.show('通帳', message, 'warning');
   }
 };
-// 口座の削除（取り込み・ルールのない口座のみ。サーバ側でも検証される）
+// 通帳の削除（取り込み・ルールのない通帳のみ。サーバ側でも検証される）
 const deleteFinancial = async () => {
-  if ( !window.confirm('この口座を削除しますか？') ) {
+  if ( !window.confirm('この通帳を削除しますか？') ) {
     return;
   }
   try {
     await axios.delete(`/api/financial/${financialEdit.id}`);
     closeFinancialModal();
     loadList();
-    toast.show('口座', '口座を削除しました');
+    toast.show('通帳', '通帳を削除しました');
   } catch (e) {
     console.error('delete financial failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '削除に失敗しました';
-    toast.show('口座', message, 'warning');
+    toast.show('通帳', message, 'warning');
   }
 };
 
@@ -930,26 +930,26 @@ const reopenFinancial = async () => {
     await axios.put(`/api/financial/${financialEdit.id}`, { closed: false });
     closeFinancialModal();
     loadList();
-    toast.show('口座', '口座を再開しました');
+    toast.show('通帳', '通帳を再開しました');
   } catch (e) {
     console.error('reopen financial failed', e);
-    toast.show('口座', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
+    toast.show('通帳', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
   }
 };
 
 // 「もう使わない」。closedAtで非活性化（一行列挙から消える。削除はしない）
 const closeFinancial = async () => {
-  if ( !window.confirm('この口座を「もう使わない」にします。よろしいですか？') ) {
+  if ( !window.confirm('この通帳を「もう使わない」にします。よろしいですか？') ) {
     return;
   }
   try {
     await axios.put(`/api/financial/${financialEdit.id}`, { closed: true });
     closeFinancialModal();
     loadList();
-    toast.show('口座', '「もう使わない」にしました');
+    toast.show('通帳', '「もう使わない」にしました');
   } catch (e) {
     console.error('close financial failed', e);
-    toast.show('口座', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
+    toast.show('通帳', ( e.response && e.response.data && e.response.data.message ) || '失敗しました', 'warning');
   }
 };
 
@@ -1059,16 +1059,16 @@ const openModal = async (prefill = {}) => {
   previewId = null;
   formError = '';
   form = { kind: prefill.kind || 'bank', financialId: prefill.financialId || '' };
-  // 口座が決まっている（詳細や未取込行からの取込）ときは選択欄を出さない
+  // 通帳が決まっている（詳細や未取込行からの取込）ときは選択欄を出さない
   form.lockFinancial = Boolean(prefill.financialId);
   await loadFinancials();
   modal?.show();
 };
-// 取込モーダルのタイトル。口座が決まっているときは「この通帳に」が分かるように
-// 口座モーダルの科目候補は全科目（種別での絞り込みはしない。連動先は運用者が選ぶ）
+// 取込モーダルのタイトル。通帳が決まっているときは「この通帳に」が分かるよう
+// 通帳モーダルの科目候補は全科目（種別での絞り込みはしない。連動先は運用者が選ぶ）
 $: financialAccountOptions = accounts;
 
-// 取込モーダルタイトル。選ばれた口座が見えるように
+// 取込モーダルタイトル。選ばれた通帳が見えるように
 $: uploadModalTitle = ( form.financialId ) ?
   `「${( financials.find((f) => ( String(f.id) === String(form.financialId) )) || {}).name || ''}」に取り込む` :
   '明細の取り込み';
@@ -1082,14 +1082,14 @@ const closeModal = () => {
 
 const doPreview = async () => {
   if ( !form.financialId ) {
-    formError = '口座（通帳）を選択してください。';
+    formError = '通帳を選択してください。';
     return;
   }
   busy = true;
   formError = '';
   try {
     if ( !form.financialId ) {
-      formError = '口座（通帳）を選択してください。';
+      formError = '通帳を選択してください。';
       return;
     }
     const fd = new FormData();
@@ -1161,7 +1161,7 @@ const saveProfile = async () => {
 
 const doUpload = async () => {
   if ( !form.financialId ) {
-    formError = '口座（通帳）を選択してください。';
+    formError = '通帳を選択してください。';
     return;
   }
   busy = true;
@@ -1185,7 +1185,7 @@ const doUpload = async () => {
       } else {
         toast.show('明細取込', '取り込みました');
       }
-      // この口座の詳細から取り込んだ場合（同じURLへの追加取り込み）は
+      // この通帳の詳細から取り込んだ場合（同じURLへの追加取り込み）は
       // 画面を再読み込みして結果を見えるようにする（遷移しないと更新されない）
       if ( String(result.data.id) === String(id) ) {
         await loadDetail(id);
@@ -1344,11 +1344,11 @@ const normPattern = (text) => (
 // 学習ルールのモーダル。摘要クリックで開いたときはoriginLine（適用対象行）を
 // 覚えておき、「適用して保存」でその行に即反映できるようにする
 let originLine = null;
-// ルールの対象は「今見ている口座」1件だけ（モーダル内での口座の選択・横断はしない。
-// 一覧から行のボタンで、詳細から取込の口座で開く）
+// ルールの対象は「今見ている通帳」1件だけ（モーダル内での通帳の選択・横断はしない。
+// 一覧から行のボタンで、詳細から取込の通帳で開く）
 let rulesFinancialId = '';
 let rulesFinancialLabel = '';
-// ルール一覧の読み込み（対象口座に限定）
+// ルール一覧の読み込み（対象通帳に限定）
 const reloadRules = async () => {
   try {
     const result = await axios.get(`/api/bank_statement_rule${ rulesFinancialId ? `?financialId=${rulesFinancialId}` : '' }`);
@@ -1377,10 +1377,10 @@ const openRulesModal = async (line = null, financial = null) => {
     let opposite = null;
     const sideAccount = ( statement && statement.account ) || '';
     if ( detail.creditAccount === sideAccount ) {
-      // 出金（貸方が口座）。相手方は借方側
+      // 出金（貸方が通帳）。相手方は借方側
       opposite = { account: detail.debitAccount, sub: detail.debitSubAccount };
     } else if ( detail.debitAccount === sideAccount ) {
-      // 入金（借方が口座）。相手方は貸方側
+      // 入金（借方が通帳）。相手方は貸方側
       opposite = { account: detail.creditAccount, sub: detail.creditSubAccount };
     }
     if ( opposite && opposite.account &&
@@ -1390,7 +1390,7 @@ const openRulesModal = async (line = null, financial = null) => {
       oppositeSubAccount = opposite.sub ? String(opposite.sub) : '';
     }
   }
-  // 対象口座: 詳細=この取込の口座、一覧=行の口座。口库名と科目は
+  // 対象通帳: 詳細=この取込の通帳、一覧=行の通帳。通帳名と科目は
   // 新規行・貸方の既定値に使う
   rulesFinancialId = ( statement && statement.financialId ) ?
     statement.financialId : ( financial ? financial.id : '' );
@@ -1399,7 +1399,7 @@ const openRulesModal = async (line = null, financial = null) => {
   }
   const fin = ( statement && statement.financial ) ||
     ( ( financials || [] ).find((f) => ( String(f.id) === String(rulesFinancialId) )) || null );
-  // loadFinancialsは停止中の口座を含まないので、行から渡された名前を下に使う
+  // loadFinancialsは停止中の通帳を含まないので、行から渡された名前を下に使う
   rulesFinancialLabel = fin ? fin.name : ( financial ? financial.name : '' );
   newRule = {
     financialId: rulesFinancialId || '',
@@ -1407,7 +1407,7 @@ const openRulesModal = async (line = null, financial = null) => {
     pattern: pattern,
     oppositeAccount: oppositeAccount,
     oppositeSubAccount: oppositeSubAccount,
-    // 貸方の既定=この口座の科目（未払金等）。空欄のまま献上すると
+    // 貸方の既定=この通帳の科目（未払金等）。空欄のまま出すと
     // 何が入るか見えないので、既定値を見せておく（変えたければ操作）
     creditAccount: ( fin && fin.accountCode ) || '',
     creditSubAccount: ( fin && fin.subAccountCode != null ) ? String(fin.subAccountCode) : ''
@@ -1427,7 +1427,7 @@ const openRulesModal = async (line = null, financial = null) => {
       console.error('load rule candidates failed', e);
     }
   }
-  // 貸方の既定=この口座の科目（見えているほうが間違いが怖くない）
+  // 貸方の既定=この通帳の科目（見えているほうが間違いが怖くない）
   if ( fin && newRule && !newRule.creditAccount ) {
     newRule.creditAccount = fin.accountCode;
     newRule.creditSubAccount = ( fin.subAccountCode != null ) ? String(fin.subAccountCode) : '';
@@ -1446,7 +1446,7 @@ const openRulesModal = async (line = null, financial = null) => {
     ));
     if ( existing ) {
       editingRule = JSON.parse(JSON.stringify(existing));
-      // 貸方の指定が無い既存ルールは、この口座の科目で見せる
+      // 貸方の指定が無い既存ルールは、この通帳の科目で見せる
       if ( fin && !editingRule.creditAccount ) {
         editingRule.creditAccount = fin.accountCode;
         editingRule.creditSubAccount = ( fin.subAccountCode != null ) ? String(fin.subAccountCode) : '';
@@ -1678,7 +1678,7 @@ const restoreLine = async (line) => {
   loadDetail(id);
 };
 
-// 口座の設定（取り込み時に口座を指定しなかった分の後付け）
+// 通帳の設定（取り込み時に通帳を指定しなかった分の後付け）
 const saveAccount = async () => {
   if ( !statement.account ) {
     toast.show('明細取込', '科目を選択してください', 'warning');
@@ -1690,7 +1690,7 @@ const saveAccount = async () => {
     });
     toast.show('明細取込', 'メモを保存しました');
   } catch (e) {
-    const message = ( e.response && e.response.data && e.response.data.message ) || '口座の設定に失敗しました';
+    const message = ( e.response && e.response.data && e.response.data.message ) || '通帳の設定に失敗しました';
     toast.show('明細取込', message, 'warning');
   }
 };

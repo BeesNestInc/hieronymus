@@ -373,7 +373,7 @@ export default {
     const financial = ( req.body.financialId ) ?
       await models.Financial.findByPk(parseInt(req.body.financialId, 10)) : null;
     if ( !financial ) {
-      res.status(422).json({ code: -2, message: '口座（通帳）を選択してください。' });
+      res.status(422).json({ code: -2, message: '通帳を選択してください。' });
       return;
     }
     // 取込の種別は口座に従う。会計権限がなければ自分の個人カード（精算用）の

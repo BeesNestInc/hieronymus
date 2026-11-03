@@ -104,7 +104,7 @@ module.exports = [
         "minimize": false,
         "component": "MenuLink",
         "options": {
-          "title": "口座元帳",
+          "title": "通帳元帳",
           "name": "bank-ledger",
           "href": "/bank-ledger",
           "description": "<p>基本的には元帳画面と同じですが、預金通帳を模した表示となっています。<br>会計データと預金通帳の整合を確認するためのものです。</p>"
