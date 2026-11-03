@@ -793,6 +793,216 @@ export const releaseStatementLines = async (detailIds) => {
   });
 };
 
+// === 計算書（ECモール等。kind: settlement）の取り込み ===
+// 1計算書 = 1複合伝票。借方: 入金先預金（振込額）+ 費用各行 / 買方: 売上高（売上側合算）。
+// 税は全行0（計算書の仕訳は税込合算をそのまま載せる運用向け。消費税の分離が
+// 必要な書式が出てきたらプロファイル側で拡張する）。
+// 学習: 費用行のラベル→科目はこの計算書の口座（Financial）の学習ルールに蓄積する。
+// 伝票化のポイント:
+// - 費用行の科目は必須（仮科目では値が立たないので承認制でユーザーに確定させる）
+// - 検算（売上合計 = 振込 + 費用合計）が合わないときは起票しない
+// - 既に起票済みの行がある計算書は二重起票しない
+// body:
+//   day: 伝票日付（YYYY-MM-DD。省略時は振込行の日付）
+//   received: { account, subAccount }   借方の入金先預金
+//   sale:     { account, subAccount }   貸方の売上高
+//   lines:    [{ lineId, account, subAccount }] 費用行の科目（まとめて指定）
+const resolveSide = (side, profileKey, profile) => {
+  if ( side && side.account ) {
+    return { account: String(side.account), subAccount: ( side.subAccount !== undefined && side.subAccount !== null && side.subAccount !== '' ) ? Number(side.subAccount) : null };
+  }
+  if ( profile && profile[ profileKey ] ) {
+    return { account: String(profile[ profileKey ]), subAccount: profile[ profileKey + 'SubAccount' ] ?? null };
+  }
+  return null;
+};
+
+export const settleStatement = async (statement, body, user, options = {}) => {
+  if ( statement.kind !== 'settlement' ) {
+    const err = new Error('計算書の取り込みではありません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const parser = await import('./bank-statement.js');
+  const profiles = options.profiles || parser.loadProfiles();
+  const profile = profiles.find((p) => ( p.name === statement.cardName ) && ( p.type === 'settlement' )) || null;
+  const lines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const breakdown = parser.settlementBreakdown(lines, profile);
+  // 検算が合わない・振込行が特定できないものは起票しない（データを直してから）
+  const blocking = breakdown.warnings.filter((w) => /振込行を特定|検算が合いません/.test(w));
+  if ( blocking.length > 0 ) {
+    const err = new Error(blocking.join(' '));
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  // 二重起票の抑止（既に起票済みの行がある計算書は組み直さない）
+  const bookedCount = lines.filter((l) => ( l.status === 'booked' ) || ( l.status === 'matched' )).length;
+  if ( bookedCount > 0 ) {
+    const err = new Error(`この計算書はすでに起票済みです（${bookedCount}行）。`);
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const received = resolveSide(body.received, 'receivedAccount', profile);
+  const sale = resolveSide(body.sale, 'saleAccount', profile);
+  if ( !received || !sale ) {
+    const err = new Error('入金先・売上高の科目が未指定です（プロファイルか指定で渡してください）。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  // 費用行の科目指定（必須。実科目のみ）
+  const bookingMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
+  const feeEntries = [];
+  for ( const line of breakdown.expenseLines ) {
+    const booking = bookingMap.get(line.id);
+    const account = ( booking && booking.account ) ? String(booking.account) : null;
+    if ( !account || isTempAccount(account) ) {
+      const err = new Error(`費用行「${line.rawDescription || line.description || line.merchant}」の科目が未指定です。実科目を指定してください。`);
+      err.name = 'BankReconcileError';
+      throw err;
+    }
+    feeEntries.push({
+      line: line,
+      account: account,
+      subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null
+    });
+  }
+  // 伝票日付は振込行の日付（引数で上書き可。振込日は計算書どおり）
+  const dayStr = body.day || ( breakdown.transferLine && breakdown.transferLine.date ) || statement.periodFrom;
+  const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if ( !m ) {
+    const err = new Error('伝票日付が特定できません（振込行に日付がありません）。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const finName = statement.cardName || '';
+  // 複合伝票の明細行。片脚0の行は既存の伝票入力（多借多貸）と同じ表現
+  const slipLines = [];
+  // 借方の入金先預金（振込額）
+  slipLines.push({
+    debitAccount: received.account,
+    debitSubAccount: received.subAccount,
+    debitAmount: breakdown.transferAmount,
+    debitTax: 0,
+    debitTaxRuleId: null,
+    creditAccount: null,
+    creditSubAccount: null,
+    creditAmount: 0,
+    creditTax: 0,
+    creditTaxRuleId: null,
+    application1: `振込 ${finName}`.trim(),
+    application2: breakdown.transferLine.memo || null,
+    statementLineId: breakdown.transferLine.id
+  });
+  for ( const entry of feeEntries ) {
+    slipLines.push({
+      debitAccount: entry.account,
+      debitSubAccount: entry.subAccount,
+      debitAmount: Number(entry.line.amountOut),
+      debitTax: 0,
+      debitTaxRuleId: null,
+      creditAccount: null,
+      creditSubAccount: null,
+      creditAmount: 0,
+      creditTax: 0,
+      creditTaxRuleId: null,
+      application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
+      application2: entry.line.memo || null,
+      statementLineId: entry.line.id
+    });
+  }
+  // 貸方の売上高（売上側を1行に合算。商品代金/税金/配送料ラベル込み）
+  slipLines.push({
+    debitAccount: null,
+    debitSubAccount: null,
+    debitAmount: 0,
+    debitTax: 0,
+    debitTaxRuleId: null,
+    creditAccount: sale.account,
+    creditSubAccount: sale.subAccount,
+    creditAmount: breakdown.saleTotal,
+    creditTax: 0,
+    creditTaxRuleId: null,
+    application1: `${finName}計算書`.trim(),
+    application2: statement.fileName || null,
+    statementLineId: ( breakdown.saleLines[ 0 ] ) ? breakdown.saleLines[ 0 ].id : null
+  });
+  const slip = await createCrossSlip({
+    year: Number(m[1]),
+    month: Number(m[2]),
+    day: Number(m[3]),
+    lines: slipLines
+  }, user, { forceUnapproved: true });
+  // 売上側は1明細に複数の取込行を集約する。createCrossSlipの紐付けは
+  // 1明細1行だけなので、残りの売上行を同じ明細に付け替える
+  const details = await models.CrossSlipDetail.findAll({
+    where: { crossSlipId: slip.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const creditDetail = details.find((d) => String(d.creditAccount) === String(sale.account));
+  if ( creditDetail ) {
+    const saleIds = breakdown.saleLines.map((line) => line.id);
+    await models.BankStatementLine.update({
+      status: 'booked',
+      crossSlipDetailId: creditDetail.id
+    }, {
+      where: { id: { [Op.in]: saleIds }, crossSlipDetailId: null }
+    });
+  }
+  // 費用行のラベル→科目を学習する（この計算書の口座単位）。振込行・売上行は
+  // 学習しない（振込の摘要は銀行明細側のものが正）
+  for ( const entry of feeEntries ) {
+    await learnOpposite(statement.financialId, entry.line.rawDescription || entry.line.description || entry.line.merchant || '', {
+      account: entry.account,
+      sub: entry.subAccount
+    }, 'out');
+  }
+  return { slip: slip, breakdown: breakdown };
+};
+
+// 計算書取込のプレビュー（GET用）。分類の集計+費用行の科目候補（学習ルール）
+// + プロファイルの約束科目（received/sale。未設定なら null）
+export const settlementPreview = async (statement) => {
+  if ( statement.kind !== 'settlement' ) {
+    return null;
+  }
+  const parser = await import('./bank-statement.js');
+  const profiles = parser.loadProfiles();
+  const profile = profiles.find((p) => ( p.name === statement.cardName ) && ( p.type === 'settlement' )) || null;
+  const lines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const breakdown = parser.settlementBreakdown(lines, profile);
+  const financialRules = statement.financialId ?
+    await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
+  const subTitle = (line) => ( line.rawDescription || line.description || line.merchant || '' );
+  const suggestions = breakdown.expenseLines.map((line) => {
+    const label = subTitle(line);
+    const rule = findLearnedRule(financialRules, label, 'out');
+    return {
+      lineId: line.id,
+      label: label,
+      amount: Number(line.amountOut || 0),
+      account: rule ? rule.oppositeAccount : null,
+      subAccount: rule ? ( rule.oppositeSubAccount ?? null ) : null
+    };
+  });
+  return {
+    profileName: profile ? profile.name : null,
+    received: { account: ( profile && profile.receivedAccount ) || null, subAccount: ( profile && profile.receivedSubAccount ) ?? null },
+    sale: { account: ( profile && profile.saleAccount ) || null, subAccount: ( profile && profile.saleSubAccount ) ?? null },
+    saleTotal: breakdown.saleTotal,
+    expenseTotal: breakdown.expenseTotal,
+    transferAmount: breakdown.transferAmount,
+    transferDate: ( breakdown.transferLine && breakdown.transferLine.date ) || null,
+    warnings: breakdown.warnings,
+    suggestions: suggestions
+  };
+};
+
 // 未照合行の相手方仕訳の候補を表示用に返す（起票時の仮入科目に置かれる前の
 // 判断材料。学習ルールに完全一致する行だけを対象にする）
 // 戻り値は {lineId, oppositeAccount, oppositeSubAccount, learned:true} の配列
@@ -1107,6 +1317,159 @@ export const rebookStatement = async (statement, user, options = {}) => {
   return result;
 };
 
+// === 通帳の入金行と計算書の複合伝票の紐付け（Amazon振込等） ===
+// 計算書（kind: settlement）の複合伝票は借方に入金先預金を立てている。通帳に
+// 振込で入る行は「新たな伝票」ではなく、**この伝票の預金明細に紐付ける**
+// （二重計上の防止。照合=matched紐付けなので伝票は増えない）。
+// 候補の特定は計算書の振込行（rawDescriptionにtransferPattern='振込'を含む行）
+// が持つ預金明細に対して、金額一致+伝票日付±3日で行う（学習ルールの
+// ホワイトリストは計算書側の起票経路に効かないので、ここは候補提示+人の承認
+// （明示クリック）でつなぐ）
+export const suggestSettlementDeposits = async (statement) => {
+  if ( ( statement.kind !== 'bank' ) || !statement.account ) {
+    return [];
+  }
+  const lines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id, status: 'unmatched' },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  if ( lines.length === 0 ) {
+    return [];
+  }
+  // 計算書取り込みの振込行が持つ預金明細（複合伝票の借方の行）を集める
+  const settlementStatements = await models.BankStatement.findAll({ where: { kind: 'settlement' } });
+  if ( settlementStatements.length === 0 ) {
+    return [];
+  }
+  const transferPattern = new RegExp('振込');
+  const detailIds = new Set();
+  for ( const s of settlementStatements ) {
+    const slines = await models.BankStatementLine.findAll({
+      where: { statementId: s.id, crossSlipDetailId: { [Op.ne]: null } }
+    });
+    for ( const line of slines ) {
+      if ( ( line.amountIn !== null && line.amountIn !== undefined ) &&
+           transferPattern.test( normalizeText(line.rawDescription || line.description || '') ) ) {
+        detailIds.add(line.crossSlipDetailId);
+      }
+    }
+  }
+  if ( detailIds.size === 0 ) {
+    return [];
+  }
+  const details = await models.CrossSlipDetail.findAll({
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }],
+    where: { id: { [Op.in]: [ ...detailIds ] } }
+  });
+  const suggestions = [];
+  for ( const line of lines ) {
+    if ( line.amountIn === null || line.amountIn === undefined || !line.date ) {
+      continue;
+    }
+    // 行ごともっとも良い候補（日付が近く、伝票番号が新しいもの）を1つ選ぶ
+    const matches = [];
+    for ( const detail of details ) {
+      const slip = detail.crossSlip;
+      if ( !slip ) {
+        continue;
+      }
+      if ( Number(detail.debitAmount) !== Number(line.amountIn) ) {
+        continue;
+      }
+      const diff = Math.abs(new Date(slip.year, slip.month - 1, slip.day)
+        .getTime() - new Date(line.date).getTime()) / 86400000;
+      if ( diff > 3 ) {
+        continue;
+      }
+      // この預金明細に、すでに「bank側の行」が紐付いていたら候補から外す
+      // （二重運用の防止。計算書側の行の紐付けは残す）
+      const binders = await models.BankStatementLine.findAll({
+        where: { crossSlipDetailId: detail.id }, raw: true
+      });
+      let bankBound = false;
+      for ( const binder of binders ) {
+        const owner = await models.BankStatement.findByPk(binder.statementId, { raw: true });
+        if ( owner && owner.kind !== 'settlement' ) {
+          bankBound = true;
+          break;
+        }
+      }
+      if ( bankBound ) {
+        continue;
+      }
+      matches.push({ detail: detail, slip: slip, diff: diff });
+    }
+    if ( matches.length === 0 ) {
+      continue;
+    }
+    matches.sort((a, b) => ( ( a.diff - b.diff ) || ( b.slip.id - a.slip.id ) ));
+    const best = matches[ 0 ];
+    suggestions.push({
+      lineId: line.id,
+      crossSlipDetailId: best.detail.id,
+      slip: { id: best.slip.id, year: best.slip.year, month: best.slip.month, no: best.slip.no },
+      amount: Number(line.amountIn),
+      date: line.date,
+      label: String(best.detail.application1 || '計算書')
+    });
+  }
+  return suggestions;
+};
+
+// 通帳の入金行を、計算書の複合伝票の預金明細に紐付ける（照合=matched。
+// 伝票は作らない）。投げられた候補（suggestSettlementDeposits）から呼ぶ。
+// 二重紐付け（別のbank側の行が既に付いている）と一致しない金額は拒む
+export const linkDepositToSettlement = async (statement, lineId, crossSlipDetailId) => {
+  if ( statement.kind !== 'bank' ) {
+    const err = new Error('通帳の明細ではありません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const line = await models.BankStatementLine.findByPk(parseInt(lineId, 10));
+  if ( !line || Number(line.statementId) !== Number(statement.id) ) {
+    const err = new Error('明細行がありません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  if ( line.status !== 'unmatched' ) {
+    const err = new Error('この行はすでに処理済みです。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const detail = await models.CrossSlipDetail.findByPk(parseInt(crossSlipDetailId, 10), {
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+  });
+  if ( !detail || !detail.crossSlip ) {
+    const err = new Error('紐付先の伝票明細がありません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  if ( Number(detail.debitAmount) !== Number(line.amountIn) ) {
+    const err = new Error('金額が一致しません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  // 別のbank側の行が既に付いていないか（計算書側のコ連結 screening の重複を防ぐ）
+  const binders = await models.BankStatementLine.findAll({
+    where: { crossSlipDetailId: detail.id }
+  });
+  for ( const binder of binders ) {
+    if ( Number(binder.id) === Number(line.id) ) {
+      continue;
+    }
+    const owner = await models.BankStatement.findByPk(binder.statementId);
+    if ( owner && owner.kind !== 'settlement' ) {
+      const err = new Error('この伝票明細にはすでに通帳の行が紐付いています。');
+      err.name = 'BankReconcileError';
+      throw err;
+    }
+  }
+  line.status = 'matched';
+  line.crossSlipDetailId = detail.id;
+  await line.save();
+  return line;
+};
+
 export default {
   autoMatch: autoMatch,
   suggestCardPayments: suggestCardPayments,
@@ -1116,6 +1479,10 @@ export default {
   learnFromSlip: learnFromSlip,
   bookLines: bookLines,
   selectForExpense: selectForExpense,
+  settleStatement: settleStatement,
+  settlementPreview: settlementPreview,
+  suggestSettlementDeposits: suggestSettlementDeposits,
+  linkDepositToSettlement: linkDepositToSettlement,
   reconcilePlaceholders: reconcilePlaceholders,
   rebookStatement: rebookStatement,
   TEMP_ACCOUNTS: TEMP_ACCOUNTS,

@@ -52,7 +52,7 @@
     </button>
   </div>
   <div class="d-flex align-items-center mb-1">
-    {#if ( statement.kind !== 'bank' )}
+    {#if ( statement.kind !== 'bank' && statement.kind !== 'settlement' )}
     <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled={busy}
       title="金額が一致し日付が近い既存の伝票明細と、この明細を自動で対応付けます"
       on:click={runMatch}>既存仕訳と突合</button>
@@ -71,6 +71,46 @@
     <span class="badge bg-primary">起票済 {statusCounts.booked}</span>
     <span class="badge bg-dark">対象外 {statusCounts.ignored}</span>
     <span class="badge bg-secondary">未照合 {statusCounts.unmatched}</span>
+  </div>
+  {/if}
+  {#if ( statement.kind === 'settlement' && settlement )}
+  <div class="card mb-2" style="font-size:0.85rem;">
+    <div class="card-body py-2">
+      {#if ( settlement.warnings && settlement.warnings.length > 0 )}
+      <div class="text-warning mb-1">
+        <i class="bi bi-exclamation-triangle me-1"></i>{settlement.warnings.join(' ')}
+      </div>
+      {/if}
+      売上合計 <b>{Number(settlement.saleTotal).toLocaleString()}</b>円 ＝
+      振込 <b>{Number(settlement.transferAmount || 0).toLocaleString()}</b>円 ＋
+      費用合計 <b>{Number(settlement.expenseTotal).toLocaleString()}</b>円
+      （伝票日付: {settleDay || '不明'}）
+      {#if ( settlementBooked )}
+      <span class="badge bg-primary ms-2">起票済み</span>
+      {:else}
+      <div class="mt-1">
+        <div class="row g-1">
+          <div class="col-auto">入金先（借方）</div>
+          <div class="col-auto"><Account accounts={bankAccounts} bind:code={settleReceivedAccount} bind:sub_code={settleReceivedSubAccount}></Account></div>
+          <div class="col-auto">売上高（貸方）</div>
+          <div class="col-auto"><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}></Account></div>
+        </div>
+        <div class="mt-1">
+          {#each ( settlement.suggestions || [] ) as s}
+          <div class="row g-1 align-items-center mb-1">
+            <div class="col-auto" style="min-width:280px;">{s.label} <b>{Number(s.amount).toLocaleString()}</b>円</div>
+            <div class="col-auto"><Account accounts={oppositeAccounts}
+              bind:code={settleFeeAccounts[s.lineId].account}
+              bind:sub_code={settleFeeAccounts[s.lineId].subAccount}></Account></div>
+          </div>
+          {/each}
+          <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady}
+            title="計算書の内容を1枚の複合伝票（借方: 預金+費用 / 貸方: 売上高）にして、承認待ちで起票します"
+            on:click={runSettle}><i class="bi bi-sticky me-1"></i>1伝票にして起票</button>
+        </div>
+      </div>
+      {/if}
+    </div>
   </div>
   {/if}
   <div class="table-responsive table-scroll" bind:this={tableScrollEl}>
@@ -108,6 +148,17 @@
             {#if ( cardSuggestion(line.id) )}
             <div class="text-muted" style="font-size:0.75rem;">
               カード引落候補: {cardSuggestion(line.id).total.toLocaleString()}円（{cardSuggestion(line.id).payDate || '日付不明'}）
+            </div>
+            {/if}
+            {#if ( settlementDeposit(line.id) )}
+            <div class="text-muted" style="font-size:0.75rem;">
+              {settlementDeposit(line.id).label}: {Number(settlementDeposit(line.id).amount).toLocaleString()}円
+              <button type="button" class="btn btn-link btn-sm p-0" style="font-size:0.75rem;"
+                disabled={busy}
+                title="この入金を計算書の複合伝票の預金明細に紐付けます（新たな伝票は作りません）"
+                on:click={() => { linkDeposit(settlementDeposit(line.id)); }}>
+                計算書と突合（{settlementDeposit(line.id).slip.month}/{settlementDeposit(line.id).slip.day}-{settlementDeposit(line.id).slip.no}）
+              </button>
             </div>
             {/if}
           </td>
@@ -149,7 +200,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけで伝票を起票します（伝票画面に移動します）"
               on:click={() => { bookLine(line); }}><i class="bi bi-pencil-square"></i></button>
             {/if}
-            {#if ( line.status === 'unmatched' )}
+            {#if ( line.status === 'unmatched' && statement.kind !== 'settlement' )}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="この行を起票対象から外します（対象外）"
               on:click={() => { setIgnored(line, true); }}><i class="bi bi-slash-circle"></i></button>
             {:else if ( line.status === 'ignored' || ( line.status === 'booked' && !line.crossSlipDetailId ) )}
@@ -251,6 +302,7 @@
               <option value="bank">銀行通帳</option>
               <option value="corporate_card">法人カード</option>
               <option value="personal_card">個人カード（立替）</option>
+              <option value="settlement">計算書（ECモール等）</option>
             </select>
           </div>
         </div>
@@ -724,6 +776,7 @@ let statement = null;
 let accounts = [];
 let warnings = [];
 let cardSuggestions = [];
+let settlementDeposits = [];
 let preview = null;
 let previewId = null;
 // AIプロファイル起草（書式学習。承認制でconfig/banksにyamlを置く）
@@ -758,7 +811,8 @@ const TEMP_ACCOUNT_CODES = [ '1900000', '3900000' ];
 const KIND_LABELS = {
   bank: '通帳',
   corporate_card: 'カード',
-  personal_card: '個人カード'
+  personal_card: '個人カード',
+  settlement: '計算書'
 };
 const CATEGORY_LABELS = {
   normal: '', interest: '利息', fee: '手数料', card_payment: 'デビット',
@@ -831,6 +885,42 @@ const isTentative = (line) => {
 
 const cardSuggestion = (lineId) => {
   return cardSuggestions.find((s) => ( s.lineId === lineId )) || null;
+};
+
+// 通帳の入金行と計算書複合伝票の紐付け候補（Amazon振込等）。
+// 金額一致+日付±3日。押すと預金明細に紐付く（起票はしない）
+const settlementDeposit = (lineId) => {
+  return settlementDeposits.find((s) => ( s.lineId === lineId )) || null;
+};
+const linkDeposit = async (suggestion) => {
+  if ( !suggestion ) {
+    return;
+  }
+  if ( !window.confirm(`この入金を「${suggestion.label}」の伝票（${suggestion.slip.month}/${suggestion.slip.day}-${suggestion.slip.no}）の預金明細に紐付けます。よろしいですか？`) ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.post(`/api/bank_statement/${id}/link_settlement`, {
+      lineId: suggestion.lineId,
+      crossSlipDetailId: suggestion.crossSlipDetailId
+    });
+    if ( result.data && result.data.code === 0 ) {
+      statement = Object.assign({}, statement, { lines: result.data.lines });
+      settlementDeposits = result.data.suggestions || [];
+      line = statement.lines.find((l) => ( l.id === suggestion.lineId )) || line;
+      toast.show('通帳', '計算書の伝票に紐付けました（照合済）');
+    } else {
+      toast.show('通帳', `紐付けに失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    console.error('linkDeposit failed', e);
+    const status = ( e.response && e.response.status ) ? ` HTTP${e.response.status}` : '';
+    const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
+      `紐付けに失敗しました${status}`;
+    toast.show('通帳', message, 'warning');
+  }
+  busy = false;
 };
 
 const goList = () => {
@@ -1020,7 +1110,9 @@ const loadDetail = async (statementId) => {
   // 警告は取込に保存されている（残高整合・重複スキップ・追加取込の結果等）
   warnings = ( statement && Array.isArray(statement.warnings) ) ? statement.warnings : [];
   cardSuggestions = [];
+  settlementDeposits = result.data.settlementDeposits || [];
   applyOppositeSuggestions(result.data.oppositeSuggestions);
+  applySettlement(result.data.settlement);
   await restoreScroll();
 };
 
@@ -1207,6 +1299,7 @@ const runMatch = async () => {
     const result = await axios.post(`/api/bank_statement/${id}/match`);
     statement = result.data.statement;
     cardSuggestions = result.data.suggestions || [];
+    settlementDeposits = result.data.settlementDeposits || [];
     applyOppositeSuggestions(result.data.oppositeSuggestions);
     toast.show('明細取込', `${result.data.matched}行を突合しました`);
   } catch (e) {
@@ -1217,6 +1310,10 @@ const runMatch = async () => {
 
 // 行に単独起票できるか（相手方の決定はサーバ側でルール→仮に落ちる）
 const canBookLine = (line) => {
+  // 計算書（kind: settlement）は1計算書=1伝票なので行単位の起票はしない
+  if ( statement.kind === 'settlement' ) {
+    return false;
+  }
   return ( line.status === 'unmatched' || ( line.status === 'booked' && !line.crossSlipDetailId ) );
 };
 
@@ -1247,6 +1344,7 @@ const runBook = async (givenBookings = null) => {
         .filter((l) => ( l.status === 'booked' ))
         .map((l) => l.id);
       cardSuggestions = cardSuggestions.filter((s) => !bookedLineIds.includes(s.lineId));
+      settlementDeposits = settlementDeposits.filter((s) => !bookedLineIds.includes(s.lineId));
       // 仮起票の伝票を確認できた分だけ「後の処理」で差し替わる（次回の突合時）
       toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち。ルール未命中は仮入科目になります）`);
       // 単行起票のときは、作った伝票の画面へ直接行く（確認・修正・証憑紐付け）
@@ -1323,6 +1421,89 @@ const runRebook = async () => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `再実行に失敗しました${status}`;
     toast.show('明細取込', message, 'warning');
+  }
+  busy = false;
+};
+
+// === 計算書（kind: settlement）の伝票化 UI（1計算書 = 1複合伝票） ===
+// 借方: 入金先預金（振込額）+ 費用各行（ここで科目を確定させる） /
+// 買方: 売上高（売上側合算）。費用行の科目は学習ルール候補+入力。
+// 税は全行0（計算書は税込の合算をそのまま載せる）
+let settlement = null;          // GET /:id の settlement（分類集計+科目候補）
+let settleDay = '';             // 伝票日付（既定=振込行の日付）
+let settleReceivedAccount = '';
+let settleReceivedSubAccount = '';
+let settleSaleAccount = '';
+let settleSaleSubAccount = '';
+let settleFeeAccounts = {};     // lineId → {account, subAccount} 費用行の指定
+
+// 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
+$: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
+  ( statement.lines ).every((l) => ( l.status === 'booked' ));
+// 費用行に科目が全部入ったか（承認制: 空では起票させない）
+$: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] ).every((s) => (
+  ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account
+));
+const applySettlement = (data) => {
+  settlement = data || null;
+  settleFeeAccounts = {};
+  if ( !settlement ) {
+    return;
+  }
+  settleDay = settlement.transferDate || statement.periodFrom || '';
+  settleReceivedAccount = ( settlement.received && settlement.received.account ) || '';
+  settleReceivedSubAccount = ( settlement.received && settlement.received.subAccount ) || '';
+  settleSaleAccount = ( settlement.sale && settlement.sale.account ) || '';
+  settleSaleSubAccount = ( settlement.sale && settlement.sale.subAccount ) || '';
+  for ( const s of ( settlement.suggestions || [] ) ) {
+    settleFeeAccounts[s.lineId] = {
+      account: s.account || '',
+      subAccount: ( s.subAccount === 0 ) ? 0 : ( s.subAccount || '' )
+    };
+  }
+};
+const runSettle = async () => {
+  const missing = ( settlement.suggestions || [] ).filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+  if ( !settleReceivedAccount ) {
+    toast.show('計算書', '入金先（借方の預金）の科目を指定してください。', 'warning');
+    return;
+  }
+  if ( !settleSaleAccount ) {
+    toast.show('計算書', '売上高（貸方）の科目を指定してください。', 'warning');
+    return;
+  }
+  if ( missing.length > 0 ) {
+    toast.show('計算書', `費用行の科目が未指定です（${missing.length}行）。`, 'warning');
+    return;
+  }
+  if ( !window.confirm('計算書を1枚の複合伝票に起票します（承認待ち）。よろしいですか？') ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.post(`/api/bank_statement/${id}/settle`, {
+      day: settleDay || undefined,
+      received: { account: settleReceivedAccount, subAccount: settleReceivedSubAccount || null },
+      sale: { account: settleSaleAccount, subAccount: settleSaleSubAccount || null },
+      lines: ( settlement.suggestions || [] ).map((s) => ({
+        lineId: s.lineId,
+        account: settleFeeAccounts[s.lineId].account,
+        subAccount: settleFeeAccounts[s.lineId].subAccount || null
+      }))
+    });
+    if ( result.data && result.data.code === 0 ) {
+      toast.show('計算書', '計算書を複合伝票に起票しました（承認待ち）。通帳の振込行はこの伝票の預金明細と照合できます');
+      applySettlement(result.data.settlement);
+      statement = Object.assign({}, statement, { lines: result.data.lines });
+    } else {
+      toast.show('計算書', `伝票化に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    console.error('settle failed', e);
+    const status = ( e.response && e.response.status ) ? ` HTTP${e.response.status}` : '';
+    const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
+      `伝票化に失敗しました${status}`;
+    toast.show('計算書', message, 'warning');
   }
   busy = false;
 };

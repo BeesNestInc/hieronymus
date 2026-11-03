@@ -509,6 +509,12 @@ export default {
     // 支払先候補（摘要→マッピングのルール/key一致）。詳細表示の初回から提示する
     const oppositeSuggestions = ( statement.kind === 'bank' ) ?
       await reconcile.suggestOpposites(statement) : [];
+    // 計算書（kind: settlement）: 分類の集計+費用行の科目候補を添える
+    const settlement = ( statement.kind === 'settlement' ) ?
+      await reconcile.settlementPreview(statement) : null;
+    // 通帳: 入金行を計算書の複合伝票に紐付ける候補（Amazon振込等）
+    const settlementDeposits = ( statement.kind === 'bank' ) ?
+      await reconcile.suggestSettlementDeposits(statement) : [];
     res.json({
       code: 0,
       statement: {
@@ -517,9 +523,11 @@ export default {
         warnings: warningsOf(statement.warnings),
         lines: statement.lines.map(lineToJSON)
       },
-      oppositeSuggestions: oppositeSuggestions
+      oppositeSuggestions: oppositeSuggestions,
+      settlement: settlement,
+      settlementDeposits: settlementDeposits
     });
-  },
+    },
 
   // 取込ファイルのダウンロード（画面参照用）
   file: async (req, res, next) => {
@@ -561,12 +569,15 @@ export default {
     const result = await reconcile.autoMatch(statement);
     const suggestions = await reconcile.suggestCardPayments(statement);
     const oppositeSuggestions = await reconcile.suggestOpposites(statement);
+    const settlementDeposits = ( statement.kind === 'bank' ) ?
+      await reconcile.suggestSettlementDeposits(statement) : [];
     const fresh = await getStatement(statement.id);
     res.json({
       code: 0,
       matched: result.matched,
       suggestions: suggestions,
       oppositeSuggestions: oppositeSuggestions,
+      settlementDeposits: settlementDeposits,
       lines: fresh.lines.map(lineToJSON)
     });
   },
@@ -602,6 +613,42 @@ export default {
     } catch (e) {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message });
+    }
+  },
+
+  // 計算書（kind: settlement）を1枚の複合伝票に起票する（1計算書=1伝票）。
+  // body: { received, sale, lines: [{lineId, account, subAccount}], day? }
+  settle: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statement = await getStatement(parseInt(req.params.id));
+    if ( !statement ) {
+      res.json({ code: -1 });
+      return;
+    }
+    const lockFy = await lockedStatementMessage(statement);
+    if ( lockFy ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: lockFy.term });
+      return;
+    }
+    try {
+      const result = await reconcile.settleStatement(statement, req.body || {}, user);
+      const fresh = await getStatement(statement.id);
+      res.json({
+        code: 0,
+        slip: result.slip ? {
+          id: result.slip.id, year: result.slip.year, month: result.slip.month, no: result.slip.no
+        } : null,
+        settlement: await reconcile.settlementPreview(statement),
+        lines: fresh.lines.map(lineToJSON)
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '計算書の伝票化に失敗しました。' });
     }
   },
 
@@ -765,5 +812,34 @@ export default {
     }
     await statement.destroy();
     res.json({ code: 0 });
+  },
+
+  // 通帳の入金行を計算書の複合伝票に紐付ける（Amazon振込等）。
+  // 候補は GET /match の suggestions に混ぜる。body: { lineId, crossSlipDetailId }
+  linkSettlement: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statement = await getStatement(parseInt(req.params.id));
+    if ( !statement ) {
+      res.json({ code: -1 });
+      return;
+    }
+    try {
+      const line = await reconcile.linkDepositToSettlement(statement,
+        ( req.body || {} ).lineId, ( req.body || {} ).crossSlipDetailId);
+      const fresh = await getStatement(statement.id);
+      res.json({
+        code: 0,
+        lines: fresh.lines.map(lineToJSON),
+        suggestions: await reconcile.suggestSettlementDeposits(fresh)
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '計算書との紐付けに失敗しました。' });
+    }
   }
 };

@@ -4,7 +4,6 @@
 #
 # 明細のパースに必要な既定の名寄せ表は libs/bank-statement.js を参照。
 # ヘッダ署名（detect）と列名（columns）だけで多くの形式に対応できる。
-
 name: 三井住友銀行
 type: bank                  # bank: 銀行通帳 / card: カード利用明細
 
@@ -54,3 +53,17 @@ categoryRules:
 #   payDate: '支払い日(\d{4})年(\d{1,2})月(\d{1,2})日'
 # paymentAccount: '3020000'      # 引落決済伝票の借方科目（未払金）
 # paymentSubAccount: 1
+
+# 以下は type: settlement（計算書。ECモールの支払明細等）用
+# 計算書は「振込1本の内訳書」。売上行/費用行/振込行に分類し、
+# 1計算書を1枚の複合伝票（借方: 入金先預金+費用各行 / 買方: 売上高）にする。
+# 費用行の科目は学習ルール（この計算書の口座に紐づく）で決める
+#
+# name: Amazon
+# type: settlement
+# salePattern: '^売上'         # 売上側の行を引くラベル（省略時は'^売上'）
+# transferPattern: '振込'      # 振込行を引くラベル（省略時は'振込'）
+# saleAccount: 6000000         # 貸方の売上高（伝票化時に使う約束科目。省略可）
+# receivedAccount: 1010010     # 借方の入金先預金（振込の着地。省略可）
+# receivedSubAccount: 1
+END

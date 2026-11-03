@@ -534,7 +534,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
     const rows = ( /excel|spreadsheet|sheet/.test(type) || ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4b ) )
       ? await parseExcel(buffer) : parseCsv(buffer);
     const headerCandidates = rows.slice(0, 5).flat().map(String);
-    profile = detectProfile(headerCandidates, profiles.filter((p) => ( p.type || 'bank' ) === 'bank'));
+    profile = detectProfile(headerCandidates, profiles.filter((p) => ( ( p.type || 'bank' ) === 'bank' ) || ( p.type === 'settlement' )));
     const lines = rowsToLines(rows, profile);
     parsed = { lines: lines, warnings: [], payDate: null, total: null };
   }
@@ -549,7 +549,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
     parsed.warnings.push('明細行を読み取れませんでした。');
   }
   return {
-    kind: ( profile && profile.type === 'card' ) ? 'corporate_card' : 'bank',
+    kind: ( profile && profile.type === 'card' ) ? 'corporate_card' : ( profile && profile.type === 'settlement' ) ? 'settlement' : 'bank',
     profileName: ( profile && profile.name ) || null,
     lines: parsed.lines,
     total: parsed.total,
@@ -598,6 +598,62 @@ export const evidenceText = async (buffer, mimeType) => {
   return rows.slice(0, EVIDENCE_MAX_LINES).map((row) => row.map((cell) => ( cell === null || cell === undefined ) ? '' : String(cell)).join('\t')).join('\n');
 };
 
+// === 計算書（ECモール等）の取り込み（1計算書 = 1複合伝票） ===
+// 計算書は「振込1本の内訳書」: 全行を「売上側」「費用側」「振込行」に分類し、
+// 1枚の複合伝票（借方 入金先預金+費用各行 / 買方 売上高=売上側合算）にする。
+// 分類の約束はプロファイル（type: settlement）の salePattern / transferPattern
+// （省略時の既定語: '^売上' / '振込み'）。向きは金額の入出で決める:
+//   売上行 = INのうちsalePatternに当たる行（商品代金/税金/配送料ラベル込み）
+//   費用行 = OUT行すべて（広告/FBA/手数料など。科目は学習ルールで決める）
+//   振込行 = INのうちtransferPatternに当たる行（取得できなければ警告して返す。
+//   危うきは勝手に推測しない）
+// 検算（売上合計 = 振込 + 費用合計）が合わないときは警告する（食い違いは
+// 分類の想定違いの兆候。伝票は作らず人に確認させる）
+export const settlementBreakdown = (lines, profile = null) => {
+  const salePattern = String( ( profile && profile.salePattern ) || '^売上' ).trim() || '^売上';
+  const transferPattern = String( ( profile && profile.transferPattern ) || '振込' ).trim() || '振込';
+  const labelOf = (line) => normalizeText(line.rawDescription || line.merchant || line.description || '');
+  const tryPattern = (line, pattern) => {
+    try {
+      return new RegExp(pattern).test(labelOf(line));
+    } catch (e) {
+      return false;
+    }
+  };
+  const isIn = (line) => ( line.amountIn !== null && line.amountIn !== undefined && Number(line.amountIn) !== 0 );
+  const isOut = (line) => ( line.amountOut !== null && line.amountOut !== undefined && Number(line.amountOut) !== 0 );
+  const inLines = lines.filter(isIn);
+  const saleLines = inLines.filter((line) => tryPattern(line, salePattern));
+  const transferLine = inLines.find((line) => tryPattern(line, transferPattern)) || null;
+  const expenseLines = lines.filter(isOut);
+  const leftovers = saleLines.concat(transferLine ? [ transferLine ] : []).length ?
+    inLines.filter((line) => !saleLines.includes(line) && ( line !== transferLine )) : [];
+  const warnings = [];
+  if ( !transferLine ) {
+    warnings.push('振込行を特定できませんでした（計算書の振込額が分からないため伝票にできません）。');
+  }
+  if ( leftovers.length > 0 ) {
+    warnings.push(`${leftovers.length}行が売上にも費用にも分類できませんでした。`);
+  }
+  const sumOf = (list, field) => list.reduce((acc, line) => acc + Number(line[ field ] || 0), 0);
+  const saleTotal = sumOf(saleLines, 'amountIn');
+  const expenseTotal = sumOf(expenseLines, 'amountOut');
+  const transferAmount = transferLine ? Number(transferLine.amountIn) : null;
+  if ( transferLine && ( Math.round(saleTotal) !== Math.round(transferAmount + expenseTotal) ) ) {
+    warnings.push(`検算が合いません（売上 ${saleTotal.toLocaleString()} vs 振込 ${transferAmount.toLocaleString()} + 費用 ${expenseTotal.toLocaleString()}）。分類の想定違いがないか確認してください。`);
+  }
+  return {
+    saleLines: saleLines,
+    expenseLines: expenseLines,
+    transferLine: transferLine,
+    leftovers: leftovers,
+    saleTotal: saleTotal,
+    expenseTotal: expenseTotal,
+    transferAmount: transferAmount,
+    warnings: warnings
+  };
+};
+
 // 起草されたyamlの検証（保存前に必ず通る。壊れたyamlを書き込まない）
 export const validateProfileYaml = (text) => {
   let profile = null;
@@ -612,12 +668,20 @@ export const validateProfileYaml = (text) => {
   if ( !profile.name || typeof profile.name !== 'string' ) {
     return { error: 'name（プロファイル名）が必要です。' };
   }
-  if ( ![ 'bank', 'card' ].includes(profile.type) ) {
-    return { error: `type は bank か card で指定してください（現在: ${profile.type}）。` };
+  if ( ![ 'bank', 'card', 'settlement' ].includes(profile.type) ) {
+    return { error: `type は bank か card か settlement で指定してください（現在: ${profile.type}）。` };
   }
   if ( profile.type === 'bank' ) {
     if ( !profile.detect || !Array.isArray(profile.detect) || profile.detect.length === 0 ) {
       return { error: 'type: bank のプロファイルには detect（ヘッダ語の配列）が必要です。' };
+    }
+  }
+  if ( profile.type === 'settlement' ) {
+    // 伝票化に使う約束科目（省略可）。入るときは数字コードでしかない
+    for ( const key of [ 'saleAccount', 'receivedAccount' ] ) {
+      if ( profile[ key ] && !/^\d+$/.test(String(profile[ key ])) ) {
+        return { error: `${key} は科目コード（数字）で指定してください。` };
+      }
     }
   }
   return { profile: profile };
@@ -679,6 +743,7 @@ export default {
   parseStatement: parseStatement,
   classifyCategory: classifyCategory,
   validateBalances: validateBalances,
+  settlementBreakdown: settlementBreakdown,
   pdfItemsToLines: pdfItemsToLines,
   cardRowsToLines: cardRowsToLines,
   loadMergeDescriptions: loadMergeDescriptions,
