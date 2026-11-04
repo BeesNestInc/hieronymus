@@ -130,23 +130,26 @@ describe('ec settlement (test db)', () => {
     assert.isTrue(breakdown.saleLines.length + breakdown.expenseLines.length + 1 === AMAZON_SETTLEMENT_LINES.length);
   });
 
-  it('breakdown: 分類できない行には警告が出る', () => {
+  it('breakdown: 分類できない行には警告が出る（salePattern指定のとき）', () => {
     const lines = AMAZON_SETTLEMENT_LINES.concat([
       { date: '2026-07-29', rawDescription: '不明な行', amountIn: 100, amountOut: null, memo: null }
     ]);
-    const breakdown = settlementBreakdown(lines);
+    // salePatternを指定したときだけ、当たらない入力行を「分類できない」と拾う
+    // （指定なしだと「振込以外の入金=売上」で拾うので、この警告は出ない）
+    const breakdown = settlementBreakdown(lines, { salePattern: '^売上' });
     assert.equal(breakdown.saleTotal, 141768);
     assert.lengthOf(breakdown.warnings, 1);
     assert.match(breakdown.warnings[ 0 ], /分類できませんでした/);
   });
 
-  it('breakdown: 検算が合わないときは警告を出す', () => {
+  it('breakdown: 検算が合わないときは警告を出す（入れ子の疑いも添える）', () => {
     const lines = AMAZON_SETTLEMENT_LINES.map((line) => (
       line.rawDescription === '純利益の振込み' ? { ...line, amountIn: 39268 } : line
     ));
     const breakdown = settlementBreakdown(lines);
-    assert.lengthOf(breakdown.warnings, 1);
+    assert.lengthOf(breakdown.warnings, 2);
     assert.match(breakdown.warnings[ 0 ], /検算が合いません/);
+    assert.match(breakdown.warnings[ 1 ], /入れ子になった集計行/);
   });
 
   it('validateProfileYaml: settlement プロファイルを受け入れる', () => {
@@ -352,6 +355,63 @@ describe('ec settlement (test db)', () => {
     }
     assert.isOk(thrown);
     assert.match(thrown.message, /計算書の取り込みではありません/);
+  });
+
+  it('settleStatement: include:false の行は伝票から外れ、検算が合う選択なら起票できる', async () => {
+    // Amazon支払明細書のような入れ子を再現する: 費用の内訳に集計行と
+    // その内訳（同額）が両方載る形。合計が合う方だけ選んで起票する
+    currentStatement = await makeStatement();
+    await models.BankStatementLine.create({
+      statementId: currentStatement.id,
+      lineNo: 10,
+      date: '2026-07-29',
+      rawDescription: '支出 FBA手数料（集計行）',
+      description: '支出 FBA手数料（集計行）',
+      amountIn: null, amountOut: 31, balance: null, memo: null,
+      status: 'unmatched',
+      createdBy: data.approver.id, updatedBy: data.approver.id
+    });
+    const lines = await models.BankStatementLine.findAll({
+      where: { statementId: currentStatement.id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    const outLines = lines.filter((line) => ( line.amountOut !== null && line.amountOut !== undefined ));
+    // 全行選ぶと検算が合わない（31円の重複）→ 起票できない
+    let thrown = null;
+    try {
+      await settleStatement(currentStatement, {
+        received: { account: '1010010', subAccount: 1 },
+        sale: { account: '6000000' },
+        lines: outLines.map((line) => ({ lineId: line.id, account: '7000001' }))
+      }, data.approver);
+    } catch (e) {
+      thrown = e;
+    }
+    assert.isOk(thrown);
+    assert.match(thrown.message, /検算が合いません/);
+    // 重複した集計行（FBA手数料=納品+在庫保管の合計に相当する行）を外すと
+    // 検算が合って起票できる
+    const excludeLine = outLines.find((line) => ( line.rawDescription === '支出 FBA手数料（集計行）' ));
+    const result = await settleStatement(currentStatement, {
+      received: { account: '1010010', subAccount: 1 },
+      sale: { account: '6000000' },
+      lines: outLines.map((line) => ({
+        lineId: line.id,
+        account: '7000001',
+        include: ( line.id === excludeLine.id ) ? false : true
+      }))
+    }, data.approver);
+    assert.ok(result.slip.id);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slip.id }
+    });
+    // 預金1+費用5+売上1=7明細（除外した31円の行は載らない）
+    assert.lengthOf(details, 7);
+    const debitSum = details.reduce((acc, d) => acc + Number(d.debitAmount), 0);
+    assert.equal(debitSum, 141768);
+    // 除外した行は未照合のまま
+    await excludeLine.reload();
+    assert.equal(excludeLine.status, 'unmatched');
   });
 
   it('settlementPreview: プロファイルの約束科目が入る（received/sale）', async () => {

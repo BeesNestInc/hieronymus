@@ -6,8 +6,9 @@
 name: Amazon
 type: settlement
 
-# 売上側の行（商品代金/税金/配送料。税込のまま売上高に載せる）
-salePattern: '^売上'
+# 売上行の分類: salePatternを省略すると「振込行以外の入力行はすべて売上」と
+# なり、AI読取のラベルの揺れに強い。明示する場合は '^売上' のように書く
+# salePattern: '^売上'
 # 振込行（純利益の振込み。AI読取の揺れで「純利益」だけに切れることがある）
 transferPattern: '振込|純利益'
 

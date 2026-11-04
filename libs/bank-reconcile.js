@@ -831,8 +831,10 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     order: [[ 'lineNo', 'ASC' ]]
   });
   const breakdown = parser.settlementBreakdown(lines, profile);
-  // 検算が合わない・振込行が特定できないものは起票しない（データを直してから）
-  const blocking = breakdown.warnings.filter((w) => /振込行を特定|検算が合いません/.test(w));
+  // 振込行が特定できないものは起票しない（データを直してから）。
+  // 検算の食い違いは後段の「選択した行での検算」で扱う（入れ子の集計行が
+  // ある計算書では、全行選択では合わないため）
+  const blocking = breakdown.warnings.filter((w) => /振込行を特定/.test(w));
   if ( blocking.length > 0 ) {
     const err = new Error(blocking.join(' '));
     err.name = 'BankReconcileError';
@@ -852,11 +854,17 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     err.name = 'BankReconcileError';
     throw err;
   }
-  // 費用行の科目指定（必須。実科目のみ）
+  // 費用行の科目指定（必須。実科目のみ）。include: false の行は集約を
+  // 構成する入れ子で起票から外す（例: Amazon計算書の支払明細書は
+  // 「FBA 1,447」の集計行とその内訳「納品895+在庫552」が両方載る。
+  // 集計行か内訳かのどちらか一方だけを選べば、検算が合う）
   const bookingMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
   const feeEntries = [];
   for ( const line of breakdown.expenseLines ) {
     const booking = bookingMap.get(line.id);
+    if ( booking && booking.include === false ) {
+      continue;
+    }
     const account = ( booking && booking.account ) ? String(booking.account) : null;
     if ( !account || isTempAccount(account) ) {
       const err = new Error(`費用行「${line.rawDescription || line.description || line.merchant}」の科目が未指定です。実科目を指定してください。`);
@@ -868,6 +876,14 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       account: account,
       subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null
     });
+  }
+  // 検算（借方 = 振込 + 選択費用 / 貸方 = 売上高）。選択の合計が合わない
+  // （入れ子の集計行が重なっている等）ときは起票しない
+  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
+  if ( Math.round(breakdown.transferAmount + enteredFeeTotal) !== Math.round(breakdown.saleTotal) ) {
+    const err = new Error(`検算が合いません（振込 ${Number(breakdown.transferAmount).toLocaleString()} + 選択費用 ${enteredFeeTotal.toLocaleString()} vs 売上 ${Number(breakdown.saleTotal).toLocaleString()}）。起票する行の選択を見直してください。`);
+    err.name = 'BankReconcileError';
+    throw err;
   }
   // 伝票日付は振込行の日付（引数で上書き可。振込日は計算書どおり）
   const dayStr = body.day || ( breakdown.transferLine && breakdown.transferLine.date ) || statement.periodFrom;

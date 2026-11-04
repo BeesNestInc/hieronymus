@@ -454,6 +454,152 @@ const isFragmentNoise = (text) => (
 };
 
 // カード明細PDFの解析（支払日・支払総額をプロファイルの正規表現で抽出）
+// PDFの全ページのテキスト行（計算書の決定的解析に使う）
+const pdfTextLinesOf = async (buffer) => {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const loadingTask = getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
+  const doc = await loadingTask.promise;
+  try {
+    const out = [];
+    for ( let p = 1; p <= doc.numPages; p ++ ) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      out.push(...pdfItemsToLines(content.items));
+    }
+    return out;
+  } finally {
+    await loadingTask.destroy();
+  }
+};
+
+// 計算書（Amazon支払明細書など）のテキスト層から決定的に解析する。
+// 「テキスト層が読める計算書」をカード明細のパーサが拾ってしまうのを防ぐ
+// （振込説明の文章だけが行になり、AIフォールバックも発火しない事故）。
+// シグネチャ（支払明細書+純利益）が読めなければ null を返す（他の書式と
+// 判定はしない。危うきは適用しない）
+export const parseSettlementTextLines = (pdfLines) => {
+  const lines = pdfLines.map((l) => normalizeText(l.text)).filter((t) => t);
+  if ( !lines.some((l) => /支払明細書/.test(l)) || !lines.some((l) => /純利益/.test(l)) ) {
+    return null;
+  }
+  const out = [];
+  const warnings = [];
+  const pickAmount = (s) => {
+    const m = s.match(/[\u00a5￥]?-?([\d,]+)/);
+    return m ? Number(m[1].replace(/,/g, '')) : null;
+  };
+  // 純利益・売上・支出の集計行と、そこに続く内訳の行を整理する
+  // 売上 ￥177,941 → 集計（スキップ）。商品代金 ￥158,998 → 売上行
+  // 支出 -￥66,223 → 集計（スキップ）。プロモーション割引額 -￥1,240 → 費用行
+  let section = null;   // 'sale' | 'expense'
+  let transferLine = null;
+  let transferDate = null;
+  let transferAmount = null;
+  let bankMemo = null;
+  for ( const raw of lines ) {
+    const line = raw;
+    if ( /^期首残高/.test(line) ) {
+      continue;
+    }
+    if ( /^売上\s*[\u00a5￥]/.test(line) ) {
+      section = 'sale';
+      continue;
+    }
+    if ( /^支出\s*[\u00a5￥-]/.test(line) ) {
+      section = 'expense';
+      continue;
+    }
+    if ( /^純利益/.test(line) ) {
+      transferAmount = pickAmount(line);
+      if ( transferAmount === null ) {
+        warnings.push('純利益（振込額）の金額が読めませんでした。');
+        continue;
+      }
+      // 金額とラベルを分離以（純利益 ￥111,718 → 摘要=純利益）
+      const label = line.replace(/[\u00a5￥][\d,]+.*/, '').trim() || '純利益';
+      transferLine = {
+        date: transferDate,
+        rawDescription: label,
+        merchant: label,
+        amountIn: transferAmount,
+        amountOut: null,
+        balance: null,
+        memo: null
+      };
+      continue;
+    }
+    const repayment = line.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})に、.*?口座へ./);
+    if ( repayment ) {
+      const yy = Number(repayment[1]);
+      const mm = String(Number(repayment[2])).padStart(2, '0');
+      const dd = String(Number(repayment[3])).padStart(2, '0');
+      transferDate = `${yy}-${mm}-${dd}`;
+      if ( transferLine ) {
+        transferLine.date = transferDate;
+      }
+      continue;
+    }
+    if ( /^銀行振込ID/.test(line) ) {
+      bankMemo = ( bankMemo ? bankMemo + ' ' : '' ) + raw.trim();
+      if ( transferLine ) {
+        transferLine.memo = bankMemo;
+      }
+      continue;
+    }
+    // 内訳行（ラベル ￥額 / ラベル -￥額）。売上・支出それぞれの集計の後。
+    // 文章の残骸（振込日程の文・URLなど）に数字つきのものがあり、拾って
+    // しまうと検算が壊れる。ラベル（数字を含まない）+行末に￥額の形だけを
+    // 内訳として採用する
+    if ( section ) {
+      const item = line.match(/^([^0-9\-\u00a5￥\/:]+?)[\s]*[\-–][\u00a5￥][\d,]+$|^(.+?)[\s]*[\u00a5￥][\d,]+$/);
+      const label = ( item ? ( item[1] || item[2] ).replace(/[\-–\s]+$/, '').trim() : null );
+      const amountAtEnd = line.match(/([\-–]?[\u00a5￥][\d,]+)$/);
+      if ( !label || !amountAtEnd ) {
+        continue;
+      }
+      const negative = /^[\-–]/.test(amountAtEnd[1]);
+      const amount = pickAmount(line);
+      if ( amount === null ) {
+        continue;
+      }
+      if ( section === 'expense' && !negative ) {
+        // 支出の内訳はマイナス表記が原則。正向きの数字は別の文書領域の残骸
+        continue;
+      }
+      out.push({
+        date: null,
+        rawDescription: `${section === 'sale' ? '売上' : '支出'} ${label}`,
+        merchant: `${section === 'sale' ? '売上' : '支出'} ${label}`,
+        amountIn: section === 'sale' ? amount : null,
+        amountOut: section === 'expense' ? amount : null,
+        balance: null,
+        category: section === 'sale' ? 'normal' : 'fee',
+        memo: null
+      });
+      continue;
+    }
+  }
+  if ( !transferLine ) {
+    return null;
+  }
+  // 振込予定文（2025/8/12に…振込み）が取れたら全行の日付を振込日に。
+  // 計算書の伝票日付は振込日（送金の動く日）が暦として正
+  if ( transferDate ) {
+    for ( const line of out ) {
+      line.date = transferDate;
+    }
+  } else {
+    warnings.push('振込日の記載が読めませんでした（伝票日付は画面で指定してください）。');
+  }
+  return {
+    lines: out.concat([ transferLine ]),
+    total: transferAmount,
+    payDate: transferDate,
+    warnings: warnings,
+    profileName: null
+  };
+};
+
 const parseCardPdf = async (buffer, profile) => {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const loadingTask = getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
@@ -508,21 +654,36 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
   const type = String(mimeType || '').toLowerCase();
   let parsed = null;
   let profile = null;
+  let settlementPdf = false;
   if ( /pdf/.test(type) ) {
-    // カード明細PDF。プロファイルは全カード分から検出に使える
-    profile = profiles.find((p) => ( p.type === 'card' )) || null;
-    parsed = await parseCardPdf(buffer, profile);
-    // テキスト層が実質ないPDF（ベクタ字形・数字だけのエポスカード等）は
-    // 利用行が組み立てられない。AIが使えるなら画像へ落として通帳OCRにまわす
-    if ( parsed.lines.length === 0 ) {
-      const vision = await import('./vision.js');
-      if ( vision.isAvailable() ) {
-        const ocr = await vision.extractStatement(buffer, mimeType);
-        parsed = { lines: ocr.lines, total: null, payDate: null,
-          warnings: [ ...parsed.warnings, ...ocr.warnings ] };
-        parsed.warnings.push('PDFのテキストが取れないため、画像としてAI読み取りしました。');
-      } else {
-        parsed.warnings.push('PDFのテキストが取れず、AIも未設定のため読み取れません（config/llms.yaml）。');
+    // 計算書（Amazonの支払明細書等）はテキスト層が読めるものがある。
+    // 決定的に解析できる（カード明細パーサが振込説明の文章だけを拾って
+    // 「読み取れない」状態になる事故を防ぐ。2025-08計算書で発生）
+    try {
+      const settlementText = parseSettlementTextLines(await pdfTextLinesOf(buffer));
+      if ( settlementText ) {
+        parsed = settlementText;
+        settlementPdf = true;
+      }
+    } catch (e) {
+      // テキスト層が無い/破損PDFは従来の経路へ落ちる
+    }
+    if ( !settlementPdf ) {
+      // カード明細PDF。プロファイルは全カード分から検出に使える
+      profile = profiles.find((p) => ( p.type === 'card' )) || null;
+      parsed = await parseCardPdf(buffer, profile);
+      // テキスト層が実質ないPDF（ベクタ字形・数字だけのエポスカード等）は
+      // 利用行が組み立てられない。AIが使えるなら画像へ落として通帳OCRにまわす
+      if ( parsed.lines.length === 0 ) {
+        const vision = await import('./vision.js');
+        if ( vision.isAvailable() ) {
+          const ocr = await vision.extractStatement(buffer, mimeType);
+          parsed = { lines: ocr.lines, total: null, payDate: null,
+            warnings: [ ...parsed.warnings, ...ocr.warnings ] };
+          parsed.warnings.push('PDFのテキストが取れないため、画像としてAI読み取りしました。');
+        } else {
+          parsed.warnings.push('PDFのテキストが取れず、AIも未設定のため読み取れません（config/llms.yaml）。');
+        }
       }
     }
   } else if ( /^image\//.test(type) ) {
@@ -549,7 +710,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
     parsed.warnings.push('明細行を読み取れませんでした。');
   }
   return {
-    kind: ( profile && profile.type === 'card' ) ? 'corporate_card' : ( profile && profile.type === 'settlement' ) ? 'settlement' : 'bank',
+    kind: settlementPdf ? 'settlement' : ( profile && profile.type === 'card' ) ? 'corporate_card' : ( profile && profile.type === 'settlement' ) ? 'settlement' : 'bank',
     profileName: ( profile && profile.name ) || null,
     lines: parsed.lines,
     total: parsed.total,
@@ -614,7 +775,10 @@ export const evidenceText = async (buffer, mimeType) => {
 // 「純利益」だけに切れることがある（実データ2025-07-29で発生）ので両方を見る
 export const DEFAULT_TRANSFER_PATTERN = '振込|純利益';
 export const settlementBreakdown = (lines, profile = null) => {
-  const salePattern = String( ( profile && profile.salePattern ) || '^売上' ).trim() || '^売上';
+  // salePatternを指定したときだけ「売上行はこれに当たる行」と厳格に判定する
+  // （指定がないときは「振込行以外の入力行=売上」で判定する。Amazon計算書の
+  // ようにAI読取のラベルに揺れがある書式ではこちらが壊れにくい）
+  const salePattern = ( profile && profile.salePattern ) ? String(profile.salePattern).trim() : null;
   // 振込行を引く既定語。Amazon計算書は「純利益の振込み」だが、AI読取の揺れで
   // 「純利益」だけに切れることがある（実データ2025-07-29で発生）ので両方を見る
   const transferPattern = String( ( profile && profile.transferPattern ) || DEFAULT_TRANSFER_PATTERN ).trim() || DEFAULT_TRANSFER_PATTERN;
@@ -629,10 +793,13 @@ export const settlementBreakdown = (lines, profile = null) => {
   const isIn = (line) => ( line.amountIn !== null && line.amountIn !== undefined && Number(line.amountIn) !== 0 );
   const isOut = (line) => ( line.amountOut !== null && line.amountOut !== undefined && Number(line.amountOut) !== 0 );
   const inLines = lines.filter(isIn);
-  const saleLines = inLines.filter((line) => tryPattern(line, salePattern));
   const transferLine = inLines.find((line) => tryPattern(line, transferPattern)) || null;
+  const salableIn = inLines.filter((line) => line !== transferLine);
+  const saleLines = salableIn.filter((line) => ( !salePattern || tryPattern(line, salePattern) ));
   const expenseLines = lines.filter(isOut);
-  const leftovers = saleLines.concat(transferLine ? [ transferLine ] : []).length ?
+  // salePatternの指定があるときだけ未分類の入力行を拾う（指定なしだと
+  // 「振込以外の入金はすべて売上」なので拾うべき行がない）
+  const leftovers = ( salePattern ) ?
     inLines.filter((line) => !saleLines.includes(line) && ( line !== transferLine )) : [];
   const warnings = [];
   if ( !transferLine ) {
@@ -647,6 +814,12 @@ export const settlementBreakdown = (lines, profile = null) => {
   const transferAmount = transferLine ? Number(transferLine.amountIn) : null;
   if ( transferLine && ( Math.round(saleTotal) !== Math.round(transferAmount + expenseTotal) ) ) {
     warnings.push(`検算が合いません（売上 ${saleTotal.toLocaleString()} vs 振込 ${transferAmount.toLocaleString()} + 費用 ${expenseTotal.toLocaleString()}）。分類の想定違いがないか確認してください。`);
+    if ( expenseTotal > saleTotal - transferAmount ) {
+      // 費用の内訳の合計が（売上-振込）を超えていると、入れ子の集計行と
+      // 内訳の両方を拾っている疑いがある（Amazonの支払明細書は、集計行
+      // 「FBA 1,447」とその内訳「納品895+在庫保管552」が並んで載る）
+      warnings.push('費用の内訳の合計が(売上-振込)を超えています。入れ子になった集計行（例: FBA=納品+在庫保管）を含めている可能性があります。伝票化する行を選んでください。');
+    }
   }
   return {
     saleLines: saleLines,

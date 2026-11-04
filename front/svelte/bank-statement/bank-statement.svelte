@@ -98,14 +98,24 @@
         <div class="mt-1">
           {#each ( settlement.suggestions || [] ) as s}
           <div class="row g-1 align-items-center mb-1">
+            <div class="col-auto">
+              <input type="checkbox" class="form-check-input" bind:checked={settleFeeInclude[s.lineId]}
+                title="この行を伝票に載せる（外した行は費用として起票しません。集計行と内訳が両方載る計算書では重複の方を外します）">
+            </div>
             <div class="col-auto" style="min-width:280px;">{s.label} <b>{Number(s.amount).toLocaleString()}</b>円</div>
             <div class="col-auto"><Account accounts={oppositeAccounts}
               bind:code={settleFeeAccounts[s.lineId].account}
               bind:sub_code={settleFeeAccounts[s.lineId].subAccount}></Account></div>
           </div>
           {/each}
-          <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady}
-            title="計算書の内容を1枚の複合伝票（借方: 預金+費用 / 貸方: 売上高）にして、承認待ちで起票します"
+          <div class="mt-1 {settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
+            振込 {Number(settlement.transferAmount || 0).toLocaleString()} + 選択費用 {settleFeeTotal.toLocaleString()} =
+            {( Number(settlement.transferAmount || 0) + settleFeeTotal ).toLocaleString()}円
+            （売上合計 {Number(settlement.saleTotal).toLocaleString()}円）
+            {#if ( settleBalanceOk )}✓ 貸借一致{/if}
+          </div>
+          <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady || !settleBalanceOk}
+            title="計算書の内容を1枚の複合伝票（借方: 預金+費用 / 貸方: 売上高）にして、承認待ちで起票します。検算が合うまで押せません"
             on:click={runSettle}><i class="bi bi-sticky me-1"></i>1伝票にして起票</button>
         </div>
       </div>
@@ -1447,6 +1457,7 @@ let settleReceivedSubAccount = '';
 let settleSaleAccount = '';
 let settleSaleSubAccount = '';
 let settleFeeAccounts = {};     // lineId → {account, subAccount} 費用行の指定
+let settleFeeInclude = {};      // lineId → boolean（false=伝票に載せない。入れ子の集計行を外す）
 
 // 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
 $: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
@@ -1458,6 +1469,7 @@ $: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] ).every((s
 const applySettlement = (data) => {
   settlement = data || null;
   settleFeeAccounts = {};
+  settleFeeInclude = {};
   if ( !settlement ) {
     return;
   }
@@ -1471,10 +1483,21 @@ const applySettlement = (data) => {
       account: s.account || '',
       subAccount: ( s.subAccount === 0 ) ? 0 : ( s.subAccount || '' )
     };
+    settleFeeInclude[s.lineId] = true;
   }
 };
+// 選択行での検算（借方 = 振込 + 選択費用 / 貸方 = 売上合計）。
+// 集計行と内訳が両方載る計算書（Amazon支払明細書の FBA=納品+在庫 等）では
+// 重複の方を外せば合う。合わないものは起票させない
+$: settleIncludedFees = ( settlement && settlement.suggestions || [] )
+  .filter((s) => settleFeeInclude[s.lineId] !== false);
+$: settleFeeTotal = settleIncludedFees.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+$: settleBalanceOk = settlement && settlement.transferAmount !== null &&
+  ( Number(settlement.transferAmount) + settleFeeTotal ) === Number(settlement.saleTotal);
 const runSettle = async () => {
-  const missing = ( settlement.suggestions || [] ).filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+  const missing = ( settlement.suggestions || [] )
+    .filter((s) => ( settleFeeInclude[s.lineId] !== false ))
+    .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
   if ( !settleReceivedAccount ) {
     toast.show('計算書', '入金先（借方の預金）の科目を指定してください。', 'warning');
     return;
@@ -1498,8 +1521,9 @@ const runSettle = async () => {
       sale: { account: settleSaleAccount, subAccount: settleSaleSubAccount || null },
       lines: ( settlement.suggestions || [] ).map((s) => ({
         lineId: s.lineId,
-        account: settleFeeAccounts[s.lineId].account,
-        subAccount: settleFeeAccounts[s.lineId].subAccount || null
+        account: ( settleFeeAccounts[s.lineId] || {} ).account,
+        subAccount: ( ( settleFeeAccounts[s.lineId] || {} ).subAccount ) || null,
+        include: settleFeeInclude[s.lineId] !== false
       }))
     });
     if ( result.data && result.data.code === 0 ) {
