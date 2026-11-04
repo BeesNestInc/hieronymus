@@ -67,8 +67,18 @@ html {
 }
 
 body {
-  height: 100%;
+  min-height: 100%;
   margin: 0;
+  /* ヘッダ+メイン+フッタの縦並び。メインが伸びて足りない分を埋めるので、
+     内容の少ないページでもフッタが画面下端に付く（フッタが起因で
+     画面が無駄に長くなるのを防ぐ） */
+  display: flex;
+  flex-direction: column;
+}
+
+.main-header,
+.main-footer {
+  flex: none;
 }
 
 .full-height-1 {
@@ -126,10 +136,26 @@ body {
 
 .container,
 .content-wrapper {
-  height: 100%;
   font-size: 12pt;
   width: auto;
   max-width: none;
+}
+
+/* メインは画面の残りいっぱいに伸びる（フッタの上の隙間を埋める） */
+.content-wrapper {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-wrapper > .container-fluid {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-wrapper .content {
+  flex: 1 1 auto;
 }
 
 .content {
