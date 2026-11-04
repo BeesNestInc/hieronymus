@@ -39,7 +39,7 @@
   <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
   {/if}
   {#if ( warnings && warnings.length > 0 )}
-  <MessagePanel messages={warnings} title="取込の警告" on:dismiss={dismissWarnings} />
+  <MessagePanel messages={currentWarnings} title="取込の警告" on:dismiss={dismissWarnings} />
   {/if}
   <div class="d-flex align-items-center mb-2" title="この通帳のメモ（科目管理でどの通帳かの参照を含めて表示する）">
     <label class="me-2" style="font-size:0.85rem;">メモ</label>
@@ -1518,8 +1518,12 @@ let settleFeeInclude = {};      // lineId → boolean（false=伝票に載せな
 // 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
 $: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
-// 費用行に科目が全部入ったか（承認制: 空では起票させない）
-$: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] ).every((s) => (
+// 費用行に科目が全部入ったか（承認制: 空では起票させない）。
+// 判定は「伝票に載せる（チェック済み）行」だけでよい。外した行は起票対象外
+// なので科目が無くてもよく、これを要求すると外した行で起票ボタンが死ぬ
+$: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] )
+  .filter((s) => ( settleFeeInclude[ s.lineId ] !== false ))
+  .every((s) => (
   ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account
 ));
 // 伝票に載せる（=チェックが入っている）費用行のうち科目が未指定のもの。
@@ -1788,6 +1792,15 @@ const openRulesModal = async (line = null, financial = null) => {
   }
   rulesModal.show();
 };
+// 取込時の検算警告は、費用行の選択（入れ子の集計行を外す等）で解消することが
+// ある。現行の選択で検算が合っているなら、検算系の警告の再表示は
+// 「合っているのに合わないと言われ続ける」混乱しか生まないので非表示にする
+// （残高不一致など他種の警告はそのまま出す）
+$: currentWarnings = ( statement && statement.kind === 'settlement' && settlement &&
+      settleBalanceOk && settlement.transferAmount !== null && Array.isArray(warnings) ) ?
+    warnings.filter((w) => !( /検算が合いません|費用の内訳の合計/.test(String(w)) )) :
+    ( Array.isArray(warnings) ? warnings : [] );
+
 // 学習済み提案（相手方表示）と行状態は、ルール変更を反映するために
 // 明細取込詳細へ再適用できるようにする。ルールモーダルを閉じた時に使う。
 // 対象は銀行明細（oppositeSuggestions）と計算書（settlement の費用行候補
