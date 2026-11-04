@@ -1,3 +1,5 @@
+<svelte:window on:beforeunload={saveSettleDraft} />
+
 <div class="page-title d-flex justify-content-between">
   <h1>明細取込</h1>
   <div>
@@ -100,6 +102,7 @@
           <div class="row g-1 align-items-center mb-1">
             <div class="col-auto">
               <input type="checkbox" class="form-check-input" bind:checked={settleFeeInclude[s.lineId]}
+                on:change={saveSettleDraft}
                 title="この行を伝票に載せる（外した行は費用として起票しません。集計行と内訳が両方載る計算書では重複の方を外します）">
             </div>
             <div class="col-auto" style="min-width:280px;">
@@ -140,6 +143,11 @@
           {#if ( settlement.transferAmount === null )}
           <div class="small text-danger">振込行を特定できません（AI読取のラベル揺れ。計算書データを確認してください）。</div>
           {/if}
+          <div class="text-muted" style="font-size:0.7rem;">
+            ※チェック（載せる/外す）と科目の選択はこの取込の作業下書きです（このブラウザに保存され、reload でも消えません）。
+            この内容を確定するのが「1伝票にして起票」、摘要と科目の組を確定するのが「ルール登録」です。
+            学習ルール一覧（学習ルールダイアログ）にはルールのみ表示されます。
+          </div>
           <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady || !settleBalanceOk}
             title={( busy ) ? '処理中です' :
               ( ( !settleFeesReady || !settleBalanceOk ) ? `押せません: ${settleDisabledReason}` :
@@ -1575,17 +1583,53 @@ const registerFeeRule = async (s) => {
     toast.show('計算書', message, 'warning');
   }
 };
+// 計算書パネルの選択状態（対象外チェック・手選択科目）は、この取込の「作業下書き」と
+// して sessionStorage に保持する。ページ reload で外したチェックが復活しないように
+// するため（ダイアログの学習ルールとは別物。ルールの確定はルール登録/起票で行う）
+const settleDraftKey = (sid) =>  `bank-statement-settle-draft-${sid}`;
+const loadSettleDraft = (sid) =>  {
+  try {
+    const raw = sessionStorage.getItem(settleDraftKey(sid));
+    return  ( raw ) ? JSON.parse(raw) : null;
+  } catch {
+    return  null;
+  }
+};
+const saveSettleDraft = () =>  {
+  try {
+    if  ( !statement || !settlement )  return;
+    const picks = {};
+    const includes = {};
+    for  ( const s of ( settlement.suggestions || [] ) )  {
+      const pick = settleFeeAccounts[ s.lineId ] || {};
+      picks[ s.lineId ] = { account: pick.account || '', subAccount: pick.subAccount || '' };
+      includes[ s.lineId ] = ( settleFeeInclude[ s.lineId ] !== false );
+    }
+    sessionStorage.setItem(settleDraftKey(statement.id), JSON.stringify({ picks, includes }));
+  } catch {}
+};
+const clearSettleDraft = () =>  {
+  try {
+    if  ( statement )  sessionStorage.removeItem(settleDraftKey(statement.id));
+  } catch {}
+};
+
 const applySettlement = (data) => {
   // 手選択の保持: ルール変更の即反映（closing時の取り直し）や reload が
   // 手選択/チェック状態を消さないように、以前の選択を引き継ぐ。
-  // サーバ側からルール付きの候補が来た場合はそちらを優先する
-  // （ルールが登録された行は、ルールの科目に正しい状態として寄せる）
-  const prevPicks = settleFeeAccounts;
-  const prevIncludes = settleFeeInclude;
+  // 1) 同じページ内の取り直しはメモリ上の状態を優先
+  // 2) reload 直後（メモリが空）は sessionStorage の下書きを復元
+  // 3) サーバ側からルール付きの候補が来た場合はそちらを最優先
+  //  （ルールが登録された行は、ルールの科目に正しい状態として寄せる）
+  const hadMemory = ( settleFeeAccounts && Object.keys(settleFeeAccounts).length > 0 ) ||
+    ( settleFeeInclude && Object.keys(settleFeeInclude).length > 0 );
+  const prevPicks = hadMemory ? settleFeeAccounts : null;
+  const prevIncludes = hadMemory ? settleFeeInclude : null;
+  const draft = ( !hadMemory && statement ) ? loadSettleDraft(statement.id) : null;
   settlement = data || null;
   settleFeeAccounts = {};
   settleFeeInclude = {};
-  if ( !settlement ) {
+  if  ( !settlement )  {
     return;
   }
   settleDay = settlement.transferDate || statement.periodFrom || '';
@@ -1593,15 +1637,18 @@ const applySettlement = (data) => {
   settleReceivedSubAccount = ( settlement.received && settlement.received.subAccount ) || '';
   settleSaleAccount = ( settlement.sale && settlement.sale.account ) || '';
   settleSaleSubAccount = ( settlement.sale && settlement.sale.subAccount ) || '';
-  for ( const s of ( settlement.suggestions || [] ) ) {
+  for  ( const s of ( settlement.suggestions || [] ) )  {
     const prevPick = prevPicks ? ( prevPicks[ s.lineId ] || {} ) : {};
     const prevInclude = prevIncludes ? prevIncludes[ s.lineId ] : undefined;
+    const draftPick = ( draft && draft.picks ) ? ( draft.picks[ s.lineId ] || {} ) : {};
+    const draftInclude = ( draft && draft.includes ) ? draft.includes[ s.lineId ] : undefined;
     settleFeeAccounts[ s.lineId ] = {
-      account: s.account || prevPick.account || '',
+      account: s.account || prevPick.account || draftPick.account || '',
       subAccount: ( s.account && s.subAccount === 0 ) ? 0 :
-        ( s.account ? ( s.subAccount || '' ) : ( prevPick.subAccount || '' ) )
+        ( s.account ? ( s.subAccount || '' ) : ( prevPick.subAccount || ( draftPick.subAccount || '' ) ) )
     };
-    settleFeeInclude[ s.lineId ] = ( prevInclude !== undefined ) ? prevInclude : true;
+    settleFeeInclude[ s.lineId ] = ( prevInclude !== undefined ) ? prevInclude :
+      ( ( draftInclude !== undefined ) ? draftInclude : true );
   }
 };
 // 選択行での検算（借方 = 振込 + 選択費用 / 貸方 = 売上合計）。
@@ -1646,6 +1693,7 @@ const runSettle = async () => {
     });
     if ( result.data && result.data.code === 0 ) {
       toast.show('計算書', '計算書を複合伝票に起票しました（承認待ち）。通帳の振込行はこの伝票の預金明細と照合できます');
+      clearSettleDraft();
       applySettlement(result.data.settlement);
       statement = Object.assign({}, statement, { lines: result.data.lines });
     } else {
