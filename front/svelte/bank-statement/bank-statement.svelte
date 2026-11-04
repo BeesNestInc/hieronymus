@@ -1549,22 +1549,35 @@ const registerFeeRule = async (s) => {
     return;
   }
   try {
-    await axios.post('/api/bank_statement_rule', {
+    const result = await axios.post('/api/bank_statement_rule', {
       financialId: statement.financialId,
       direction: 'out',
       pattern: s.label,
       oppositeAccount: pick.account,
       oppositeSubAccount: pick.subAccount || null
     });
+    // 権限不足等は HTTP 200 + code≠0 で返る（例外にならない）ため必ず確認する
+    if ( !( result.data && result.data.code === 0 ) ) {
+      const message = result.data?.message || `登録に失敗しました（code=${result.data?.code}）`;
+      toast.show('計算書', message, 'warning');
+      return;
+    }
     s.account = pick.account;
     s.subAccount = pick.subAccount || null;
     toast.show('計算書', `「${s.label}」を学習ルールに登録しました（次回取込から自動で反映します）`);
   } catch (e) {
+    console.error('register fee rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || 'ルール登録に失敗しました';
     toast.show('計算書', message, 'warning');
   }
 };
 const applySettlement = (data) => {
+  // 手選択の保持: ルール変更の即反映（closing時の取り直し）や reload が
+  // 手選択/チェック状態を消さないように、以前の選択を引き継ぐ。
+  // サーバ側からルール付きの候補が来た場合はそちらを優先する
+  // （ルールが登録された行は、ルールの科目に正しい状態として寄せる）
+  const prevPicks = settleFeeAccounts;
+  const prevIncludes = settleFeeInclude;
   settlement = data || null;
   settleFeeAccounts = {};
   settleFeeInclude = {};
@@ -1577,11 +1590,14 @@ const applySettlement = (data) => {
   settleSaleAccount = ( settlement.sale && settlement.sale.account ) || '';
   settleSaleSubAccount = ( settlement.sale && settlement.sale.subAccount ) || '';
   for ( const s of ( settlement.suggestions || [] ) ) {
-    settleFeeAccounts[s.lineId] = {
-      account: s.account || '',
-      subAccount: ( s.subAccount === 0 ) ? 0 : ( s.subAccount || '' )
+    const prevPick = prevPicks ? ( prevPicks[ s.lineId ] || {} ) : {};
+    const prevInclude = prevIncludes ? prevIncludes[ s.lineId ] : undefined;
+    settleFeeAccounts[ s.lineId ] = {
+      account: s.account || prevPick.account || '',
+      subAccount: ( s.account && s.subAccount === 0 ) ? 0 :
+        ( s.account ? ( s.subAccount || '' ) : ( prevPick.subAccount || '' ) )
     };
-    settleFeeInclude[s.lineId] = true;
+    settleFeeInclude[ s.lineId ] = ( prevInclude !== undefined ) ? prevInclude : true;
   }
 };
 // 選択行での検算（借方 = 振込 + 選択費用 / 貸方 = 売上合計）。
@@ -1939,13 +1955,19 @@ const registerCandidate = async (candidate) => {
     return;
   }
   try {
-    await axios.post('/api/bank_statement_rule', {
+    const result = await axios.post('/api/bank_statement_rule', {
       financialId: statement.financialId,
       direction: candidate.direction,
       pattern: candidate.pattern,
       oppositeAccount: candidate.suggestAccount,
       oppositeSubAccount: candidate.suggestSubAccount || null
     });
+    // 権限不足等は HTTP 200 + code≠0 で返る（例外にならない）ため必ず確認する
+    if ( !( result.data && result.data.code === 0 ) ) {
+      const message = result.data?.message || `登録に失敗しました（code=${result.data?.code}）`;
+      toast.show('学習ルール', message, 'warning');
+      return;
+    }
     ruleCandidates = ruleCandidates.filter((c) => (
       !( c.pattern === candidate.pattern && c.direction === candidate.direction )
     ));
