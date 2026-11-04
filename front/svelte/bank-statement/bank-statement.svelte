@@ -1689,9 +1689,32 @@ const openRulesModal = async (line = null, financial = null) => {
   }
   rulesModal.show();
 };
+// 学習済み提案（相手方表示）と行状態は、ルール変更を反映するために
+// 明細取込詳細へ再適用できるようにする。ルールモーダルを閉じた時に使う。
+// loadDetail は通帳種別毎の他 state（settlement/card等）を差し替えるので、
+// ここでは提案+行の差し替えに留める（ユーザーが触れるヘッダ編集を壊さない）
+const refreshLineSuggestions = async () => {
+  if ( !statement || statement.kind !== 'bank' || !id ) {
+    return;
+  }
+  try {
+    const result = await axios.get(`/api/bank_statement/${id}`);
+    const next = ( result.data && result.data.statement ) ? result.data : null;
+    if ( !next ) return;
+    statement.lines = next.statement.lines;
+    applyOppositeSuggestions(next.oppositeSuggestions);
+  } catch (e) {
+    console.error('refresh opposite suggestions failed', e);
+  }
+};
+
 const closeRulesModal = () => {
   originLine = null;
   rulesModal?.hide();
+  // モーダルは data-bs-backdrop=static で、全ての閉じ経路がここを通る。
+  // ルール（AI候補の登録を含む）で変わった学習済み提案・行状態を、
+  // 元の取込詳細に反映する
+  refreshLineSuggestions();
 };
 
 const ruleOppositeLabel = (rule) => {
