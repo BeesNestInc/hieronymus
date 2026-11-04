@@ -114,8 +114,26 @@
             （売上合計 {Number(settlement.saleTotal).toLocaleString()}円）
             {#if ( settleBalanceOk )}✓ 貸借一致{/if}
           </div>
+          {#if ( !settleBalanceOk && settleAdjust !== null )}
+          <div class="small text-danger">
+            検算が合いません（差額 {settleAdjust}円）。入れ子の集計行
+            （Amazon支払明細書の「FBA=納品+在庫保管」など）が重複して載っている場合は、
+            重複の方のチェックを外してください。あてはまらない行は外しても構いません。
+          </div>
+          {/if}
+          {#if ( !settleFeesReady && settleMissing.length > 0 )}
+          <div class="small text-danger">
+            費用行の科目が未指定です: {settleMissing.map((s) => s.label).join(' / ') }。
+            学習ルールに無い摘要は、この行の科目を手で選ぶか、学習ルールを登録してください。
+          </div>
+          {/if}
+          {#if ( settlement.transferAmount === null )}
+          <div class="small text-danger">振込行を特定できません（AI読取のラベル揺れ。計算書データを確認してください）。</div>
+          {/if}
           <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady || !settleBalanceOk}
-            title="計算書の内容を1枚の複合伝票（借方: 預金+費用 / 貸方: 売上高）にして、承認待ちで起票します。検算が合うまで押せません"
+            title={( busy ) ? '処理中です' :
+              ( ( !settleFeesReady || !settleBalanceOk ) ? `押せません: ${settleDisabledReason}` :
+                '計算書の内容を1枚の複合伝票（借方: 預金+費用 / 貸方: 売上高）にして、承認待ちで起票します' )}
             on:click={runSettle}><i class="bi bi-sticky me-1"></i>1伝票にして起票</button>
         </div>
       </div>
@@ -954,8 +972,9 @@ const linkDeposit = async (suggestion) => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `紐付けに失敗しました${status}`;
     toast.show('通帳', message, 'warning');
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 const goList = () => {
@@ -1238,8 +1257,9 @@ const doPreview = async () => {
     }
   } catch (e) {
     formError = ( e.response && e.response.data && e.response.data.message ) || '読み取りに失敗しました。';
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 // AIにプロファイルyamlを起草させる。応答は自動検証（同じファイルでの
@@ -1326,8 +1346,9 @@ const doUpload = async () => {
     }
   } catch (e) {
     formError = ( e.response && e.response.data && e.response.data.message ) || '取り込みに失敗しました。';
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 const runMatch = async () => {
@@ -1341,8 +1362,9 @@ const runMatch = async () => {
     toast.show('明細取込', `${result.data.matched}行を突合しました`);
   } catch (e) {
     toast.show('明細取込', '突合に失敗しました', 'warning');
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 // 行に単独起票できるか（相手方の決定はサーバ側でルール→仮に落ちる）
@@ -1400,8 +1422,9 @@ const runBook = async (givenBookings = null) => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `起票に失敗しました${status}`;
     toast.show('明細取込', message, 'warning');
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 // この明細の伝票を作る。「起票」は伝票画面を開く（下書き）で、
@@ -1458,8 +1481,9 @@ const runRebook = async () => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `再実行に失敗しました${status}`;
     toast.show('明細取込', message, 'warning');
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 // === 計算書（kind: settlement）の伝票化 UI（1計算書 = 1複合伝票） ===
@@ -1482,6 +1506,22 @@ $: settlementBooked = settlement && statement && ( statement.lines || [] ).lengt
 $: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] ).every((s) => (
   ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account
 ));
+// 伝票に載せる（=チェックが入っている）費用行のうち科目が未指定のもの。
+// 押せない理由を画面に出すため
+$: settleMissing = ( ( settlement && settlement.suggestions ) || [] )
+  .filter((s) => ( settleFeeInclude[s.lineId] !== false ))
+  .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+// 検算差（振込 + 選択費用 - 売上合計）。0 だけが起票可。
+// 伝票化しない費用行（入れ子の集計行等）はチェックを外して差し引く
+$: settleAdjust = ( settlement && settlement.transferAmount !== null ) ?
+  ( Number(settlement.transferAmount || 0) + settleFeeTotal - Number(settlement.saleTotal) ) : null;
+$: settleDisabledReason = ( !settlement ) ? '' :
+  ( ( !settleFeesReady ) ?
+      `費用行の科目が未指定です（${settleMissing.map((s) => s.label).join(' / ')}）` :
+    ( settlement.transferAmount === null ?
+        '振込行を特定できません（振込額が分かりません）' :
+      ( !settleBalanceOk ?
+          `検算が合いません（差額 ${settleAdjust}円）` : '' ) ));
 const applySettlement = (data) => {
   settlement = data || null;
   settleFeeAccounts = {};
@@ -1555,8 +1595,9 @@ const runSettle = async () => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `伝票化に失敗しました${status}`;
     toast.show('計算書', message, 'warning');
+  } finally {
+    busy = false;
   }
-  busy = false;
 };
 
 // 行の方向（出金/入金）。同じ摘要でも入金と出金で相手方は別ルール。
