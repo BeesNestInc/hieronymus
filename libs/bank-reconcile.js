@@ -944,11 +944,13 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     throw err;
   }
   const finName = statement.cardName || '';
-  // 複合伝票の明細行。行は貸借セットで組む（借:普通預金/貸:売上高、
-  // 借:費用/貸:売上高 …）。ルール（摘要→相手方仕訳）が「1行=貸借ペア」の
-  // 呈示であることと計算書伝票の体裁を合わせ、片脚0行を生まない
+  // 複合伝票の明細行。第1行は 借:入金先預金（振込額）と 貸:売上高（売上行の
+  // 合計を丸ごと）を対置した1行にする（計算書の「売上」行の数字がそのまま
+  // 売上高に出る。売上高を借方に合わせて分散させると人間が理解できない）。
+  // 費用行は借方のみ（借貸合計は 振込+費用 = 売上合計 で拾い合う）。
+  // ルールに貸方の指定があればその行だけは1行で貸借が確定する
   const slipLines = [];
-  // 借:入金先預金（振込額）/ 貸:売上高（振込分）
+  // 借:入金先預金（振込額）/ 貸:売上高（売上合計）
   slipLines.push({
     debitAccount: received.account,
     debitSubAccount: received.subAccount,
@@ -957,17 +959,17 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     debitTaxRuleId: null,
     creditAccount: sale.account,
     creditSubAccount: sale.subAccount,
-    creditAmount: breakdown.transferAmount,
+    creditAmount: breakdown.saleTotal,
     creditTax: 0,
     creditTaxRuleId: null,
     application1: `振込 ${finName}`.trim(),
     application2: breakdown.transferLine.memo || null,
     statementLineId: breakdown.transferLine.id
   });
-  // 借:費用（学習ルールの相手方）/ 貸:ルールの貸方指定があればそれ、
-  // なければ売上高（その費用分）
+  // 借:費用（学習ルールの相手方）/ 貸:ルールの貸方指定があればそれ
+  // （指定がなければ貸方なしの借方単行。売上高は第1行に丸ごと載る）
   for ( const entry of feeEntries ) {
-    const credit = entry.credit || { account: sale.account, subAccount: sale.subAccount };
+    const credit = entry.credit || { account: null, subAccount: null };
     slipLines.push({
       debitAccount: entry.account,
       debitSubAccount: entry.subAccount,
@@ -976,7 +978,7 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       debitTaxRuleId: null,
       creditAccount: credit.account,
       creditSubAccount: credit.subAccount,
-      creditAmount: Number(entry.line.amountOut),
+      creditAmount: ( credit.account ) ? Number(entry.line.amountOut) : 0,
       creditTax: 0,
       creditTaxRuleId: null,
       application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
@@ -984,19 +986,19 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       statementLineId: entry.line.id
     });
   }
-  // グループ: 明細の複数行をこの1行にまとめる（借:グループの科目 /
-  // 貸:ルールの貸方指定 or 売上高）。摘要はグループの代表ラベル
+  // グループ: 明細の複数行をこの1行にまとめる（借:グループの科目のみ。
+  // ルールの貸方指定があればそれを対置）。摘要はグループの代表ラベル
   for ( const g of groupDefs ) {
-    const credit = g.credit || { account: sale.account, subAccount: sale.subAccount };
+    const credit = g.credit || null;
     slipLines.push({
       debitAccount: g.account,
       debitSubAccount: g.subAccount,
       debitAmount: g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0),
       debitTax: 0,
       debitTaxRuleId: null,
-      creditAccount: credit.account,
-      creditSubAccount: credit.subAccount,
-      creditAmount: g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0),
+      creditAccount: ( credit ) ? credit.account : null,
+      creditSubAccount: ( credit ) ? credit.subAccount : null,
+      creditAmount: ( credit ) ? g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0) : 0,
       creditTax: 0,
       creditTaxRuleId: null,
       application1: g.label,
@@ -1004,8 +1006,7 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       statementLineId: g.lines[0].id
     });
   }
-  // 貸方合計は 振込+選択費用 = 売上合計（検算済み）。売上高を複数行に
-  // 分解しない（1行=貸借ペアのまま）
+  // 貸借合計は第1行で調い: 借合計 振込+費用 = 貸合計 売上合計（検算済み）
   const slip = await createCrossSlip({
     year: Number(m[1]),
     month: Number(m[2]),
