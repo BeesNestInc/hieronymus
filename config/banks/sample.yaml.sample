@@ -59,11 +59,22 @@ categoryRules:
 # 1計算書を1枚の複合伝票（借方: 入金先預金+費用各行 / 買方: 売上高）にする。
 # 費用行の科目は学習ルール（この計算書の口座に紐づく）で決める
 #
+# detect を書くと、テキスト層のある計算書PDFを**決定的に**解析できる
+# （AI読取不要・無料。コード変更なしでモールを増やせる。detectの語が
+# すべてテキストに含まれるとき、このプロファイルの書式として解析する）
+#
 # name: Amazon
 # type: settlement
-# salePattern: '^売上'         # 売上側の行を引くラベル（省略時は'^売上'）
-# transferPattern: '振込'      # 振込行を引くラベル（省略時は'振込'）
+# detect:                  # テキスト層解析のシグネチャ
+#   - 支払明細書
+#   - 純利益
+# aggregateSale: '^売上\s*￥'      # 売上の集計行（省略可）
+# aggregateExpense: '^支出\s*￥'   # 支出の集計行（省略可）
+# transferPattern: '振込|純利益'   # 振込行のラベル（省略可）
+# transferDatePattern: '(\d{4})/(\d{1,2})/(\d{1,2})に、.*?口座へ'  # 振込日の文（省略可）
+# memoPattern: '^銀行振込ID'       # 振込ID等のメモ行（省略可）
 # saleAccount: 6000000         # 貸方の売上高（伝票化時に使う約束科目。省略可）
 # receivedAccount: 1010010     # 借方の入金先預金（振込の着地。省略可）
 # receivedSubAccount: 1
+# salePattern: '^売上'         # 売上行の厳格判定（省略可。省略時は「振込以外の入金=売上」）
 END

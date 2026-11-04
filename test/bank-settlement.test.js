@@ -2,7 +2,7 @@ import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
 import { settleStatement, settlementPreview, suggestSettlementDeposits, linkDepositToSettlement } from '../libs/bank-reconcile.js';
-import { settlementBreakdown, validateProfileYaml, loadProfiles } from '../libs/bank-statement.js';
+import { settlementBreakdown, validateProfileYaml, loadProfiles, parseSettlementTextLines } from '../libs/bank-statement.js';
 
 // 計算書（ECモール。kind: settlement）の取り込みと複合起票のテスト（DB使用）。
 // 1計算書 = 1複合伝票（借方: 入金先預金+費用各行 / 買方: 売上高=売上側合算）。
@@ -532,5 +532,69 @@ describe('ec settlement (test db)', () => {
       const suggestions = await suggestSettlementDeposits(bankStatement);
       assert.lengthOf(suggestions, 0);
     });
+  });
+});
+
+// === 書式の差はプロファイルで持つ（コードに特定モールの語彙を置かない） ===
+describe('settlement text parser (profile driven)', () => {
+  // 楽天風の架空の支払明細書（Amazonとは語彙が違う）。yamlを足すだけで
+  // 解析できることを示すテスト（コード変更なしで第二のモールに対応する）
+  const RAKUTEN_LINES = [
+    { text: '2026/03/01 12:00 楽天ペイ' },
+    { text: '売上サマリー ￥220,000' },
+    { text: '商品代金 ￥200,000' },
+    { text: '消費税 ￥20,000' },
+    { text: '引き落としサマリー -￥33,000' },
+    { text: 'システム利用料 -￥22,000' },
+    { text: '広告宣伝費 -￥11,000' },
+    { text: 'お支払い金額 ￥187,000' },
+    { text: '2026/3/15にご指定の口座へお振込みいたします。' },
+    { text: '振込番号 RTN-12345678' }
+  ];
+  const rakutenProfile = {
+    name: 'テストモール2',
+    type: 'settlement',
+    detect: [ '売上サマリー', 'お支払い金額' ],
+    aggregateSale: '^売上サマリー',
+    aggregateExpense: '^引き落としサマリー',
+    transferPattern: 'お支払い金額',
+    transferDatePattern: '(\\d{4})/(\\d{1,2})/(\\d{1,2})にご指定の口座へ',
+    memoPattern: '^振込番号'
+  };
+  const toPdfLines = (defs) => defs.map((d) => ({ text: d.text, tokens: [ d.text ] }));
+
+  it('detectで判定し、節見出しと振込行をプロファイルの語彙で解析する', () => {
+    const parsed = parseSettlementTextLines(toPdfLines(RAKUTEN_LINES), rakutenProfile);
+    assert.isOk(parsed);
+    assert.equal(parsed.lines.length, 5);
+    // 売上の内訳（saleセクションの内訳。消費税を含む。税込合算運用）
+    assert.equal(parsed.lines[0].rawDescription, '売上 商品代金');
+    assert.equal(parsed.lines[0].amountIn, 200000);
+    assert.equal(parsed.lines[1].amountIn, 20000);
+    // 費用の内訳
+    assert.equal(parsed.lines[2].rawDescription, '支出 システム利用料');
+    assert.equal(parsed.lines[2].amountOut, 22000);
+    // 振込行（プロファイルの transferPattern の語で引く）
+    const transfer = parsed.lines[ parsed.lines.length - 1 ];
+    assert.equal(transfer.rawDescription, 'お支払い金額');
+    assert.equal(transfer.amountIn, 187000);
+    assert.equal(transfer.date, '2026-03-15');
+    assert.match(transfer.memo, /RTN-12345678/);
+    // 検算: 売上220,000 = 振込187,000 + 費用33,000
+    const breakdown = settlementBreakdown(parsed.lines, rakutenProfile);
+    assert.deepEqual(breakdown.warnings, []);
+    assert.equal(breakdown.saleTotal, 220000);
+    assert.equal(breakdown.expenseTotal, 33000);
+    assert.equal(breakdown.transferAmount, 187000);
+  });
+
+  it('detectが合わない書式は解析しない（null。他の書式として扱う）', () => {
+    // 楽天プロファイルにAmazonの書式は合わない
+    const amazonish = [ { text: '支払明細書' }, { text: '純利益 ￥100' }, { text: '売上 ￥100' } ];
+    assert.isNull(parseSettlementTextLines(toPdfLines(amazonish), rakutenProfile));
+    // detectのないプロファイルではテキスト解析をしない（AI読取の分類だけに使う）
+    const noDetect = { name: 'x', type: 'settlement' };
+    assert.isNull(parseSettlementTextLines(toPdfLines(RAKUTEN_LINES), noDetect));
+    assert.isNull(parseSettlementTextLines(toPdfLines(RAKUTEN_LINES), null));
   });
 });

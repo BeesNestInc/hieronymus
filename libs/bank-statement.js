@@ -472,16 +472,46 @@ const pdfTextLinesOf = async (buffer) => {
   }
 };
 
-// 計算書（Amazon支払明細書など）のテキスト層から決定的に解析する。
+// === 計算書（ECモールの支払明細書系。テキスト層のあるPDF）の決定的解析 ===
 // 「テキスト層が読める計算書」をカード明細のパーサが拾ってしまうのを防ぐ
 // （振込説明の文章だけが行になり、AIフォールバックも発火しない事故）。
-// シグネチャ（支払明細書+純利益）が読めなければ null を返す（他の書式と
-// 判定はしない。危うきは適用しない）
-export const parseSettlementTextLines = (pdfLines) => {
-  const lines = pdfLines.map((l) => normalizeText(l.text)).filter((t) => t);
-  if ( !lines.some((l) => /支払明細書/.test(l)) || !lines.some((l) => /純利益/.test(l)) ) {
+// 書式の差はプロファイル（type: settlement）に持たせる。**コードに特定モールの
+// 語彙は置かない**（新しいモール=新しいyaml。アドホックなパーサー追従を
+// やめるための原則どおりの受け皿）:
+//   detect:              [シグネチャ語...] テキストに全て含まれるときこの書式とみなす
+//   aggregateSale:       売上の集計行のパターン（省略時 '^売上\s*￥'）
+//   aggregateExpense:    支出の集計行のパターン（省略時 '^支出\s*￥'）
+//   transferPattern:     振込行のラベル（省略時 DEFAULT_TRANSFER_PATTERN）
+//   transferDatePattern: 振込日の書かれた文（省略時は 日付+口座への文）
+//   memoPattern:         振込ID等のメモ行（省略時 '^銀行振込ID'）
+// 行の文法（「ラベル（数字なし）￥額」の集計・内訳・行末金額）はモール共通の
+// 想定としてコード側で担う。detectに合わなければ null（別の書式扱い）。
+// 期首残高の行はどこに書かれても無視する
+export const parseSettlementTextLines = (pdfLines, profile = null) => {
+  const detect = ( profile && Array.isArray(profile.detect) && profile.detect.length > 0 ) ?
+    profile.detect : null;
+  if ( !detect ) {
     return null;
   }
+  const lines = pdfLines.map((l) => normalizeText(l.text)).filter((t) => t);
+  const flat = lines.join('');
+  for ( const term of detect ) {
+    if ( !flat.includes(normalizeText(term)) ) {
+      return null;
+    }
+  }
+  const saleHeader = new RegExp(( profile && profile.aggregateSale ) || '^売上\\s*[\\u00a5￥]');
+  const expenseHeader = new RegExp(( profile && profile.aggregateExpense ) || '^支出\\s*[\\u00a5￥-]');
+  const transferPattern = String( ( profile && profile.transferPattern ) || DEFAULT_TRANSFER_PATTERN ).trim() || DEFAULT_TRANSFER_PATTERN;
+  const datePattern = ( profile && profile.transferDatePattern ) || '(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2})に、.*?口座へ';
+  const memoPattern = ( profile && profile.memoPattern ) || '^銀行振込ID';
+  const tryLabel = (text, pattern) => {
+    try {
+      return new RegExp(pattern).test(text);
+    } catch (e) {
+      return false;
+    }
+  };
   const out = [];
   const warnings = [];
   const pickAmount = (s) => {
@@ -501,22 +531,26 @@ export const parseSettlementTextLines = (pdfLines) => {
     if ( /^期首残高/.test(line) ) {
       continue;
     }
-    if ( /^売上\s*[\u00a5￥]/.test(line) ) {
+    if ( saleHeader.test(line) ) {
       section = 'sale';
       continue;
     }
-    if ( /^支出\s*[\u00a5￥-]/.test(line) ) {
+    if ( expenseHeader.test(line) ) {
       section = 'expense';
       continue;
     }
-    if ( /^純利益/.test(line) ) {
+    // 振込行。**行末が￥額の行だけ**を対象にする（「…の振込みが予定され
+    // ています」のような説明文も振込の語を含むため、文法で弾かないと
+    // 説明文を振込行として拾ってしまう）
+    const transferEnds = line.match(/^([^0-9\u00a5￥]*?)[\s]*[\u00a5￥][\d,]+$/);
+    if ( transferEnds && tryLabel(line, transferPattern) ) {
       transferAmount = pickAmount(line);
       if ( transferAmount === null ) {
         warnings.push('純利益（振込額）の金額が読めませんでした。');
         continue;
       }
-      // 金額とラベルを分離以（純利益 ￥111,718 → 摘要=純利益）
-      const label = line.replace(/[\u00a5￥][\d,]+.*/, '').trim() || '純利益';
+      // 金額とラベルを分離する（純利益 ￥111,718 → 摘要=純利益）
+      const label = transferEnds[1].replace(/[\-–\s]+$/, '').trim() || '純利益';
       transferLine = {
         date: transferDate,
         rawDescription: label,
@@ -528,7 +562,7 @@ export const parseSettlementTextLines = (pdfLines) => {
       };
       continue;
     }
-    const repayment = line.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})に、.*?口座へ./);
+    const repayment = line.match(new RegExp(datePattern));
     if ( repayment ) {
       const yy = Number(repayment[1]);
       const mm = String(Number(repayment[2])).padStart(2, '0');
@@ -539,7 +573,7 @@ export const parseSettlementTextLines = (pdfLines) => {
       }
       continue;
     }
-    if ( /^銀行振込ID/.test(line) ) {
+    if ( new RegExp(memoPattern).test(line) ) {
       bankMemo = ( bankMemo ? bankMemo + ' ' : '' ) + raw.trim();
       if ( transferLine ) {
         transferLine.memo = bankMemo;
@@ -655,33 +689,51 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
   let parsed = null;
   let profile = null;
   let settlementPdf = false;
+  let settlementProfileName = null;
   if ( /pdf/.test(type) ) {
-    // 計算書（Amazonの支払明細書等）はテキスト層が読めるものがある。
-    // 決定的に解析できる（カード明細パーサが振込説明の文章だけを拾って
-    // 「読み取れない」状態になる事故を防ぐ。2025-08計算書で発生）
+    // 計算書（ECモールの支払明細書系）はテキスト層が読めるものがある。
+    // **書式の判定・解析はプロファイル（type: settlement の detect）で行う**
+    // （特定モールの語彙はコードに置かない。新しいモール=新しいyaml）。
+    // テキスト層のないPDFはカード明細の経路→AI読取フォールバックに落ちる
+    let pdfLines = null;
     try {
-      const settlementText = parseSettlementTextLines(await pdfTextLinesOf(buffer));
-      if ( settlementText ) {
-        parsed = settlementText;
-        settlementPdf = true;
-      }
+      pdfLines = await pdfTextLinesOf(buffer);
     } catch (e) {
       // テキスト層が無い/破損PDFは従来の経路へ落ちる
+    }
+    if ( pdfLines ) {
+      for ( const p of profiles.filter((p2) => ( p2.type === 'settlement' && Array.isArray(p2.detect) && p2.detect.length > 0 )) ) {
+        const settlementText = parseSettlementTextLines(pdfLines, p);
+        if ( settlementText ) {
+          parsed = settlementText;
+          settlementPdf = true;
+          settlementProfileName = p.name;
+          break;
+        }
+      }
     }
     if ( !settlementPdf ) {
       // カード明細PDF。プロファイルは全カード分から検出に使える
       profile = profiles.find((p) => ( p.type === 'card' )) || null;
       parsed = await parseCardPdf(buffer, profile);
       // テキスト層が実質ないPDF（ベクタ字形・数字だけのエポスカード等）は
-      // 利用行が組み立てられない。AIが使えるなら画像へ落として通帳OCRにまわす
-      if ( parsed.lines.length === 0 ) {
+      // 利用行が組み立てられない。AIが使えるなら画像へ落として通帳OCRにまわす。
+      // また「行がほとんど取れないPDF」（未対応の計算書など。振込説明の
+      // 文章だけが行になる等）も明細としては壊れているのでAIに譲る。
+      // 計算書のプロファイル（detect）を書けば次回から決定的に解析できる
+      if ( parsed.lines.length < 2 ) {
         const vision = await import('./vision.js');
         if ( vision.isAvailable() ) {
           const ocr = await vision.extractStatement(buffer, mimeType);
-          parsed = { lines: ocr.lines, total: null, payDate: null,
-            warnings: [ ...parsed.warnings, ...ocr.warnings ] };
-          parsed.warnings.push('PDFのテキストが取れないため、画像としてAI読み取りしました。');
-        } else {
+          if ( ocr.lines.length >= parsed.lines.length ) {
+            const cardWarnings = parsed.warnings;
+            parsed = { lines: ocr.lines, total: null, payDate: null,
+              warnings: [ ...cardWarnings, ...ocr.warnings ] };
+            parsed.warnings.push('PDFのテキストが明細として足りないため、画像としてAI読み取りしました。');
+          } else {
+            parsed.warnings.push('AI読み取りの結果がテキスト解析より少なかったため、テキスト解析の結果を使います。');
+          }
+        } else if ( parsed.lines.length === 0 ) {
           parsed.warnings.push('PDFのテキストが取れず、AIも未設定のため読み取れません（config/llms.yaml）。');
         }
       }
@@ -711,7 +763,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
   }
   return {
     kind: settlementPdf ? 'settlement' : ( profile && profile.type === 'card' ) ? 'corporate_card' : ( profile && profile.type === 'settlement' ) ? 'settlement' : 'bank',
-    profileName: ( profile && profile.name ) || null,
+    profileName: settlementProfileName || ( ( profile && profile.name ) || null ),
     lines: parsed.lines,
     total: parsed.total,
     payDate: parsed.payDate,
@@ -861,6 +913,11 @@ export const validateProfileYaml = (text) => {
       if ( profile[ key ] && !/^\d+$/.test(String(profile[ key ])) ) {
         return { error: `${key} は科目コード（数字）で指定してください。` };
       }
+    }
+    // テキスト層のあるPDFの決定的解析（detectは省略可。AI読取だけの
+    // 分類プロファイルでもよい）
+    if ( profile.detect !== undefined && ( !Array.isArray(profile.detect) || profile.detect.length === 0 ) ) {
+      return { error: 'detect はシグネチャ語の配列で指定してください（省略可）。' };
     }
   }
   return { profile: profile };
