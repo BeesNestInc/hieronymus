@@ -80,6 +80,10 @@ const RULES = [
   { match: /^\/bank_statement\/profile$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement\/profile_draft$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/(match|book|rebook)$/, methods: ['POST'], access: ['accounting'] },
+  // settle は計算書（kind: settlement）の1伝票化起票。link_settlement は
+  // 通帳の入金行を計算書伝票の預金明細へ紐付ける。どちらも起票に準ずる
+  // 会計操作（この2つは追加時に許可表が追従しておらず403石碑になっていた）
+  { match: /^\/bank_statement\/\d+\/(settle|link_settlement)$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/select$/, methods: ['POST'], access: ANY },
   { match: /^\/bank_statement\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement\/line\/\d+$/, methods: ['PUT'], access: ['accounting'] },
