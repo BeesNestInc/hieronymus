@@ -35,6 +35,11 @@ export default (sequelize, DataTypes) => {
 		creditSubAccount: DataTypes.INTEGER,
 		// この摘要の行を前の行（同じ日）の伝票に合流させる
 		merge: DataTypes.BOOLEAN,
+		// まとめグループ（計算書の明細複数行を伝票の1行にする）のメンバ。
+		// メンバ明細の正規化パターンをJSON配列で保持する。次回取込で
+		// メンバーが揃ったら同じまとめを自動的に組む。pattern（代表ラベル）は
+		// グループの摘要としても照合にも使う
+		groupMembers: DataTypes.TEXT,
 		// この摘要の行は自動突合を許す
 		match: DataTypes.BOOLEAN,
 		// 適用回数（多いものを優先）

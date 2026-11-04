@@ -1585,6 +1585,49 @@ $: groupViews = ( settleGroups || [] ).map((g) => {
   return { key: g.key, label: label, lines: lines, total: total, account: pick.account || '', subAccount: pick.subAccount || '', include: include };
 });
 $: ungroupedFees = ( ( settlement && settlement.suggestions ) || [] ).filter((s) => !groupedLineIds.has(s.lineId));
+// 学習済み「まとめ」の自動再結成。サーバ（settlementPreview）が groupSuggestions
+// を返し、フロントに未保存のグループがないときは同じまとめを自動的に組む
+// （挙動: 前回起票で学習した「メンバが揃ったらこのまとめ」を次回に復元する）
+let _lastGroupSig = '';
+function applyServerGroupSuggestions(data) {
+  if  ( !data || !Array.isArray(data.groupSuggestions) || data.groupSuggestions.length === 0 )  {
+    return;
+  }
+  // メモリに既存グループがある間は触らない（ユーザーの作業を優先）
+  if  ( ( settleGroups || [] ).length > 0 )  {
+    return;
+  }
+  // 下書き（sessionStorage/サーバ作業下書き）にグループがある間は触らない
+  try {
+    const draft = ( statement ) ? loadSettleDraft(statement.id) : null;
+    if  ( draft && Array.isArray(draft.groups) && draft.groups.length > 0 )  {
+      return;
+    }
+  } catch {}
+  const sig = JSON.stringify(data.groupSuggestions.map((g) => ( { label: g.label, lineIds: g.lineIds } ))) + ':' + ( statement ? statement.id : '' );
+  if  ( sig === _lastGroupSig )  {
+    return;
+  }
+  _lastGroupSig = sig;
+  const groups = [];
+  const labels = {};
+  const accounts = {};
+  const includes = {};
+  for  ( const [ i, g ] of data.groupSuggestions.entries() )  {
+    const key = `gsrv${i}`;
+    groups.push({ key: key, lineIds: g.lineIds });
+    labels[key] = g.label;
+    accounts[key] = { account: g.account || '', subAccount: g.subAccount || '' };
+    includes[key] = true;
+  }
+  settleGroups = groups;
+  settleGroupLabel = labels;
+  settleGroupAccount = accounts;
+  settleGroupInclude = includes;
+  saveSettleDraft();
+  const totalLines = data.groupSuggestions.reduce((a, g) => a + g.lineIds.length, 0);
+  toast.show('計算書', `学習済みのまとめ（${data.groupSuggestions.length}グループ・${totalLines}行）を復元しました。確認して起票してください`);
+}
 // 費用行に科目が全部入ったか（承認制: 空では起票させない）。
 // 判定は「伝票に載せる（チェック済み/グループON）」だけでよい。外した行は
 // 起票対象外なので科目が無くてもよい。グループはグループ側の科目を見る

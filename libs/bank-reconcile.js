@@ -1044,6 +1044,11 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       sub: g.subAccount
     }, 'out');
   }
+  // 「まとめ」そのものをルールとして覚える（メンバ明細の正規化パターン）。
+  // 次回取込でメンバーが揃うと同じまとめが自動的に組み直される
+  for ( const g of groupDefs ) {
+    await learnGroupRule(statement.financialId, g);
+  }
   // グループの先頭行の detail に、残りの参加行をすべて紐付ける（元帳連携
   // 表示で「まとまった1行」+ 後続行が同じで伝票明細として繋がるため）
   const groupDetail = new Map();
@@ -1068,6 +1073,47 @@ export const settleStatement = async (statement, body, user, options = {}) => {
 
 // 計算書取込のプレビュー（GET用）。分類の集計+費用行の科目候補（学習ルール）
 // + プロファイルの約束科目（received/sale。未設定なら null）
+// まとめグループを学習ルールに永続化する（計算書の起票副作用）。
+// pattern=代表ラベル（まとめの摘要）、member=参加明細の正規化パターン。
+// 次回取込でメンバーが揃うと同じまとめが自動的に組まれる。
+// 学習失敗しても起票自体は失敗させない（learnOpposite と同じ方針）
+const learnGroupRule = async (financialId, g) => {
+  try {
+    if  ( !financialId || !g.label || !g.account || isTempAccount(g.account) )  return;
+    const pattern = makePattern(g.label);
+    if  ( !pattern )  return;
+    const members = g.lines
+      .map((l) => makePattern(l.rawDescription || l.description || l.merchant || ''))
+      .filter(Boolean);
+    if  ( members.length < 2 )  return;
+    const [ rule, created ] = await models.BankStatementRule.findOrCreate({
+      where: {
+        financialId: financialId,
+        pattern: pattern,
+        direction: 'out'
+      },
+      defaults: {
+        oppositeAccount: g.account,
+        oppositeSubAccount: g.subAccount || null,
+        creditAccount: ( g.credit && g.credit.account ) ? g.credit.account : null,
+        creditSubAccount: ( g.credit && g.credit.subAccount ) ? g.credit.subAccount : null,
+        usageCount: 1
+      }
+    });
+    if  ( !created )  {
+      // 既存ルール（同じ代表ラベterの単行ルール等）なら内容を最新に寄せる
+      rule.oppositeAccount = g.account;
+      rule.oppositeSubAccount = g.subAccount || null;
+      rule.creditAccount = ( g.credit && g.credit.account ) ? g.credit.account : null;
+      rule.creditSubAccount = ( g.credit && g.credit.subAccount ) ? g.credit.subAccount : null;
+    }
+    rule.groupMembers = JSON.stringify(members);
+    await rule.save();
+  } catch (e) {
+    console.log('learnGroupRule failed', e.message);
+  }
+};
+
 export const settlementPreview = async (statement) => {
   if ( statement.kind !== 'settlement' ) {
     return null;
@@ -1094,6 +1140,30 @@ export const settlementPreview = async (statement) => {
       subAccount: rule ? ( rule.oppositeSubAccount ?? null ) : null
     };
   });
+  // 学習済みの「まとめ」を提示する。メンバの正規化パターンが全部揃う
+  // （2行以上）ときだけ、同じまとめを自動的に組める
+  const groupSuggestions = [];
+  for ( const rule of financialRules ) {
+    if ( !rule.groupMembers ) {
+      continue;
+    }
+    const members = (() => {
+      try { return JSON.parse(rule.groupMembers || '[]'); } catch (e) { return []; }
+    })();
+    if  ( !Array.isArray(members) || members.length < 2 )  {
+      continue;
+    }
+    const matched = breakdown.expenseLines.filter((l) => members.includes(makePattern(subTitle(l))));
+    if  ( matched.length !== members.length )  {
+      continue;
+    }
+    groupSuggestions.push({
+      label: rule.pattern,
+      lineIds: matched.map((l) => l.id),
+      account: rule.oppositeAccount,
+      subAccount: rule.oppositeSubAccount ?? null
+    });
+  }
   return {
     profileName: profile ? profile.name : null,
     received: { account: ( profile && profile.receivedAccount ) || null, subAccount: ( profile && profile.receivedSubAccount ) ?? null },
@@ -1103,7 +1173,8 @@ export const settlementPreview = async (statement) => {
     transferAmount: breakdown.transferAmount,
     transferDate: ( breakdown.transferLine && breakdown.transferLine.date ) || null,
     warnings: breakdown.warnings,
-    suggestions: suggestions
+    suggestions: suggestions,
+    groupSuggestions: groupSuggestions
   };
 };
 
