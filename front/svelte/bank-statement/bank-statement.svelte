@@ -102,10 +102,20 @@
               <input type="checkbox" class="form-check-input" bind:checked={settleFeeInclude[s.lineId]}
                 title="この行を伝票に載せる（外した行は費用として起票しません。集計行と内訳が両方載る計算書では重複の方を外します）">
             </div>
-            <div class="col-auto" style="min-width:280px;">{s.label} <b>{Number(s.amount).toLocaleString()}</b>円</div>
+            <div class="col-auto" style="min-width:280px;">
+              {s.label} <b>{Number(s.amount).toLocaleString()}</b>円
+              {#if ( s.account )}&nbsp;<span class="badge text-bg-light" style="font-size:0.7rem;" title="学習済みルールの科目">学習</span>{/if}
+            </div>
             <div class="col-auto"><Account accounts={oppositeAccounts}
               bind:code={settleFeeAccounts[s.lineId].account}
               bind:sub_code={settleFeeAccounts[s.lineId].subAccount}></Account></div>
+            <div class="col-auto">
+              {#if ( ( settleFeeAccounts[s.lineId] || {} ).account && !s.account )}
+              <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;"
+                title="この摘要（正規化後の完全一致）に、この行の科目を学習ルールとして登録する（起票しなくても保存され、次回取込から反映される）"
+                on:click={() => { registerFeeRule(s); }}>ルール登録</button>
+              {/if}
+            </div>
           </div>
           {/each}
           <div class="mt-1 {settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
@@ -1522,6 +1532,32 @@ $: settleDisabledReason = ( !settlement ) ? '' :
         '振込行を特定できません（振込額が分かりません）' :
       ( !settleBalanceOk ?
           `検算が合いません（差額 ${settleAdjust}円）` : '' ) ));
+// 費用行の（ルール外の）手選択科目を、その摘要の学習ルールとして即登録する。
+// 手選択だけでは起票（settleStatement 内の自動学習）まで保存されないため、
+// 起票前に reload すると消える——これが「ルールがあるはずなのに消える」感の
+// 正体。ここから登録してあるなら、reload でも settlementPreview が反映する
+const registerFeeRule = async (s) => {
+  const pick = settleFeeAccounts[s.lineId] || {};
+  if ( !pick.account ) {
+    toast.show('計算書', '先にこの行の科目を選んでください', 'warning');
+    return;
+  }
+  try {
+    await axios.post('/api/bank_statement_rule', {
+      financialId: statement.financialId,
+      direction: 'out',
+      pattern: s.label,
+      oppositeAccount: pick.account,
+      oppositeSubAccount: pick.subAccount || null
+    });
+    s.account = pick.account;
+    s.subAccount = pick.subAccount || null;
+    toast.show('計算書', `「${s.label}」を学習ルールに登録しました（次回取込から自動で反映します）`);
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) || 'ルール登録に失敗しました';
+    toast.show('計算書', message, 'warning');
+  }
+};
 const applySettlement = (data) => {
   settlement = data || null;
   settleFeeAccounts = {};
