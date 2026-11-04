@@ -273,19 +273,36 @@ export default {
         return;
       }
       const evidence = await parser.evidenceText(upload.buffer, upload.mimeType);
-      if ( !evidence ) {
+      const isSettlement = ( parsed.kind === 'settlement' );
+      if ( !evidence && !isSettlement ) {
         res.status(422).json({ code: -3, message: 'この書式はプロファイル化できません（テキストが取れない画像のみ）。' });
         return;
       }
-      const kindHint = ( parsed.kind === 'corporate_card' || parsed.kind === 'personal_card' ) ? 'card' : 'bank';
+      const kindHint = ( parsed.kind === 'corporate_card' || parsed.kind === 'personal_card' ) ? 'card' :
+        ( isSettlement ) ? 'settlement' : 'bank';
       const draft = await vision.draftStatementProfile(evidence, {
         aiLines: parsed.lines,
         kindHint: kindHint
       });
-      // 起草したyamlで同じファイルを決定的に再解析して照合する（AI読取と一致判定）
+      // 起草したyamlで同じファイルを決定的に再解析して照合する（AI読取と一致判定）。
+      // テキスト層のない計算書は決定的解析ができないので、一致検証は行わず
+      // 「AI読取の分類に使うプロファイル」として保存する
       const check = parser.validateProfileYaml(draft.yaml);
       if ( check.error ) {
         res.json({ code: 0, yaml: draft.yaml, error: check.error, agreement: null });
+        return;
+      }
+      if ( isSettlement && !evidence ) {
+        res.json({
+          code: 0,
+          yaml: draft.yaml,
+          error: null,
+          agreement: null,
+          note: 'テキスト層のない計算書のため、一致検証はできません（AI読取の分類と約束科目に使うプロファイルとして保存します）。テキスト層のある月の計算書で再度起草すると決定的解析まで学習できます。',
+          profileName: check.profile.name,
+          aiLines: parsed.lines.length,
+          profileLines: null
+        });
         return;
       }
       const recheck = await parser.parseStatement(upload.buffer, upload.mimeType, { profiles: [ check.profile ] });

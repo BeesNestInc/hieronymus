@@ -84,3 +84,8 @@ accounts.json
 GEMINI.md
 
 .venv/
+
+# 取込プロファイル（config/banks/*.yaml）は各環境のローカル設定。
+# 口座の約束科目などを含むのでリポジトリには載せない（sampleのみ追跡）
+config/banks/*.yaml
+config/banks/*.yml

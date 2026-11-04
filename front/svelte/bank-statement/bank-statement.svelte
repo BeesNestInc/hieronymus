@@ -448,7 +448,13 @@
           {/if}
           {#if ( profileDraft )}
           <div class="mt-1" style="font-size:0.8rem;">
-            {#if ( profileDraft.agreement )}
+            {#if ( profileDraft.error )}
+            <span class="badge bg-warning text-dark">yamlの検証に失敗</span>
+            <span class="text-muted">{profileDraft.error}</span>
+            {:else if ( profileDraft.note )}
+            <span class="badge bg-info">分類プロファイル</span>
+            <span class="text-muted">{profileDraft.note}</span>
+            {:else if ( profileDraft.agreement )}
               {#if ( profileDraft.agreement.agree )}
               <span class="badge bg-success">検証OK</span>
               <span class="text-muted">プロファイルで再解析した {profileDraft.profileLines}行 = AI読取 {profileDraft.aiLines}行（日付+金額が全行一致）</span>
