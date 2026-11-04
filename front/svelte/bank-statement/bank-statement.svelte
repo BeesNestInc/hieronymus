@@ -609,6 +609,12 @@
           {/each}
         </div>
         {/if}
+        {#if ( statement && ruleCandidates.length === 0 )}
+        <div class="text-muted mb-2" style="font-size:0.8rem;">
+          候補はありません。この取込で登録済みのルールは、下の一覧（{rules.length}件）に載っています。
+          ルールを学習済みの行は、計算書パネルで「学習」マークが付きます。
+        </div>
+        {/if}
         {#if ( !showAllRulesForm ) }
         <button type="button" class="btn btn-sm btn-outline-primary mb-2"
           on:click={() => { showAllRulesForm = true; }}>
@@ -1768,18 +1774,22 @@ const openRulesModal = async (line = null, financial = null) => {
 };
 // 学習済み提案（相手方表示）と行状態は、ルール変更を反映するために
 // 明細取込詳細へ再適用できるようにする。ルールモーダルを閉じた時に使う。
-// loadDetail は通帳種別毎の他 state（settlement/card等）を差し替えるので、
-// ここでは提案+行の差し替えに留める（ユーザーが触れるヘッダ編集を壊さない）
+// 対象は銀行明細（oppositeSuggestions）と計算書（settlement の費用行候補
+// ——「1伝票にして起票」パネルの科目）の両方。loadDetail は警告等の
+// 他 state も差し替えるので、ここでは表示に必要な部分だけ差し替える
+// （ユーザーが触れるヘッダ編集を壊さない）
 const refreshLineSuggestions = async () => {
-  if ( !statement || statement.kind !== 'bank' || !id ) {
+  if ( !statement || !id ) {
     return;
   }
   try {
     const result = await axios.get(`/api/bank_statement/${id}`);
-    const next = ( result.data && result.data.statement ) ? result.data : null;
-    if ( !next ) return;
-    statement.lines = next.statement.lines;
+    const next = result.data || {};
+    statement.lines = ( next.statement && next.statement.lines ) ? next.statement.lines : statement.lines;
     applyOppositeSuggestions(next.oppositeSuggestions);
+    if ( statement.kind === 'settlement' && next.settlement ) {
+      applySettlement(next.settlement);
+    }
   } catch (e) {
     console.error('refresh opposite suggestions failed', e);
   }
