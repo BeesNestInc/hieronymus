@@ -745,13 +745,18 @@
     height: calc(100vh - 270px);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    /* クリップしない。警告・計算書パネル・表と項目が増えたら全体を
+       スクロールさせる（表はflexで残り高さを使い、自分でもスクロール） */
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
   }
   /* 表だけをスクロールさせ、ヘッダ行は固定する */
   .table-scroll {
     flex: 1 1 auto;
-    min-height: 0;
+    /* 計算書パネル等で残り高さが尽きても、表が潰れて触れなくならない
+       よう最低高を確保する（それでも収まらないときは.body側がスクロール） */
+    min-height: 180px;
     overflow-y: auto;
   }
   /* ヘッダ行の配色は共通スタイル(.table th)に任せる（上書きしない） */
