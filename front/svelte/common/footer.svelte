@@ -1,9 +1,9 @@
 <div class="container">
-  <div class="d-flex justify-content-between">
+  <div class="d-flex justify-content-between align-items-center flex-wrap">
     <div>
-      <strong>Copyright &copy; 2020-2024 <a href="https://www.wasp.co.jp/">WASP Co LTD</a>.</strong><br/>
-      <strong>Copyright &copy; 2024 <a href="https://www.beesnest-inc.com/">BeesNest LLC</a>.</strong>
-       All rights reserved.</div>
+      <strong>Copyright &copy; 2020-2024 <a href="https://www.wasp.co.jp/">WASP Co LTD</a>.</strong>
+      <strong class="ms-2">Copyright &copy; 2024 <a href="https://www.beesnest-inc.com/">BeesNest LLC</a>.</strong>
+      All rights reserved.</div>
     <div>ver {version}</div>
   </div>
 </div>

@@ -74,7 +74,7 @@
   </div>
   {/if}
   {#if ( statement.kind === 'settlement' && settlement )}
-  <div class="card mb-2" style="font-size:0.85rem;">
+  <div class="card mb-2 settle-panel" style="font-size:0.85rem;">
     <div class="card-body py-2">
       {#if ( settlement.warnings && settlement.warnings.length > 0 )}
       <div class="text-warning mb-1">
@@ -742,21 +742,25 @@
 
 <style>
   .body {
-    height: calc(100vh - 270px);
+    height: calc(100vh - 240px);
     display: flex;
     flex-direction: column;
-    /* クリップしない。警告・計算書パネル・表と項目が増えたら全体を
-       スクロールさせる（表はflexで残り高さを使い、自分でもスクロール） */
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* ページ全体はスクロールさせない。上の項目（メモ・計算書パネル）は
+       固定表示、**起票データ（明細表）だけがスクロール**する。
+       計算書パネルも項目が多いので自分の枠内でスクロールする */
+    overflow: hidden;
     padding: 8px;
+  }
+  /* 計算書の伝票化パネル。費用行が多くても枠内でスクロールする */
+  .settle-panel {
+    flex-shrink: 0;
+    max-height: 45vh;
+    overflow-y: auto;
   }
   /* 表だけをスクロールさせ、ヘッダ行は固定する */
   .table-scroll {
     flex: 1 1 auto;
-    /* 計算書パネル等で残り高さが尽きても、表が潰れて触れなくならない
-       よう最低高を確保する（それでも収まらないときは.body側がスクロール） */
-    min-height: 180px;
+    min-height: 0;
     overflow-y: auto;
   }
   /* ヘッダ行の配色は共通スタイル(.table th)に任せる（上書きしない） */

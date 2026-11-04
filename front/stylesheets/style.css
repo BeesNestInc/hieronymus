@@ -169,7 +169,8 @@ tbody {
   background-color: var(--bs-body-bg);
   border-top: 1px solid #dee2e6;
   color: #777c81;
-  padding: 1rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 1rem;
   width: inherit;
 }
 
