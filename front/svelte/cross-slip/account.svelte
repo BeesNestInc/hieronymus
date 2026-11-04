@@ -296,15 +296,29 @@ const setSubAccount = () => {
 }
 
 let initialized = false;
+// bind:code / accounts の後付け追従。
+// マウント時点でまだ accounts が届いていない（ルール反映・reload 直後等）と、
+// setAccount() が一度だけ走って以後表示が空のままで直らない（initialized
+// フラグで 1 回しか同期しないため）——これが「科目コードは入っているのに
+// 画面が空で表示されない」が起きる/起きないが運次第になる原因。
+// ユーザーが触った欄（isInitialInput=false）は絶対に上書きしない。
+let syncedCode;
+let syncedAccounts;
+let syncedSub;
+let syncedAccount;
 beforeUpdate(() => {
-  //console.log('beforeUpdate account', init, code, sub_code);
-  if	( !initialized )	{
-    console.log('init');
-    list = [];
-    setAccount();
-    setSubAccount();
-    isInitialInput = true;
+  if  ( !initialized )  {
     initialized = true;
+  }
+  if  ( isInitialInput && ( ( code !== syncedCode ) || ( accounts !== syncedAccounts ) ) )  {
+    setAccount();
+    syncedCode = code;
+    syncedAccounts = accounts;
+  }
+  if  ( isInitialSubInput && ( ( sub_code !== syncedSub ) || ( account !== syncedAccount ) ) )  {
+    setSubAccount();
+    syncedSub = sub_code;
+    syncedAccount = account;
   }
 });
 onMount(() => {
@@ -312,5 +326,7 @@ onMount(() => {
   setAccount();
   setSubAccount();
   isInitialInput = true;
+  syncedCode = code;
+  syncedAccounts = accounts;
 })
 </script>
