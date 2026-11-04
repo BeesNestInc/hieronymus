@@ -44,6 +44,11 @@ export default (sequelize, DataTypes) => {
 		// 取込時の警告（残高整合・重複スキップ等。JSON配列で保存。
 		// 取込の最新の物で差し替える）
 		warnings: DataTypes.TEXT,
+		// 計算書の「1伝票にして起票」パネルの選択状態（対象外チェック・
+		// 費用行の科目・まとめグループ）の作業下書き。JSON文字列。
+		// 起票成功でクリア（起票は検算済みの選択で行われ、選択は学習ルール/
+		// 伝票に確定するため）。ブラウザを替えても続けられるようにサーバに置く
+		settleDraft: DataTypes.TEXT,
 		// 通帳のメモ（取り込の来歴はnoteに書くので、こちらは入力用メモ）
 		memo: DataTypes.TEXT,
 		periodFrom: DataTypes.DATEONLY,

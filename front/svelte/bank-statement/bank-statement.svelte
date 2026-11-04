@@ -1720,9 +1720,20 @@ const saveSettleDraft = () =>  {
       subAccount: ( settleGroupAccount[ g.key ] || {} ).subAccount || '',
       include: ( settleGroupInclude[ g.key ] !== false )
     } ));
-    sessionStorage.setItem(settleDraftKey(statement.id), JSON.stringify({ picks, includes, groups }));
+    const payload = JSON.stringify({ picks, includes, groups });
+    sessionStorage.setItem(settleDraftKey(statement.id), payload);
+    // サーバにも保存する（ブラウザを替えても続けられるように）。連打対策で
+    // デバウンス。起票成功時に front がクリア用の null を送る
+    if  ( settleDraftSaveTimer )  clearTimeout(settleDraftSaveTimer);
+    settleDraftSaveTimer = setTimeout(() => {
+      settleDraftSaveTimer = null;
+      axios.put(`/api/bank_statement/${statement.id}`, {
+        settleDraft: payload
+      }).catch((e) => console.error('settle draft save failed', e?.response?.status || e));
+    }, 700);
   } catch {}
 };
+let settleDraftSaveTimer = null;
 // 下書きのグループを初期化する（reload 直後の復元用）
 const restoreGroupsFromDraft = (draft) => {
   const glist = ( draft && draft.groups ) || [];
@@ -1735,6 +1746,10 @@ const clearSettleDraft = () =>  {
   try {
     if  ( statement )  sessionStorage.removeItem(settleDraftKey(statement.id));
   } catch {}
+  // サーバ側の作業下書きも消す（起票で選択は確定、次回は新規に始める）
+  if  ( settleDraftSaveTimer )  { clearTimeout(settleDraftSaveTimer); settleDraftSaveTimer = null; }
+  axios.put(`/api/bank_statement/${statement.id}`, { settleDraft: null })
+    .catch((e) => console.error('settle draft clear failed', e?.response?.status || e));
 };
 
 const applySettlement = (data) => {
@@ -1748,7 +1763,8 @@ const applySettlement = (data) => {
     ( settleFeeInclude && Object.keys(settleFeeInclude).length > 0 );
   const prevPicks = hadMemory ? settleFeeAccounts : null;
   const prevIncludes = hadMemory ? settleFeeInclude : null;
-  const draft = ( !hadMemory && statement ) ? loadSettleDraft(statement.id) : null;
+  const draft = ( !hadMemory && statement ) ?
+    ( loadSettleDraft(statement.id) || statement.settleDraft || null ) : null;
   // グループ: メモリにあるときはそのまま（ダイアログ閉での取り直し下の
   // 選択を消さない）。reload 直後（メモリが空）は下書きを復元
   if  ( !hadMemory )  {

@@ -46,6 +46,16 @@ const warningsOf = (text) => {
   }
 };
 
+// 計算書パネルの作業下書き。JSON文字列で保存するためオブジェクトで返す
+// （未保存・破損時は null。破損は捨てて作り直させる）
+const parseSettleDraft = (text) => {
+  try {
+    return JSON.parse(text) || null;
+  } catch (e) {
+    return null;
+  }
+};
+
 const lineToJSON = (line) => {
   const plain = line.toJSON();
   const detail = plain.crossSlipDetail || null;
@@ -538,6 +548,9 @@ export default {
         ...statement.toJSON(),
         fileBody: undefined,
         warnings: warningsOf(statement.warnings),
+        // 計算書パネルの作業下書き（ブラウザを替えたときの復元元）。
+        // JSON文字列で保存しているのでパースして渡す（壊れていたらnull）
+        settleDraft: parseSettleDraft(statement.settleDraft),
         lines: statement.lines.map(lineToJSON)
       },
       oppositeSuggestions: oppositeSuggestions,
@@ -769,6 +782,11 @@ export default {
     // 通帳の警告。閲覧者が閉じたときはクリア（空配列/null→'[]'）
     if ( req.body.warnings !== undefined ) {
       statement.warnings = JSON.stringify(Array.isArray(req.body.warnings) ? req.body.warnings : []);
+    }
+    // 計算書パネルの作業下書き（選択状態）。JSON文字列で丸ごと保存する
+    // （起票成功時に front が clearTimeout 相当の空状態でクリアする）
+    if ( req.body.settleDraft !== undefined ) {
+      statement.settleDraft = ( req.body.settleDraft === null ) ? null : String(req.body.settleDraft);
     }
     statement.updatedBy = req.session.user.id;
     await statement.save();
