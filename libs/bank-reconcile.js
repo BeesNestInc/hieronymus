@@ -859,6 +859,9 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   // 「FBA 1,447」の集計行とその内訳「納品895+在庫552」が両方載る。
   // 集計行か内訳かのどちらか一方だけを選べば、検算が合う）
   const bookingMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
+  // 学習ルールの貸方指定（1行で貸借が確定するルール）も費用行に引き当てる
+  const financialRules = statement.financialId ?
+    await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
   const feeEntries = [];
   for ( const line of breakdown.expenseLines ) {
     const booking = bookingMap.get(line.id);
@@ -871,10 +874,15 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       err.name = 'BankReconcileError';
       throw err;
     }
+    const label = line.rawDescription || line.description || line.merchant || '';
+    const rule = findLearnedRule(financialRules, label, 'out');
     feeEntries.push({
       line: line,
       account: account,
-      subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null
+      subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null,
+      // ルールに貸方の指定があればそれ、なければ売上高を貸方にする
+      credit: ( rule && rule.creditAccount && !isTempAccount(rule.creditAccount) ) ?
+        { account: rule.creditAccount, subAccount: rule.creditSubAccount || null } : null
     });
   }
   // 検算（借方 = 振込 + 選択費用 / 貸方 = 売上高）。選択の合計が合わない
@@ -894,34 +902,39 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     throw err;
   }
   const finName = statement.cardName || '';
-  // 複合伝票の明細行。片脚0の行は既存の伝票入力（多借多貸）と同じ表現
+  // 複合伝票の明細行。行は貸借セットで組む（借:普通預金/貸:売上高、
+  // 借:費用/貸:売上高 …）。ルール（摘要→相手方仕訳）が「1行=貸借ペア」の
+  // 呈示であることと計算書伝票の体裁を合わせ、片脚0行を生まない
   const slipLines = [];
-  // 借方の入金先預金（振込額）
+  // 借:入金先預金（振込額）/ 貸:売上高（振込分）
   slipLines.push({
     debitAccount: received.account,
     debitSubAccount: received.subAccount,
     debitAmount: breakdown.transferAmount,
     debitTax: 0,
     debitTaxRuleId: null,
-    creditAccount: null,
-    creditSubAccount: null,
-    creditAmount: 0,
+    creditAccount: sale.account,
+    creditSubAccount: sale.subAccount,
+    creditAmount: breakdown.transferAmount,
     creditTax: 0,
     creditTaxRuleId: null,
     application1: `振込 ${finName}`.trim(),
     application2: breakdown.transferLine.memo || null,
     statementLineId: breakdown.transferLine.id
   });
+  // 借:費用（学習ルールの相手方）/ 貸:ルールの貸方指定があればそれ、
+  // なければ売上高（その費用分）
   for ( const entry of feeEntries ) {
+    const credit = entry.credit || { account: sale.account, subAccount: sale.subAccount };
     slipLines.push({
       debitAccount: entry.account,
       debitSubAccount: entry.subAccount,
       debitAmount: Number(entry.line.amountOut),
       debitTax: 0,
       debitTaxRuleId: null,
-      creditAccount: null,
-      creditSubAccount: null,
-      creditAmount: 0,
+      creditAccount: credit.account,
+      creditSubAccount: credit.subAccount,
+      creditAmount: Number(entry.line.amountOut),
       creditTax: 0,
       creditTaxRuleId: null,
       application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
@@ -929,22 +942,8 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       statementLineId: entry.line.id
     });
   }
-  // 貸方の売上高（売上側を1行に合算。商品代金/税金/配送料ラベル込み）
-  slipLines.push({
-    debitAccount: null,
-    debitSubAccount: null,
-    debitAmount: 0,
-    debitTax: 0,
-    debitTaxRuleId: null,
-    creditAccount: sale.account,
-    creditSubAccount: sale.subAccount,
-    creditAmount: breakdown.saleTotal,
-    creditTax: 0,
-    creditTaxRuleId: null,
-    application1: `${finName}計算書`.trim(),
-    application2: statement.fileName || null,
-    statementLineId: ( breakdown.saleLines[ 0 ] ) ? breakdown.saleLines[ 0 ].id : null
-  });
+  // 貸方合計は 振込+選択費用 = 売上合計（検算済み）。売上高を複数行に
+  // 分解しない（1行=貸借ペアのまま）
   const slip = await createCrossSlip({
     year: Number(m[1]),
     month: Number(m[2]),

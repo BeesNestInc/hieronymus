@@ -647,7 +647,12 @@
               <td><input type="text" class="form-control form-control-sm" bind:value={newRule.pattern}
                 placeholder="正規化後の摘要（NFKC・空白潰し・完全一致）"></td>
               <td>
-                {directionLabel(newRule.direction)}
+                <select class="form-select form-select-sm" bind:value={newRule.direction}
+                  title="方向。両方向は入金・出金のどちらにも照合します。出金=借:相手方/貸:貸方欄、入金=借:貸方欄/貸:相手方">
+                  <option value="">両方向</option>
+                  <option value="out">出金</option>
+                  <option value="in">入金</option>
+                </select>
               </td>
               <td class="text-center" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など） / 突合: この摘要の行は「既存仕訳と突合」と「後の処理」で、自動的に既存の伝票と結び付けてよい摘要です（ホワイトリスト）">
                 <div class="form-check form-check-inline m-0" title="合流: この摘要の行は、取込順の直前の行（同じ日）の伝票に明細として合流します（振込の次の行の振込手数料など）">
@@ -669,15 +674,12 @@
                 {/key}
               </td>
               <td>
-                {#if ( newRule.direction !== 'in' )}
                 {#key 'new-rule-credit' + ruleModalKey}
                 <Account accounts={accounts}
                   bind:code={newRule.creditAccount}
-                  bind:sub_code={newRule.creditSubAccount}></Account>
+                  bind:sub_code={newRule.creditSubAccount}
+                  title="貸方の指定（省略=口座の科目）。ここに科目を書くと、このルールは1行で貸借が確定する（キャッシングリボ→短期借入金 等）"></Account>
                 {/key}
-                {:else}
-                <span class="text-muted">（通帳科目）</span>
-                {/if}
               </td>
               <td class="text-center">-</td>
               <td class="text-center">
@@ -733,15 +735,12 @@
               </td>
               <td>
                 {#if ( editingRule && editingRule.id === rule.id )}
-                  {#if ( editingRule.direction !== 'in' )}
                   {#key 'edit-rule-credit-' + rule.id}
                   <Account accounts={accounts}
                     bind:code={editingRule.creditAccount}
-                    bind:sub_code={editingRule.creditSubAccount}></Account>
+                    bind:sub_code={editingRule.creditSubAccount}
+                    title="貸方の指定（省略=口座の科目）。ここに科目を書くと、このルールは1行で貸借が確定する"></Account>
                   {/key}
-                  {:else}
-                  <span class="text-muted">（通帳科目）</span>
-                  {/if}
                 {:else}
                 {( rule.creditAccount ) ? accountLabel(rule.creditAccount, rule.creditSubAccount) : ( ( rulesFinancialLabel ) ? rulesFinancialLabel + '（通帳）' : '（通帳科目）' )}
                 {/if}
