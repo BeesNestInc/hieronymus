@@ -297,7 +297,7 @@
         <h5 class="modal-title">{ financialEdit.id ? `通帳を編集${ financialEdit.closedAt ? '（停止中）' : '' }` : '通帳を追加' }</h5>
         <button type="button" class="btn-close" on:click={closeFinancialModal}></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
         <div class="row mb-2">
           <label class="col-4 col-form-label">通帳名</label>
           <div class="col-8">
@@ -394,7 +394,8 @@
         <h5 class="modal-title">{uploadModalTitle}</h5>
         <button type="button" class="btn-close" on:click={closeModal}></button>
       </div>
-      <div class="modal-body">
+      <!-- プレビュー+学習+警告で項目が増えるので、モーダル内でスクロールさせる -->
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
         {#if ( !form.lockFinancial )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">通帳</label>
