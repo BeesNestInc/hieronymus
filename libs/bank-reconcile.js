@@ -862,8 +862,46 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   // 学習ルールの貸方指定（1行で貸借が確定するルール）も費用行に引き当てる
   const financialRules = statement.financialId ?
     await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
+  // 明細の複数行を伝票の1行にまとめるグループ（groups は front が include
+  // のみ送る）。計算書の「集計+内訳」をまとめて1行にする等に使う
+  const bodyGroups = ( Array.isArray(body.groups) && body.groups.length > 0 ) ? body.groups : [];
+  const groupLines = new Set();
+  const groupDefs = [];
+  for ( const g of bodyGroups ) {
+    const lineIds = ( Array.isArray(g.lineIds) ? g.lineIds : [] ).map(Number);
+    const gLabel = String(g.label || '').trim();
+    if  ( lineIds.length === 0 || !gLabel || !g.account )  continue;
+    const gLines = [];
+    for  ( const id of lineIds )  {
+      const line = breakdown.expenseLines.find((l) => l.id === id);
+      if  ( !line || groupLines.has(line.id) )  continue;
+      groupLines.add(line.id);
+      gLines.push(line);
+    }
+    if  ( gLines.length === 0 )  continue;
+    if  ( isTempAccount(String(g.account)) )  {
+      const err = new Error(`グループ「${gLabel}」に仮入科目は指定できません。`);
+      err.name = 'BankReconcileError';
+      throw err;
+    }
+    const gRule = findLearnedRule(financialRules, gLabel, 'out');
+    groupDefs.push({
+      label: gLabel,
+      lines: gLines,
+      account: String(g.account),
+      subAccount: ( g.subAccount !== undefined && g.subAccount !== null && g.subAccount !== '' ) ? Number(g.subAccount) : null,
+      // ルールに貸方の指定があればそれ、なければ売上高を貸方にする
+      credit: ( gRule && gRule.creditAccount && !isTempAccount(gRule.creditAccount) ) ?
+        { account: gRule.creditAccount, subAccount: gRule.creditSubAccount || null } : null,
+      memo: gLines[0].memo || null
+    });
+  }
   const feeEntries = [];
   for ( const line of breakdown.expenseLines ) {
+    // グループに参加した行は個別の明細にしない（まとまりの1行になる）
+    if ( groupLines.has(line.id) ) {
+      continue;
+    }
     const booking = bookingMap.get(line.id);
     if ( booking && booking.include === false ) {
       continue;
@@ -886,8 +924,12 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     });
   }
   // 検算（借方 = 振込 + 選択費用 / 貸方 = 売上高）。選択の合計が合わない
-  // （入れ子の集計行が重なっている等）ときは起票しない
-  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
+  // （入れ子の集計行が重なっている等）ときは起票しない。
+  // グループはまとまった金額がすべて載る（チェック個別の概念はない）
+  const ungroupedFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
+  const groupFeeTotal = groupDefs.reduce((acc, g) => acc +
+    g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0), 0);
+  const enteredFeeTotal = ungroupedFeeTotal + groupFeeTotal;
   if ( Math.round(breakdown.transferAmount + enteredFeeTotal) !== Math.round(breakdown.saleTotal) ) {
     const err = new Error(`検算が合いません（振込 ${Number(breakdown.transferAmount).toLocaleString()} + 選択費用 ${enteredFeeTotal.toLocaleString()} vs 売上 ${Number(breakdown.saleTotal).toLocaleString()}）。起票する行の選択を見直してください。`);
     err.name = 'BankReconcileError';
@@ -942,6 +984,26 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       statementLineId: entry.line.id
     });
   }
+  // グループ: 明細の複数行をこの1行にまとめる（借:グループの科目 /
+  // 貸:ルールの貸方指定 or 売上高）。摘要はグループの代表ラベル
+  for ( const g of groupDefs ) {
+    const credit = g.credit || { account: sale.account, subAccount: sale.subAccount };
+    slipLines.push({
+      debitAccount: g.account,
+      debitSubAccount: g.subAccount,
+      debitAmount: g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0),
+      debitTax: 0,
+      debitTaxRuleId: null,
+      creditAccount: credit.account,
+      creditSubAccount: credit.subAccount,
+      creditAmount: g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0),
+      creditTax: 0,
+      creditTaxRuleId: null,
+      application1: g.label,
+      application2: g.memo,
+      statementLineId: g.lines[0].id
+    });
+  }
   // 貸方合計は 振込+選択費用 = 売上合計（検算済み）。売上高を複数行に
   // 分解しない（1行=貸借ペアのまま）
   const slip = await createCrossSlip({
@@ -967,12 +1029,38 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     });
   }
   // 費用行のラベル→科目を学習する（この計算書の口座単位）。振込行・売上行は
-  // 学習しない（振込の摘要は銀行明細側のものが正）
+  // 学習しない（振込の摘要は銀行明細側のものが正）。グループは代表ラベルで
+  // 学習する（明細各行のラベルではなく、まとまり摘要）
   for ( const entry of feeEntries ) {
     await learnOpposite(statement.financialId, entry.line.rawDescription || entry.line.description || entry.line.merchant || '', {
       account: entry.account,
       sub: entry.subAccount
     }, 'out');
+  }
+  for ( const g of groupDefs ) {
+    await learnOpposite(statement.financialId, g.label, {
+      account: g.account,
+      sub: g.subAccount
+    }, 'out');
+  }
+  // グループの先頭行の detail に、残りの参加行をすべて紐付ける（元帳連携
+  // 表示で「まとまった1行」+ 後続行が同じで伝票明細として繋がるため）
+  const groupDetail = new Map();
+  for ( const d of details ) {
+    if ( d.statementLineId ) groupDetail.set(String(d.statementLineId), d);
+  }
+  for ( const g of groupDefs ) {
+    const detail = groupDetail.get(String(g.lines[0].id));
+    const rest = g.lines.slice(1);
+    if ( ( !detail ) || ( rest.length === 0 ) ) {
+      continue;
+    }
+    await models.BankStatementLine.update({
+      status: 'booked',
+      crossSlipDetailId: detail.id
+    }, {
+      where: { id: { [Op.in]: rest.map((l) => l.id) }, crossSlipDetailId: null }
+    });
   }
   return { slip: slip, breakdown: breakdown };
 };

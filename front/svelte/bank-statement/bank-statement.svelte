@@ -98,14 +98,50 @@
           <div class="col-auto"><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}></Account></div>
         </div>
         <div class="mt-1">
-          {#each ( settlement.suggestions || [] ) as s}
+          {#if ( groupSelect.length > 0 )}
+          <div class="alert alert-info py-1 px-2 d-flex align-items-center mb-1" style="font-size:0.8rem;">
+            <span class="flex-grow-1">{groupSelect.length} 行を選択中。まとめると、計算書の複数行が伝票の 1 行になります。</span>
+            <button type="button" class="btn btn-sm btn-primary me-1" on:click={mergeSelected}>まとめる</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" on:click={() => { groupSelect = []; }}>やめる</button>
+          </div>
+          {/if}
+          {#each groupViews as g (g.key)}
+          <div class="row g-1 align-items-center mb-1" style="background-color:rgba(13,110,253,0.05);">
+            <div class="col-auto">
+              <input type="checkbox" class="form-check-input" bind:checked={settleGroupInclude[g.key]}
+                on:change={saveSettleDraft}
+                title="このグループ（複数明細をまとめた1行）を伝票に載せる/外す">
+            </div>
+            <div class="col-auto" style="min-width:280px;">
+              <input type="text" class="form-control form-control-sm d-inline" style="width:auto;font-size:0.8rem;"
+                bind:value={settleGroupLabel[g.key]} on:change={saveSettleDraft}
+                placeholder="まとめた1行の摘要">
+              <b>{Number(g.total).toLocaleString()}</b>円
+            </div>
+            <div class="col-auto"><Account accounts={oppositeAccounts}
+              bind:code={settleGroupAccount[g.key].account}
+              bind:sub_code={settleGroupAccount[g.key].subAccount}></Account></div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;"
+                title="まとめを解除して、個々の行に戻す"
+                on:click={() => { ungroupGroup(g.key); }}>解除</button>
+            </div>
+          </div>
+          {#each g.lines as m (m.lineId)}
+          <div class="row g-1 align-items-center mb-1" style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.2rem;">
+            <div class="col-auto">└ {m.label}</div>
+            <div class="col-auto">{Number(m.amount).toLocaleString()}円</div>
+          </div>
+          {/each}
+          {/each}
+          {#each ungroupedFees as s (s.lineId)}
           <div class="row g-1 align-items-center mb-1">
             <div class="col-auto">
               <input type="checkbox" class="form-check-input" bind:checked={settleFeeInclude[s.lineId]}
                 on:change={saveSettleDraft}
                 title="この行を伝票に載せる（外した行は費用として起票しません。集計行と内訳が両方載る計算書では重複の方を外します）">
             </div>
-            <div class="col-auto" style="min-width:280px;">
+            <div class="col-auto" style="min-width:240px;">
               {s.label} <b>{Number(s.amount).toLocaleString()}</b>円
               {#if ( s.account )}&nbsp;<span class="badge text-bg-light" style="font-size:0.7rem;" title="学習済みルールの科目">学習</span>{/if}
             </div>
@@ -118,6 +154,11 @@
                 title="この摘要（正規化後の完全一致）に、この行の科目を学習ルールとして登録する（起票しなくても保存され、次回取込から反映される）"
                 on:click={() => { registerFeeRule(s); }}>ルール登録</button>
               {/if}
+              <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;"
+                title="この行を選択します。複数行選んで「まとめる」で、1行にまとめられます（例: FBAの集計行と内訳をまとめて1行）"
+                on:click={() => { groupSelect = ( groupSelect.includes(s.lineId) ) ? groupSelect.filter((x) => ( x !== s.lineId )) : [...groupSelect, s.lineId]; }}>
+                {( groupSelect.includes(s.lineId) ) ? '選択中' : '＋まとめ'}
+              </button>
             </div>
           </div>
           {/each}
@@ -1521,23 +1562,51 @@ let settleSaleAccount = '';
 let settleSaleSubAccount = '';
 let settleFeeAccounts = {};     // lineId → {account, subAccount} 費用行の指定
 let settleFeeInclude = {};      // lineId → boolean（false=伝票に載せない。入れ子の集計行を外す）
+// 明細の複数行を伝票の1行にまとめるグループ。「まとめる」で作る。
+// 摘要・科目・載せる/外すはグループごとに 1 套
+let settleGroups = [];          // [{key, lineIds}]
+let settleGroupLabel = {};      // groupKey → 摘要（代表ラベル。規定は集計行ラベル等）
+let settleGroupAccount = {};    // groupKey → {account, subAccount}（keyed each で空オブジェクトを見せるためのプレースホルダ）
+let settleGroupInclude = {};    // groupKey → boolean（false=外す）
+let groupSelect = [];           // 「まとめる」の選択中 lineId 集合
+const groupPocket = (key) => ( settleGroupAccount && settleGroupAccount[ key ] ) || {};
 
 // 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
 $: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
+// グループに参加した行とそうでない行の抽出
+$: groupedLineIds = new Set( ( settleGroups || [] ).flatMap((g) => g.lineIds) );
+$: groupViews = ( settleGroups || [] ).map((g) => {
+  const lines = ( ( settlement && settlement.suggestions ) || [] ).filter((s) => g.lineIds.includes(s.lineId));
+  const total = lines.reduce((a, l) => a + Number(l.amount || 0), 0);
+  const label = settleGroupLabel[ g.key ] || '';
+  const include = ( settleGroupInclude[ g.key ] !== false );
+  const pick = groupPocket( g.key );
+  return { key: g.key, label: label, lines: lines, total: total, account: pick.account || '', subAccount: pick.subAccount || '', include: include };
+});
+$: ungroupedFees = ( ( settlement && settlement.suggestions ) || [] ).filter((s) => !groupedLineIds.has(s.lineId));
 // 費用行に科目が全部入ったか（承認制: 空では起票させない）。
-// 判定は「伝票に載せる（チェック済み）行」だけでよい。外した行は起票対象外
-// なので科目が無くてもよく、これを要求すると外した行で起票ボタンが死ぬ
-$: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] )
+// 判定は「伝票に載せる（チェック済み/グループON）」だけでよい。外した行は
+// 起票対象外なので科目が無くてもよい。グループはグループ側の科目を見る
+$: settleFeesReady = ( ( ungroupedFees || [] )
   .filter((s) => ( settleFeeInclude[ s.lineId ] !== false ))
-  .every((s) => (
-  ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account
-));
+  .every((s) => ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account )
+) && ( ( groupViews || [] )
+  .filter((g) => g.include)
+  .every((g) => g.account || ( ( g.lines.find((l) => l.account) || {} ).account ) )
+);
 // 伝票に載せる（=チェックが入っている）費用行のうち科目が未指定のもの。
-// 押せない理由を画面に出すため
-$: settleMissing = ( ( settlement && settlement.suggestions ) || [] )
-  .filter((s) => ( settleFeeInclude[s.lineId] !== false ))
-  .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+// 押せない理由を画面に出すため。グループは「まとめ」ラベルで出す
+$: settleMissing = [
+  ...( ( ungroupedFees || [] )
+    .filter((s) => ( settleFeeInclude[ s.lineId ] !== false ))
+    .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account))
+    .map((s) => ( { label: s.label } )) ),
+  ...( ( groupViews || [] )
+    .filter((g) => g.include)
+    .filter((g) => !g.account && !( ( g.lines.find((l) => l.account) || {} ).account ))
+    .map((g) => ( { label: `まとめ（${g.label || '無題'}）` } )) )
+];
 // 検算差（振込 + 選択費用 - 売上合計）。0 だけが起票可。
 // 伝票化しない費用行（入れ子の集計行等）はチェックを外して差し引く
 $: settleAdjust = ( settlement && settlement.transferAmount !== null ) ?
@@ -1553,6 +1622,45 @@ $: settleDisabledReason = ( !settlement ) ? '' :
 // 手選択だけでは起票（settleStatement 内の自動学習）まで保存されないため、
 // 起票前に reload すると消える——これが「ルールがあるはずなのに消える」感の
 // 正体。ここから登録してあるなら、reload でも settlementPreview が反映する
+// 「まとめる」: 選択中の明細行を 1 グループにする（伝票の1行になる）。
+// 代表摘要は金額の最大行から拾う（EC計算書の集計行が最大になるため）。
+// 科目の規定は候補の学習済みがあればそれ
+const mergeSelected = () => {
+  if ( groupSelect.length < 2 ) {
+    toast.show('計算書', 'まとめるには 2 行以上選んでください', 'warning');
+    return;
+  }
+  const lines = ( ( settlement && settlement.suggestions ) || [] ).filter((s) => groupSelect.includes(s.lineId));
+  if ( lines.length === 0 ) {
+    groupSelect = [];
+    return;
+  }
+  const aggRow = lines.slice().sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+  const label = String(aggRow.label || '').replace(/^支出\s*/, '').trim() || 'まとめ';
+  const key = `g${Date.now()}`;
+  const withRule = lines.find((l) => l.account);
+  const firstPick = ( settleFeeAccounts[lines[0].lineId] || {} );
+  settleGroups = [ ...settleGroups, { key: key, lineIds: lines.map((l) => l.lineId) } ];
+  settleGroupLabel = Object.assign({}, settleGroupLabel, { [key]: label });
+  settleGroupAccount = Object.assign({}, settleGroupAccount, {
+    [key]: {
+      account: ( withRule && withRule.account ) || firstPick.account || '',
+      subAccount: ( withRule && withRule.subAccount != null ) ? String(withRule.subAccount) : ( firstPick.subAccount || '' )
+    }
+  });
+  settleGroupInclude = Object.assign({}, settleGroupInclude, { [key]: true });
+  groupSelect = [];
+  saveSettleDraft();
+  toast.show('計算書', `${lines.length}行を「${label}」にまとめました（伝票の1行になります）`);
+};
+const ungroupGroup = (key) => {
+  const omit = (obj, k) => Object.fromEntries(Object.entries(obj).filter(([x]) => ( x !== k )));
+  settleGroups = ( settleGroups || [] ).filter((g) => ( g.key !== key ));
+  settleGroupLabel = omit(settleGroupLabel, key);
+  settleGroupAccount = omit(settleGroupAccount, key);
+  settleGroupInclude = omit(settleGroupInclude, key);
+  saveSettleDraft();
+};
 const registerFeeRule = async (s) => {
   const pick = settleFeeAccounts[s.lineId] || {};
   if ( !pick.account ) {
@@ -1604,8 +1712,24 @@ const saveSettleDraft = () =>  {
       picks[ s.lineId ] = { account: pick.account || '', subAccount: pick.subAccount || '' };
       includes[ s.lineId ] = ( settleFeeInclude[ s.lineId ] !== false );
     }
-    sessionStorage.setItem(settleDraftKey(statement.id), JSON.stringify({ picks, includes }));
+    const groups = ( settleGroups || [] ).map((g) => ( {
+      key: g.key,
+      label: settleGroupLabel[ g.key ] || '',
+      lineIds: g.lineIds,
+      account: ( settleGroupAccount[ g.key ] || {} ).account || '',
+      subAccount: ( settleGroupAccount[ g.key ] || {} ).subAccount || '',
+      include: ( settleGroupInclude[ g.key ] !== false )
+    } ));
+    sessionStorage.setItem(settleDraftKey(statement.id), JSON.stringify({ picks, includes, groups }));
   } catch {}
+};
+// 下書きのグループを初期化する（reload 直後の復元用）
+const restoreGroupsFromDraft = (draft) => {
+  const glist = ( draft && draft.groups ) || [];
+  settleGroups = glist.map((g) => ( { key: g.key, lineIds: g.lineIds } ));
+  settleGroupLabel = Object.fromEntries(glist.map((g) => [ g.key, g.label || '' ]));
+  settleGroupAccount = Object.fromEntries(glist.map((g) => [ g.key, { account: g.account || '', subAccount: g.subAccount || '' } ]));
+  settleGroupInclude = Object.fromEntries(glist.map((g) => [ g.key, ( g.include !== false ) ]));
 };
 const clearSettleDraft = () =>  {
   try {
@@ -1625,9 +1749,12 @@ const applySettlement = (data) => {
   const prevPicks = hadMemory ? settleFeeAccounts : null;
   const prevIncludes = hadMemory ? settleFeeInclude : null;
   const draft = ( !hadMemory && statement ) ? loadSettleDraft(statement.id) : null;
+  // グループ: メモリにあるときはそのまま（ダイアログ閉での取り直し下の
+  // 選択を消さない）。reload 直後（メモリが空）は下書きを復元
+  if  ( !hadMemory )  {
+    restoreGroupsFromDraft(draft);
+  }
   settlement = data || null;
-  settleFeeAccounts = {};
-  settleFeeInclude = {};
   if  ( !settlement )  {
     return;
   }
@@ -1651,17 +1778,20 @@ const applySettlement = (data) => {
   }
 };
 // 選択行での検算（借方 = 振込 + 選択費用 / 貸方 = 売上合計）。
-// 集計行と内訳が両方載る計算書（Amazon支払明細書の FBA=納品+在庫 等）では
-// 重複の方を外せば合う。合わないものは起票させない
-$: settleIncludedFees = ( settlement && settlement.suggestions || [] )
-  .filter((s) => settleFeeInclude[s.lineId] !== false);
-$: settleFeeTotal = settleIncludedFees.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+// グループ（まとめた行）は丸ごと載る。合わないものは起票させない
+$: settleGroupTotal = ( groupViews || [] ).reduce((a, g) => ( g.include ) ? a + Number(g.total || 0) : a, 0);
+$: settleRowTotal = ( ungroupedFees || [] ).reduce((a, s) => ( settleFeeInclude[s.lineId] !== false ) ? a + Number(s.amount || 0) : a, 0);
+$: settleFeeTotal = settleGroupTotal + settleRowTotal;
 $: settleBalanceOk = settlement && settlement.transferAmount !== null &&
   ( Number(settlement.transferAmount) + settleFeeTotal ) === Number(settlement.saleTotal);
 const runSettle = async () => {
-  const missing = ( settlement.suggestions || [] )
+  const includedGroups = ( groupViews || [] ).filter((g) => g.include);
+  const missing = ( ungroupedFees || [] )
     .filter((s) => ( settleFeeInclude[s.lineId] !== false ))
     .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+  const missingGroups = includedGroups
+    .filter((g) => !( ( settleGroupAccount[g.key] || {} ).account ))
+    .filter((g) => !( g.lines.find((l) => l.account) ));
   if ( !settleReceivedAccount ) {
     toast.show('計算書', '入金先（借方の預金）の科目を指定してください。', 'warning');
     return;
@@ -1672,6 +1802,10 @@ const runSettle = async () => {
   }
   if ( missing.length > 0 ) {
     toast.show('計算書', `費用行の科目が未指定です（${missing.length}行）。`, 'warning');
+    return;
+  }
+  if ( missingGroups.length > 0 ) {
+    toast.show('計算書', `まとめた行「${missingGroups.map((g) => ( settleGroupLabel[g.key] || '無題' )).join(' / ')}」の科目が未指定です。`, 'warning');
     return;
   }
   if ( !window.confirm('計算書を1枚の複合伝票に起票します（承認待ち）。よろしいですか？') ) {
@@ -1687,7 +1821,17 @@ const runSettle = async () => {
         lineId: s.lineId,
         account: ( settleFeeAccounts[s.lineId] || {} ).account,
         subAccount: ( ( settleFeeAccounts[s.lineId] || {} ).subAccount ) || null,
-        include: settleFeeInclude[s.lineId] !== false
+        include: ( groupedLineIds.has(s.lineId) ) ? true : ( settleFeeInclude[s.lineId] !== false )
+      })),
+      groups: includedGroups.map((g) => ({
+        label: ( settleGroupLabel[g.key] || 'まとめ' ),
+        lineIds: g.lineIds,
+        // グループの科目が空なら、member の学習済み候補を代用する（集計行の
+        // ルールがあればそれを使う。無い行は front の missing チェックで弾く）
+        account: ( settleGroupAccount[g.key] || {} ).account ||
+          ( ( g.lines.find((l) => l.account) || {} ).account ) || null,
+        subAccount: ( settleGroupAccount[g.key] || {} ).subAccount ||
+          ( ( g.lines.find((l) => l.account) || {} ).subAccount ) || null
       }))
     });
     if ( result.data && result.data.code === 0 ) {
