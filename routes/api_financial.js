@@ -7,7 +7,7 @@ const Op = models.Sequelize.Op;
 // 「もう使わない」はclosedAt（削除ではなく非活性化。取込が紐付く口座は消せない）
 const canManage = ( user ) => ( Boolean(user.accounting) );
 
-const KINDS = [ 'bank', 'corporate_card', 'personal_card' ];
+const KINDS = [ 'bank', 'corporate_card', 'personal_card', 'settlement' ];
 
 // 部分更新に耐える入力整形（未指定=undefined は触らない。「もう使わない」
 // のclosedだけのPUTで種別/科目が消えないようにする）
@@ -78,7 +78,9 @@ export default {
     }
     const body = req.body || {};
     const clean = cleanInput(body);
-    if ( !clean.name || !clean.kind || !clean.accountCode ) {
+    // 計算書（settlement）は複合伝票の入金先を伝票化時に指定するので
+    // 勘定科目を持たない（科目は必須としない）
+    if ( !clean.name || !clean.kind || ( !clean.accountCode && clean.kind !== 'settlement' ) ) {
       res.status(422).json({ code: -2, message: '通帳名・種別・勘定科目は必須です。' });
       return;
     }

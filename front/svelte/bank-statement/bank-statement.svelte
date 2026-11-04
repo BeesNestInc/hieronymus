@@ -306,6 +306,7 @@
             </select>
           </div>
         </div>
+        {#if ( financialEdit.kind !== 'settlement' )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">勘定科目+補助</label>
           <div class="col-8">
@@ -316,6 +317,14 @@
             {/key}
           </div>
         </div>
+        {:else}
+        <div class="row mb-2">
+          <div class="col-12 text-muted" style="font-size:0.8rem;">
+            計算書は複合伝票の入金先（預金）を伝票化のときに指定するので、
+            勘定科目の登録は不要です。
+          </div>
+        </div>
+        {/if}
         {#if ( financialEdit.kind === 'personal_card' )}
         <div class="row mb-2">
           <label class="col-4 col-form-label">立替者（メンバー）</label>
