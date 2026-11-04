@@ -88,10 +88,11 @@ export default {
       // 同じ科目+補助の複数口座は許す（実運用で存在する。ルールのスコープは
       // financialId=口座単位なので混ざらない）。findOrCreateでの黙っての
       // 上書きだけは廃止（追加が既存口座の変更にならないようcreate直指定）
+      // 計算書（settlement）は金の動きが銀行通帳側で済んでいるので勘定科目を持たない
       const financial = await models.Financial.create({
         name: clean.name,
         kind: clean.kind,
-        accountCode: clean.accountCode,
+        accountCode: ( clean.kind === 'settlement' && !clean.accountCode ) ? null : clean.accountCode,
         subAccountCode: clean.subAccountCode,
         memberId: clean.memberId || null,
         profileName: clean.profileName || null,

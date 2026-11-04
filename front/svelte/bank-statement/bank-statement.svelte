@@ -985,8 +985,10 @@ const saveFinancial = async () => {
   const body = {
     name: financialEdit.name,
     kind: financialEdit.kind,
-    accountCode: financialEdit.accountCode,
-    subAccountCode: financialEdit.subAccountCode || null,
+    // 計算書の通帳は勘定科目を持たない（金の動きは銀行通帳側で済んでいる。
+    // 入金先は伝票化のときに指定する）
+    accountCode: ( financialEdit.kind === 'settlement' ) ? null : financialEdit.accountCode,
+    subAccountCode: ( financialEdit.kind === 'settlement' ) ? null : ( financialEdit.subAccountCode || null ),
     memberId: financialEdit.memberId || null,
     memo: financialEdit.memo || null
   };
@@ -1868,12 +1870,9 @@ const restoreLine = async (line) => {
   loadDetail(id);
 };
 
-// 通帳の設定（取り込み時に通帳を指定しなかった分の後付け）
+// 通帳のメモ（取り込み時に通帳を指定しなかった分の後付けは/financialの
+// 内容で行う。ここはメモのみの保存）
 const saveAccount = async () => {
-  if ( !statement.account ) {
-    toast.show('明細取込', '科目を選択してください', 'warning');
-    return;
-  }
   try {
     await axios.put(`/api/bank_statement/${id}`, {
       memo: ( statement.memo === undefined ) ? null : statement.memo
