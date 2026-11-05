@@ -41,4 +41,45 @@ describe('manifest-engine', function () {
     assert.ok(Array.isArray(inputs) && inputs.length > 0, 'inputs が組み立てられる');
     assert.equal(typeof result, 'string', 'dry run が文字列を返す');
   });
+
+  it('ai/host の initializeAiHost で hooks と TEMPLATE_DIR が結線される', async function () {
+    // 先行テストが engine 固有の TEMPLATE_DIR を設定しているため、未指定時の
+    // host 既定値が効く状態に戻す
+    delete process.env.TEMPLATE_DIR;
+    process.env.LEGION_NO_DOTENV = '1';
+    const { initializeAiHost } = await import('../ai/host/index.js');
+    await initializeAiHost();
+
+    const { getTemplateDir, getModelProvider, getModelConfigResolver, getToolTable, getMcpTools } =
+      await import(path.join(engineRoot, 'hooks.js'));
+    const { setDebugOptions } = await import(path.join(engineRoot, 'libs/utils.js'));
+
+    assert.ok(getTemplateDir().replace(/\\/g, '/').includes('ai/prompt-templates'),
+      `TEMPLATE_DIR が host の prompt-templates を指す（実際: ${getTemplateDir()}）`);
+    assert.ok(typeof getModelProvider() === 'function', 'modelProvider が注入されている');
+    assert.ok(typeof getModelConfigResolver() === 'function', 'modelConfigResolver が注入されている');
+    assert.ok(getToolTable(), 'toolTable が注入されている');
+    assert.ok(getMcpTools(), 'mcpTools が注入されている');
+
+    // dry run で host テンプレートから system prompt が組めること（テキストの通過確認。
+    // network 不使用）
+    setDebugOptions('dry');
+    const { Manifest } = await import(path.join(engineRoot, 'manifest.js'));
+    const m = new Manifest({
+      name: 'host-smoke',
+      description: 'host 結線のsmoke',
+      systemPrompt: 'standard',
+      messagePrompt: '本文: <%= hello %>',
+      modelName: 'standard',
+      params: { hello: { value: 'テスト' } },
+    });
+    await m.initialize();
+    const { result } = await m.execute({
+      roles: { 'host-smoke': { name: 'host-smoke', manifests: { 'host-smoke': m } } },
+      role: 'host-smoke',
+      requests: [{ name: 'request', input: 'x' }],
+      params: { hello: { value: 'テスト' } },
+    });
+    assert.equal(typeof result, 'string', 'dry run が文字列を返す');
+  });
 });
