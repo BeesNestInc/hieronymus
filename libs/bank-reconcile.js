@@ -831,15 +831,9 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     order: [[ 'lineNo', 'ASC' ]]
   });
   const breakdown = parser.settlementBreakdown(lines, profile);
-  // 振込行が特定できないものは起票しない（データを直してから）。
-  // 検算の食い違いは後段の「選択した行での検算」で扱う（入れ子の集計行が
-  // ある計算書では、全行選択では合わないため）
-  const blocking = breakdown.warnings.filter((w) => /振込行を特定/.test(w));
-  if ( blocking.length > 0 ) {
-    const err = new Error(blocking.join(' '));
-    err.name = 'BankReconcileError';
-    throw err;
-  }
+  // breakdown（プロファイル推定）は front への既定役割の提供に回る。
+  // OCR の揺れで振込行が特定できなくても、front で入金行に役割を付けられる
+  // （振込行の欠落ブロックは撤去。最終チェックは役割指定後の検算で行う）
   // 二重起票の抑止（既に起票済みの行がある計算書は組み直さない）
   const bookedCount = lines.filter((l) => ( l.status === 'booked' ) || ( l.status === 'matched' )).length;
   if ( bookedCount > 0 ) {
@@ -854,39 +848,65 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     err.name = 'BankReconcileError';
     throw err;
   }
-  // 費用行の科目指定（必須。実科目のみ）。include: false の行は集約を
-  // 構成する入れ子で起票から外す（例: Amazon計算書の支払明細書は
-  // 「FBA 1,447」の集計行とその内訳「納品895+在庫552」が両方載る。
-  // 集計行か内訳かのどちらか一方だけを選べば、検算が合う）
-  const bookingMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
+  // 伝票ビュー（全行+出し方）で構成する。body.lines の各行は
+  // {lineId, role, account, subAccount, creditAccount, creditSubAccount}。
+  // role: 'received'（振込行。借:入金先・貸:売上高の第1行に一体）/ 'sale'
+  // （貸:売上高の源泉。合計が売上高になる）/ 'expense'（借:費用・
+  // 貸:任意指定）/ 'none'（載せない）。front の役割指定が正で、
+  // breakdown（プロファイル推定）は既定値の提供に回る
+  const roleMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
   // 学習ルール（借方/貸方の指定を含む）を費用行に引き当てる。
-  // 「伝票ビュー」では 1明細行=借方(摘要の費用)と貸方(任意指定)のペアで
-  // 編集できる。貸方指定はルール (creditAccount) からの継承か、今回の
-  // 送信値（優先）
   const financialRules = statement.financialId ?
     await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
+  const validRole = ( role ) => (
+    ( role === 'received' ) || ( role === 'sale' ) ||
+    ( role === 'expense' ) || ( role === 'none' )
+  );
+  const transferDefs = [];
+  const saleDefs = [];
   const feeEntries = [];
-  for ( const line of breakdown.expenseLines ) {
-    const booking = bookingMap.get(line.id);
-    if ( booking && booking.include === false ) {
+  for ( const rawLine of linesOf(lines) ) {
+    const booking = roleMap.get(rawLine.id);
+    const role = ( booking && validRole(booking.role) ) ? booking.role :
+      ( // front が役割を送らなかった行は breakdown の推定に従う
+        ( breakdown.transferLine && rawLine.id === breakdown.transferLine.id ) ? 'received' :
+        ( breakdown.saleLines.some((l) => l.id === rawLine.id) ) ? 'sale' :
+        ( breakdown.expenseLines.some((l) => l.id === rawLine.id) ) ? 'expense' : 'none'
+      );
+    if  ( role === 'none' )  {
       continue;
     }
+    if  ( role === 'received' )  {
+      transferDefs.push({
+        line: rawLine,
+        amount: Number(rawLine.amountIn || rawLine.amount || 0)
+      });
+      continue;
+    }
+    if  ( role === 'sale' )  {
+      saleDefs.push({
+        line: rawLine,
+        amount: Number(rawLine.amountIn || rawLine.amount || 0)
+      });
+      continue;
+    }
+    // expense: 借方の科目指定（必須。実科目のみ）
     const account = ( booking && booking.account ) ? String(booking.account) : null;
     if ( !account || isTempAccount(account) ) {
-      const err = new Error(`費用行「${line.rawDescription || line.description || line.merchant}」の科目が未指定です。実科目を指定してください。`);
+      const err = new Error(`費用行「${rawLine.rawDescription || rawLine.description || rawLine.merchant}」の科目が未指定です。実科目を指定してください。`);
       err.name = 'BankReconcileError';
       throw err;
     }
-    const label = line.rawDescription || line.description || line.merchant || '';
+    const label = rawLine.rawDescription || rawLine.description || rawLine.merchant || '';
     const rule = findLearnedRule(financialRules, label, 'out');
     // 貸方: 今回の送信値を優先し、未指定なら学習済みルールの貸方
     const sentCredit = ( booking.creditAccount && !isTempAccount(booking.creditAccount) ) ?
-      { account: String(booking.creditAccount), sub: ( booking.creditSubAccount != null && booking.creditSubAccount !== '' ) ? Number(booking.creditSubAccount) : null } : null;
+      { account: String(booking.creditAccount), subAccount: ( booking.creditSubAccount != null && booking.creditSubAccount !== '' ) ? Number(booking.creditSubAccount) : null } : null;
     const ruleCredit = ( rule && rule.creditAccount && !isTempAccount(rule.creditAccount) ) ?
       { account: rule.creditAccount, subAccount: rule.creditSubAccount || null } : null;
     const credit = sentCredit || ruleCredit || null;
     feeEntries.push({
-      line: line,
+      line: rawLine,
       account: account,
       subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null,
       credit: credit,
@@ -894,16 +914,27 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       learnCredit: sentCredit
     });
   }
-  // 検算（借方 = 振込 + 選択費用 / 貸方 = 売上高）。選択の合計が合わない
-  // （入れ子の集計行が重なっている等）ときは起票しない
-  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
-  if ( Math.round(breakdown.transferAmount + enteredFeeTotal) !== Math.round(breakdown.saleTotal) ) {
-    const err = new Error(`検算が合いません（振込 ${Number(breakdown.transferAmount).toLocaleString()} + 選択費用 ${enteredFeeTotal.toLocaleString()} vs 売上 ${Number(breakdown.saleTotal).toLocaleString()}）。起票する行の選択を見直してください。`);
+  if  ( transferDefs.length === 0 )  {
+    const err = new Error('振込（入金）行が指定されていません。振込行の「出し方」を指定してください。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  if  ( saleDefs.length === 0 )  {
+    const err = new Error('売上行が指定されていません。入金の行（売上・商品代金等）に「売上高（貸方）」を指定してください。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const transferAmount = transferDefs.reduce((acc, r) => acc + r.amount, 0);
+  const creditPool = saleDefs.reduce((acc, r) => acc + r.amount, 0);
+  // 検算: 貸方（売上高の合計）= 借方（振込 + 費用）
+  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut || e.line.amount || 0), 0);
+  if ( Math.round(creditPool) !== Math.round(transferAmount + enteredFeeTotal) ) {
+    const err = new Error(`検算が合いません（売上高 ${creditPool.toLocaleString()} vs 振込 ${transferAmount.toLocaleString()} + 費用 ${enteredFeeTotal.toLocaleString()}）。行の役割（貸借 출し）を見直してください。`);
     err.name = 'BankReconcileError';
     throw err;
   }
   // 伝票日付は振込行の日付（引数で上書き可。振込日は計算書どおり）
-  const dayStr = body.day || ( breakdown.transferLine && breakdown.transferLine.date ) || statement.periodFrom;
+  const dayStr = body.day || ( transferDefs[0] && transferDefs[0].line.date ) || statement.periodFrom;
   const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if ( !m ) {
     const err = new Error('伝票日付が特定できません（振込行に日付がありません）。');
@@ -917,40 +948,40 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   // 費用行は借方のみ（借貸合計は 振込+費用 = 売上合計 で拾い合う）。
   // ルールに貸方の指定があればその行だけは1行で貸借が確定する
   const slipLines = [];
-  // 借:入金先預金（振込額）/ 貸:売上高（売上合計）
+  const ruledCreditTotal = feeEntries.reduce((acc, e) => (
+    ( e.credit && e.credit.account ) ? acc + Number(e.line.amountOut || e.line.amount || 0) : acc
+  ), 0);
+  // 借:入金先預金（振込額）/ 貸:売上高（売上行の合計。貸方指定行の分は控え）
   slipLines.push({
     debitAccount: received.account,
     debitSubAccount: received.subAccount,
-    debitAmount: breakdown.transferAmount,
+    debitAmount: transferAmount,
     debitTax: 0,
     debitTaxRuleId: null,
     creditAccount: sale.account,
     creditSubAccount: sale.subAccount,
-    creditAmount: ( breakdown.saleTotal - ruledCreditTotal ),
+    creditAmount: ( creditPool - ruledCreditTotal ),
     creditTax: 0,
     creditTaxRuleId: null,
     application1: `振込 ${finName}`.trim(),
-    application2: breakdown.transferLine.memo || null,
-    statementLineId: breakdown.transferLine.id
+    application2: ( transferDefs[0] && transferDefs[0].line.memo ) || null,
+    statementLineId: ( transferDefs[0] && transferDefs[0].line.id ) || null
   });
   // 借:費用（学習ルールの相手方）/ 貸:ルール・今回指定の貸方（キャッシング
   // リボ→短期借入金 等。指定がなければ貸方なしの借方単行）。
   // 貸方指定行があるときは、第1行の売上高からその分を控える（伝票全体の
   // 貸借合計を壊さないため。通常の費用行は貸方指定なしで第1行のみ対照）
-  const ruledCreditTotal = feeEntries.reduce((acc, e) => (
-    ( e.credit && e.credit.account ) ? acc + Number(e.line.amountOut) : acc
-  ), 0);
   for ( const entry of feeEntries ) {
     const credit = entry.credit || { account: null, subAccount: null };
     slipLines.push({
       debitAccount: entry.account,
       debitSubAccount: entry.subAccount,
-      debitAmount: Number(entry.line.amountOut),
+      debitAmount: Number(entry.line.amountOut || entry.line.amount || 0),
       debitTax: 0,
       debitTaxRuleId: null,
       creditAccount: credit.account,
       creditSubAccount: credit.subAccount,
-      creditAmount: ( credit.account ) ? Number(entry.line.amountOut) : 0,
+      creditAmount: ( credit.account ) ? Number(entry.line.amountOut || entry.line.amount || 0) : 0,
       creditTax: 0,
       creditTaxRuleId: null,
       application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
@@ -973,7 +1004,7 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   });
   const creditDetail = details.find((d) => String(d.creditAccount) === String(sale.account));
   if ( creditDetail ) {
-    const saleIds = breakdown.saleLines.map((line) => line.id);
+    const saleIds = saleDefs.map((r) => r.line.id);
     await models.BankStatementLine.update({
       status: 'booked',
       crossSlipDetailId: creditDetail.id
@@ -1060,6 +1091,27 @@ export const settlementPreview = async (statement) => {
       creditSubAccount: rule ? ( rule.creditSubAccount ?? null ) : null
     };
   });
+  // 全取込行の目録（伝票ビューの行）。各行に「出し方」の既定役割を付け、
+  // front で変更できる（OCR が「売上」を出していない等は行側で直せる）。
+  // received=振込行（借:入金先・貸:売上高の行）/ sale=売上行（貸:売上高の
+  // 源泉）/ expense=費用行（借:費用）/ none=使わない行
+  const expenseIds = new Set(breakdown.expenseLines.map((l) => l.id));
+  const saleIds = new Set(breakdown.saleLines.map((l) => l.id));
+  const roleOf = (raw) => {
+    if  ( breakdown.transferLine && raw.id === breakdown.transferLine.id )  return  'received';
+    if  ( saleIds.has(raw.id) )  return  'sale';
+    if  ( expenseIds.has(raw.id) )  return  'expense';
+    return  'none';
+  };
+  const lineViews = linesOf(lines).map((raw) => ( {
+    lineId: raw.id,
+    label: subTitle(raw),
+    amountIn: Number(raw.amountIn || 0),
+    amountOut: Number(raw.amountOut || 0),
+    amount: Number(raw.amount || 0),
+    status: raw.status,
+    defaultRole: roleOf(raw)
+  } ));
   return {
     profileName: profile ? profile.name : null,
     received: { account: ( profile && profile.receivedAccount ) || null, subAccount: ( profile && profile.receivedSubAccount ) ?? null },
@@ -1069,8 +1121,19 @@ export const settlementPreview = async (statement) => {
     transferAmount: breakdown.transferAmount,
     transferDate: ( breakdown.transferLine && breakdown.transferLine.date ) || null,
     warnings: breakdown.warnings,
-    suggestions: suggestions
+    suggestions: suggestions,
+    lines: lineViews
   };
+};
+
+// statement.lines（sequelize）を plain object にする（settlementPreview 用）。
+// fileBody は重いので落とす
+const linesOf = (statement) => {
+  return ( statement.lines || [] ).map((l) => {
+    const raw = ( l.toJSON ) ? l.toJSON() : l;
+    raw.fileBody = undefined;
+    return raw;
+  });
 };
 
 // 未照合行の相手方仕訳の候補を表示用に返す（起票時の仮入科目に置かれる前の

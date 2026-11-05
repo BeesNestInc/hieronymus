@@ -95,55 +95,86 @@
             <thead class="table-light">
               <tr>
                 <th style="width:30px;" title="外した行は伝票に載りません（集計行と内訳が両方ある計算書では重複の方を外します）">載</th>
-                <th style="width:32%;">摘要（取込行）</th>
+                <th style="width:30%;">摘要（取込行）</th>
                 <th class="number" style="width:90px;">金額</th>
-                <th style="width:22%;">借方</th>
-                <th style="width:22%;">貸方</th>
+                <th style="width:18%;">出し方</th>
+                <th style="width:21%;">借方</th>
+                <th style="width:21%;">貸方</th>
               </tr>
             </thead>
             <tbody>
+              {#if ( settleReceivedLineCount === 1 )}
               <tr style="background-color:rgba(13,110,253,0.05);">
                 <td class="text-center"><input type="checkbox" class="form-check-input" checked disabled title="振込行は必ず載ります"></td>
-                <td><b>振込 {statement.cardName || ''}</b></td>
-                <td class="number">{Number(settlement.transferAmount || 0).toLocaleString()}</td>
-                <td><Account accounts={bankAccounts} bind:code={settleReceivedAccount} bind:sub_code={settleReceivedSubAccount}></Account></td>
-                <td><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}
-                  title="貸方: 計算書の「売上」行の合計がここに載る"></Account></td>
+                <td>
+                  {settleReceivedLine.label}
+                  <span class="badge text-bg-info" style="font-size:0.65rem;">振込</span>
+                </td>
+                <td class="number">{Number(settleReceivedLine.amountIn || settleReceivedLine.amount || 0).toLocaleString()}</td>
+                <td><span class="text-muted" style="font-size:0.7rem;">借方（入金先）</span></td>
+                <td><span class="text-muted" style="font-size:0.7rem;">貸方（売上高）</span></td>
               </tr>
-              {#each ( settlement.suggestions || [] ) as s}
-              <tr class:row-excluded={ settleFeeInclude[s.lineId] === false }>
+              {:else}
+              <tr><td colspan="6" class="text-warning" style="font-size:0.8rem;">
+                入金行を選んで「出し方=借方（振込）」を指定してください（{settleReceivedLineCount}行が振込扱いです）。
+              </td></tr>
+              {/if}
+              {#each settleLineViews as lv (lv.lineId)}
+              <tr class:row-excluded={ lv.role === 'none' }>
                 <td class="text-center">
-                  <input type="checkbox" class="form-check-input" bind:checked={settleFeeInclude[s.lineId]}
-                    on:change={saveSettleDraft}
+                  {#if ( lv.role !== 'transfer' )}
+                  <input type="checkbox" class="form-check-input" checked={ lv.role !== 'none' }
+                    on:change={(e) => { setLineRole(lv, e.target.checked ? ( lv.lastRole || ( ( lv.amountIn > 0 ) ? 'sale' : 'expense' ) ) : 'none'); }}
                     title="外した行は伝票に載りません">
+                  {/if}
+                </td>
+                <td>{lv.label}</td>
+                <td class="number">
+                  {#if ( lv.amountIn > 0 )}{Number(lv.amountIn).toLocaleString()}{/if}
+                  {#if ( lv.amountOut > 0 )}{Number(lv.amountOut).toLocaleString()}{/if}
                 </td>
                 <td>
-                  {s.label}
-                  {#if ( s.account && ( settleCreditAccounts[s.lineId] || {} ).account === ( s.creditAccount || '' ) )}&nbsp;<span class="badge text-bg-light" style="font-size:0.7rem;" title="学習済みルールからの借貸">学習</span>{/if}
+                  <select class="form-select form-select-sm" bind:value={settleLineRoles[lv.lineId]}
+                    on:change={(e) => { if ( e.target.value !== 'none' ) lv.lastRole = e.target.value; saveSettleDraft(); }}
+                    title="この行の伝票上の出し方。借方（振込）=入金先預金へ、貸方（売上高）=売上高の内訳、借方（費用）=その科目で費用計上、外す=載せない">
+                    <option value="none">外す</option>
+                    <option value="received">借方（振込）</option>
+                    <option value="sale">貸方（売上高）</option>
+                    <option value="expense">借方（費用）</option>
+                  </select>
                 </td>
-                <td class="number">{Number(s.amount).toLocaleString()}</td>
-                <td><Account accounts={oppositeAccounts}
-                  bind:code={settleFeeAccounts[s.lineId].account}
-                  bind:sub_code={settleFeeAccounts[s.lineId].subAccount}></Account></td>
-                <td><Account accounts={accounts}
-                  bind:code={settleCreditAccounts[s.lineId].account}
-                  bind:sub_code={settleCreditAccounts[s.lineId].subAccount}
-                  title="貸方（任意。空=借方単行）。書くとこの行は1行で貸借が確定する（キャッシングリボ→短期借入金 等）。起票するとこの摘要と貸借が学習される"></Account></td>
+                <td>
+                  {#if ( lv.role === 'expense' )}
+                  <Account accounts={oppositeAccounts}
+                    bind:code={settleFeeAccounts[lv.lineId].account}
+                    bind:sub_code={settleFeeAccounts[lv.lineId].subAccount}
+                    title="借方の科目。ない摘要は手で選ぶと起票時に学習されます"></Account>
+                  {:else}
+                  <span class="text-muted" style="font-size:0.7rem;">—</span>
+                  {/if}
+                </td>
+                <td>
+                  {#if ( lv.role === 'expense' )}
+                  <Account accounts={accounts}
+                    bind:code={settleCreditAccounts[lv.lineId].account}
+                    bind:sub_code={settleCreditAccounts[lv.lineId].subAccount}
+                    title="貸方（任意。空=借方単行）"></Account>
+                  {/if}
+                </td>
               </tr>
               {/each}
             </tbody>
           </table>
           <div class="mt-1 {settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
-            振込 {Number(settlement.transferAmount || 0).toLocaleString()} + 採用費用 {settleFeeTotal.toLocaleString()} =
-            {( Number(settlement.transferAmount || 0) + settleFeeTotal ).toLocaleString()}円
-            （売上合計 {Number(settlement.saleTotal).toLocaleString()}円）
+            振込 {Number(settleReceivedTotal.toLocaleString())} + 費用 {Number(settleExpenseTotal.toLocaleString())} =
+            {( Number(settleReceivedTotal.toLocaleString()) + Number(settleExpenseTotal.toLocaleString()) ).toLocaleString()}円
+            （売上高 {Number(settleSaleTotal.toLocaleString())}円）
             {#if ( settleBalanceOk )}✓ 貸借一致{/if}
           </div>
-          {#if ( !settleBalanceOk && settleAdjust !== null )}
+          {#if ( !settleBalanceOk )}
           <div class="small text-danger">
-            検算が合いません（差額 {settleAdjust}円）。入れ子の集計行
-            （Amazon支払明細書の「FBA=納品+在庫保管」など）が重複して載っている場合は、
-            重複の方のチェックを外してください。
+            検算が合いません（差額 {settleAdjust}円）。「売上高」の合計が 振込+費用 になるように
+            行の出し方（貸方・借方・外す）を選んでください（入れ子の集計行と内訳が重複している場合は、重複の方を外します）。
           </div>
           {/if}
           {#if ( !settleFeesReady && settleMissing.length > 0 )}
@@ -152,12 +183,9 @@
             学習ルールに無い摘要は、この行の科目を手で選んでください（起票で学習されます）。
           </div>
           {/if}
-          {#if ( settlement.transferAmount === null )}
-          <div class="small text-danger">振込行を特定できません（AI読取のラベル揺れ。計算書データを確認してください）。</div>
-          {/if}
           <div class="text-muted" style="font-size:0.7rem;">
             ※この表がそのまま1枚の複合伝票になります（1行=貸借ペア。貸方空欄の行は借方単行）。
-            チェックと科目の選択は作業下書きとして保存され、reload でも消えません。
+            選択は作業下書きとして保存され、reload でも消えません。
             起票に成功すると、そのときの摘要→借方・貸方は学習ルールに記憶されます。
           </div>
           <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady || !settleBalanceOk}
@@ -1524,14 +1552,17 @@ const runRebook = async () => {
 // 借方: 入金先預金（振込額）+ 費用各行（ここで科目を確定させる） /
 // 買方: 売上高（売上側合算）。費用行の科目は学習ルール候補+入力。
 // 税は全行0（計算書は税込の合算をそのまま載せる）
-let settlement = null;          // GET /:id の settlement（分類集計+科目候補）
+let settlement = null;          // GET /:id の settlement（分類集計+科目候補+全行）
 let settleDay = '';             // 伝票日付（既定=振込行の日付）
 let settleReceivedAccount = '';
 let settleReceivedSubAccount = '';
 let settleSaleAccount = '';
 let settleSaleSubAccount = '';
 let settleFeeAccounts = {};     // lineId → {account, subAccount} 費用行の借方
-let settleFeeInclude = {};      // lineId → boolean（false=伝票に載せない。入れ子の集計行を外す）
+// 各行の「出し方」。received=借方（振込・入金先行）/ sale=貸方（売上高の
+// 源泉行）/ expense=借方（費用）/ none=載せない。規定はサーバの推定で
+// ユーザーが変えられる（OCR が「売上」を出していない等はここで直せる）
+let settleLineRoles = {};       // lineId → role
 // 費用行の貸方（任意。空=借方単行）。1行で貸借を確定させたい行（キャッシング
 // リボ→短期借入金 等）に書く。規定値は学習済みルールの creditAccount
 let settleCreditAccounts = {};  // lineId → {account, subAccount}
@@ -1539,27 +1570,51 @@ let settleCreditAccounts = {};  // lineId → {account, subAccount}
 // 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
 $: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
-// 費用行に借方が全部入ったか（承認制: 空では起票させない）。
-// 判定は「載せる（チェック済み）」行だけ。外した行は起票対象外
-$: settleFeesReady = ( ( settlement && settlement.suggestions ) || [] )
-  .filter((s) => ( settleFeeInclude[ s.lineId ] !== false ))
-  .every((s) => ( ( settleFeeAccounts[s.lineId] || {} ).account ) || s.account );
-// 借方が未指定で、なおかつ載せる行。
-// 押せない理由を画面に出すため
-$: settleMissing = ( ( settlement && settlement.suggestions ) || [] )
-  .filter((s) => ( settleFeeInclude[ s.lineId ] !== false ))
-  .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
-// 検算差（振込 + 採用費用 - 売上合計）。0 だけが起票可。
-// 伝票化しない費用行（入れ子の集計行等）はチェックを外して差し引く
-$: settleAdjust = ( settlement && settlement.transferAmount !== null ) ?
-  ( Number(settlement.transferAmount || 0) + settleFeeTotal - Number(settlement.saleTotal) ) : null;
+// 伝票ビューの全行（役割付き）。既定役割は settlementPreview.lines .
+// defaultRole、ユーザー変更は settleLineRoles が正
+$: settleLineViews = ( ( settlement && settlement.lines ) || [] ).map((raw) => ( {
+  lineId: raw.lineId,
+  label: raw.label,
+  amountIn: Number(raw.amountIn || 0),
+  amountOut: Number(raw.amountOut || 0),
+  role: ( settleLineRoles[ raw.lineId ] !== undefined ) ?
+    settleLineRoles[ raw.lineId ] : ( raw.defaultRole || 'none' )
+} ));
+$: settleReceivedLineCount = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'received' )).length;
+$: settleReceivedLine = ( settleLineViews || [] ).find((lv) => ( lv.role === 'received' )) || null;
+$: settleReceivedTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'received' ))
+  .reduce((a, lv) => a + Number(lv.amountIn || lv.amount || 0), 0);
+$: settleExpenseTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'expense' ))
+  .reduce((a, lv) => a + Number(lv.amountOut || lv.amount || 0), 0);
+$: settleSaleTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'sale' ))
+  .reduce((a, lv) => a + Number(lv.amountIn || lv.amount || 0), 0);
+// 費用行に借方が全部入ったか。外した行は起票対象外
+$: settleFeesReady = ( settleLineViews || [] )
+  .filter((lv) => ( lv.role === 'expense' ))
+  .every((lv) => ( ( settleFeeAccounts[lv.lineId] || {} ).account ))
+  && ( settleReceivedLineCount === 1 ) && ( settleSaleTotal > 0 );
+// 借方が未指定で、なおかつ費用扱いの行。押せない理由を画面に出すため
+$: settleMissing = ( settleLineViews || [] )
+  .filter((lv) => ( lv.role === 'expense' ))
+  .filter((lv) => !(( settleFeeAccounts[lv.lineId] || {} ).account));
+// 検算差（売上高 - 振込 - 費用）。0 だけが起票可
+$: settleAdjust = ( settlement ) ?
+  ( Number(settleSaleTotal) - Number(settleReceivedTotal) - Number(settleExpenseTotal) ) : null;
+$: settleBalanceOk = ( settlement && settleReceivedLineCount === 1 && settleSaleTotal > 0 &&
+  Number(settleSaleTotal) === Number(settleReceivedTotal) + Number(settleExpenseTotal) );
 $: settleDisabledReason = ( !settlement ) ? '' :
-  ( ( !settleFeesReady ) ?
-      `費用行の科目が未指定です（${settleMissing.map((s) => s.label).join(' / ')}）` :
-    ( settlement.transferAmount === null ?
-        '振込行を特定できません（振込額が分かりません）' :
-      ( !settleBalanceOk ?
-          `検算が合いません（差額 ${settleAdjust}円）` : '' ) ));
+  ( ( settleReceivedLineCount !== 1 ) ?
+      `振込行がありません（入金行に出し方「借方（振込）」を指定してください）` :
+    ( settleSaleTotal <= 0 ?
+        `売上行がありません（入金行に出し方「貸方（売上高）」を指定してください）` :
+      ( ( !settleFeesReady ) ?
+          `費用行の科目が未指定です（${settleMissing.map((s) => s.label).join(' / ')}）` :
+        ( !settleBalanceOk ?
+            `検算が合いません（差額 ${settleAdjust}円）` : '' ) ) ));
+const setLineRole = (lv, role) => {
+  settleLineRoles = Object.assign({}, settleLineRoles, { [lv.lineId]: role });
+  saveSettleDraft();
+};
 
 // 費用行の（ルール外の）手選択科目を、その摘要の学習ルールとして即登録する。
 // 借貸両側を覚える（パネルの貸方指定を含む。起票しなくても保存され、
@@ -1612,16 +1667,16 @@ const saveSettleDraft = () =>  {
   try {
     if  ( !statement || !settlement )  return;
     const picks = {};
-    const includes = {};
+    const roles = {};
     const credits = {};
-    for  ( const s of ( settlement.suggestions || [] ) )  {
-      const pick = settleFeeAccounts[ s.lineId ] || {};
-      picks[ s.lineId ] = { account: pick.account || '', subAccount: pick.subAccount || '' };
-      includes[ s.lineId ] = ( settleFeeInclude[ s.lineId ] !== false );
-      const credit = settleCreditAccounts[ s.lineId ] || {};
-      credits[ s.lineId ] = { account: credit.account || '', subAccount: credit.subAccount || '' };
+    for  ( const lv of ( settleLineViews || [] ) )  {
+      const pick = settleFeeAccounts[ lv.lineId ] || {};
+      picks[ lv.lineId ] = { account: pick.account || '', subAccount: pick.subAccount || '' };
+      roles[ lv.lineId ] = lv.role;
+      const credit = settleCreditAccounts[ lv.lineId ] || {};
+      credits[ lv.lineId ] = { account: credit.account || '', subAccount: credit.subAccount || '' };
     }
-    const payload = JSON.stringify({ picks, includes, credits });
+    const payload = JSON.stringify({ picks, roles, credits });
     sessionStorage.setItem(settleDraftKey(statement.id), payload);
     // サーバにも保存する（ブラウザを替えても続けられるように）。連打対策で
     // デバウンス。起票成功時に front がクリア用の null を送る
@@ -1647,15 +1702,13 @@ const clearSettleDraft = () =>  {
 
 const applySettlement = (data) => {
   // 手選択の保持: ルール変更の即反映（closing時の取り直し）や reload が
-  // 手選択/チェック状態を消さないように、以前の選択を引き継ぐ。
+  // 状態を消さないように、以前の選択を引き継ぐ。
   // 1) 同じページ内の取り直しはメモリ上の状態を優先
-  // 2) reload 直後（メモリが空）は sessionStorage の下書きを復元
-  // 3) サーバ側からルール付きの候補が来た場合はそちらを最優先
-  //  （ルールが登録された行は、ルールの科目に正しい状態として寄せてる）
-  const hadMemory = ( settleFeeAccounts && Object.keys(settleFeeAccounts).length > 0 ) ||
-    ( settleFeeInclude && Object.keys(settleFeeInclude).length > 0 );
+  // 2) reload 直後（メモリが空）は sessionStorage／サーバの下書きを復元
+  // 3) ルール（学習済みの科目）は draft にもメモリにも無い場合の初回に来る
+  const hadMemory = ( settleFeeAccounts && Object.keys(settleFeeAccounts).length > 0 );
   const prevPicks = hadMemory ? settleFeeAccounts : null;
-  const prevIncludes = hadMemory ? settleFeeInclude : null;
+  const prevRoles = ( settleLineRoles && Object.keys(settleLineRoles).length > 0 ) ? settleLineRoles : null;
   const draft = ( !hadMemory && statement ) ?
     ( loadSettleDraft(statement.id) || statement.settleDraft || null ) : null;
   settlement = data || null;
@@ -1667,38 +1720,42 @@ const applySettlement = (data) => {
   settleReceivedSubAccount = ( settlement.received && settlement.received.subAccount ) || '';
   settleSaleAccount = ( settlement.sale && settlement.sale.account ) || '';
   settleSaleSubAccount = ( settlement.sale && settlement.sale.subAccount ) || '';
-  for  ( const s of ( settlement.suggestions || [] ) )  {
-    const prevPick = prevPicks ? ( prevPicks[ s.lineId ] || {} ) : {};
-    const prevInclude = prevIncludes ? prevIncludes[ s.lineId ] : undefined;
-    const draftPick = ( draft && draft.picks ) ? ( draft.picks[ s.lineId ] || {} ) : {};
-    const draftInclude = ( draft && draft.includes ) ? draft.includes[ s.lineId ] : undefined;
-    const draftCredit = ( draft && draft.credits ) ? ( draft.credits[ s.lineId ] || {} ) : {};
-    settleFeeAccounts[ s.lineId ] = {
-      account: s.account || prevPick.account || draftPick.account || '',
-      subAccount: ( s.account && s.subAccount === 0 ) ? 0 :
-        ( s.account ? ( s.subAccount || '' ) : ( prevPick.subAccount || ( draftPick.subAccount || '' ) ) )
-    };
-    settleFeeInclude[ s.lineId ] = ( prevInclude !== undefined ) ? prevInclude :
-      ( ( draftInclude !== undefined ) ? draftInclude : true );
-    // 貸方: ルール（s.creditAccount）が正。手選択/前回下書きの貸方を次点。
-    // ルール前に手書きした分は draft にのみ反映（ルールと迷ったらルール側）
-    settleCreditAccounts[ s.lineId ] = {
-      account: s.creditAccount || ( draftCredit.account || '' ),
-      subAccount: ( s.creditAccount ? ( s.creditSubAccount || '' ) : ( draftCredit.subAccount || '' ) )
-    };
+  // 全行の目録を初期化（借方/貸方/役割の state は行ごとに必ず枠を作る。bind先がないと落ちるため）
+  const suggestionByLine = new Map(( data.suggestions || [] ).map((s) => [ s.lineId, s ]));
+  const prevRolesMap = prevRoles || {};
+  for  ( const lv of ( data.lines || [] ) )  {
+    const suggestion = suggestionByLine.get(lv.lineId) || {};
+    const prevPick = prevPicks ? ( prevPicks[ lv.lineId ] || {} ) : {};
+    const draftPick = ( draft && draft.picks ) ? ( draft.picks[ lv.lineId ] || {} ) : {};
+    const draftCredit = ( draft && draft.credits ) ? ( draft.credits[ lv.lineId ] || {} ) : {};
+    const prevRole = prevRolesMap[ lv.lineId ];
+    const draftRole = ( draft && draft.roles ) ? draft.roles[ lv.lineId ] : undefined;
+    // 役割: メモリ > 下書き > サーバ推定。下書きの旧 includes は role に読み替える
+    const legacyInclude = ( draft && draft.includes ) ? draft.includes[ lv.lineId ] : undefined;
+    settleLineRoles[ lv.lineId ] =
+      ( prevRole !== undefined ) ? prevRole :
+      ( ( draftRole !== undefined && draftRole ) || ( legacyInclude === false ? 'none' : undefined ) ) ||
+      ( lv.defaultRole || 'none' );
+    if  ( lv.role === 'expense' || ( lv.role !== 'received' && lv.role !== 'sale' ) )  {
+      settleFeeAccounts[ lv.lineId ] = {
+        account: suggestion.account || prevPick.account || draftPick.account || '',
+        subAccount: ( suggestion.account && suggestion.subAccount !== undefined && suggestion.subAccount !== null && suggestion.subAccount !== '' ) ? suggestion.subAccount :
+          ( ( suggestion.account && ( suggestion.subAccount === 0 || suggestion.subAccount === null || suggestion.subAccount === '' ) ) ?
+              ( suggestion.subAccount === 0 ) ? 0 : (( prevPick.subAccount !== undefined && prevPick.subAccount !== null && prevPick.subAccount !== '' ) ? Number(prevPick.subAccount) : ( ( draftPick.subAccount !== undefined && draftPick.subAccount !== null && draftPick.subAccount !== '' ) ? Number(draftPick.subAccount) : '' )) :
+              ( prevPick.subAccount || draftPick.subAccount || '' ) )
+      };
+      settleCreditAccounts[ lv.lineId ] = {
+        account: suggestion.creditAccount || draftCredit.account || '',
+        subAccount: ( suggestion.creditAccount ? ( suggestion.creditSubAccount || '' ) : ( draftCredit.subAccount || '' ) )
+      };
+    } else  {
+      settleFeeAccounts[ lv.lineId ] = { account: '', subAccount: '' };
+      settleCreditAccounts[ lv.lineId ] = { account: '', subAccount: '' };
+    }
   }
 };
-// 選択行での検算（借方 = 振込 + 採用費用 / 貸方 = 売上合計）。
-// 外した行は計算から外れる。合わないものは起票させない
-$: settleFeeTotal = ( ( settlement && settlement.suggestions ) || [] ).reduce((a, s) => (
-  ( settleFeeInclude[s.lineId] !== false ) ? a + Number(s.amount || 0) : a
-), 0);
-$: settleBalanceOk = settlement && settlement.transferAmount !== null &&
-  ( Number(settlement.transferAmount) + settleFeeTotal ) === Number(settlement.saleTotal);
 const runSettle = async () => {
-  const missing = ( ( settlement && settlement.suggestions ) || [] )
-    .filter((s) => ( settleFeeInclude[s.lineId] !== false ))
-    .filter((s) => !(( settleFeeAccounts[s.lineId] || {} ).account));
+  const missing = settleMissing;
   if ( !settleReceivedAccount ) {
     toast.show('計算書', '入金先（借方の預金）の科目を指定してください。', 'warning');
     return;
@@ -1720,13 +1777,13 @@ const runSettle = async () => {
       day: settleDay || undefined,
       received: { account: settleReceivedAccount, subAccount: settleReceivedSubAccount || null },
       sale: { account: settleSaleAccount, subAccount: settleSaleSubAccount || null },
-      lines: ( settlement.suggestions || [] ).map((s) => ({
-        lineId: s.lineId,
-        account: ( settleFeeAccounts[s.lineId] || {} ).account,
-        subAccount: ( ( settleFeeAccounts[s.lineId] || {} ).subAccount ) || null,
-        creditAccount: ( ( settleCreditAccounts[s.lineId] || {} ).account ) || null,
-        creditSubAccount: ( ( settleCreditAccounts[s.lineId] || {} ).subAccount ) || null,
-        include: settleFeeInclude[s.lineId] !== false
+      lines: ( settleLineViews || [] ).map((lv) => ({
+        lineId: lv.lineId,
+        role: lv.role,
+        account: ( settleFeeAccounts[lv.lineId] || {} ).account || null,
+        subAccount: ( ( settleFeeAccounts[lv.lineId] || {} ).subAccount ) || null,
+        creditAccount: ( ( settleCreditAccounts[lv.lineId] || {} ).account ) || null,
+        creditSubAccount: ( ( settleCreditAccounts[lv.lineId] || {} ).subAccount ) || null
       }))
     });
     if ( result.data && result.data.code === 0 ) {
