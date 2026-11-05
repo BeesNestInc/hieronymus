@@ -42,10 +42,12 @@ describe('manifest-engine', function () {
     assert.equal(typeof result, 'string', 'dry run が文字列を返す');
   });
 
-  it('ai/host の initializeAiHost で hooks と TEMPLATE_DIR が結線される', async function () {
-    // 先行テストが engine 固有の TEMPLATE_DIR を設定しているため、未指定時の
-    // host 既定値が効く状態に戻す
-    delete process.env.TEMPLATE_DIR;
+  it('ai/host の initializeAiHost で hooks が結線される', async function () {
+    // bin/www と同じく明示的に指定する（先行テストが engine 固有の
+    // TEMPLATE_DIR を設定して削除済みの場合、host の初期化は実行済みのため
+    // 再設定されない。TEMPLATE_DIR の host 既定値は vision.test.js 側の
+    // 結線テストが初回 import 時に保証する）
+    process.env.TEMPLATE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../ai/prompt-templates');
     process.env.LEGION_NO_DOTENV = '1';
     const { initializeAiHost } = await import('../ai/host/index.js');
     await initializeAiHost();
@@ -56,6 +58,7 @@ describe('manifest-engine', function () {
 
     assert.ok(getTemplateDir().replace(/\\/g, '/').includes('ai/prompt-templates'),
       `TEMPLATE_DIR が host の prompt-templates を指す（実際: ${getTemplateDir()}）`);
+    // dry run で host テンプレートから system prompt が組めることの前段
     assert.ok(typeof getModelProvider() === 'function', 'modelProvider が注入されている');
     assert.ok(typeof getModelConfigResolver() === 'function', 'modelConfigResolver が注入されている');
     assert.ok(getToolTable(), 'toolTable が注入されている');

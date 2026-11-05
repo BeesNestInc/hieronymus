@@ -16,6 +16,12 @@ const hostRoot = path.dirname(fileURLToPath(import.meta.url));
 if ( !process.env.TEMPLATE_DIR ) {
   process.env.TEMPLATE_DIR = path.resolve(hostRoot, '../prompt-templates');
 }
+// engine の LLM 失敗時リトライ既定（3）だと精算の再認識などの単発処理で
+// 待たされる。旧 vision 実装（リトライ1回まで）に合わせる。深追いしたい
+// 場合は明示的に設定して上書き
+if ( process.env.LLM_MAX_RETRIES === undefined ) {
+  process.env.LLM_MAX_RETRIES = '1';
+}
 
 let initialized = false;
 export const initializeAiHost = async () => {

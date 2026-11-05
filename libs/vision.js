@@ -1,90 +1,24 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { Jimp } from 'jimp';
 import { generateObject, generateText, jsonSchema } from 'ai';
 import { settings, isAvailable, makeModel } from '../ai/host/model-provider.js';
+import { initializeAiHost } from '../ai/host/index.js';
 
-// AI（LLM）による証憑OCR。Vercel AI SDKを使う。
-// モデルの生成と設定読み込みは ai/host/model-provider.js に寄せた
-// （Legion manifest-engine と同一実装を使う。設定は config/llms.yaml）。
-// 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL でも指定できる（ファイルより優先）。
+// AI（LLM）による証憑OCR。実行は Legion manifest-engine（ai/manifest-engine/
+// submodule）を ai/host（hooks結線）経由で使う。
+// extract() は既に manifest 経由に置き換え済み。extractStatement() /
+// suggestRuleAccounts() / draftStatementProfile() は段階的に移行する
+// （Phase 2。現状 ai-sdk を直接呼ぶ旧実装のまま）。
+// モデルの生成と設定読み込みは ai/host/model-provider.js に寄せている
+// （設定は config/llms.yaml）。環境変数 LLM_PROVIDER / LLM_MODEL /
+// LLM_API_KEY / LLM_BASE_URL でも指定できる（ファイルより優先）。
 // APIキーが未設定の場合 isAvailable() が false となり、AI機能は無効化される
 // （AIを利用しない運用の環境でも成立させるため、AI前提の処理にはしない）。
 // ただし openai-compatible で baseURL があればキーなしでも利用可（ローカルLLM想定）。
 
 export { isAvailable };
-
-// AIに渡すプロンプト。抽出結果はJSON（不明項目はnull）。
-// 会社名は請求元・領収書の発行者（支払先）。「お支払者名」「お客様名」
-// 「ご契約者」欄の名前（支払う側・自社）は会社名にしない。
-const PROMPT_BASE = [
-  'この帳票から 会社名/発行日/支払日/金額/消費税/税率/請求番号/取引内容 を読み取り、',
-  '以下のJSON形式で出力してください:',
-  '{"company":"...","companyId":...,"issueDate":"...","paymentDate":"...","amount":...,"tax":...,"taxRate":...,"invoiceNo":"...","description":"..."}',
-  '不明な項目は null。金額は数値（金額は税込の合計額、その内訳が消費税）。日付は YYYY-MM-DD 形式。JSON以外の出力はしないこと。',
-  '会社名は請求元・帳票の発行者（お金を支払う相手）とする。',
-  '「お支払者名」「お客様名」「ご契約者」「お名前」欄に書かれた名前（支払う側）は会社名にしないこと。'
-].join('\n');
-
-// 自社名を取得してプロンプトに除外指定を足す（読取失敗時は付けない）。
-// 例: 電気料金受領証の「お支払者名 BeesNest合同会社」を会社名にしない。
-// companies（[{id, name}]）があれば候補一覧を載せ、companyIdまで一発で
-// 選ばせる（表記ゆれはモデルに吸収させる。2ステップに分けない）。
-// payeeMappings（[{id, name, companyName, description}]）があれば、
-// 取引内容に合う支払先マッピング（=仕訳の科目）も同時に選ばせる。
-// 説明は「書籍/事務用品」等のヒントで、同一会社に複数のマッピングが
-// ある場合の振り分けに使う。空の説明はデフォルト扱い。
-const buildPrompt = async (companies, payeeMappings) => {
-  const lines = [ PROMPT_BASE ];
-  try {
-    const { default: myCompany } = await import('./my-company.js');
-    const self = await myCompany();
-    if ( self && self.name ) {
-      lines.push(`「${self.name}」は自社（支払う側）なので会社名にしないこと。`);
-    }
-  } catch (e) {
-  }
-  const list = ( companies || [] ).filter((c) => ( c && c.name ));
-  if ( list.length > 0 ) {
-    lines.push(
-      '以下の取引先候補の中から、この帳票の支払先（請求元）に該当するものを選び、',
-      'companyId にそのIDを入れること。表記ゆれ（株式会社/㈱、事業/局、',
-      '略称、英語表記など）は同一とみなす。該当がなければ companyId は null とし、',
-      'company には帳票に書かれた表記をそのまま入れること。',
-      '候補:',
-      ...list.map((c) => `${c.id}: ${c.name}`)
-    );
-  }
-  const mappings = ( payeeMappings || [] ).filter((m) => ( m && m.name ));
-  if ( mappings.length > 0 ) {
-    lines.push(
-      'さらに、この帳票の内容（取引内容・品目）に最も合う支払先マッピングを選び、',
-      'payeeMappingId にそのIDを入れること。マッピングの説明は仕訳の振り分け',
-      'ヒントであり、説明の内容に合わせて選ぶこと。どれも合わなければ',
-      '説明が空のものを選び、それもなければ null とすること。',
-      'マッピング候補:',
-      ...mappings.map((m) => `${m.id}: ${m.name}${m.companyName ? `（${m.companyName}）` : ''}${m.description ? ` — ${m.description}` : ''}`)
-    );
-  }
-  return lines.join('\n');
-};
-
-// 抽出スキーマ（構造化出力用。読めない項目はnullを許す）
-const VOUCHER_SCHEMA = jsonSchema({
-  type: 'object',
-  properties: {
-    company: { type: ['string', 'null'] },
-    companyId: { type: ['number', 'null'] },
-    payeeMappingId: { type: ['number', 'null'] },
-    issueDate: { type: ['string', 'null'] },
-    paymentDate: { type: ['string', 'null'] },
-    amount: { type: ['number', 'null'] },
-    tax: { type: ['number', 'null'] },
-    taxRate: { type: ['number', 'null'] },
-    invoiceNo: { type: ['string', 'null'] },
-    description: { type: ['string', 'null'] }
-  },
-  required: ['company', 'companyId', 'payeeMappingId', 'issueDate', 'paymentDate', 'amount', 'tax', 'taxRate', 'invoiceNo', 'description'],
-  additionalProperties: false
-});
 
 // JSON部分の抽出（コードフェンスや前後の説明文の混入対策）
 const extractJson = (text) => {
@@ -221,40 +155,76 @@ const aiApiError = (e) => {
 // options.companies（[{id, name}]）と options.payeeMappings
 // （[{id, name, companyName, description}]）を渡すと、候補から
 // companyId・payeeMappingId まで一発で選ぶ。
+// 実行は Legion manifest-engine の ocr-voucher manifest（ai/manifests/）。
+// 読み取り指示・判定ルールの文面は ai/prompt-templates/ocr-voucher.md（.mdだけ
+// で調整できる）、候補などの動的データはリクエスト本文に載せる。帳票画像は
+// prepareImage で正規化して一時ファイルに書き、params.chatImages（ファイルパス）
+// で渡す。戻り値は帳票情報のJSON（旧実装と同じ項目）。
 export const extract = async (buffer, mimeType, options = {}) => {
-  const setting = settings();
   if ( !isAvailable() ) {
     const err = new Error('AIの設定がありません（config/llms.yaml）。');
     err.name = 'AiNotConfigured';
     throw err;
   }
   const prepared = await prepareImage(buffer, mimeType);
-  const data = prepared.data;
-  const type = prepared.type;
-  const model = makeModel(setting);
-  const prompt = await buildPrompt(options.companies, options.payeeMappings);
-  const messages = [{
-    role: 'user',
-    content: [
-      { type: 'text', text: prompt },
-      { type: 'image', image: `data:${type};base64,${data.toString('base64')}` }
-    ]
-  }];
-  // 第一経路: 構造化出力。失敗したらテキスト+サルベージに落とす。
-  // リトライは1回まで（プロバイダ切替はしない。失敗時は再認識ボタンで再実行）
+  const ext = prepared.type === 'image/png' ? 'png' :
+    prepared.type === 'image/webp' ? 'webp' :
+    prepared.type === 'image/gif' ? 'gif' : 'jpg';
+  const tmpPath = path.join(os.tmpdir(), `ocr-voucher-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+  await fs.promises.writeFile(tmpPath, prepared.data);
   try {
-    const result = await generateObject({ model: model, schema: VOUCHER_SCHEMA, messages: messages, maxRetries: 1 });
-    return result.object;
+    await initializeAiHost();
+    // 自社名（支払う側）は会社名の誤認防止のため文脈に載せる（読取失敗時は付けない）
+    let selfName = '';
+    try {
+      const { default: myCompany } = await import('./my-company.js');
+      const self = await myCompany();
+      if ( self && self.name ) {
+        selfName = self.name;
+      }
+    } catch (e) {
+    }
+    const sections = [];
+    if ( selfName ) {
+      sections.push(`[自社]\n${selfName}`);
+    }
+    const companies = ( options.companies || [] ).filter((c) => ( c && c.name ));
+    if ( companies.length > 0 ) {
+      sections.push(`[取引先候補]\n${companies.map((c) => `${c.id}: ${c.name}`).join('\n')}`);
+    }
+    const mappings = ( options.payeeMappings || [] ).filter((m) => ( m && m.name ));
+    if ( mappings.length > 0 ) {
+      sections.push(`[支払先マッピング候補]\n${mappings.map((m) =>
+        `${m.id}: ${m.name}${m.companyName ? `（${m.companyName}）` : ''}${m.description ? ` — ${m.description}` : ''}`
+      ).join('\n')}`);
+    }
+    const input = [
+      '帳票画像を1枚添付します。この帳票から会計仕訳情報を読み取ってください。',
+      ...sections
+    ].join('\n');
+    const { createOcrVoucher } = await import('../ai/manifests/ocr-voucher.js');
+    const manifest = createOcrVoucher();
+    const { result } = await manifest.execute({
+      roles: { 'ocr-voucher': { name: 'ocr-voucher', manifests: { 'ocr-voucher': manifest } } },
+      role: 'ocr-voucher',
+      requests: [{ name: 'request', input: input }],
+      params: { chatImages: { value: [tmpPath] } }
+    });
+    return JSON.parse(result);
   } catch (e) {
-    // API呼び出し自体の失敗は即時送出（リトライ・切替はしない）
-    if ( e && (( e.name === 'AI_APICallError' ) || e.statusCode || e.status )) {
+    // 旧実装と同じ整形: API呼び出し自体の失敗は AiApiError として送出する。
+    // manifest-engine 内でのフォールバック・リトライは engine 側の設計に任せる
+    if ( e && ( e.name === 'AiApiError' ) ) {
+      throw e;
+    }
+    if ( e && ( e.statusCode || e.status || e.name === 'AI_APICallError' || e.name === 'AI_RetryError' ) ) {
       throw aiApiError(e);
     }
+    throw e;
+  } finally {
     try {
-      const result = await generateText({ model: model, messages: messages, maxRetries: 1 });
-      return extractJson(result.text);
-    } catch (e2) {
-      throw aiApiError(e2);
+      fs.unlinkSync(tmpPath);
+    } catch (e) {
     }
   }
 };

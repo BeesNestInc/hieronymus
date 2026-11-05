@@ -136,7 +136,10 @@ describe('vision', () => {
       assert.strictEqual(requests[0].url, '/v1/chat/completions');
       assert.strictEqual(requests[0].body.model, 'test-vision');
       assert.strictEqual(requests[0].body.response_format.type, 'json_object');
-      const imgPart = requests[0].body.messages[0].content.find((p) => p.type === 'image_url');
+      // engine は指示文を system、添付・動的データを user に分ける。
+      // user メッセージ側の添付を見る（transport-shape）
+      const userMsg = requests[0].body.messages.find((m) => m.role === 'user');
+      const imgPart = userMsg.content.find((p) => p.type === 'image_url');
       assert.isTrue(imgPart.image_url.url.startsWith('data:image/png;base64,'));
       assert.notProperty(requests[0].headers, 'authorization');
       assert.strictEqual(values.company, 'テスト商事');
@@ -327,7 +330,9 @@ describe('vision.extract with companies', () => {
         companies: [{ id: 3, name: '中国電力' }, { id: 47, name: '大田市水道局' }]
       });
       assert.strictEqual(requests.length, 1);
-      const text = requests[0].body.messages[0].content.find((p) => p.type === 'text').text;
+      // engine は動的データ（候補）を user メッセージに載せる（transport-shape）
+      const userMsg = requests[0].body.messages.find((m) => m.role === 'user');
+      const text = userMsg.content.find((p) => p.type === 'text').text;
       assert.include(text, '47: 大田市水道局');
       assert.strictEqual(values.company, '大田市水道事業');
       assert.strictEqual(values.companyId, 47);
@@ -407,7 +412,8 @@ describe('vision shrink', () => {
       const big = new Jimp({ width: 400, height: 2400, color: 0xfafafaff });
       const buf = await big.getBuffer('image/png');
       await vision.extract(buf, 'image/png');
-      const imgPart = requests[0].body.messages[0].content.find((p) => p.type === 'image_url');
+      const userMsg = requests[0].body.messages.find((m) => m.role === 'user');
+      const imgPart = userMsg.content.find((p) => p.type === 'image_url');
       const b64 = imgPart.image_url.url.split(',')[1];
       const sent = await Jimp.read(Buffer.from(b64, 'base64'));
       assert.isAtMost(Math.max(sent.bitmap.width, sent.bitmap.height), 1600);
