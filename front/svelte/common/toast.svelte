@@ -34,7 +34,8 @@ export const show = (title, description, type='success') => {
     uid: uid,
     title: title,
     description: description,
-    duration: 5000,
+    // 表示時間は長め（10秒）。邪魔ならクリックで消せる
+    duration: 10000,
     placement: 'top-center',
     type: type,
     theme: 'dark',
@@ -44,6 +45,8 @@ export const show = (title, description, type='success') => {
     remove: () => removeByUid(uid)
   };
   lastShown = item;
+  // クリックで消せる（pointer-events:none だと触れないので container側に auto がある想定）
+  item.onClick = () => { item.remove(); };
   items.update((v) => [ ...v, item ]);
   setTimeout(() => {
     removeByUid(uid);
@@ -68,6 +71,9 @@ export const remove = () => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+    /* 邪魔なときにクリックで消せるように */
+    pointer-events: auto;
+    cursor: pointer;
   }
   .toast-container {
     z-index: 9999;
@@ -77,6 +83,8 @@ export const remove = () => {
     color: #fff;
     width: max-content;
     max-width: 100%;
+    /* li（トースト本体）だけポインターを拾う。全面が拾うと
+       ページ操作を妨げる */
     pointer-events: none;
   }
   .toast-container.top-center {

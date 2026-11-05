@@ -1379,6 +1379,9 @@ const dismissWarnings = async () => {
 // 同じ通帳に取り込んだ計算書（ファイル単位）の一覧。ヘッダのセレクトで
 // 読み替えるときに使う（計算書の詳細画面だけ）
 let financialSettlements = [];
+// 取込直後だけ「学習した構成で自動で組みました」のヒントを出す。
+// ヘッダのセレクトで読み替えるだけのときは出さない（文脈的に意味不明）
+let seedToastPendingFor = null;
 const loadDetail = async (statementId) => {
   const result = await axios.get(`/api/bank_statement/${statementId}`);
   statement = ( result.data && result.data.statement ) || null;
@@ -1396,7 +1399,8 @@ const loadDetail = async (statementId) => {
     }
   }
   applyOppositeSuggestions(result.data.oppositeSuggestions);
-  applySettlement(result.data.settlement);
+  applySettlement(result.data.settlement, { seedToast: seedToastPendingFor === statementId });
+  seedToastPendingFor = null;
   await restoreScroll();
 };
 
@@ -1567,6 +1571,8 @@ const doUpload = async () => {
       if ( String(result.data.id) === String(id) ) {
         await loadDetail(id);
       } else {
+        // 新規計算書の取込直後だけ seed 構成のヒントを出す（読み替えでは出さない）
+        seedToastPendingFor = result.data.id;
         routerLink(`/bank-statement/${result.data.id}`);
       }
     } else {
@@ -1989,7 +1995,7 @@ const reflectNewRows = (data) => {
   return changed;
 };
 
-const applySettlement = (data) => {
+const applySettlement = (data, opts = {}) => {
   // 伝票ビュー（pick & place）の下書きを復元する。
   // 1) 同じ計算書に画面内で取り掛かっている（メモリ上の voucherが残る）
   //    場合はそれを優先
@@ -2052,7 +2058,9 @@ const applySettlement = (data) => {
         credit: { rows: clean(( dl.credit && dl.credit.rows || [] )), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
       } ))
     };
-    toast.show('計算書', `この通帳で学習した伝票構成（${seed.lines.length}行）を自動で組みました。確認・調整して起票してください`);
+    if ( opts.seedToast ) {
+      toast.show('計算書', `この通帳で学習した伝票構成（${seed.lines.length}行）を自動で組みました。確認・調整して起票してください`);
+    }
     return;
   }
   voucher = { lines: [] };
