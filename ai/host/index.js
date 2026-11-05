@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as engineHooks from '../manifest-engine/hooks.js';
 import * as modelProvider from './model-provider.js';
+import { kaikeiMcpTools } from './mcp-tools.js';
 
 // Legion manifest-engine（ai/manifest-engine、submodule）を Hieronymus で
 // 動かすための host adapter。engine 本体は host 固有実装を hooks 経由で
@@ -37,10 +38,10 @@ export const initializeAiHost = async () => {
   // 群参照（requestLLMBare の候補フォールバックと input-strategy 候補解決）。
   // リトライ戦略（setRetryStrategy）の接続は Phase 3（キープール運用と一緒に）
   engineHooks.setCandidateResolver(modelProvider.candidates);
-  // host のツール群（Phase 3 で拡張）
+  // host のツール群（現状なし。built-in ツールは使わない）
   engineHooks.setToolTable({});
-  // MCP群の束ね（Phase 3 で voucher-mcp / expense-mcp を接続）
-  engineHooks.setMcpTools({});
+  // MCP群の束ね: Hieronymus 本体の voucher-mcp / expense-mcp（HTTP API 経由）
+  engineHooks.setMcpTools(kaikeiMcpTools());
   // 履歴なしの方針。Legion の workspace 走査（bulk archive 用）は持たない
   engineHooks.setHistoriesDirsFinder(() => []);
   engineHooks.setWorkerHistoriesDirsFinder(() => []);
