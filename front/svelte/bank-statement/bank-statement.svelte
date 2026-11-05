@@ -27,7 +27,7 @@
   {#if ( statement )}
   <div class="mb-1 text-muted d-flex align-items-center">
     <span class="fs-5 text-dark fw-bold me-2">{ ( statement.financial || {}).name || statement.fileName }</span>
-    <span class="badge text-bg-info me-1" style="font-size:0.7rem;" title="この画面で処理（起票・削除・ルール編集）している計算書">処理対象: 計算書#{statement.id}</span>
+    {#if statement.kind === 'settlement'}<span class="badge text-bg-info me-1" style="font-size:0.7rem;" title="この画面で処理（起票・削除・ルール編集）している計算書">処理対象: 計算書#{statement.id}</span>{/if}
     <span>{statement.fileName} / {statement.periodFrom || '?'}〜{statement.periodTo || '?'} / {statement.lines.length}行</span>
     <a class="btn btn-link btn-sm ms-2" href={`/api/bank_statement/file/${statement.id}`}
       download title="取り込んだファイル（通帳の原典）をダウンロードします（申告で「通帳出せ」のときに）">
@@ -422,7 +422,10 @@
             </button>
           </td>
         </tr>
-        {#each ( statementVersions[ row.id ] || [] ) as sv (sv.id)}
+        <!-- 計算書（settlement）だけはファイル単位の処理（破棄・起票）をするので
+            取込をバージョンとして出す。通帳・カードは累積取り込み（重複は
+            無視して足す）でファイル単位の操作が意味を持たないため出さない -->
+        {#each ( row.kind === 'settlement' ? ( statementVersions[ row.id ] || [] ) : [] ) as sv (sv.id)}
         <tr class="statement-version-row">
           <td></td>
           <td>
