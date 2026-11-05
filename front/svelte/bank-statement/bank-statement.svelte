@@ -90,110 +90,114 @@
       {#if ( settlementBooked )}
       <span class="badge bg-primary ms-2">起票済み</span>
       {:else}
-      <div class="mt-1">
-          <div class="card border-primary mb-2">
+      <div class="row g-2 mt-1 settle-columns">
+        <div class="col-12 col-lg-6 composer-col">
+          <div class="card border-primary mb-1">
             <div class="card-header" style="font-size:0.8rem;">振替伝票（起票内容）</div>
             <div class="card-body py-2">
               {#if ( ( voucher.lines || [] ).length === 0 )}
               <div class="text-muted mb-1" style="font-size:0.8rem;">
-                まだ伝票がありません。下の「読み取った明細」の行をドラッグして、伝票行の「借」「貸」ゾーンへドロップしてください。
+                まだ伝票がありません。右の「読み取った明細」の行をドラッグして、
+                借方（左）・貸方（右）のゾーンへドロップしてください。
+                一つの伝票行には、貸借それぞれに複数の摘要を割り付けられます。
               </div>
               {/if}
               {#each voucher.lines as dl, di ('L' + dl.id)}
-              <div class="row g-1 align-items-start mb-2 pb-1" style="border-bottom:1px dashed #ced4da;">
-                <div class="col-auto" style="padding-top:0.4rem;">
+              <div class="row g-1 align-items-stretch voucher-line mb-1 pb-1">
+                <div class="col-auto d-flex align-items-center">
                   <span class="badge text-bg-light" style="font-size:0.7rem;">行{di + 1}</span>
                 </div>
-                <div class="col">
-                  <div class="row g-1 align-items-center mb-1 side-zone
-                    {dropOverKey === `${di}:debit` ? 'drop-over' : ''}"
-                    on:dragover|preventDefault={(e) => overZone(e, `${di}:debit`)}
-                    on:dragleave={() => leaveZone(`${di}:debit`)}
-                    on:drop={(e) => dropZone(e, di, 'debit')}>
-                    <div class="col-auto"><span class="badge text-bg-warning">借</span></div>
-                    <div class="col">
-                      {#if ( ( dl.debit.rows || [] ).length === 0 )}
-                      <span class="text-muted" style="font-size:0.75rem;">（未割付。ここへドロップ）</span>
-                      {/if}
-                    </div>
-                    <div class="col-auto"><Account accounts={bankAccounts}
-                      bind:code={dl.debit.account} bind:sub_code={dl.debit.sub}
-                      title="借方の科目"></Account></div>
-                    <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'debit'))}</b>円</div>
+                <div class="col side-zone debit-zone
+                  {dropOverKey === `${di}:debit` ? 'drop-over' : ''}"
+                  on:dragover|preventDefault={(e) => overZone(e, `${di}:debit`)}
+                  on:dragleave={() => leaveZone(`${di}:debit`)}
+                  on:drop={(e) => dropZone(e, di, 'debit')}>
+                  <div class="d-flex align-items-center">
+                    <span class="badge text-bg-warning">借</span>
+                    <b class="ms-auto">{numberFmt(sideAmount(dl, 'debit'))}</b>円
                   </div>
-                  {#each ( dl.debit.rows || [] ) as rowId (rowId)}
-                  <div class="row g-1 align-items-center mb-0 chip" draggable="true"
-                    on:dragstart={(e) => startChipDrag(e, di, 'debit', rowId)}
-                    on:dragend={endDrag}
-                    title="ドラッグで別の行・側へ移動できます"
-                    style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;cursor:grab;">
-                    <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
-                    <div class="col-auto">
-                      <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
+                  <div class="chip-line">
+                    {#each ( dl.debit.rows || [] ) as rowId (rowId)}
+                    <span class="chip" draggable="true"
+                      on:dragstart={(e) => startChipDrag(e, di, 'debit', rowId)}
+                      on:dragend={endDrag}
+                      title="ドラッグで移動">
+                      {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
+                      <button type="button" class="btn btn-sm text-muted chip-x"
                         title="この摘要を外す（明細へ戻る）"
-                        on:click={() => { detachRow(di, 'debit', rowId); }}>✕</button>
-                    </div>
+                        on:click|stopPropagation={() => { detachRow(di, 'debit', rowId); }}>✕</button>
+                    </span>
+                    {/each}
+                    {#if ( ( dl.debit.rows || [] ).length === 0 )}
+                    <span class="text-muted" style="font-size:0.7rem;">（未割付。ここへドロップ）</span>
+                    {/if}
                   </div>
-                  {/each}
-                  <div class="row g-1 align-items-center mb-1 side-zone
-                    {dropOverKey === `${di}:credit` ? 'drop-over' : ''}"
-                    on:dragover|preventDefault={(e) => overZone(e, `${di}:credit`)}
-                    on:dragleave={() => leaveZone(`${di}:credit`)}
-                    on:drop={(e) => dropZone(e, di, 'credit')}
-                    style="margin-top:0.3rem;">
-                    <div class="col-auto"><span class="badge text-bg-success">貸</span></div>
-                    <div class="col">
-                      {#if ( ( dl.credit.rows || [] ).length === 0 )}
-                      <span class="text-muted" style="font-size:0.75rem;">（未割付。ここへドロップ）</span>
-                      {/if}
-                    </div>
-                    <div class="col-auto"><Account accounts={oppositeAccounts}
-                      bind:code={dl.credit.account} bind:sub_code={dl.credit.sub}
-                      title="貸方の科目"></Account></div>
-                    <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'credit'))}</b>円</div>
+                  <div class="d-flex align-items-center mt-1">
+                    <span class="text-muted" style="font-size:0.7rem;">借方科目</span>
                   </div>
-                  {#each ( dl.credit.rows || [] ) as rowId (rowId)}
-                  <div class="row g-1 align-items-center mb-0 chip" draggable="true"
-                    on:dragstart={(e) => startChipDrag(e, di, 'credit', rowId)}
-                    on:dragend={endDrag}
-                    title="ドラッグで別の行・側へ移動できます"
-                    style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;cursor:grab;">
-                    <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
-                    <div class="col-auto">
-                      <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
-                        title="この摘要を外す（明細へ戻る）"
-                        on:click={() => { detachRow(di, 'credit', rowId); }}>✕</button>
-                    </div>
-                  </div>
-                  {/each}
+                  <Account accounts={bankAccounts}
+                    bind:code={dl.debit.account} bind:sub_code={dl.debit.sub}
+                    title="借方の科目"></Account>
                 </div>
-                <div class="col-auto" style="padding-top:0.4rem;">
+                <div class="col side-zone credit-zone
+                  {dropOverKey === `${di}:credit` ? 'drop-over' : ''}"
+                  on:dragover|preventDefault={(e) => overZone(e, `${di}:credit`)}
+                  on:dragleave={() => leaveZone(`${di}:credit`)}
+                  on:drop={(e) => dropZone(e, di, 'credit')}>
+                  <div class="d-flex align-items-center">
+                    <span class="badge text-bg-success">貸</span>
+                    <b class="ms-auto">{numberFmt(sideAmount(dl, 'credit'))}</b>円
+                  </div>
+                  <div class="chip-line">
+                    {#each ( dl.credit.rows || [] ) as rowId (rowId)}
+                    <span class="chip" draggable="true"
+                      on:dragstart={(e) => startChipDrag(e, di, 'credit', rowId)}
+                      on:dragend={endDrag}
+                      title="ドラッグで移動">
+                      {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
+                      <button type="button" class="btn btn-sm text-muted chip-x"
+                        title="この摘要を外す（明細へ戻る）"
+                        on:click|stopPropagation={() => { detachRow(di, 'credit', rowId); }}>✕</button>
+                    </span>
+                    {/each}
+                    {#if ( ( dl.credit.rows || [] ).length === 0 )}
+                    <span class="text-muted" style="font-size:0.7rem;">（未割付。ここへドロップ）</span>
+                    {/if}
+                  </div>
+                  <div class="d-flex align-items-center mt-1">
+                    <span class="text-muted" style="font-size:0.7rem;">貸方科目</span>
+                  </div>
+                  <Account accounts={oppositeAccounts}
+                    bind:code={dl.credit.account} bind:sub_code={dl.credit.sub}
+                    title="貸方の科目"></Account>
+                </div>
+                <div class="col-auto d-flex align-items-center">
                   <button type="button" class="btn btn-sm btn-outline-danger"
-                    title="この伝票行を削除（割り付けた明細は下に戻る）"
-                    on:click={() => { removeLine(di); }}>行削除</button>
+                    title="この伝票行を削除（割り付けた摘要は右の明細に戻る）"
+                    on:click={() => { removeLine(di); }}>行<br>削<br>除</button>
                 </div>
               </div>
               {/each}
-              <div class="row g-1 mb-1">
+              <div class="row g-1 my-1">
                 <div class="col side-zone new-zone {dropOverKey === 'new-debit' ? 'drop-over' : ''}"
                   on:dragover|preventDefault={(e) => overZone(e, 'new-debit')}
                   on:dragleave={() => leaveZone('new-debit')}
                   on:drop={(e) => dropNewLine(e, 'debit')}
                   title="ここにドロップすると、新しい伝票行の借方になります">
-                  ＋新しい行の借方へ ドロップ
+                  ＋ 借方（新しい行）
                 </div>
                 <div class="col side-zone new-zone {dropOverKey === 'new-credit' ? 'drop-over' : ''}"
                   on:dragover|preventDefault={(e) => overZone(e, 'new-credit')}
                   on:dragleave={() => leaveZone('new-credit')}
                   on:drop={(e) => dropNewLine(e, 'credit')}
                   title="ここにドロップすると、新しい伝票行の貸方になります">
-                  ＋新しい行の貸方へ ドロップ
+                  ＋ 貸方（新しい行）
                 </div>
               </div>
               <div class="d-flex align-items-center justify-content-between">
                 <button type="button" class="btn btn-sm btn-outline-primary"
-                  on:click={() => { addLine(); }}>＋伝票行を追加（クリックで空行・DnDを併用可）</button>
-                <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}">
+                  on:click={() => { addLine(); }}>＋伝票行を追加</button>
+                <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
                   借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
                   {#if ( settleBalanceOk )}✓ 貸借一致
                   {:else}
@@ -202,37 +206,6 @@
                 </span>
               </div>
             </div>
-          </div>
-          <div class="d-flex align-items-center mb-1">
-            <span style="font-size:0.8rem;" class="me-2"><b>読み取った明細</b>（選ぶ → 伝票行へ割付）</span>
-          </div>
-          <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
-            <thead class="table-light">
-              <tr>
-                <th style="width:44%;">摘要（読み取った明細。ドラッグして伝票へ）</th>
-                <th class="number" style="width:110px;">金額</th>
-                <th style="width:100px;">状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each settleLineViews as lv (lv.lineId)}
-              {#if ( !lineUsed(lv.lineId) )}
-              <tr draggable="true" style="background-color:rgba(13,110,253,0.05);cursor:grab;"
-                on:dragstart={(e) => startRowDrag(e, lv.lineId)}
-                on:dragend={endDrag}
-                title="ドラッグして伝票行の「借方」「貸方」へ DROP。クリック選択＋ボタンでも割り付けられます">
-                <td>{lv.label}<i class="bi bi-grip-vertical me-2 text-muted" style="font-size:0.7rem;" title="ドラッグして伝票行の「借」「貸」へ"></i></td>
-                <td class="number">{numberFmt(lineAmount(lv.lineId))}</td>
-                <td style="font-size:0.7rem;">{lv.status === 'booked' ? '起票済' : ''}</td>
-              </tr>
-              {/if}
-              {/each}
-            </tbody>
-          </table>
-          <div class="text-muted" style="font-size:0.7rem;">
-            ※構成は作業下書きとして保存され、reload でも消えません。
-            起票に成功すると、この構成はこの通帳に学習され、次回の取込では
-            同じ構成の伝票が自動で組み上がった状態から始まります。
           </div>
           <div class="d-flex align-items-center">
             <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || !settleBalanceOk}
@@ -244,6 +217,40 @@
               title="この取込を破棄します（計算書と明細は消えます。ファイルはもう一度取り込めます）"
               on:click={() => { discardStatement(); }}>この取り込みをなかったことにする</button>
           </div>
+        </div>
+        <div class="col-12 col-lg-6 pool-col">
+          <div class="d-flex align-items-center mb-1">
+            <span style="font-size:0.8rem;"><b>読み取った明細</b>（ドラッグして伝票へ）</span>
+          </div>
+          <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
+            <thead class="table-light">
+              <tr>
+                <th style="width:46%;">摘要（読み取った明細）</th>
+                <th class="number" style="width:110px;">金額</th>
+                <th style="width:90px;">状態</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each settleLineViews as lv (lv.lineId)}
+              {#if ( !lineUsed(lv.lineId) )}
+              <tr draggable="true" style="cursor:grab;"
+                on:dragstart={(e) => startRowDrag(e, lv.lineId)}
+                on:dragend={endDrag}>
+                <td>{lv.label}<i class="bi bi-grip-vertical ms-2 text-muted" style="font-size:0.7rem;"></i></td>
+                <td class="number">{numberFmt(lineAmount(lv.lineId))}</td>
+                <td style="font-size:0.7rem;">{lv.status === 'booked' ? '起票済' : ''}</td>
+              </tr>
+              {/if}
+              {/each}
+            </tbody>
+          </table>
+          <div class="text-muted" style="font-size:0.7rem;">
+            ※伝票行に割り付けた摘要はここから消えます（割り付け解除で戻る）。
+            構成は作業下書きとして保存され、reload でも消えません。
+            起票に成功すると、この構成はこの通帳に学習され、
+            次回の取込では同じ構成の伝票が自動で組み上がった状態から始まります。
+          </div>
+        </div>
       </div>
       {/if}
     </div>
