@@ -27,7 +27,19 @@
   {#if ( statement )}
   <div class="mb-1 text-muted d-flex align-items-center">
     <span class="fs-5 text-dark fw-bold me-2">{ ( statement.financial || {}).name || statement.fileName }</span>
-    {#if statement.kind === 'settlement'}<span class="badge text-bg-info me-1" style="font-size:0.7rem;" title="この画面で処理（起票・削除・ルール編集）している計算書">処理対象: 計算書#{statement.id}</span>{/if}
+    {#if statement.kind === 'settlement' && financialSettlements.length > 1}
+    <!-- 計算書はファイル単位の処理（削除・起票・下書き）。同じ通帳に
+         複数のファイルを取り込んでいるときは、ここで読み替える -->
+    <select class="form-select form-select-sm me-1" style="width:auto;max-width:300px;font-size:0.75rem;"
+      value={statement.id} title="この通帳に取り込んだ計算書を読み替える"
+      on:change={(e) => { routerLink(`/bank-statement/${e.target.value}`); }}>
+      {#each financialSettlements as sv (sv.id)}
+      <option value={sv.id}>#{sv.id} {sv.fileName || '（無題）'}（{sv.periodFrom || '—'}〜{sv.periodTo || '—'} / {sv.lineCount || 0}行{sv.booked ? `、起票済${sv.booked}` : ''}）</option>
+      {/each}
+    </select>
+    {:else}{#if statement.kind === 'settlement'}
+    <span class="badge text-bg-info me-1" style="font-size:0.7rem;" title="この画面で処理（起票・削除・ルール編集）している計算書">処理対象: 計算書#{statement.id}</span>
+    {/if}{/if}
     <span>{statement.fileName} / {statement.periodFrom || '?'}〜{statement.periodTo || '?'} / {statement.lines.length}行</span>
     <a class="btn btn-link btn-sm ms-2" href={`/api/bank_statement/file/${statement.id}`}
       download title="取り込んだファイル（通帳の原典）をダウンロードします（申告で「通帳出せ」のときに）">
@@ -377,20 +389,6 @@
         bind:checked={showClosedFinancials} on:change={loadList}>
       <label class="form-check-label" style="font-size:0.85rem;" for="showClosed">「もう使わない」通帳も表示</label>
     </div>
-    {#if settlementVersions.length > 0}
-    <!-- 計算書はファイル単位の処理なので、取り込んだ計算書はここから開く。
-         通帳一覧には（通帳・カードは累積取り込みなので）計算書単位の行を出さない -->
-    <div class="ms-auto d-flex align-items-center">
-      <label class="me-2" style="font-size:0.85rem;">計算書</label>
-      <select class="form-select form-select-sm" style="width:auto;max-width:340px;"
-        bind:value={settlementSelected} on:change={goSettlement}>
-        <option value="">取り込んだ計算書を開く…</option>
-        {#each settlementVersions as sv (sv.id)}
-        <option value={sv.id}>#{sv.id} {sv.fileName || '（無題）'}（{sv.periodFrom || '—'}〜{sv.periodTo || '—'} / {sv.lineCount || 0}行{sv.booked ? `、起票済${sv.booked}` : ''}）</option>
-        {/each}
-      </select>
-    </div>
-    {/if}
   </div>
   <div class="table-responsive table-scroll">
     <table class="table table-striped table-bordered">
@@ -1202,28 +1200,6 @@ const goList = () => {
 const loadList = async () => {
   const result = await axios.get(`/api/financial${ showClosedFinancials ? '?closed=1' : '' }`);
   statements = ( result.data && result.data.values ) || [];
-  // 取り込んだ計算書（取込=ファイル単位）の一覧。詳細画面へは上のセレクトから
-  try {
-    const versions = await axios.get('/api/bank_statement/versions');
-    const values = ( versions.data && versions.data.values ) || [];
-    // 通帳・カードは累積取り込み（重複無視・追加）なのでファイル単位の
-    // 一覧は要らない。計算書（settlement）だけを出す
-    settlementVersions = values.filter((v) => ( v.kind === 'settlement' ));
-  } catch (e) {
-    console.error('load statement versions failed', e);
-    settlementVersions = [];
-  }
-};
-// 取り込んだ計算書（settlement）の一覧（versions API の計算書分）
-let settlementVersions = [];
-// 計算書の詳細への移動（セレクトで選んだとき）
-let settlementSelected = '';
-const goSettlement = () => {
-  const value = settlementSelected;
-  settlementSelected = '';
-  if ( value ) {
-    routerLink(`/bank-statement/${value}`);
-  }
 };
 // 通帳セレクト用。全使用中の通帳
 const loadFinancials = async () => {
@@ -1400,6 +1376,9 @@ const dismissWarnings = async () => {
   }
 };
 
+// 同じ通帳に取り込んだ計算書（ファイル単位）の一覧。ヘッダのセレクトで
+// 読み替えるときに使う（計算書の詳細画面だけ）
+let financialSettlements = [];
 const loadDetail = async (statementId) => {
   const result = await axios.get(`/api/bank_statement/${statementId}`);
   statement = ( result.data && result.data.statement ) || null;
@@ -1407,6 +1386,15 @@ const loadDetail = async (statementId) => {
   warnings = ( statement && Array.isArray(statement.warnings) ) ? statement.warnings : [];
   cardSuggestions = [];
   settlementDeposits = result.data.settlementDeposits || [];
+  financialSettlements = [];
+  if ( statement && statement.kind === 'settlement' && statement.financialId ) {
+    try {
+      const versions = await axios.get(`/api/bank_statement/versions?financialId=${statement.financialId}`);
+      financialSettlements = ( versions.data && versions.data.values ) || [];
+    } catch (e) {
+      console.error('load financial settlements failed', e);
+    }
+  }
   applyOppositeSuggestions(result.data.oppositeSuggestions);
   applySettlement(result.data.settlement);
   await restoreScroll();
