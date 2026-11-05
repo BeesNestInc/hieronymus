@@ -165,7 +165,6 @@
               ( ( !settleFeesReady || !settleBalanceOk ) ? `押せません: ${settleDisabledReason}` :
                 'この表の内容を1枚の複合伝票にして、承認待ちで起票します（成功したら学習されます）' )}
             on:click={runSettle}><i class="bi bi-sticky me-1"></i>1伝票にして起票</button>
-        </div>
       </div>
       {/if}
     </div>
