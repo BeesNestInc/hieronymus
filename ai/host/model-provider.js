@@ -9,7 +9,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 // modelConfigResolver / candidateResolver として注入する）。
 // vision.js などの AI機能はこのモジュール経由でモデルを得る。
 //
-// 設定は config/llms.yaml（または config/llms.json）1つで、Legion と同じ
+// 設定は config/llms.yaml 1つで、Legion と同じ
 // `llms:` 群形式のみを扱う（未設定時は gemini の素とした挙動にフォールバック
 // するので、AIを使わない運用でも isAvailable() が false に落ちて安全）:
 //   llms:
@@ -26,17 +26,13 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 // 候補の各フィールドを上書きする（テスト・一時切替の便宜的な口）。
 
 export const loadConfig = () => {
-  // テスト時は LLM_CONFIG_PATH でfixtureを指せる（拡張子でyaml/jsonを判別）
+  // テスト時は LLM_CONFIG_PATH でfixtureを指せる（yamlのみ。jsonは廃止）
   const paths = process.env.LLM_CONFIG_PATH ?
     [ process.env.LLM_CONFIG_PATH ] :
-    [ 'config/llms.yaml', 'config/llms.json' ];
+    [ 'config/llms.yaml' ];
   for ( const path of paths ) {
     try {
-      const text = fs.readFileSync(path, 'utf-8');
-      if ( /\.ya?ml$/i.test(path) ) {
-        return yamlLoad(text) || {};
-      }
-      return JSON.parse(text);
+      return yamlLoad(fs.readFileSync(path, 'utf-8')) || {};
     } catch (e) {
       continue;
     }

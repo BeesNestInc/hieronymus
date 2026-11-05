@@ -156,7 +156,7 @@ describe('bank-statement (pdf fallback)', () => {
       LLM_BASE_URL: process.env.LLM_BASE_URL
     };
     // OCRフォールバックの分岐を見るため、AIを確実に未設定にする
-    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
     delete process.env.LLM_API_KEY;
     delete process.env.LLM_BASE_URL;
   });

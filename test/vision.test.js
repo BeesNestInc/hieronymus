@@ -5,7 +5,7 @@ import vision from '../libs/vision.js';
 // AI SDK経路の検証（実API・DBに依存しない）。
 // - gemini: global.fetch をスタブして GenerateContent 応答を返す
 // - openai-compatible: ローカルのHTTPスタブに /chat/completions を生やす
-// libs/vision.js の settings() は環境変数 > config/llms.json の順で読む。
+// libs/vision.js の設定は config/llms.yaml（llms 群）と環境変数。
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -65,8 +65,8 @@ describe('vision', () => {
       LLM_API_KEY: process.env.LLM_API_KEY,
       LLM_BASE_URL: process.env.LLM_BASE_URL
     };
-    // 実config/llms.jsonの影響を排除する（空設定のfixtureを使用）
-    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    // 実config/llms.yamlの影響を排除する（空設定のfixtureを使用）
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
     delete process.env.LLM_PROVIDER;
     delete process.env.LLM_MODEL;
     delete process.env.LLM_API_KEY;
@@ -219,7 +219,7 @@ describe('vision.suggestRuleAccounts with catalog', () => {
     };
     process.env.LLM_PROVIDER = 'openai-compatible';
     process.env.LLM_MODEL = 'test-vision';
-    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
     delete process.env.LLM_API_KEY;
   });
   afterEach(() => {
@@ -307,7 +307,7 @@ describe('vision.extract with companies', () => {
     };
     process.env.LLM_PROVIDER = 'openai-compatible';
     process.env.LLM_MODEL = 'test-vision';
-    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
     delete process.env.LLM_API_KEY;
   });
   afterEach(() => {
@@ -407,7 +407,7 @@ describe('vision shrink', () => {
       process.env.LLM_PROVIDER = 'openai-compatible';
       process.env.LLM_MODEL = 'test-vision';
       process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`;
-      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.json';
+      process.env.LLM_CONFIG_PATH = 'test/fixtures/llms-test.yaml';
       const { Jimp } = await import('jimp');
       const big = new Jimp({ width: 400, height: 2400, color: 0xfafafaff });
       const buf = await big.getBuffer('image/png');
