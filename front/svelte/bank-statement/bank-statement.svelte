@@ -78,15 +78,6 @@
       {#if ( statement.kind === 'settlement' && settlement )}
   <div class="card mb-2 settle-panel" style="font-size:0.85rem;">
     <div class="card-body py-2">
-      {#if ( settlement.warnings && settlement.warnings.length > 0 )}
-      <div class="text-warning mb-1">
-        <i class="bi bi-exclamation-triangle me-1"></i>{settlement.warnings.join(' ')}
-      </div>
-      {/if}
-      売上合計 <b>{Number(settlement.saleTotal).toLocaleString()}</b>円 ＝
-      振込 <b>{Number(settlement.transferAmount || 0).toLocaleString()}</b>円 ＋
-      費用合計 <b>{Number(settlement.expenseTotal).toLocaleString()}</b>円
-      （伝票日付: {settleDay || '不明'}）
       {#if ( settlementBooked )}
       <span class="badge bg-primary ms-2">起票済み</span>
       {:else}
@@ -211,8 +202,6 @@
               </table>
             </div>
             <div class="d-flex align-items-center justify-content-between px-2">
-              <button type="button" class="btn btn-sm btn-outline-primary"
-                on:click={() => { addLine(); }}>＋明細行を追加</button>
               <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
                 借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
                 {#if ( settleBalanceOk )}✓ 貸借一致
@@ -939,6 +928,66 @@
     position: sticky;
     top: 0;
     z-index: 1;
+  }
+  /* 計算書仕訳ビュー（pick & place） */
+  .side-drop-wrap {
+    display: flex;
+    width: 100%;
+  }
+  /* 借（左Half）貸（右Half）を固定で分ける（チップが多くても主張しない） */
+  .side-drop-wrap .chip-group.debit {
+    flex: 0 0 calc(50% - 0.2rem);
+    max-width: calc(50% - 0.2rem);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    background: rgba(255, 193, 7, 0.07);
+  }
+  .side-drop-wrap .chip-group.credit {
+    flex: 0 0 calc(50% - 0.2rem);
+    max-width: calc(50% - 0.2rem);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    background: rgba(25, 135, 84, 0.07);
+  }
+  .chip-group {
+    min-height: 1.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem;
+    align-items: flex-start;
+    border-radius: 0.25rem;
+    padding: 0.1rem 0.2rem;
+    margin: 0;
+  }
+  .chip-group.drop-over {
+    outline: 2px dashed #0d6efd;
+  }
+  .chip {
+    border: 1px solid #dee2e6;
+    background: #f8f9fa;
+    border-radius: 0.3rem;
+    padding: 0 0.25rem;
+    font-size: 0.7rem;
+    cursor: grab;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip-x {
+    padding: 0;
+    border: none;
+    background: transparent;
+    line-height: 1;
+  }
+  .voucher-line {
+    border-left: 3px solid rgba(13, 110, 253, 0.25);
+  }
+  .label-input {
+    font-size: 0.75rem;
   }
   .matched-row td {
     background-color: rgba(25, 135, 84, 0.08);
@@ -1854,6 +1903,60 @@ const clearSettleDraft = () =>  {
   axios.put(`/api/bank_statement/${statement.id}`, { settleDraft: null })
     .catch((e) => console.error('settle draft clear failed', e?.response?.status || e));
 };
+// 後から取り込んだ明細（同口座への追加取り込み行）を、学習済み構成に
+// 従って伝票に自動で波及させる。seedDraft の各行・各側の pattern に
+// 一致する未割付の取込行だけを割り付ける（ユーザーの手割付は触らない）
+const reflectNewRows = (data) => {
+  const seed = data && data.seedDraft;
+  if  ( !seed || !Array.isArray(seed.lines) )  {
+    return false;
+  }
+  let changed = false;
+  const lines = [...( voucher.lines || [] )];
+  const isPlaced = (rowId) => lines.some((dl) => (
+    ( ( dl.debit.rows || [] ).indexOf(String(rowId)) >= 0 ) ||
+    ( ( dl.credit.rows || [] ).indexOf(String(rowId)) >= 0 )));
+  const ensure = (idx) => {
+    while  ( lines.length <= idx )  {
+      const seedLine = seed.lines[ lines.length ] || {};
+      lines.push({
+        id: `L${Date.now()}-${lines.length}`,
+        label: seedLine.label || '',
+        debit: { rows: [], account: ( seedLine.debit && seedLine.debit.account ) || '', sub: ( seedLine.debit && seedLine.debit.sub ) || null },
+        credit: { rows: [], account: ( seedLine.credit && seedLine.credit.account ) || '', sub: ( seedLine.credit && seedLine.credit.sub ) || null }
+      });
+      changed = true;
+    }
+    return lines;
+  };
+  for  ( const [ si, seedLine ] of seed.lines.entries() )  {
+    for  ( const side of [ 'debit', 'credit' ] )  {
+      for  ( const rowId of ( ( seedLine[ side ] && seedLine[ side ].rows ) || [] ).map(String) )  {
+        if  ( isPlaced(rowId) )  {
+          continue;
+        }
+        ensure(si);
+        const dl = lines[ si ];
+        if  ( ( dl[ side ].rows || [] ).indexOf(rowId) < 0 )  {
+          dl[ side ].rows = [...( dl[ side ].rows || [] ), rowId];
+          if  ( !( dl[ side ].account )  && seedLine[ side ] && seedLine[ side ].account )  {
+            dl[ side ].account = seedLine[ side ].account;
+            dl[ side ].sub = seedLine[ side ].sub || null;
+          }
+          changed = true;
+        }
+      }
+    }
+  }
+  if  ( changed )  {
+    voucher = { lines: lines };
+    saveSettleDraft();
+    const count = ( voucher.lines || [] ).reduce((a, dl) => a + ( ( dl.debit.rows || [] ).length + ( dl.credit.rows || [] ).length ), 0);
+    toast.show('計算書', `後から取り込まれた明細を、学習済みの構成に従って伝票に反映しました（割付 ${count}行）`);
+  }
+  return changed;
+};
+
 const applySettlement = (data) => {
   // 伝票ビュー（pick & place）の下書きを復元する。
   // 1) 同じページ内の取り直しはメモリ上の voucher を優先
@@ -1861,6 +1964,8 @@ const applySettlement = (data) => {
   // 3) どちらもない場合は、起票成功時に学習した構成（seedDraft）を使う
   if  ( ( voucher.lines || [] ).length > 0 )  {
     settlement = data || null;
+    // 後から取り込んだ明細を、学習済み構成に従って秘密裏に反映
+    reflectNewRows(data);
     return;
   }
   settlement = data || null;
@@ -2113,10 +2218,11 @@ $: settleLineViews = ( ( settlement && settlement.lines ) || [] ).map((raw) => (
   status: raw.status
 } ));
 
-$: currentWarnings = ( statement && statement.kind === 'settlement' && settlement &&
-      settleBalanceOk && settlement.transferAmount !== null && Array.isArray(warnings) ) ?
-    warnings.filter((w) => !( /検算が合いません|費用の内訳の合計/.test(String(w)) )) :
-    ( Array.isArray(warnings) ? warnings : [] );
+/* 伝票ビューのpick&placeでは、計算書の内訳検算（売上=振込+費用）や行分類は
+   伝票構成の可否と無関係（ビューで組み直す）。こうした breakdown系の
+   警告は表示しない。残高不一致など他種の警告はそのまま出す */
+$: currentWarnings = Array.isArray(warnings) ? warnings.filter((w) => (
+  !( /検算が合い|費用の内訳|振込行を特定|分類できません|伝票化する行/.test(String(w)) ) )) : [];
 
 // 学習済み提案（相手方表示）と行状態は、ルール変更を反映するために
 // 明細取込詳細へ再適用できるようにする。ルールモーダルを閉じた時に使う。
