@@ -8,7 +8,7 @@ Legion manifest-engine（`../manifest-engine/` submodule）を Hieronymus で動
 
 * [index.js](./index.js) — `initializeAiHost()`。hooks への注入と TEMPLATE_DIR 設定。
   AI機能（`libs/vision.js` ほか `ai/manifests/*`）はこれを通してから Manifest を使う。
-* [model-provider.js](./model-provider.js) — `config/llms.yaml`（or .json）の読み込み
+* [model-provider.js](./model-provider.js) — `config/llms.yaml` の読み込み
   （`loadConfig`/`settings`/`isAvailable`）と ai-sdk モデル生成（`makeModel`）。
   engine hooks の modelProvider と、vision.js など既存AI機能の共通もと。
 
