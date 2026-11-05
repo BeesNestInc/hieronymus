@@ -533,10 +533,40 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
     }
     if ( saleHeader.test(line) ) {
       section = 'sale';
+      // 集計行（「売上 ￥177,941」）も計算書の行として読む。pick & place の
+      // 伝票ビューでは、内訳ではなく集計行そのものを貸方に置くこともできる。
+      // 集計の金額が読めない場合は従来どおり集計行を捨てる
+      const agg = pickAmount(line);
+      if ( agg !== null ) {
+        out.push({
+          date: null,
+          rawDescription: '売上',
+          merchant: '売上',
+          amountIn: agg,
+          amountOut: null,
+          balance: null,
+          category: 'aggregate',
+          memo: null
+        });
+      }
       continue;
     }
     if ( expenseHeader.test(line) ) {
       section = 'expense';
+      // 集計行（「支出 -￥66,223」）も計算書の行として読む（同上）
+      const agg = pickAmount(line);
+      if ( agg !== null ) {
+        out.push({
+          date: null,
+          rawDescription: '支出',
+          merchant: '支出',
+          amountIn: null,
+          amountOut: agg,
+          balance: null,
+          category: 'aggregate',
+          memo: null
+        });
+      }
       continue;
     }
     // 振込行。**行末が￥額の行だけ**を対象にする（「…の振込みが予定され
@@ -844,11 +874,15 @@ export const settlementBreakdown = (lines, profile = null) => {
   };
   const isIn = (line) => ( line.amountIn !== null && line.amountIn !== undefined && Number(line.amountIn) !== 0 );
   const isOut = (line) => ( line.amountOut !== null && line.amountOut !== undefined && Number(line.amountOut) !== 0 );
-  const inLines = lines.filter(isIn);
+  // 集計行（category=aggregate。売上/支出の集計）は合計に数えない（pick & place
+  // の材料として行だけは出すが、内訳と二重計上になるため）。伝票に載せる
+  // 集計行は明細の貸借割付で選ぶ
+  const isAggregate = (line) => ( line.category === 'aggregate' );
+  const inLines = lines.filter((line) => isIn(line) && !isAggregate(line));
   const transferLine = inLines.find((line) => tryPattern(line, transferPattern)) || null;
   const salableIn = inLines.filter((line) => line !== transferLine);
   const saleLines = salableIn.filter((line) => ( !salePattern || tryPattern(line, salePattern) ));
-  const expenseLines = lines.filter(isOut);
+  const expenseLines = lines.filter((line) => isOut(line) && !isAggregate(line));
   // salePatternの指定があるときだけ未分類の入力行を拾う（指定なしだと
   // 「振込以外の入金はすべて売上」なので拾うべき行がない）
   const leftovers = ( salePattern ) ?
