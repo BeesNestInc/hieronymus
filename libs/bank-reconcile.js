@@ -1126,10 +1126,10 @@ export const settlementPreview = async (statement) => {
   };
 };
 
-// statement.lines（sequelize）を plain object にする（settlementPreview 用）。
+// 取込明細行の配列（sequelize）を plain object にする（settlementPreview 用）。
 // fileBody は重いので落とす
-const linesOf = (statement) => {
-  return ( statement.lines || [] ).map((l) => {
+const linesOf = (lineRows) => {
+  return ( lineRows || [] ).map((l) => {
     const raw = ( l.toJSON ) ? l.toJSON() : l;
     raw.fileBody = undefined;
     return raw;

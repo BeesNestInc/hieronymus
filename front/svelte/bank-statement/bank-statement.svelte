@@ -111,8 +111,10 @@
                   <span class="badge text-bg-info" style="font-size:0.65rem;">振込</span>
                 </td>
                 <td class="number">{Number(settleReceivedLine.amountIn || settleReceivedLine.amount || 0).toLocaleString()}</td>
-                <td><span class="text-muted" style="font-size:0.7rem;">借方（入金先）</span></td>
-                <td><span class="text-muted" style="font-size:0.7rem;">貸方（売上高）</span></td>
+                <td><Account accounts={bankAccounts} bind:code={settleReceivedAccount} bind:sub_code={settleReceivedSubAccount}
+                  title="借方: 入金先の預金科目"></Account></td>
+                <td><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}
+                  title="貸方: 売上高（「売上」の内訳行の合計がこの科目で載る）"></Account></td>
               </tr>
               {:else}
               <tr><td colspan="6" class="text-warning" style="font-size:0.8rem;">
