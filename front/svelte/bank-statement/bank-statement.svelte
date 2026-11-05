@@ -115,7 +115,7 @@
                     <th style="width:110px;">
                       金額
                     </th>
-                    <th style="width:70px;">
+                    <th style="width:96px;">
                     </th>
                   </tr>
                 </thead>
@@ -203,13 +203,13 @@
                         value={ dl.credit.rows.length > 0 ? numberFmt(sideAmount(dl, 'credit')) : ( dl.creditManual || '' ) }
                         on:input={(e) => { if ( dl.credit.rows.length === 0 ) { dl.creditManual = e.target.value; saveSettleDraft(); } }} />
                     </td>
-                    <td>
-                      <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                    <td class="text-nowrap">
+                      <button type="button" class="btn btn-sm btn-outline-primary"
                         title="この行の後に新しい明細行を追加する"
                         on:click={() => { insertLineAfter(di); }}>＋</button>
                       <button type="button" class="btn btn-sm btn-outline-danger"
                         title="この伝票行を削除（割り付けた摘要は右の明細に戻る）"
-                        on:click={() => { removeLine(di); }}>削除</button>
+                        on:click={() => { removeLine(di); }}>−</button>
                     </td>
                   </tr>
                   {/each}
@@ -914,13 +914,25 @@
   .settle-panel {
     flex-shrink: 0;
   }
+  /* tbody だけがスクロールしているように見せる: コンテナは全体を包み、
+     tbody に入る行がはみ出たぶんだけ動く。ヘッダは sticky */
   .composer-scroll {
-    max-height: 38vh;
+    max-height: 26vh;
     overflow-y: auto;
   }
   .pool-scroll {
-    max-height: 22vh;
+    max-height: 14vh;
     overflow-y: auto;
+  }
+  .composer-scroll :global(thead th) {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .pool-scroll :global(thead th) {
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
   /* 表だけをスクロールさせ、ヘッダ行は固定する */
   .table-scroll {
