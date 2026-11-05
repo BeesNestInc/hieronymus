@@ -96,7 +96,7 @@
             <div class="card-body py-2">
               {#if ( ( voucher.lines || [] ).length === 0 )}
               <div class="text-muted mb-1" style="font-size:0.8rem;">
-                まだ伝票がありません。下の「読み取った明細」から行を選び、伝票行の「→ 借方」「→ 貸方」で割り付けてください。
+                まだ伝票がありません。下の「読み取った明細」の行をドラッグして、伝票行の「借」「貸」ゾーンへドロップしてください。
               </div>
               {/if}
               {#each voucher.lines as dl, di ('L' + dl.id)}
@@ -168,16 +168,6 @@
                   {/each}
                 </div>
                 <div class="col-auto" style="padding-top:0.4rem;">
-                  <button type="button" class="btn btn-sm btn-outline-warning mb-1"
-                    disabled={ ( pickedLines || [] ).length === 0 }
-                    title="下で選択した明細行を、この行の借方に割り付ける"
-                    on:click={() => { attachPicked(di, 'debit'); }}>→ 借方</button>
-                  <br>
-                  <button type="button" class="btn btn-sm btn-outline-success mb-1"
-                    disabled={ ( pickedLines || [] ).length === 0 }
-                    title="下で選択した明細行を、この行の貸方に割り付ける"
-                    on:click={() => { attachPicked(di, 'credit'); }}>→ 貸方</button>
-                  <br>
                   <button type="button" class="btn btn-sm btn-outline-danger"
                     title="この伝票行を削除（割り付けた明細は下に戻る）"
                     on:click={() => { removeLine(di); }}>行削除</button>
@@ -219,8 +209,7 @@
           <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
             <thead class="table-light">
               <tr>
-                <th style="width:30px;"></th>
-                <th style="width:44%;">摘要（読み取った明細）</th>
+                <th style="width:44%;">摘要（読み取った明細。ドラッグして伝票へ）</th>
                 <th class="number" style="width:110px;">金額</th>
                 <th style="width:100px;">状態</th>
               </tr>
@@ -232,12 +221,7 @@
                 on:dragstart={(e) => startRowDrag(e, lv.lineId)}
                 on:dragend={endDrag}
                 title="ドラッグして伝票行の「借方」「貸方」へ DROP。クリック選択＋ボタンでも割り付けられます">
-                <td class="text-center">
-                  <input type="checkbox" class="form-check-input"
-                    checked={ pickFor(lv.lineId) }
-                    on:change={() => { togglePicked(lv.lineId); }} />
-                </td>
-                <td>{lv.label}<i class="bi bi-grip-vertical ms-2 text-muted" style="font-size:0.7rem;"></i></td>
+                <td>{lv.label}<i class="bi bi-grip-vertical me-2 text-muted" style="font-size:0.7rem;" title="ドラッグして伝票行の「借」「貸」へ"></i></td>
                 <td class="number">{numberFmt(lineAmount(lv.lineId))}</td>
                 <td style="font-size:0.7rem;">{lv.status === 'booked' ? '起票済' : ''}</td>
               </tr>
@@ -1630,7 +1614,6 @@ let settleSaleSubAccount = '';
 // 明細リストで選ぶ → 伝票行の「→ 借方」「→ 貸方」で割り付け。
 // 伝票ビュー（pick & place + DnD）の state 部分置き換え用。
 let voucher = { lines: [] };    // [{id, label?, debit:{rows:[],account,sub}, credit:{...}}]
-let pickedLines = [];           // 明細リストで選択中の lineId
 // DnD 状態。dragging: { rowId, from: {di, side} | null }（fromがある=行間移動）
 let dragRow = null;
 let dropOverKey = '';           // `${di}:${side}` | `new-debit` | `new-credit`
@@ -1700,11 +1683,6 @@ const removeLine = (di) => {
   voucher = { lines: lines };
   saveSettleDraft();
 };
-const pickFor = (lineId) => ( ( pickedLines || [] ).indexOf(String(lineId)) >= 0 );
-const togglePicked = (lineId) => {
-  const key = String(lineId);
-  pickedLines = pickFor(key) ? ( pickedLines || [] ).filter((x) => ( x !== key )) : [ ...( pickedLines || [] ), key ];
-};
 // 割り付けた行に学習済み科目があれば、その側の科目が空の時に提案する
 const suggestAccountFor = (rowId) => (
   ( ( settlement && settlement.suggestions ) || [] ).find((sp) => ( String(sp.lineId) === String(rowId) )) || null
@@ -1736,16 +1714,6 @@ const attachRow = (di, side, rowId) => {
   }
   voucher = { lines: lines };
   saveSettleDraft();
-};
-const attachPicked = (di, side) => {
-  if  ( ( pickedLines || [] ).length === 0 )  {
-    toast.show('計算書', '先に下の明細を選んでください', 'warning');
-    return;
-  }
-  for  ( const id of pickedLines )  {
-    attachRow(di, side, id);
-  }
-  pickedLines = [];
 };
 const detachRow = (di, side, rowId) => {
   const lines = [...( voucher.lines || [] )];
