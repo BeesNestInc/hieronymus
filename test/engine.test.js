@@ -8,14 +8,30 @@ import { fileURLToPath } from 'node:url';
 
 const engineRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../ai/manifest-engine');
 
+// dry run はエンジンのモジュールレベルの状態（debugOptions）。テスト群の中で
+// 後続のテスト（visionのfetchモック等）に dry を漏らさないため、テストごとに
+// 元に戻すヘルパ（debugOptionsは配列なのでin-placeで空に戻せる）
+const withDryRun = async (fn) => {
+  const utils = await import(path.join(engineRoot, 'libs/utils.js'));
+  utils.setDebugOptions('dry');
+  try {
+    return await fn(utils);
+  } finally {
+    utils.debugOptions.length = 0;
+    utils.setLogLevel('none');
+  }
+};
+
 describe('manifest-engine', function () {
   it('hooks 注入で Manifest が dry run まで通る', async function () {
+    const hooks2 = await import(path.join(engineRoot, 'hooks.js'));
+    const origProvider = hooks2.getModelProvider();
+    try {
+    await withDryRun(async (utils) => {
     process.env.TEMPLATE_DIR = path.join(engineRoot, 'tests/prompt-templates');
     process.env.LEGION_NO_DOTENV = '1';
     const { Manifest } = await import(path.join(engineRoot, 'manifest.js'));
     const hooks = await import(path.join(engineRoot, 'hooks.js'));
-    const { setDebugOptions } = await import(path.join(engineRoot, 'libs/utils.js'));
-    setDebugOptions('dry');
 
     // 会計 app 側で modelProvider を注入する形（ai-sdk のモデルオブジェクトを返す想定）。dry run では呼ばれない
     hooks.setModelProvider(async (name) => ({ modelId: name }));
@@ -40,6 +56,11 @@ describe('manifest-engine', function () {
     });
     assert.ok(Array.isArray(inputs) && inputs.length > 0, 'inputs が組み立てられる');
     assert.equal(typeof result, 'string', 'dry run が文字列を返す');
+    });
+    } finally {
+      // 偽modelProviderはグローバル。後続のテスト（vision等）に漏らさない
+      hooks2.setModelProvider(origProvider);
+    }
   });
 
   it('ai/host の initializeAiHost で hooks が結線される', async function () {
@@ -54,7 +75,6 @@ describe('manifest-engine', function () {
 
     const { getTemplateDir, getModelProvider, getModelConfigResolver, getToolTable, getMcpTools } =
       await import(path.join(engineRoot, 'hooks.js'));
-    const { setDebugOptions } = await import(path.join(engineRoot, 'libs/utils.js'));
 
     assert.ok(getTemplateDir().replace(/\\/g, '/').includes('ai/prompt-templates'),
       `TEMPLATE_DIR が host の prompt-templates を指す（実際: ${getTemplateDir()}）`);
@@ -65,24 +85,25 @@ describe('manifest-engine', function () {
     assert.ok(getMcpTools(), 'mcpTools が注入されている');
 
     // dry run で host テンプレートから system prompt が組めること（テキストの通過確認。
-    // network 不使用）
-    setDebugOptions('dry');
-    const { Manifest } = await import(path.join(engineRoot, 'manifest.js'));
-    const m = new Manifest({
-      name: 'host-smoke',
-      description: 'host 結線のsmoke',
-      systemPrompt: 'standard',
-      messagePrompt: '本文: <%= hello %>',
-      modelName: 'standard',
-      params: { hello: { value: 'テスト' } },
+    // network 不使用）。dryはテストの間だけ（後続に漏らさない）
+    await withDryRun(async () => {
+      const { Manifest } = await import(path.join(engineRoot, 'manifest.js'));
+      const m = new Manifest({
+        name: 'host-smoke',
+        description: 'host 結線のsmoke',
+        systemPrompt: 'standard',
+        messagePrompt: '本文: <%= hello %>',
+        modelName: 'standard',
+        params: { hello: { value: 'テスト' } },
+      });
+      await m.initialize();
+      const { result } = await m.execute({
+        roles: { 'host-smoke': { name: 'host-smoke', manifests: { 'host-smoke': m } } },
+        role: 'host-smoke',
+        requests: [{ name: 'request', input: 'x' }],
+        params: { hello: { value: 'テスト' } },
+      });
+      assert.equal(typeof result, 'string', 'dry run が文字列を返す');
     });
-    await m.initialize();
-    const { result } = await m.execute({
-      roles: { 'host-smoke': { name: 'host-smoke', manifests: { 'host-smoke': m } } },
-      role: 'host-smoke',
-      requests: [{ name: 'request', input: 'x' }],
-      params: { hello: { value: 'テスト' } },
-    });
-    assert.equal(typeof result, 'string', 'dry run が文字列を返す');
   });
 });

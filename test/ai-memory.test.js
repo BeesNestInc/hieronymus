@@ -22,6 +22,18 @@ describe('ai memory（Aimemories）', () => {
     await models.sequelize.close();
   });
 
+  // このテスト群でhooks注入やdry modeをいじったものは、後続のテスト
+  // （vision等は env/fetch モックで抜き打ちにLLMの動きを検証する）に
+  // 漏れないよう、各テストの最後で元に戻す。engineのhooksはグローバル
+  // （最後にsetしたものが生きる）なので、テスト側で巻き戻すのが責任
+  const restoreHooks = async () => {
+    const hooks = await import(path.join(engineRoot, 'hooks.js'));
+    const { modelProvider, modelConfig, candidates } = await import('../ai/host/model-provider.js');
+    hooks.setModelProvider(modelProvider);
+    hooks.setModelConfigResolver(modelConfig);
+    hooks.setCandidateResolver(candidates);
+  };
+
   it('replaceLearned で置き換え（learned の full replace）ができる', async () => {
     const { replaceLearned } = await import('../ai/host/memory.js');
     const user = await models.User.create({ name: `ai-mem-test-${Date.now()}`, hashPassword: 'x' });
@@ -67,14 +79,15 @@ describe('ai memory（Aimemories）', () => {
 
   it('reflect-voucher manifest が dry run まで組める', async function () {
     this.timeout(30000);
+    try {
     process.env.TEMPLATE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../ai/prompt-templates');
     process.env.LEGION_NO_DOTENV = '1';
     const { initializeAiHost } = await import('../ai/host/index.js');
     await initializeAiHost();
     const hooks = await import(path.join(engineRoot, 'hooks.js'));
     hooks.setModelProvider(async (name) => ({ modelId: name }));
-    const { setDebugOptions } = await import(path.join(engineRoot, 'libs/utils.js'));
-    setDebugOptions('dry');
+    const utils = await import(path.join(engineRoot, 'libs/utils.js'));
+    utils.setDebugOptions('dry');
     const { createReflectVoucher } = await import('../ai/manifests/reflect-voucher.js');
     const manifest = createReflectVoucher();
     await manifest.initialize();
@@ -86,5 +99,12 @@ describe('ai memory（Aimemories）', () => {
       params: {}
     });
     assert.equal(typeof result, 'string');
+    } finally {
+      // 偽modelProviderとdry modeを元に戻す（後続のテストに漏らさない）
+      await restoreHooks();
+      const utils = await import(path.join(engineRoot, 'libs/utils.js'));
+      utils.debugOptions.length = 0;
+      utils.setLogLevel('none');
+    }
   });
 });

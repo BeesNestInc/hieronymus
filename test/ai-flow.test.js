@@ -51,15 +51,23 @@ describe('ai/host mcp 結線', () => {
 
   it('tasks 型フロー（voucher-from-receipt）が dry run で通る', async function () {
     this.timeout(30000);
-    const { setDebugOptions } = await import(path.join(engineRoot, 'libs/utils.js'));
-    setDebugOptions('dry');
+    const utils = await import(path.join(engineRoot, 'libs/utils.js'));
+    utils.setDebugOptions('dry');
     // dry run は LLM を呼ばない。実API認証（HIERONYMUS_LOGIN_USER）も不要
     process.env.HIERONYMUS_LOGIN_USER = process.env.HIERONYMUS_LOGIN_USER || 'dry-test';
     process.env.HIERONYMUS_LOGIN_PASSWORD = process.env.HIERONYMUS_LOGIN_PASSWORD || 'dry-test';
-    const { runVoucherFromReceipt } = await import('../ai/manifests/voucher-from-receipt.js');
-    const result = await runVoucherFromReceipt({
-      imagePath: path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/receipt-dry.png')
-    });
-    assert.equal(typeof result, 'string', 'dry run の結果は文字列');
+    try {
+      const { runVoucherFromReceipt } = await import('../ai/manifests/voucher-from-receipt.js');
+      const result = await runVoucherFromReceipt({
+        imagePath: path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/receipt-dry.png')
+      });
+      assert.equal(typeof result, 'string', 'dry run の結果は文字列');
+    } finally {
+      // dry モードはエンジンのモジュールレベルの状態。このままだと
+      // 後続のテスト（visionのfetchモック等）がdryでLLMを通らなくなる。
+      // debugOptionsはexport済み配列なのでin-placeで空に戻せる
+      utils.debugOptions.length = 0;
+      utils.setLogLevel('none');
+    }
   });
 });

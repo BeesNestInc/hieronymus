@@ -507,7 +507,10 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
   // 崩れて、明細が1行も取れなくなる（2026-11-04発覚）
   const normPattern = (src) => String(src || '')
     .replace(/[￥]/g, '¥')          // 全角円→半角
-    .replace(/[－ー―]/g, '-')      // 全角/長音ハイフン→ASCIIハイフン
+    // ハイフン系（－/−/―）だけを ASCII に。**長音の「ー」は変換しない**
+    // （「サマリー」等の語の長音を消すとヘッダ語が一致しなくなる。
+    // 2026-11-06発覚: 追記の修正で ー を含めていたため語彙が壊れた）
+    .replace(/[－―−]/g, '-')
     .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
   const saleHeader = new RegExp(normPattern(( profile && profile.aggregateSale ) || '^売上\\s*[\\u00a5￥]'));
   const expenseHeader = new RegExp(normPattern(( profile && profile.aggregateExpense ) || '^支出\\s*[\\u00a5￥-]'));

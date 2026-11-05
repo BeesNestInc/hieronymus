@@ -1,7 +1,7 @@
 import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
-import { settleStatement, settlementPreview, suggestSettlementDeposits, linkDepositToSettlement } from '../libs/bank-reconcile.js';
+import { settleStatement, settlementPreview, suggestSettlementDeposits, linkDepositToSettlement, makePattern } from '../libs/bank-reconcile.js';
 import { settlementBreakdown, validateProfileYaml, loadProfiles, parseSettlementTextLines } from '../libs/bank-statement.js';
 
 // 計算書（ECモール。kind: settlement）の取り込みと複合起票のテスト（DB使用）。
@@ -101,19 +101,25 @@ describe('ec settlement (test db)', () => {
     return statement;
   };
 
-  // 費用行の科目指定（学習ルールなしの初回は全部の人手指定を想定する）
-  const feeLines = async (mapping = {}) => {
-    const lines = await models.BankStatementLine.findAll({
-      where: { statementId: currentStatement.id },
-      order: [[ 'lineNo', 'ASC' ]]
-    });
-    return lines
-      .filter((line) => ( line.amountOut !== null && line.amountOut !== undefined ))
-      .map((line) => ({
-        lineId: line.id,
-        account: mapping[ line.rawDescription ] || '7000001',
-        subAccount: null
-      }));
+  // === pick & place（伝票ビュー）での起票 ===
+  // settleStatementの新契約: draft.lines = [{ label, debit: {rows:[取込行id], account, sub}, credit: {...} }]
+  // 各側の金額は割り付けた取込行の合計。伝票全体の貸借一致を検証する
+  const rowsOf = async (statement) => ( await models.BankStatementLine.findAll({
+    where: { statementId: statement.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  }) );
+  // ユーザーの仕訳例（借方: 普通預金+費用各行 / 貸方: 売上高）を pick & place で組む
+  const draftOf = (rows, mapping = {}) => {
+    const transfer = rows.find((r) => ( r.amountIn && /振込/.test(r.rawDescription) ));
+    const sales = rows.filter((r) => ( r.amountIn && r !== transfer ));
+    const fees = rows.filter((r) => ( r.amountOut ));
+    const lines = [];
+    lines.push({ label: '振込', debit: { rows: [ transfer.id ], account: '1010010', sub: 1 }, credit: {} });
+    for ( const fee of fees ) {
+      lines.push({ label: fee.rawDescription, debit: { rows: [ fee.id ], account: ( mapping[fee.rawDescription] || '7000001' ), sub: null }, credit: {} });
+    }
+    lines.push({ label: '売上高', debit: {}, credit: { rows: sales.map((r) => r.id), account: '6000000', sub: 1 } });
+    return { draft: { lines: lines } };
   };
   let currentStatement = null;
 
@@ -152,6 +158,17 @@ describe('ec settlement (test db)', () => {
     assert.match(breakdown.warnings[ 1 ], /入れ子になった集計行/);
   });
 
+  it('breakdown: 振込行が特定できないときは警告を出す（伝票にできない）', () => {
+    // 既定語「振込|純利益」に当たらない振込行（ひらがなのみの書式等）。
+    // 書式が違うならプロファイルの transferPattern で指定する
+    const lines = AMAZON_SETTLEMENT_LINES.map((line) => (
+      line.rawDescription === '純利益の振込み' ? { ...line, rawDescription: 'ただの入金', description: 'ただの入金' } : line
+    ));
+    const breakdown = settlementBreakdown(lines);
+    assert.isNull(breakdown.transferLine);
+    assert.match(breakdown.warnings.join(''), /振込行を特定/);
+  });
+
   it('validateProfileYaml: settlement プロファイルを受け入れる', () => {
     const ok = validateProfileYaml('name: テストモール\ntype: settlement\nsaleAccount: 6000000\nreceivedAccount: 1010010\n');
     assert.isUndefined(ok.error);
@@ -160,13 +177,10 @@ describe('ec settlement (test db)', () => {
     assert.match(bad.error, /科目コード/);
   });
 
-  it('settleStatement: 1計算書=1複合伝票（借方 預金+費用 / 買方 売上高）', async () => {
+  it('settleStatement: pick & place の構成で複合伝票（借方 預金+費用 / 買方 売上高）を起票する', async () => {
     currentStatement = await makeStatement();
-    const result = await settleStatement(currentStatement, {
-      received: { account: '1010010', subAccount: 1 },
-      sale: { account: '6000000' },
-      lines: await feeLines()
-    }, data.approver);
+    const rows = await rowsOf(currentStatement);
+    const result = await settleStatement(currentStatement, draftOf(rows), data.approver);
     assert.ok(result.slip.id);
     const details = await models.CrossSlipDetail.findAll({
       where: { crossSlipId: result.slip.id },
@@ -182,8 +196,9 @@ describe('ec settlement (test db)', () => {
     assert.equal(details[1].debitAccount, '7000001');
     assert.equal(details[1].debitAmount, 1130);
     assert.equal(details[5].debitAmount, 41931);
-    // 買提早の売上高（売上側合算）
+    // 貸方の売上高（売上側合算）
     assert.equal(details[6].creditAccount, '6000000');
+    assert.equal(details[6].creditSubAccount, 1);
     assert.equal(details[6].debitAmount, 0);
     assert.equal(details[6].creditAmount, 141768);
     // 貸借一致（1伝票で必ず一致する）
@@ -194,139 +209,117 @@ describe('ec settlement (test db)', () => {
     // 伝票は未承認（承認待ち）で作る
     const slip = await models.CrossSlip.findByPk(result.slip.id);
     assert.isNotOk(slip.approvedAt);
-    // 伝票日付は振込行の日付
-    assert.equal(slip.day, 29);
-    assert.equal(slip.month, 7);
+    // 伝票日付は割り付けた取込行の日付
     assert.equal(slip.year, 2026);
-    // 取込行は全行起票済みに紐付く
-    const lines = await models.BankStatementLine.findAll({
-      where: { statementId: currentStatement.id }
-    });
-    for ( const line of lines ) {
-      assert.equal(line.status, 'booked');
-      assert.isOk(line.crossSlipDetailId);
+    assert.equal(slip.month, 7);
+    assert.equal(slip.day, 29);
+    // 割り付けた取込行は全行起票済みに紐付く
+    for ( const row of rows ) {
+      await row.reload();
+      assert.equal(row.status, 'booked');
+      assert.isOk(row.crossSlipDetailId);
     }
-    // 満行の振込・売上行は伝票に紐付く（備考欄に振込ID。摘要には振込ラベル）
-    assert.equal(details[0].application1, '振込 テストモール');
-    assert.match(details[0].application2, /SLR1U769R1VMF6JPGBIH/);
-    assert.equal(details[6].application1, 'テストモール計算書');
+    // 起票した構成を通帳に学習する（settleLayout。次回取込のseedに使う）
+    await settlementFinancial.reload();
+    assert.isOk(settlementFinancial.settleLayout);
+    const layout = JSON.parse(settlementFinancial.settleLayout);
+    assert.lengthOf(layout.lines, 7);
+    assert.deepEqual(layout.lines[0].debit.patterns, [ makePattern('純利益の振込み') ]);
+    assert.deepEqual(layout.lines[6].credit.patterns, [
+      makePattern('売上 商品代金'), makePattern('売上 税金'), makePattern('売上 配送料')
+    ]);
   });
 
-  it('settleStatement: 学習ルールに従う（2回目は科目を指定なしでも学習ルール候補が入る）', async () => {
-    // 初回の起票で費用ラベル→科目を学習済み。新しい計算書では候補に乗る
+  it('settleStatement: draftが空のときは起票しない', async () => {
     currentStatement = await makeStatement();
-    const preview = await settlementPreview(currentStatement);
-    assert.lengthOf(( preview.suggestions || [] ), 5);
-    for ( const s of preview.suggestions ) {
-      assert.equal(s.account, '7000001');
-    }
-    // 学習ルールの科目どおりに伝票化できる（lines: null は未対応。ここでは同じ科目を渡す）
-    const result = await settleStatement(currentStatement, {
-      received: { account: '1010010', subAccount: 1 },
-      sale: { account: '6000000' },
-      lines: await feeLines()
-    }, data.approver);
-    assert.ok(result.slip.id);
-  });
-
-  it('settleStatement: 費用行の科目が未指定なら起票しない', async () => {
-    currentStatement = await makeStatement();
-    const lines = await models.BankStatementLine.findAll({
-      where: { statementId: currentStatement.id },
-      order: [[ 'lineNo', 'ASC' ]]
-    });
-    const outLines = lines.filter((line) => ( line.amountOut !== null && line.amountOut !== undefined ));
-    const tail = outLines.pop();
     let thrown = null;
     try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: outLines.map((line) => ({ lineId: line.id, account: '7000001' }))
-      }, data.approver);
+      await settleStatement(currentStatement, { draft: { lines: [] } }, data.approver);
+    } catch (e) {
+      thrown = e;
+    }
+    assert.isOk(thrown);
+    assert.match(thrown.message, /伝票が空/);
+  });
+
+  it('settleStatement: 割り付けた側の科目が未指定なら起票しない', async () => {
+    currentStatement = await makeStatement();
+    const draft = draftOf(await rowsOf(currentStatement));
+    // 費用行のdebit.accountを未指定にして置く（draftOfは既定科目を
+    // 填めるので、ここでは直接壊す）
+    draft.draft.lines[ 1 ].debit.account = '';
+    let thrown = null;
+    try {
+      await settleStatement(currentStatement, draft, data.approver);
     } catch (e) {
       thrown = e;
     }
     assert.isOk(thrown);
     assert.match(thrown.message, /科目が未指定/);
-    assert.equal(Number(tail.amountOut), 41931);
   });
 
-  it('settleStatement: 仮科目では起票しない（承認制）', async () => {
+  it('settleStatement: 仮入科目では起票しない（承認制）', async () => {
     currentStatement = await makeStatement();
-    const lines = await models.BankStatementLine.findAll({
-      where: { statementId: currentStatement.id },
-      order: [[ 'lineNo', 'ASC' ]]
-    });
-    const outLines = lines.filter((line) => ( line.amountOut !== null && line.amountOut !== undefined ));
+    const tempAll = Object.fromEntries([
+      '支出 プロモーション割引額', '支出 FBA手数料 長期在庫保管手数料', '支出 広告費用',
+      '支出 Amazon手数料 月間登録料', '支出 Amazon手数料 その他'
+    ].map((label) => [ label, '1900000' ]));
     let thrown = null;
     try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: outLines.map((line) => ({ lineId: line.id, account: '1900000' }))
-      }, data.approver);
+      await settleStatement(currentStatement, draftOf(await rowsOf(currentStatement), tempAll), data.approver);
     } catch (e) {
       thrown = e;
     }
     assert.isOk(thrown);
-    assert.match(thrown.message, /実科目を指定/);
+    assert.match(thrown.message, /仮入科目/);
   });
 
-  it('settleStatement: 検算が合わない計算書は起票しない', async () => {
-    currentStatement = await makeStatement([
-      null, null, null, null, null, null, null, null,
-      { amountIn: 39268 }  // 振込行だけ1000円増える
-    ]);
+  it('settleStatement: 貸借が合わない構成では起票しない', async () => {
+    // 売上行をどこにも割り付けないで起票しようとすると、借方だけが残る
+    currentStatement = await makeStatement();
+    const rows = await rowsOf(currentStatement);
+    const broken = draftOf(rows);
+    broken.draft.lines.pop();   // 売上高の貸方行を外す
     let thrown = null;
     try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: await feeLines()
-      }, data.approver);
+      await settleStatement(currentStatement, broken, data.approver);
     } catch (e) {
       thrown = e;
     }
     assert.isOk(thrown);
-    assert.match(thrown.message, /検算が合いません/);
+    assert.match(thrown.message, /貸借が合いません/);
+    // 未割付の取渗行は起票済みにならない
+    const sales = rows.filter((r) => ( r.amountIn && !/振込/.test(r.rawDescription) ));
+    for ( const row of sales ) {
+      await row.reload();
+      assert.equal(row.status, 'unmatched');
+    }
   });
 
-  it('settleStatement: 振込行が特定できない計算書は起票しない', async () => {
-    currentStatement = await makeStatement([
-      null, null, null, null, null, null, null, null,
-      { rawDescription: '振り込みではなく入金', amountIn: 38268 }
-    ]);
+  it('settleStatement: 同じ取込行を複数箇所に割り付けては起票しない', async () => {
+    currentStatement = await makeStatement();
+    const rows = await rowsOf(currentStatement);
+    const draft = draftOf(rows);
+    // 振込行を2つの行に使う
+    draft.draft.lines.push({ label: '重複', debit: { rows: [ draft.draft.lines[0].debit.rows[0] ], account: '7000001' }, credit: {} });
     let thrown = null;
     try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: await feeLines()
-      }, data.approver);
+      await settleStatement(currentStatement, draft, data.approver);
     } catch (e) {
       thrown = e;
     }
     assert.isOk(thrown);
-    // 既定の transferPattern '振込' は「振り込み」には無い。ひらがな含みの書式はプロファイルで指定する
-    assert.match(thrown.message, /振込行を特定/);
+    assert.match(thrown.message, /複数の箇所/);
   });
 
   it('settleStatement: すでに起票済みの計算書は二重起票しない', async () => {
     currentStatement = await makeStatement();
-    const first = await settleStatement(currentStatement, {
-      received: { account: '1010010', subAccount: 1 },
-      sale: { account: '6000000' },
-      lines: await feeLines()
-    }, data.approver);
+    const rows = await rowsOf(currentStatement);
+    const first = await settleStatement(currentStatement, draftOf(rows), data.approver);
     assert.ok(first.slip.id);
     let thrown = null;
     try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: await feeLines()
-      }, data.approver);
+      await settleStatement(currentStatement, draftOf(rows), data.approver);
     } catch (e) {
       thrown = e;
     }
@@ -355,63 +348,6 @@ describe('ec settlement (test db)', () => {
     }
     assert.isOk(thrown);
     assert.match(thrown.message, /計算書の取り込みではありません/);
-  });
-
-  it('settleStatement: include:false の行は伝票から外れ、検算が合う選択なら起票できる', async () => {
-    // Amazon支払明細書のような入れ子を再現する: 費用の内訳に集計行と
-    // その内訳（同額）が両方載る形。合計が合う方だけ選んで起票する
-    currentStatement = await makeStatement();
-    await models.BankStatementLine.create({
-      statementId: currentStatement.id,
-      lineNo: 10,
-      date: '2026-07-29',
-      rawDescription: '支出 FBA手数料（集計行）',
-      description: '支出 FBA手数料（集計行）',
-      amountIn: null, amountOut: 31, balance: null, memo: null,
-      status: 'unmatched',
-      createdBy: data.approver.id, updatedBy: data.approver.id
-    });
-    const lines = await models.BankStatementLine.findAll({
-      where: { statementId: currentStatement.id },
-      order: [[ 'lineNo', 'ASC' ]]
-    });
-    const outLines = lines.filter((line) => ( line.amountOut !== null && line.amountOut !== undefined ));
-    // 全行選ぶと検算が合わない（31円の重複）→ 起票できない
-    let thrown = null;
-    try {
-      await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: outLines.map((line) => ({ lineId: line.id, account: '7000001' }))
-      }, data.approver);
-    } catch (e) {
-      thrown = e;
-    }
-    assert.isOk(thrown);
-    assert.match(thrown.message, /検算が合いません/);
-    // 重複した集計行（FBA手数料=納品+在庫保管の合計に相当する行）を外すと
-    // 検算が合って起票できる
-    const excludeLine = outLines.find((line) => ( line.rawDescription === '支出 FBA手数料（集計行）' ));
-    const result = await settleStatement(currentStatement, {
-      received: { account: '1010010', subAccount: 1 },
-      sale: { account: '6000000' },
-      lines: outLines.map((line) => ({
-        lineId: line.id,
-        account: '7000001',
-        include: ( line.id === excludeLine.id ) ? false : true
-      }))
-    }, data.approver);
-    assert.ok(result.slip.id);
-    const details = await models.CrossSlipDetail.findAll({
-      where: { crossSlipId: result.slip.id }
-    });
-    // 預金1+費用5+売上1=7明細（除外した31円の行は載らない）
-    assert.lengthOf(details, 7);
-    const debitSum = details.reduce((acc, d) => acc + Number(d.debitAmount), 0);
-    assert.equal(debitSum, 141768);
-    // 除外した行は未照合のまま
-    await excludeLine.reload();
-    assert.equal(excludeLine.status, 'unmatched');
   });
 
   it('settlementPreview: プロファイルの約束科目が入る（received/sale）', async () => {
@@ -445,11 +381,7 @@ describe('ec settlement (test db)', () => {
       });
       // 複合伝票を作る（預金行は借方1010010/1）
       currentStatement = await makeStatement();
-      settleResult = await settleStatement(currentStatement, {
-        received: { account: '1010010', subAccount: 1 },
-        sale: { account: '6000000' },
-        lines: await feeLines()
-      }, data.approver);
+      settleResult = await settleStatement(currentStatement, draftOf(await rowsOf(currentStatement)), data.approver);
       // 通帳の取り込み。Amazon振込1行（伝票日と同じ: 2026-07-29）
       bankStatement = await models.BankStatement.create({
         financialId: bankFinancial.id,
@@ -477,7 +409,8 @@ describe('ec settlement (test db)', () => {
       assert.lengthOf(suggestions, 1);
       assert.equal(suggestions[0].amount, 38268);
       assert.equal(suggestions[0].slip.id, settleResult.slip.id);
-      assert.match(suggestions[0].label, /テストモール/);
+      // 候補ラベルは伝票明細の摘要（pick & place で付けた「振込」）から来る
+      assert.match(suggestions[0].label, /振込/);
       // 候補は預金明細（借方1010010/1の明細）を指す
       const detail = await models.CrossSlipDetail.findByPk(suggestions[0].crossSlipDetailId);
       assert.equal(detail.debitAccount, '1010010');
@@ -566,21 +499,29 @@ describe('settlement text parser (profile driven)', () => {
   it('detectで判定し、節見出しと振込行をプロファイルの語彙で解析する', () => {
     const parsed = parseSettlementTextLines(toPdfLines(RAKUTEN_LINES), rakutenProfile);
     assert.isOk(parsed);
-    assert.equal(parsed.lines.length, 5);
+    // 集計行（売上/支出）も行として出る（pick & placeの材料。合計には数えない）
+    assert.equal(parsed.lines.length, 7);
+    // 集計行
+    assert.equal(parsed.lines[0].rawDescription, '売上');
+    assert.equal(parsed.lines[0].category, 'aggregate');
+    assert.equal(parsed.lines[0].amountIn, 220000);
+    assert.equal(parsed.lines[3].rawDescription, '支出');
+    assert.equal(parsed.lines[3].category, 'aggregate');
+    assert.equal(parsed.lines[3].amountOut, 33000);
     // 売上の内訳（saleセクションの内訳。消費税を含む。税込合算運用）
-    assert.equal(parsed.lines[0].rawDescription, '売上 商品代金');
-    assert.equal(parsed.lines[0].amountIn, 200000);
-    assert.equal(parsed.lines[1].amountIn, 20000);
+    assert.equal(parsed.lines[1].rawDescription, '売上 商品代金');
+    assert.equal(parsed.lines[1].amountIn, 200000);
+    assert.equal(parsed.lines[2].amountIn, 20000);
     // 費用の内訳
-    assert.equal(parsed.lines[2].rawDescription, '支出 システム利用料');
-    assert.equal(parsed.lines[2].amountOut, 22000);
+    assert.equal(parsed.lines[4].rawDescription, '支出 システム利用料');
+    assert.equal(parsed.lines[4].amountOut, 22000);
     // 振込行（プロファイルの transferPattern の語で引く）
     const transfer = parsed.lines[ parsed.lines.length - 1 ];
     assert.equal(transfer.rawDescription, 'お支払い金額');
     assert.equal(transfer.amountIn, 187000);
     assert.equal(transfer.date, '2026-03-15');
     assert.match(transfer.memo, /RTN-12345678/);
-    // 検算: 売上220,000 = 振込187,000 + 費用33,000
+    // 検算: 売上220,000 = 振込187,000 + 費用33,000（集計行は合計に数えない）
     const breakdown = settlementBreakdown(parsed.lines, rakutenProfile);
     assert.deepEqual(breakdown.warnings, []);
     assert.equal(breakdown.saleTotal, 220000);
