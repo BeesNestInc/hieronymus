@@ -100,16 +100,16 @@
                 <thead class="table-light">
                   <tr>
                     <th style="width:24px;"></th>
-                    <th style="width:24%;">
+                    <th style="width:12%;">
                       借方科目
                     </th>
-                    <th style="width:110px;">
+                    <th style="width:100px;">
                       金額
                     </th>
                     <th>
                       適用（読み取った明細）
                     </th>
-                    <th style="width:24%;">
+                    <th style="width:12%;">
                       貸方科目
                     </th>
                     <th style="width:110px;">
@@ -155,7 +155,7 @@
                           {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
                           <button type="button" class="btn btn-sm text-muted chip-x"
                             title="この摘要を外す（明細へ戻る）"
-                            on:click|stopPropagation={() => { detachRow(di, 'debit', rowId); }}>✕</button>
+                            on:click|stopPropagation={() => { detachRow(di, 'debit', rowId); }}><i class="bi bi-trash"></i></button>
                         </span>
                         {/each}
                         {#if ( ( dl.debit.rows || [] ).length === 0 )}
@@ -176,7 +176,7 @@
                           {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
                           <button type="button" class="btn btn-sm text-muted chip-x"
                             title="この摘要を外す（明細へ戻る）"
-                            on:click|stopPropagation={() => { detachRow(di, 'credit', rowId); }}>✕</button>
+                            on:click|stopPropagation={() => { detachRow(di, 'credit', rowId); }}><i class="bi bi-trash"></i></button>
                         </span>
                         {/each}
                         {#if ( ( dl.credit.rows || [] ).length === 0 )}
@@ -204,8 +204,11 @@
                         on:input={(e) => { if ( dl.credit.rows.length === 0 ) { dl.creditManual = e.target.value; saveSettleDraft(); } }} />
                     </td>
                     <td>
+                      <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                        title="この行の後に新しい明細行を追加する"
+                        on:click={() => { insertLineAfter(di); }}>＋</button>
                       <button type="button" class="btn btn-sm btn-outline-danger"
-                        title="この伝票行を削除（割り付けた摘li要は右の明細に戻る）、削除しないと行に置き換える"
+                        title="この伝票行を削除（割り付けた摘要は右の明細に戻る）"
                         on:click={() => { removeLine(di); }}>削除</button>
                     </td>
                   </tr>
@@ -907,10 +910,16 @@
     overflow: hidden;
     padding: 8px;
   }
-  /* 計算書の伝票化パネル。費用行が多くても枠内でスクロールする */
+  /* 計算書の伝票化パネル。スクロールは編集枠・明細リストの内部に任せる */
   .settle-panel {
     flex-shrink: 0;
-    max-height: 45vh;
+  }
+  .composer-scroll {
+    max-height: 38vh;
+    overflow-y: auto;
+  }
+  .pool-scroll {
+    max-height: 22vh;
     overflow-y: auto;
   }
   /* 表だけをスクロールさせ、ヘッダ行は固定する */
@@ -1706,6 +1715,19 @@ const addLine = () => {
 const removeLine = (di) => {
   const lines = [...( voucher.lines || [] )];
   lines.splice(di, 1);
+  voucher = { lines: lines };
+  saveSettleDraft();
+};
+// 行ごとの「＋」。この行の後に空の明細行を挿入する（真んな伝票と同じく、
+// 行の追加は任意の位置で可能）。ドラッグで置いた明細の側は自動で決める
+const insertLineAfter = (di) => {
+  const lines = [...( voucher.lines || [] )];
+  lines.splice(di + 1, 0, {
+    id: `L${Date.now()}`,
+    label: '',
+    debit: { rows: [], account: '', sub: null },
+    credit: { rows: [], account: '', sub: null }
+  });
   voucher = { lines: lines };
   saveSettleDraft();
 };
