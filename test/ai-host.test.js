@@ -1,6 +1,5 @@
-// ai/host/model-provider の Legion 形式 llms 群対応の検証（network 不使用）。
-// config/llms.yaml の2書式（フラット形式と Legion 形式の群）を、
-// engine hooks の形で解決できることを確認する。
+// ai/host/model-provider の llms 群解決の検証（network 不使用）。
+// config/llms.yaml（Legion 形式）を engine hooks の形で解決できることを確認する。
 import assert from 'assert';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +8,7 @@ const ok = (cond) => assert.ok(Boolean(cond));
 
 const fixture = (name) => {
   process.env.LLM_CONFIG_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), `fixtures/${name}`);
-  // 環境変数オーバーライドは群解決を無効化するので剥がす
+  // 環境変数オーバーライドを剥がす（群解決を素の状態で見る）
   delete process.env.LLM_PROVIDER;
   delete process.env.LLM_MODEL;
   delete process.env.LLM_API_KEY;
@@ -39,15 +38,16 @@ describe('ai/host llms 群（Legion 形式）', () => {
     }
   });
 
-  it('群形式を modelProvider / modelConfig / candidates で解決する', async () => {
+  it('群を modelProvider / modelConfig / candidates で解決する', async () => {
     fixture('llms-group-test.yaml');
     const mp = await import('../ai/host/model-provider.js');
-    ok(mp.isGroupedConfig());
-    // modelProvider: gemini 候補（fixtume の standard 群1件目）
+    // standard 群1件目（gemini）でモデルが解決される
     const model = await mp.modelProvider('standard');
-    assert.ok(model, 'モデルが解決される');
-    // 識別: gemini プロバイダ（provider キーが 第二十応答で判別できないので
-    // 設定解決側を検査する）
+    ok(model);
+    const s = mp.settings();
+    assert.equal(s.provider, 'gemini');
+    assert.equal(s.model, 'gemini-2.0-flash');
+    // modelConfig（engine 構造化判定・accepts/alternate に渡る）
     const conf = mp.modelConfig('standard');
     ok(conf);
     assert.equal(conf.provider, 'gemini');
@@ -72,16 +72,26 @@ describe('ai/host llms 群（Legion 形式）', () => {
     assert.equal(list[1].name, 'standard');
   });
 
-  it('フラット形式はこれまで通り settings() 経由で動く', async () => {
-    fixture('llms-test.json');
+  it('未定義名は standard 群にフォールバックし、未設定なら素の gemini で無効になる', async () => {
+    fixture('llms-group-test.yaml');
     const mp = await import('../ai/host/model-provider.js');
-    ok(!mp.isGroupedConfig());
-    const s = mp.settings();
-    // fixture llms-test.json は gemini 既定・キー無し
+    const s = mp.settings('unknown-model-name');
     assert.equal(s.provider, 'gemini');
-    assert.equal(mp.isAvailable(), false);
-    const model = await mp.modelProvider('standard');
-    assert.ok(model, 'フラット形式でもモデルが生成される');
+    // config を読めない場合も素の候補が返る（AIは無効、クラッシュしない）
+    process.env.LLM_CONFIG_PATH = 'test/fixtures/no-such-llms.yaml';
+    const bare = mp.settings();
+    assert.equal(bare.provider, 'gemini');
+    ok(mp.isAvailable() === false);
+  });
+
+  it('環境変数で解決済み候補に上書きする', async () => {
+    fixture('llms-group-test.yaml');
+    const mp = await import('../ai/host/model-provider.js');
+    process.env.LLM_MODEL = 'test-overridden';
+    const s = mp.settings();
+    assert.equal(s.model, 'test-overridden');
+    // 群自体は上書きされない（ごとの解決用）
+    assert.equal(mp.candidates('standard')[0].name, 'standard');
   });
 
   it('群の name 重複を検出する', async () => {

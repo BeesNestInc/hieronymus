@@ -16,27 +16,24 @@ Legion manifest-engine（`../manifest-engine/` submodule）を Hieronymus で動
 
 - engine 自体は submodule。変更は engine repo（`~/git/legion-manifest-engine`）で行い
   両 host で pointer bump（`../manifest-engine/README.md` 参照）
-- config/llms.yaml は2書式:
-  * 従来のフラット形式（provider/model/apiKey/baseURL 直下。既存環境はそのまま）
-  * Legion と同じ `llms:` 群形式。群=優先順位リスト、候補には accepts /
-    structuredOutput / alternate を書ける（input-strategy の添付モデル切替・
-    request.js の structuredOutput 判定に使う）。例:
+- config/llms.yaml は **Legion と同じ `llms:` 群形式のみ**（デュアルはやめた）:
 
-    ```yaml
-    llms:
-      standard:
-      - provider: openai-compatible
-        model: muse-spark-1.3-contributor
-        apiKey: "..."
-        baseURL: https://opencode.ai/zen/go/v1
-        accepts: [text, image, pdf]
-      - provider: gemini
-        model: gemini-2.0-flash
-        apiKey: "..."
-      light:
-      - standard        # 他候補の参照でも群を作れる
-    ```
+  ```yaml
+  llms:
+    standard:
+    - provider: openai-compatible
+      model: muse-spark-1.3-contributor
+      apiKey: "..."
+      baseURL: https://opencode.ai/zen/go/v1
+      accepts: [text, image, pdf]
+    - provider: gemini
+      model: gemini-2.0-flash
+      apiKey: "..."
+    light:
+    - standard        # 他候補の参照でも群を作れる
+  ```
 
-    環境変数（LLM_PROVIDER 等）を設定している場合は群形式ではなく
-    フラット形式が強制される（環境変数優先の後方互換）
+  群は優先順位リスト。候補に accepts / structuredOutput / alternate を書ける。
+  環境変数（LLM_PROVIDER 等）は解決済み候補の各フィールドを上書きする
+  （テスト・一時切替の簡単な口）。
 - メモリーは DB（ai_memories、Phase 3）に置く。履歴（useHistory）は使わない

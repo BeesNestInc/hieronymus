@@ -1,5 +1,7 @@
-provider: openai-compatible
-model: test-vision
-apiKey: ""
-baseURL: ""
-headers: {}
+# yaml読み込みテスト用。解決は群経由で行われ、環境変数
+# （LLM_PROVIDER/LLM_MODEL/LLM_BASE_URL）で上書きされる
+llms:
+  standard:
+  - provider: gemini
+    model: gemini-2.0-flash
+    apiKey: ""
