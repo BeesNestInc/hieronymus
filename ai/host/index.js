@@ -29,11 +29,14 @@ export const initializeAiHost = async () => {
     return;
   }
   initialized = true;
-  // modelProvider: (name) => Promise<LanguageModel>。config/llms.yaml の単一モデル
+  // modelProvider: (name) => Promise<LanguageModel>。Legion 形式の llms 群か
+  // 従来のフラット設定かを model-provider が判別して供給する
   engineHooks.setModelProvider(modelProvider.modelProvider);
-  // structuredOutput 可否等の制御。現行は全モデルで generateObject を試し、
-  // 失敗時に engine が generateText+JSON解析へフォールバックする（request.js）
-  engineHooks.setModelConfigResolver((name) => modelProvider.settings());
+  // structuredOutput 可否・accepts/alternate の供給（Legion 形式の llms 群から）
+  engineHooks.setModelConfigResolver(modelProvider.modelConfig);
+  // 群参照（requestLLMBare の候補フォールバックと input-strategy 候補解決）。
+  // リトライ戦略（setRetryStrategy）の接続は Phase 3（キープール運用と一緒に）
+  engineHooks.setCandidateResolver(modelProvider.candidates);
   // host のツール群（Phase 3 で拡張）
   engineHooks.setToolTable({});
   // MCP群の束ね（Phase 3 で voucher-mcp / expense-mcp を接続）

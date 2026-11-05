@@ -1,0 +1,18 @@
+# name 重複検出テスト用: 同一 name(dup-candidate) を2群に配置
+llms:
+  standard:
+  - description: 重複1
+    provider: gemini
+    model: gemini-2.0-flash
+    apiKey: k
+  - name: dup-candidate
+    description: 重複2（両群に同名）
+    provider: gemini
+    model: gemini-2.0-flash
+    apiKey: k
+  second:
+  - name: dup-candidate
+    description: 重複3
+    provider: gemini
+    model: gemini-2.0-flash
+    apiKey: k
