@@ -2,6 +2,7 @@
 import Account from './account.js';
 import AccountClass from './accountclass.js';
 import AccountRemaining from './accountremaining.js';
+import Aimemory from './aimemory.js';
 import BankStatement from './bank-statement.js';
 import BankStatementLine from './bank-statement-line.js';
 import BankStatementRule from './bank-statement-rule.js';
@@ -62,6 +63,7 @@ if (config.use_env_variable) {
 
 const models = {
   Account: Account(sequelize, DataTypes),
+  Aimemory: Aimemory(sequelize, DataTypes),
   Financial: Financial(sequelize, DataTypes),
   AccountClass: AccountClass(sequelize, DataTypes),
   AccountRemaining: AccountRemaining(sequelize, DataTypes),

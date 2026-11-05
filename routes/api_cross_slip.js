@@ -377,6 +377,14 @@ export default {
         }
         slip.updatedBy = req.session.user.id;
         await slip.save();
+        // 承認イベントからの振り返り（メモリー）。非同期・失敗しても承認自体は成功
+        if ( body.approvedAt && !slip.previous('approvedAt') ) {
+          import('./../ai/host/reflect.js').then(({ reflectFromVouchers }) => {
+            reflectFromVouchers(req.session.user.id);
+          }).catch((e) => {
+            console.error('reflect hook failed:', e.message || e);
+          });
+        }
         // 伝票が増えるのと同じなので「後の処理」を走らせる
         if ( body.approvedAt ) {
           try {

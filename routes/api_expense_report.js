@@ -680,6 +680,7 @@ export default {
         where: { kind: 'payee' }
       });
       const data = await vision.extract(buffer, mimeType, {
+        memoryUserId: req.session.user.id,
         companies: companies.map((c) => ({ id: c.id, name: c.name })),
         payeeMappings: payees.map((m) => ({
           id: m.id,

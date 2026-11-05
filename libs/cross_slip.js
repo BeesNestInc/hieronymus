@@ -137,6 +137,15 @@ export const create = async (body, user, options = {}) => {
         lines.push(line);
       }
       await t.commit();
+      // 承認イベント（create の auto-approve 含む）からの振り返り。
+      // 非同期・失敗しても登録自体は成功させる
+      if ( approvedAt ) {
+        import('../ai/host/reflect.js').then(({ reflectFromVouchers }) => {
+          reflectFromVouchers(user.id);
+        }).catch((e) => {
+          console.error('reflect hook failed:', e.message || e);
+        });
+      }
       // 取込明細から起票した行（statementLineIdを持つ明細）は、取り込行を
       // 「起票済み」に紐付ける（明細取込からのドラフト起票: 伝票画面の
       // 「登録」で伝票ができるタイミングで取り込行も確定する）
