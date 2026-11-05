@@ -1662,6 +1662,29 @@ $: settlementBooked = settlement && statement && ( statement.lines || [] ).lengt
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
 
 // pick & place 操作
+// 取り込みを「なかったこと」にする。計算書レコードと明細を消す
+// （起票済みがある計算書は server 側で拒否される）。消した後に
+// 同じファイルをもう一度取り込める
+const discardStatement = async () => {
+  if  ( !window.confirm('この取り込みを破棄（なかったこと）にしますか？\n計算書と明細行が消えます。ファイルからもう一度取り込むことはできます。') )  {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.delete(`/api/bank_statement/${id}`);
+    if  ( result.data && result.data.code === 0 )  {
+      toast.show('明細取込', '取り込みを破棄しました（なかったことにしました）');
+      routerLink('/bank-statement');
+    } else  {
+      toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) ? e.response.data.message : '破棄に失敗しました';
+    toast.show('明細取込', message, 'warning');
+  } finally {
+    busy = false;
+  }
+};
 const addLine = () => {
   voucher = { lines: [...( voucher.lines || [] ), {
     id: `L${Date.now()}`,
