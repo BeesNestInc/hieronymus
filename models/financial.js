@@ -39,7 +39,10 @@ export default (sequelize, DataTypes) => {
 		// 「もう使わない」マーキング。null=使用中
 		closedAt: DataTypes.DATE,
 		// メモ（口座の備忘。例: カード番号下4桁、更新月など）
-		memo: DataTypes.TEXT
+		memo: DataTypes.TEXT,
+		// 計算書の起票レイアウト（どの摘要を貸借のどこに置くか）。起票成功時に
+		// 学習して保存する（JSON文字列）。次回取込で同じ構成の下書きを自動生成する
+		settleLayout: DataTypes.TEXT
 	}, {
 		sequelize,
 		modelName: 'Financial',

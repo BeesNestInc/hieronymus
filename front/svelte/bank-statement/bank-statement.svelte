@@ -75,7 +75,7 @@
     <span class="badge bg-secondary">未照合 {statusCounts.unmatched}</span>
   </div>
   {/if}
-  {#if ( statement.kind === 'settlement' && settlement )}
+      {#if ( statement.kind === 'settlement' && settlement )}
   <div class="card mb-2 settle-panel" style="font-size:0.85rem;">
     <div class="card-body py-2">
       {#if ( settlement.warnings && settlement.warnings.length > 0 )}
@@ -91,116 +91,145 @@
       <span class="badge bg-primary ms-2">起票済み</span>
       {:else}
       <div class="mt-1">
+          <div class="card border-primary mb-2">
+            <div class="card-header" style="font-size:0.8rem;">振替伝票（起票内容）</div>
+            <div class="card-body py-2">
+              {#if ( ( voucher.lines || [] ).length === 0 )}
+              <div class="text-muted mb-1" style="font-size:0.8rem;">
+                まだ伝票がありません。下の「読み取った明細」から行を選び、伝票行の「→ 借方」「→ 貸方」で割り付けてください。
+              </div>
+              {/if}
+              {#each voucher.lines as dl, di ('L' + dl.id)}
+              <div class="row g-1 align-items-start mb-2 pb-1" style="border-bottom:1px dashed #ced4da;">
+                <div class="col-auto" style="padding-top:0.4rem;">
+                  <span class="badge text-bg-light" style="font-size:0.7rem;">行{di + 1}</span>
+                </div>
+                <div class="col">
+                  <div class="row g-1 align-items-center mb-1">
+                    <div class="col-auto"><span class="badge text-bg-warning">借</span></div>
+                    <div class="col">
+                      {#if ( ( dl.debit.rows || [] ).length === 0 )}
+                      <span class="text-muted" style="font-size:0.75rem;">（未割付）</span>
+                      {/if}
+                    </div>
+                    <div class="col-auto"><Account accounts={bankAccounts}
+                      bind:code={dl.debit.account} bind:sub_code={dl.debit.sub}
+                      title="借方の科目"></Account></div>
+                    <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'debit'))}</b>円</div>
+                  </div>
+                  {#each ( dl.debit.rows || [] ) as rowId}
+                  <div class="row g-1 align-items-center mb-0" style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;">
+                    <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
+                    <div class="col-auto">
+                      <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
+                        title="この摘要を外す（明細へ戻る）"
+                        on:click={() => { detachRow(di, 'debit', rowId); }}>✕</button>
+                    </div>
+                  </div>
+                  {/each}
+                  <div class="row g-1 align-items-center mb-1" style="margin-top:0.3rem;">
+                    <div class="col-auto"><span class="badge text-bg-success">貸</span></div>
+                    <div class="col">
+                      {#if ( ( dl.credit.rows || [] ).length === 0 )}
+                      <span class="text-muted" style="font-size:0.75rem;">（未割付）</span>
+                      {/if}
+                    </div>
+                    <div class="col-auto"><Account accounts={oppositeAccounts}
+                      bind:code={dl.credit.account} bind:sub_code={dl.credit.sub}
+                      title="貸方の科目"></Account></div>
+                    <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'credit'))}</b>円</div>
+                  </div>
+                  {#each ( dl.credit.rows || [] ) as rowId}
+                  <div class="row g-1 align-items-center mb-0" style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;">
+                    <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
+                    <div class="col-auto">
+                      <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
+                        title="この摘要を外す（明細へ戻る）"
+                        on:click={() => { detachRow(di, 'credit', rowId); }}>✕</button>
+                    </div>
+                  </div>
+                  {/each}
+                </div>
+                <div class="col-auto" style="padding-top:0.4rem;">
+                  <button type="button" class="btn btn-sm btn-outline-warning mb-1"
+                    disabled={ ( pickedLines || [] ).length === 0 }
+                    title="下で選択した明細行を、この行の借方に割り付ける"
+                    on:click={() => { attachPicked(di, 'debit'); }}>→ 借方</button>
+                  <br>
+                  <button type="button" class="btn btn-sm btn-outline-success mb-1"
+                    disabled={ ( pickedLines || [] ).length === 0 }
+                    title="下で選択した明細行を、この行の貸方に割り付ける"
+                    on:click={() => { attachPicked(di, 'credit'); }}>→ 貸方</button>
+                  <br>
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                    title="この伝票行を削除（割り付けた明細は下に戻る）"
+                    on:click={() => { removeLine(di); }}>行削除</button>
+                </div>
+              </div>
+              {/each}
+              <div class="d-flex align-items-center justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                  on:click={() => { addLine(); }}>＋伝票行を追加</button>
+                <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}">
+                  借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
+                  {#if ( settleBalanceOk )}✓ 貸借一致
+                  {:else}
+                  （差額 {numberFmt(settleVoucherAdjust)}円）
+                  {/if}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex align-items-center mb-1">
+            <span style="font-size:0.8rem;" class="me-2"><b>読み取った明細</b>（選ぶ → 伝票行へ割付）</span>
+          </div>
           <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
             <thead class="table-light">
               <tr>
-                <th style="width:30px;" title="外した行は伝票に載りません（集計行と内訳が両方ある計算書では重複の方を外します）">載</th>
-                <th style="width:30%;">摘要（取込行）</th>
-                <th class="number" style="width:90px;">金額</th>
-                <th style="width:18%;">出し方</th>
-                <th style="width:21%;">借方</th>
-                <th style="width:21%;">貸方</th>
+                <th style="width:30px;"></th>
+                <th style="width:44%;">摘要（読み取った明細）</th>
+                <th class="number" style="width:110px;">金額</th>
+                <th style="width:100px;">状態</th>
               </tr>
             </thead>
             <tbody>
-              {#if ( settleReceivedLineCount === 1 )}
-              <tr style="background-color:rgba(13,110,253,0.05);">
-                <td class="text-center"><input type="checkbox" class="form-check-input" checked disabled title="振込行は必ず載ります"></td>
-                <td>
-                  {settleReceivedLine.label}
-                  <span class="badge text-bg-info" style="font-size:0.65rem;">振込</span>
-                </td>
-                <td class="number">{Number(settleReceivedLine.amountIn || settleReceivedLine.amount || 0).toLocaleString()}</td>
-                <td><Account accounts={bankAccounts} bind:code={settleReceivedAccount} bind:sub_code={settleReceivedSubAccount}
-                  title="借方: 入金先の預金科目"></Account></td>
-                <td><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}
-                  title="貸方: 売上高（「売上」の内訳行の合計がこの科目で載る）"></Account></td>
-              </tr>
-              {:else}
-              <tr><td colspan="6" class="text-warning" style="font-size:0.8rem;">
-                入金行を選んで「出し方=借方（振込）」を指定してください（{settleReceivedLineCount}行が振込扱いです）。
-              </td></tr>
-              {/if}
               {#each settleLineViews as lv (lv.lineId)}
-              <tr class:row-excluded={ lv.role === 'none' }>
+              {#if ( !lineUsed(lv.lineId) )}
+              <tr style="background-color:rgba(13,110,253,0.05);">
                 <td class="text-center">
-                  {#if ( lv.role !== 'transfer' )}
-                  <input type="checkbox" class="form-check-input" checked={ lv.role !== 'none' }
-                    on:change={(e) => { setLineRole(lv, e.target.checked ? ( lv.lastRole || ( ( lv.amountIn > 0 ) ? 'sale' : 'expense' ) ) : 'none'); }}
-                    title="外した行は伝票に載りません">
-                  {/if}
+                  <input type="checkbox" class="form-check-input"
+                    checked={ pickFor(lv.lineId) }
+                    on:change={() => { togglePicked(lv.lineId); }}
+                    title="選ぶと、伝票行の「→ 借方」「→ 貸方」でこの摘要を割り付けられます">
                 </td>
                 <td>{lv.label}</td>
-                <td class="number">
-                  {#if ( lv.amountIn > 0 )}{Number(lv.amountIn).toLocaleString()}{/if}
-                  {#if ( lv.amountOut > 0 )}{Number(lv.amountOut).toLocaleString()}{/if}
-                </td>
-                <td>
-                  <select class="form-select form-select-sm" bind:value={settleLineRoles[lv.lineId]}
-                    on:change={(e) => { if ( e.target.value !== 'none' ) lv.lastRole = e.target.value; saveSettleDraft(); }}
-                    title="この行の伝票上の出し方。借方（振込）=入金先預金へ、貸方（売上高）=売上高の内訳、借方（費用）=その科目で費用計上、外す=載せない">
-                    <option value="none">外す</option>
-                    <option value="received">借方（振込）</option>
-                    <option value="sale">貸方（売上高）</option>
-                    <option value="expense">借方（費用）</option>
-                  </select>
-                </td>
-                <td>
-                  {#if ( lv.role === 'expense' )}
-                  <Account accounts={oppositeAccounts}
-                    bind:code={settleFeeAccounts[lv.lineId].account}
-                    bind:sub_code={settleFeeAccounts[lv.lineId].subAccount}
-                    title="借方の科目。ない摘要は手で選ぶと起票時に学習されます"></Account>
-                  {:else}
-                  <span class="text-muted" style="font-size:0.7rem;">—</span>
-                  {/if}
-                </td>
-                <td>
-                  {#if ( lv.role === 'expense' )}
-                  <Account accounts={accounts}
-                    bind:code={settleCreditAccounts[lv.lineId].account}
-                    bind:sub_code={settleCreditAccounts[lv.lineId].subAccount}
-                    title="貸方（任意。空=借方単行）"></Account>
-                  {/if}
-                </td>
+                <td class="number">{numberFmt(lineAmount(lv.lineId))}</td>
+                <td style="font-size:0.7rem;">{lv.status === 'booked' ? '起票済' : ''}</td>
               </tr>
+              {/if}
               {/each}
             </tbody>
           </table>
-          <div class="mt-1 {settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
-            振込 {Number(settleReceivedTotal.toLocaleString())} + 費用 {Number(settleExpenseTotal.toLocaleString())} =
-            {( Number(settleReceivedTotal.toLocaleString()) + Number(settleExpenseTotal.toLocaleString()) ).toLocaleString()}円
-            （売上高 {Number(settleSaleTotal.toLocaleString())}円）
-            {#if ( settleBalanceOk )}✓ 貸借一致{/if}
-          </div>
-          {#if ( !settleBalanceOk )}
-          <div class="small text-danger">
-            検算が合いません（差額 {settleAdjust}円）。「売上高」の合計が 振込+費用 になるように
-            行の出し方（貸方・借方・外す）を選んでください（入れ子の集計行と内訳が重複している場合は、重複の方を外します）。
-          </div>
-          {/if}
-          {#if ( !settleFeesReady && settleMissing.length > 0 )}
-          <div class="small text-danger">
-            借方が未指定の行があります: {settleMissing.map((s) => s.label).join(' / ') }。
-            学習ルールに無い摘要は、この行の科目を手で選んでください（起票で学習されます）。
-          </div>
-          {/if}
           <div class="text-muted" style="font-size:0.7rem;">
-            ※この表がそのまま1枚の複合伝票になります（1行=貸借ペア。貸方空欄の行は借方単行）。
-            選択は作業下書きとして保存され、reload でも消えません。
-            起票に成功すると、そのときの摘要→借方・貸方は学習ルールに記憶されます。
+            ※構成は作業下書きとして保存され、reload でも消えません。
+            起票に成功すると、この構成はこの通帳に学習され、次回の取込では
+            同じ構成の伝票が自動で組み上がった状態から始まります。
           </div>
-          <button type="button" class="btn btn-sm btn-primary mt-1" disabled={busy || !settleFeesReady || !settleBalanceOk}
-            title={( busy ) ? '処理中です' :
-              ( ( !settleFeesReady || !settleBalanceOk ) ? `押せません: ${settleDisabledReason}` :
-                'この表の内容を1枚の複合伝票にして、承認待ちで起票します（成功したら学習されます）' )}
-            on:click={runSettle}><i class="bi bi-sticky me-1"></i>1伝票にして起票</button>
+          <div class="d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || !settleBalanceOk}
+              title={( busy ) ? '処理中です' :
+                ( ( !settleBalanceOk ) ? `押せません: 貸借が合っていません` :
+                  'この伝票を承認待ちで起票します（成功したら構成が学習されます）' )}
+              on:click={runSettle}><i class="bi bi-sticky me-1"></i>起票</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" disabled={busy}
+              title="この取込を破棄します（計算書と明細は消えます。ファイルはもう一度取り込めます）"
+              on:click={() => { discardStatement(); }}>この取り込みをなかったことにする</button>
+          </div>
       </div>
       {/if}
     </div>
   </div>
-  {/if}
-  <div class="table-responsive table-scroll" bind:this={tableScrollEl}>
+  {/if}  <div class="table-responsive table-scroll" bind:this={tableScrollEl}>
     <table class="table table-striped table-bordered">
       <thead class="table-light">
         <tr>
@@ -1560,102 +1589,126 @@ let settleReceivedAccount = '';
 let settleReceivedSubAccount = '';
 let settleSaleAccount = '';
 let settleSaleSubAccount = '';
-let settleFeeAccounts = {};     // lineId → {account, subAccount} 費用行の借方
-// 各行の「出し方」。received=借方（振込・入金先行）/ sale=貸方（売上高の
-// 源泉行）/ expense=借方（費用）/ none=載せない。規定はサーバの推定で
-// ユーザーが変えられる（OCR が「売上」を出していない等はここで直せる）
-let settleLineRoles = {};       // lineId → role
-// 費用行の貸方（任意。空=借方単行）。1行で貸借を確定させたい行（キャッシング
-// リボ→短期借入金 等）に書く。規定値は学習済みルールの creditAccount
-let settleCreditAccounts = {};  // lineId → {account, subAccount}
+// 伝票ビュー（pick & place）。
+// voucher: 起票する伝票の下書き。各行は借方・貸方それぞれに
+// 「読み取った明細（取込行）」のラベルを割り付け、科目を決める。
+// 明細リストで選ぶ → 伝票行の「→ 借方」「→ 貸方」で割り付け。
+let voucher = { lines: [] };    // [{id, label?, debit:{rows:[],account,sub}, credit:{...}}]
+let pickedLines = [];           // 明細リストで選択中の lineId
 
+const numberFmt = (v) => Number(v || 0).toLocaleString();
+const lineData = (lineId) => (
+  ( ( settlement && settlement.lines ) || [] ).find((raw) => ( String(raw.lineId) === String(lineId) )) || null
+);
+const lineLabel = (lineId) => ( lineData(lineId).label || '' );
+const lineAmount = (lineId) => {
+  const raw = lineData(lineId);
+  return Number(( raw && ( raw.amountOut || raw.amountIn || raw.amount ) ) || 0);
+};
+const sideAmount = (dl, side) => ( ( dl[ side ] || {} ).rows || [] )
+  .reduce((a, id) => a + lineAmount(id), 0);
+const lineUsed = (lineId) => (
+  ( voucher.lines || [] ).some((dl) => (
+    ( ( dl.debit.rows || [] ).indexOf(String(lineId)) >= 0 ) ||
+    ( ( dl.credit.rows || [] ).indexOf(String(lineId)) >= 0 )
+  ))
+);
+$: settleVoucherDebit = ( voucher.lines || [] ).reduce((a, dl) => a + sideAmount(dl, 'debit'), 0);
+$: settleVoucherCredit = ( voucher.lines || [] ).reduce((a, dl) => a + sideAmount(dl, 'credit'), 0);
+$: settleVoucherAdjust = ( settlement ) ? ( Number(settleVoucherDebit) - Number(settleVoucherCredit) ) : null;
+$: settleBalanceOk = ( settlement && Number(settleVoucherDebit) === Number(settleVoucherCredit) &&
+  Number(settleVoucherDebit) > 0 );
 // 集計が使えるときだけパネルを出す（全行起票済みなら済み表示だけにする）
 $: settlementBooked = settlement && statement && ( statement.lines || [] ).length > 0 &&
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
-// 伝票ビューの全行（役割付き）。既定役割は settlementPreview.lines .
-// defaultRole、ユーザー変更は settleLineRoles が正
-$: settleLineViews = ( ( settlement && settlement.lines ) || [] ).map((raw) => ( {
-  lineId: raw.lineId,
-  label: raw.label,
-  amountIn: Number(raw.amountIn || 0),
-  amountOut: Number(raw.amountOut || 0),
-  role: ( settleLineRoles[ raw.lineId ] !== undefined ) ?
-    settleLineRoles[ raw.lineId ] : ( raw.defaultRole || 'none' )
-} ));
-$: settleReceivedLineCount = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'received' )).length;
-$: settleReceivedLine = ( settleLineViews || [] ).find((lv) => ( lv.role === 'received' )) || null;
-$: settleReceivedTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'received' ))
-  .reduce((a, lv) => a + Number(lv.amountIn || lv.amount || 0), 0);
-$: settleExpenseTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'expense' ))
-  .reduce((a, lv) => a + Number(lv.amountOut || lv.amount || 0), 0);
-$: settleSaleTotal = ( settleLineViews || [] ).filter((lv) => ( lv.role === 'sale' ))
-  .reduce((a, lv) => a + Number(lv.amountIn || lv.amount || 0), 0);
-// 費用行に借方が全部入ったか。外した行は起票対象外
-$: settleFeesReady = ( settleLineViews || [] )
-  .filter((lv) => ( lv.role === 'expense' ))
-  .every((lv) => ( ( settleFeeAccounts[lv.lineId] || {} ).account ))
-  && ( settleReceivedLineCount === 1 ) && ( settleSaleTotal > 0 );
-// 借方が未指定で、なおかつ費用扱いの行。押せない理由を画面に出すため
-$: settleMissing = ( settleLineViews || [] )
-  .filter((lv) => ( lv.role === 'expense' ))
-  .filter((lv) => !(( settleFeeAccounts[lv.lineId] || {} ).account));
-// 検算差（売上高 - 振込 - 費用）。0 だけが起票可
-$: settleAdjust = ( settlement ) ?
-  ( Number(settleSaleTotal) - Number(settleReceivedTotal) - Number(settleExpenseTotal) ) : null;
-$: settleBalanceOk = ( settlement && settleReceivedLineCount === 1 && settleSaleTotal > 0 &&
-  Number(settleSaleTotal) === Number(settleReceivedTotal) + Number(settleExpenseTotal) );
-$: settleDisabledReason = ( !settlement ) ? '' :
-  ( ( settleReceivedLineCount !== 1 ) ?
-      `振込行がありません（入金行に出し方「借方（振込）」を指定してください）` :
-    ( settleSaleTotal <= 0 ?
-        `売上行がありません（入金行に出し方「貸方（売上高）」を指定してください）` :
-      ( ( !settleFeesReady ) ?
-          `費用行の科目が未指定です（${settleMissing.map((s) => s.label).join(' / ')}）` :
-        ( !settleBalanceOk ?
-            `検算が合いません（差額 ${settleAdjust}円）` : '' ) ) ));
-const setLineRole = (lv, role) => {
-  settleLineRoles = Object.assign({}, settleLineRoles, { [lv.lineId]: role });
+
+// pick & place 操作
+// 取り込みを「なかったこと」にする。計算書レコードと明細を消す
+// （起票済みがある計算書は server 側で拒否される）。消した後に
+// 同じファイルをもう一度取り込める（取得済みファイルは Financial 側の履歴）
+const discardStatement = async () => {
+  if  ( !window.confirm('この取り込みを破棄（なかったこと）にしますか？\n計算書と明細行が消えます。ファイルからもう一度取り込むことはできます。') )  {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.delete(`/api/bank_statement/${id}`);
+    if  ( result.data && result.data.code === 0 )  {
+      toast.show('明細取込', '取り込みを破棄しました（なかったことにしました）');
+      routerLink('/bank-statement');
+    } else  {
+      toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) ? e.response.data.message : '破棄に失敗しました';
+    toast.show('明細取込', message, 'warning');
+  } finally {
+    busy = false;
+  }
+};
+const addLine = () => {
+  voucher = { lines: [...( voucher.lines || [] ), {
+    id: `L${Date.now()}`,
+    label: '',
+    debit: { rows: [], account: '', sub: null },
+    credit: { rows: [], account: '', sub: null }
+  }] };
+  saveSettleDraft();
+};
+const removeLine = (di) => {
+  const lines = [...( voucher.lines || [] )];
+  lines.splice(di, 1);
+  voucher = { lines: lines };
+  saveSettleDraft();
+};
+const pickFor = (lineId) => ( ( pickedLines || [] ).indexOf(String(lineId)) >= 0 );
+const togglePicked = (lineId) => {
+  const key = String(lineId);
+  pickedLines = pickFor(key) ? ( pickedLines || [] ).filter((x) => ( x !== key )) : [ ...( pickedLines || [] ), key ];
+};
+// 割り付けた行に学習済み科目があれば、その側の科目が空の時に提案する
+const suggestAccountFor = (rowId) => (
+  ( ( settlement && settlement.suggestions ) || [] ).find((sp) => ( String(sp.lineId) === String(rowId) )) || null
+);
+const attachPicked = (di, side) => {
+  if  ( ( pickedLines || [] ).length === 0 )  {
+    toast.show('計算書', '先に下の明細を選んでください', 'warning');
+    return;
+  }
+  const lines = [...( voucher.lines || [] )];
+  const dl = lines[ di ];
+  if  ( !dl[ side ] )  {
+    dl[ side ] = { rows: [], account: '', sub: null };
+  }
+  for  ( const id of pickedLines )  {
+    dl[ side ].rows = [...( dl[ side ].rows || [] ), String(id)];
+  }
+  if  ( !( dl[ side ].account ) )  {
+    for  ( const id of pickedLines )  {
+      const sp = suggestAccountFor(id);
+      const acc = ( sp && sp.account && side === 'debit' ) ? sp.account :
+        ( ( sp && sp.creditAccount && side === 'credit' ) ? sp.creditAccount : null );
+      if  ( acc )  {
+        dl[ side ].account = acc;
+        dl[ side ].sub = ( side === 'debit' && sp.subAccount != null && sp.subAccount !== '' && sp.subAccount !== 0 ) ? String(sp.subAccount) : dl[ side ].sub;
+        break;
+      }
+    }
+  }
+  pickedLines = [];
+  voucher = { lines: lines };
+  saveSettleDraft();
+};
+const detachRow = (di, side, rowId) => {
+  const lines = [...( voucher.lines || [] )];
+  const dl = lines[ di ];
+  dl[ side ].rows = ( dl[ side ].rows || [] ).filter((x) => ( String(x) !== String(rowId) ));
+  voucher = { lines: lines };
   saveSettleDraft();
 };
 
-// 費用行の（ルール外の）手選択科目を、その摘要の学習ルールとして即登録する。
-// 借貸両側を覚える（パネルの貸方指定を含む。起票しなくても保存され、
-// 次回取込から反映される）
-const registerFeeRule = async (s) => {
-  const pick = settleFeeAccounts[s.lineId] || {};
-  const credit = settleCreditAccounts[s.lineId] || {};
-  if ( !pick.account ) {
-    toast.show('計算書', '先にこの行の科目を選んでください', 'warning');
-    return;
-  }
-  try {
-    const result = await axios.post('/api/bank_statement_rule', {
-      financialId: statement.financialId,
-      direction: 'out',
-      pattern: s.label,
-      oppositeAccount: pick.account,
-      oppositeSubAccount: pick.subAccount || null
-    });
-    // 権限不足等は HTTP 200 + code≠0 で返る（例外にならない）ため必ず確認する
-    if ( !( result.data && result.data.code === 0 ) ) {
-      const message = result.data?.message || `登録に失敗しました（code=${result.data?.code}）`;
-      toast.show('計算書', message, 'warning');
-      return;
-    }
-    s.account = pick.account;
-    s.subAccount = pick.subAccount || null;
-    s.creditAccount = ( credit && credit.account ) ? credit.account : null;
-    s.creditSubAccount = ( credit && credit.subAccount ) ? credit.subAccount : null;
-    toast.show('計算書', `「${s.label}」を学習ルールに登録しました（次回取込から自動で反映します）`);
-  } catch (e) {
-    console.error('register fee rule failed', e);
-    const message = ( e.response && e.response.data && e.response.data.message ) || 'ルール登録に失敗しました';
-    toast.show('計算書', message, 'warning');
-  }
-};
-// 計算書パネルの選択状態（対象外チェック・手選択科目）は、この取込の「作業下書き」と
-// して sessionStorage に保持する。ページ reload で外したチェックが復活しないように
-// するため（ダイアログの学習ルールとは別物。ルールの確定はルール登録/起票で行う）
+// 計算書パネルの伝票ビュー（PICK & PLACE 下書き）は、この取込の「作業下書き」として
+// 保持する。reload・ブラウザを替えても続けられる。
 const settleDraftKey = (sid) =>  `bank-statement-settle-draft-${sid}`;
 const loadSettleDraft = (sid) =>  {
   try {
@@ -1668,20 +1721,9 @@ const loadSettleDraft = (sid) =>  {
 const saveSettleDraft = () =>  {
   try {
     if  ( !statement || !settlement )  return;
-    const picks = {};
-    const roles = {};
-    const credits = {};
-    for  ( const lv of ( settleLineViews || [] ) )  {
-      const pick = settleFeeAccounts[ lv.lineId ] || {};
-      picks[ lv.lineId ] = { account: pick.account || '', subAccount: pick.subAccount || '' };
-      roles[ lv.lineId ] = lv.role;
-      const credit = settleCreditAccounts[ lv.lineId ] || {};
-      credits[ lv.lineId ] = { account: credit.account || '', subAccount: credit.subAccount || '' };
-    }
-    const payload = JSON.stringify({ picks, roles, credits });
+    const payload = JSON.stringify({ voucher: voucher });
     sessionStorage.setItem(settleDraftKey(statement.id), payload);
-    // サーバにも保存する（ブラウザを替えても続けられるように）。連打対策で
-    // デバウンス。起票成功時に front がクリア用の null を送る
+    // サーバにも保存する（連打対策でデバウンス）。起票成功時に null を送って消す
     if  ( settleDraftSaveTimer )  clearTimeout(settleDraftSaveTimer);
     settleDraftSaveTimer = setTimeout(() => {
       settleDraftSaveTimer = null;
@@ -1696,104 +1738,115 @@ const clearSettleDraft = () =>  {
   try {
     if  ( statement )  sessionStorage.removeItem(settleDraftKey(statement.id));
   } catch {}
-  // サーバ側の作業下書きも消す（起票で選択は確定、次回は新規に始める）
   if  ( settleDraftSaveTimer )  { clearTimeout(settleDraftSaveTimer); settleDraftSaveTimer = null; }
   axios.put(`/api/bank_statement/${statement.id}`, { settleDraft: null })
     .catch((e) => console.error('settle draft clear failed', e?.response?.status || e));
 };
-
 const applySettlement = (data) => {
-  // 手選択の保持: ルール変更の即反映（closing時の取り直し）や reload が
-  // 状態を消さないように、以前の選択を引き継ぐ。
-  // 1) 同じページ内の取り直しはメモリ上の状態を優先
-  // 2) reload 直後（メモリが空）は sessionStorage／サーバの下書きを復元
-  // 3) ルール（学習済みの科目）は draft にもメモリにも無い場合の初回に来る
-  const hadMemory = ( settleFeeAccounts && Object.keys(settleFeeAccounts).length > 0 );
-  const prevPicks = hadMemory ? settleFeeAccounts : null;
-  const prevRoles = ( settleLineRoles && Object.keys(settleLineRoles).length > 0 ) ? settleLineRoles : null;
-  const draft = ( !hadMemory && statement ) ?
-    ( loadSettleDraft(statement.id) || statement.settleDraft || null ) : null;
+  // 伝票ビュー（pick & place）の下書きを復元する。
+  // 1) 同じページ内の取り直しはメモリ上の voucher を優先
+  // 2) reload 直後は sessionStorage／サーバの作業下書きを復元
+  // 3) どちらもない場合は、起票成功時に学習した構成（seedDraft）を使う
+  if  ( ( voucher.lines || [] ).length > 0 )  {
+    settlement = data || null;
+    return;
+  }
   settlement = data || null;
   if  ( !settlement )  {
     return;
   }
-  settleDay = settlement.transferDate || statement.periodFrom || '';
-  settleReceivedAccount = ( settlement.received && settlement.received.account ) || '';
-  settleReceivedSubAccount = ( settlement.received && settlement.received.subAccount ) || '';
-  settleSaleAccount = ( settlement.sale && settlement.sale.account ) || '';
-  settleSaleSubAccount = ( settlement.sale && settlement.sale.subAccount ) || '';
-  // 全行の目録を初期化（借方/貸方/役割の state は行ごとに必ず枠を作る。bind先がないと落ちるため）
-  const suggestionByLine = new Map(( data.suggestions || [] ).map((s) => [ s.lineId, s ]));
-  const prevRolesMap = prevRoles || {};
-  for  ( const lv of ( data.lines || [] ) )  {
-    const suggestion = suggestionByLine.get(lv.lineId) || {};
-    const prevPick = prevPicks ? ( prevPicks[ lv.lineId ] || {} ) : {};
-    const draftPick = ( draft && draft.picks ) ? ( draft.picks[ lv.lineId ] || {} ) : {};
-    const draftCredit = ( draft && draft.credits ) ? ( draft.credits[ lv.lineId ] || {} ) : {};
-    const prevRole = prevRolesMap[ lv.lineId ];
-    const draftRole = ( draft && draft.roles ) ? draft.roles[ lv.lineId ] : undefined;
-    // 役割: メモリ > 下書き > サーバ推定。下書きの旧 includes は role に読み替える
-    const legacyInclude = ( draft && draft.includes ) ? draft.includes[ lv.lineId ] : undefined;
-    settleLineRoles[ lv.lineId ] =
-      ( prevRole !== undefined ) ? prevRole :
-      ( ( draftRole !== undefined && draftRole ) || ( legacyInclude === false ? 'none' : undefined ) ) ||
-      ( lv.defaultRole || 'none' );
-    if  ( lv.role === 'expense' || ( lv.role !== 'received' && lv.role !== 'sale' ) )  {
-      settleFeeAccounts[ lv.lineId ] = {
-        account: suggestion.account || prevPick.account || draftPick.account || '',
-        subAccount: ( suggestion.account && suggestion.subAccount !== undefined && suggestion.subAccount !== null && suggestion.subAccount !== '' ) ? suggestion.subAccount :
-          ( ( suggestion.account && ( suggestion.subAccount === 0 || suggestion.subAccount === null || suggestion.subAccount === '' ) ) ?
-              ( suggestion.subAccount === 0 ) ? 0 : (( prevPick.subAccount !== undefined && prevPick.subAccount !== null && prevPick.subAccount !== '' ) ? Number(prevPick.subAccount) : ( ( draftPick.subAccount !== undefined && draftPick.subAccount !== null && draftPick.subAccount !== '' ) ? Number(draftPick.subAccount) : '' )) :
-              ( prevPick.subAccount || draftPick.subAccount || '' ) )
+  settleDay = settleDay || ( settlement.transferDate || statement.periodFrom || '' );
+  const drafts = [];
+  try {
+    const local = loadSettleDraft(statement.id);
+    if  ( local && local.voucher )  drafts.push(local.voucher);
+  } catch {}
+  if  ( statement.settleDraft )  {
+    try {
+      const remote = ( typeof statement.settleDraft === 'string' ) ? JSON.parse(statement.settleDraft) : statement.settleDraft;
+      if  ( remote && remote.voucher )  drafts.push(remote.voucher);
+    } catch {}
+  }
+  for  ( const d of drafts )  {
+    if  ( d && Array.isArray(d.lines) && d.lines.length > 0 )  {
+      voucher = {
+        lines: d.lines.map((dl) => ( {
+          id: dl.id || `L${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          label: dl.label || '',
+          debit: { rows: ( dl.debit && dl.debit.rows || [] ).map(String), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
+          credit: { rows: ( dl.credit && dl.credit.rows || [] ).map(String), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
+        } ))
       };
-      settleCreditAccounts[ lv.lineId ] = {
-        account: suggestion.creditAccount || draftCredit.account || '',
-        subAccount: ( suggestion.creditAccount ? ( suggestion.creditSubAccount || '' ) : ( draftCredit.subAccount || '' ) )
-      };
-    } else  {
-      settleFeeAccounts[ lv.lineId ] = { account: '', subAccount: '' };
-      settleCreditAccounts[ lv.lineId ] = { account: '', subAccount: '' };
+      return;
     }
   }
+  // 下書きが無いときは、起票成功時に学習した構成（seedDraft）が初回候補
+  const seed = data.seedDraft;
+  if  ( seed && Array.isArray(seed.lines) && seed.lines.length > 0 )  {
+    voucher = {
+      lines: seed.lines.map((dl, i) => ( {
+        id: `seed${i}-${dl.label || ''}`,
+        label: dl.label || '',
+        debit: { rows: ( dl.debit && dl.debit.rows || [] ).map(String), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
+        credit: { rows: ( dl.credit && dl.credit.rows || [] ).map(String), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
+      } ))
+    };
+    toast.show('計算書', `この通帳で学習した伝票構成（${seed.lines.length}行）を自動で組みました。確認・調整して起票してください`);
+    return;
+  }
+  voucher = { lines: [] };
 };
+
 const runSettle = async () => {
-  const missing = settleMissing;
-  if ( !settleReceivedAccount ) {
-    toast.show('計算書', '入金先（借方の預金）の科目を指定してください。', 'warning');
+  if  ( ( voucher.lines || [] ).length === 0 )  {
+    toast.show('計算書', '伝票が空です。読み取った明細を割り付けてください。', 'warning');
     return;
   }
-  if ( !settleSaleAccount ) {
-    toast.show('計算書', '売上高（貸方）の科目を指定してください。', 'warning');
+  for  ( const [ i, dl ] of ( voucher.lines || [] ).entries() )  {
+    const dAmount = sideAmount(dl, 'debit');
+    const cAmount = sideAmount(dl, 'credit');
+    if  ( dAmount > 0 && !( dl.debit.account ) )  {
+      toast.show('計算書', `伝票行${i + 1} の借方科目が未指定です。`, 'warning');
+      return;
+    }
+    if  ( cAmount > 0 && !( dl.credit.account ) )  {
+      toast.show('計算書', `伝票行${i + 1} の貸方科目が未指定です。`, 'warning');
+      return;
+    }
+  }
+  if  ( !settleBalanceOk )  {
+    toast.show('計算書', `貸借が合いません（差額 ${numberFmt(settleVoucherAdjust)}円）。`, 'warning');
     return;
   }
-  if ( missing.length > 0 ) {
-    toast.show('計算書', `費用行の科目が未指定です（${missing.length}行）。`, 'warning');
-    return;
-  }
-  if ( !window.confirm('計算書を1枚の複合伝票に起票します（承認待ち）。よろしいですか？') ) {
+  if  ( !window.confirm('この伝票を承認待ちで起票します。よろしいですか？') )  {
     return;
   }
   busy = true;
   try {
     const result = await axios.post(`/api/bank_statement/${id}/settle`, {
       day: settleDay || undefined,
-      received: { account: settleReceivedAccount, subAccount: settleReceivedSubAccount || null },
-      sale: { account: settleSaleAccount, subAccount: settleSaleSubAccount || null },
-      lines: ( settleLineViews || [] ).map((lv) => ({
-        lineId: lv.lineId,
-        role: lv.role,
-        account: ( settleFeeAccounts[lv.lineId] || {} ).account || null,
-        subAccount: ( ( settleFeeAccounts[lv.lineId] || {} ).subAccount ) || null,
-        creditAccount: ( ( settleCreditAccounts[lv.lineId] || {} ).account ) || null,
-        creditSubAccount: ( ( settleCreditAccounts[lv.lineId] || {} ).subAccount ) || null
-      }))
+      draft: {
+        lines: ( voucher.lines || [] ).map((dl) => ( {
+          label: dl.label || '',
+          debit: {
+            rows: ( dl.debit.rows || [] ).map(Number),
+            account: dl.debit.account || null,
+            sub: dl.debit.sub || null
+          },
+          credit: {
+            rows: ( dl.credit.rows || [] ).map(Number),
+            account: dl.credit.account || null,
+            sub: dl.credit.sub || null
+          }
+        } ))
+      }
     });
-    if ( result.data && result.data.code === 0 ) {
-      toast.show('計算書', '計算書を複合伝票に起票しました（承認待ち）。通帳の振込行はこの伝票の預金明細と照合できます');
+    if  ( result.data && result.data.code === 0 )  {
+      toast.show('計算書', '起票しました（承認待ち）。この構成はこの通帳に学習されました');
       clearSettleDraft();
       applySettlement(result.data.settlement);
       statement = Object.assign({}, statement, { lines: result.data.lines });
-    } else {
+    } else  {
       toast.show('計算書', `伝票化に失敗しました（code=${result.data.code}）`, 'warning');
     }
   } catch (e) {
@@ -1807,8 +1860,6 @@ const runSettle = async () => {
   }
 };
 
-// 行の方向（出金/入金）。同じ摘要でも入金と出金で相手方は別ルール。
-// カード系の行は利用額(amount)のみで載るので常に方向=出金
 const lineDirection = (line) => (
   ( ( line.amountOut !== null && line.amountOut !== undefined ) ||
     ( ( line.amount !== null && line.amount !== undefined ) ) ) ? 'out' : 'in'
@@ -1941,6 +1992,15 @@ const openRulesModal = async (line = null, financial = null) => {
 // ある。現行の選択で検算が合っているなら、検算系の警告の再表示は
 // 「合っているのに合わないと言われ続ける」混乱しか生まないので非表示にする
 // （残高不一致など他種の警告はそのまま出す）
+let settleLineViews = [];   // 読み取った全文（計算書）行。settlement.lines を反映
+$: settleLineViews = ( ( settlement && settlement.lines ) || [] ).map((raw) => ( {
+  lineId: raw.lineId,
+  label: raw.label,
+  amountIn: Number(raw.amountIn || 0),
+  amountOut: Number(raw.amountOut || 0),
+  status: raw.status
+} ));
+
 $: currentWarnings = ( statement && statement.kind === 'settlement' && settlement &&
       settleBalanceOk && settlement.transferAmount !== null && Array.isArray(warnings) ) ?
     warnings.filter((w) => !( /検算が合いません|費用の内訳の合計/.test(String(w)) )) :

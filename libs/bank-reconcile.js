@@ -830,10 +830,6 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     where: { statementId: statement.id },
     order: [[ 'lineNo', 'ASC' ]]
   });
-  const breakdown = parser.settlementBreakdown(lines, profile);
-  // breakdown（プロファイル推定）は front への既定役割の提供に回る。
-  // OCR の揺れで振込行が特定できなくても、front で入金行に役割を付けられる
-  // （振込行の欠落ブロックは撤去。最終チェックは役割指定後の検算で行う）
   // 二重起票の抑止（既に起票済みの行がある計算書は組み直さない）
   const bookedCount = lines.filter((l) => ( l.status === 'booked' ) || ( l.status === 'matched' )).length;
   if ( bookedCount > 0 ) {
@@ -841,185 +837,143 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     err.name = 'BankReconcileError';
     throw err;
   }
-  const received = resolveSide(body.received, 'receivedAccount', profile);
-  const sale = resolveSide(body.sale, 'saleAccount', profile);
-  if ( !received || !sale ) {
-    const err = new Error('入金先・売上高の科目が未指定です（プロファイルか指定で渡してください）。');
+  // 伝票ビューの下書き（pick & place で組んだもの）をそのまま受理する。
+  // draft.lines の各要素は { label?, debit: {rows:[lineId], account, sub},
+  // credit: {rows:[lineId], account, sub} }。行に割り付けた摘要（取込行）の
+  // 金額の合計がその側の金額になる（借貸合計は伝票全体で一致を検算）
+  const draft = ( body.draft && Array.isArray(body.draft.lines) ) ? body.draft : null;
+  if  ( !draft || draft.lines.length === 0 )  {
+    const err = new Error('伝票が空です。計算書の行を pick & place して構成してください。');
     err.name = 'BankReconcileError';
     throw err;
   }
-  // 伝票ビュー（全行+出し方）で構成する。body.lines の各行は
-  // {lineId, role, account, subAccount, creditAccount, creditSubAccount}。
-  // role: 'received'（振込行。借:入金先・貸:売上高の第1行に一体）/ 'sale'
-  // （貸:売上高の源泉。合計が売上高になる）/ 'expense'（借:費用・
-  // 貸:任意指定）/ 'none'（載せない）。front の役割指定が正で、
-  // breakdown（プロファイル推定）は既定値の提供に回る
-  const roleMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
-  // 学習ルール（借方/貸方の指定を含む）を費用行に引き当てる。
-  const financialRules = statement.financialId ?
-    await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
-  const validRole = ( role ) => (
-    ( role === 'received' ) || ( role === 'sale' ) ||
-    ( role === 'expense' ) || ( role === 'none' )
-  );
-  const transferDefs = [];
-  const saleDefs = [];
-  const feeEntries = [];
-  for ( const rawLine of linesOf(lines) ) {
-    const booking = roleMap.get(rawLine.id);
-    const role = ( booking && validRole(booking.role) ) ? booking.role :
-      ( // front が役割を送らなかった行は breakdown の推定に従う
-        ( breakdown.transferLine && rawLine.id === breakdown.transferLine.id ) ? 'received' :
-        ( breakdown.saleLines.some((l) => l.id === rawLine.id) ) ? 'sale' :
-        ( breakdown.expenseLines.some((l) => l.id === rawLine.id) ) ? 'expense' : 'none'
-      );
-    if  ( role === 'none' )  {
-      continue;
+  const lineById = new Map(linesOf(lines).map((l) => [ String(l.id), l ]));
+  const usedRows = new Set();
+  // 1つの側: 取込行（lines）から金額・摘要を集め、科目を確定する
+  const composeSide = (side, lineLabel, role) => {
+    const rows = ( side.rows || [] ).map((id) => lineById.get(String(id))).filter(Boolean);
+    for  ( const raw of rows )  {
+      if  ( usedRows.has(String(raw.id)) )  {
+        const err = new Error(`同じ取込行が複数の箇所に使われています（${raw.rawDescription || raw.description || raw.merchant || raw.id}）。取り直してください。`);
+        err.name = 'BankReconcileError';
+        throw err;
+      }
     }
-    if  ( role === 'received' )  {
-      transferDefs.push({
-        line: rawLine,
-        amount: Number(rawLine.amountIn || rawLine.amount || 0)
-      });
-      continue;
+    const amount = rows.reduce((a, r) => a + Number(r.amountOut || r.amountIn || r.amount || 0), 0);
+    const account = side.account ? String(side.account) : null;
+    const subAccount = ( side.sub != null && side.sub !== '' ) ? Number(side.sub) : null;
+    if  ( rows.length > 0 )  {
+      if  ( !account )  {
+        const err = new Error(`${role}側の科目が未指定です（${lineLabel || rows[0].rawDescription || ''}）。`);
+        err.name = 'BankReconcileError';
+        throw err;
+      }
+      if  ( isTempAccount(account) )  {
+        const err = new Error(`${role}側に仮入科目は指定できません（${account}）。`);
+        err.name = 'BankReconcileError';
+        throw err;
+      }
     }
-    if  ( role === 'sale' )  {
-      saleDefs.push({
-        line: rawLine,
-        amount: Number(rawLine.amountIn || rawLine.amount || 0)
-      });
-      continue;
+    for  ( const raw of rows )  {
+      usedRows.add(String(raw.id));
     }
-    // expense: 借方の科目指定（必須。実科目のみ）
-    const account = ( booking && booking.account ) ? String(booking.account) : null;
-    if ( !account || isTempAccount(account) ) {
-      const err = new Error(`費用行「${rawLine.rawDescription || rawLine.description || rawLine.merchant}」の科目が未指定です。実科目を指定してください。`);
-      err.name = 'BankReconcileError';
-      throw err;
-    }
-    const label = rawLine.rawDescription || rawLine.description || rawLine.merchant || '';
-    const rule = findLearnedRule(financialRules, label, 'out');
-    // 貸方: 今回の送信値を優先し、未指定なら学習済みルールの貸方
-    const sentCredit = ( booking.creditAccount && !isTempAccount(booking.creditAccount) ) ?
-      { account: String(booking.creditAccount), subAccount: ( booking.creditSubAccount != null && booking.creditSubAccount !== '' ) ? Number(booking.creditSubAccount) : null } : null;
-    const ruleCredit = ( rule && rule.creditAccount && !isTempAccount(rule.creditAccount) ) ?
-      { account: rule.creditAccount, subAccount: rule.creditSubAccount || null } : null;
-    const credit = sentCredit || ruleCredit || null;
-    feeEntries.push({
-      line: rawLine,
-      account: account,
-      subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null,
-      credit: credit,
-      // 起票後にルールへ覚える（学習失敗でも起票は失敗させない方針）
-      learnCredit: sentCredit
-    });
-  }
-  if  ( transferDefs.length === 0 )  {
-    const err = new Error('振込（入金）行が指定されていません。振込行の「出し方」を指定してください。');
-    err.name = 'BankReconcileError';
-    throw err;
-  }
-  if  ( saleDefs.length === 0 )  {
-    const err = new Error('売上行が指定されていません。入金の行（売上・商品代金等）に「売上高（貸方）」を指定してください。');
-    err.name = 'BankReconcileError';
-    throw err;
-  }
-  const transferAmount = transferDefs.reduce((acc, r) => acc + r.amount, 0);
-  const creditPool = saleDefs.reduce((acc, r) => acc + r.amount, 0);
-  // 検算: 貸方（売上高の合計）= 借方（振込 + 費用）
-  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut || e.line.amount || 0), 0);
-  if ( Math.round(creditPool) !== Math.round(transferAmount + enteredFeeTotal) ) {
-    const err = new Error(`検算が合いません（売上高 ${creditPool.toLocaleString()} vs 振込 ${transferAmount.toLocaleString()} + 費用 ${enteredFeeTotal.toLocaleString()}）。行の役割（貸借 출し）を見直してください。`);
-    err.name = 'BankReconcileError';
-    throw err;
-  }
-  // 伝票日付は振込行の日付（引数で上書き可。振込日は計算書どおり）
-  const dayStr = body.day || ( transferDefs[0] && transferDefs[0].line.date ) || statement.periodFrom;
-  const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if ( !m ) {
-    const err = new Error('伝票日付が特定できません（振込行に日付がありません）。');
-    err.name = 'BankReconcileError';
-    throw err;
-  }
-  const finName = statement.cardName || '';
-  // 複合伝票の明細行。第1行は 借:入金先預金（振込額）と 貸:売上高（売上行の
-  // 合計を丸ごと）を対置した1行にする（計算書の「売上」行の数字がそのまま
-  // 売上高に出る。売上高を借方に合わせて分散させると人間が理解できない）。
-  // 費用行は借方のみ（借貸合計は 振込+費用 = 売上合計 で拾い合う）。
-  // ルールに貸方の指定があればその行だけは1行で貸借が確定する
+    return { rows: rows, amount: amount, account: account, subAccount: subAccount,
+      patterns: rows.map((r) => makePattern(r.rawDescription || r.description || r.merchant || '')) };
+  };
   const slipLines = [];
-  const ruledCreditTotal = feeEntries.reduce((acc, e) => (
-    ( e.credit && e.credit.account ) ? acc + Number(e.line.amountOut || e.line.amount || 0) : acc
-  ), 0);
-  // 借:入金先預金（振込額）/ 貸:売上高（売上行の合計。貸方指定行の分は控え）
-  slipLines.push({
-    debitAccount: received.account,
-    debitSubAccount: received.subAccount,
-    debitAmount: transferAmount,
-    debitTax: 0,
-    debitTaxRuleId: null,
-    creditAccount: sale.account,
-    creditSubAccount: sale.subAccount,
-    creditAmount: ( creditPool - ruledCreditTotal ),
-    creditTax: 0,
-    creditTaxRuleId: null,
-    application1: `振込 ${finName}`.trim(),
-    application2: ( transferDefs[0] && transferDefs[0].line.memo ) || null,
-    statementLineId: ( transferDefs[0] && transferDefs[0].line.id ) || null
-  });
-  // 借:費用（学習ルールの相手方）/ 貸:ルール・今回指定の貸方（キャッシング
-  // リボ→短期借入金 等。指定がなければ貸方なしの借方単行）。
-  // 貸方指定行があるときは、第1行の売上高からその分を控える（伝票全体の
-  // 貸借合計を壊さないため。通常の費用行は貸方指定なしで第1行のみ対照）
-  for ( const entry of feeEntries ) {
-    const credit = entry.credit || { account: null, subAccount: null };
+  const layoutLines = [];
+  const lineRowIds = [];   // slipLines と並行。各行に割り付けた取込行 id
+  let dayStr = body.day || null;
+  for  ( const [ i, dl ] of draft.lines.entries() )  {
+    const debitSide = composeSide(dl.debit || {}, dl.label || '', '借方');
+    const creditSide = composeSide(dl.credit || {}, dl.label || '', '貸方');
+    if  ( debitSide.amount === 0 && creditSide.amount === 0 )  {
+      continue;   // 双方が空の行は組み込まない（操作の途中の空行）
+    }
+    const label = String(dl.label || '').trim() ||
+      ( debitSide.rows[0] ? ( debitSide.rows[0].rawDescription || debitSide.rows[0].description || '' ) :
+        creditSide.rows[0] ? ( creditSide.rows[0].rawDescription || creditSide.rows[0].description || '' ) : '' );
+    const firstRow = debitSide.rows[0] || creditSide.rows[0] || null;
+    if  ( firstRow && firstRow.date && !dayStr )  {
+      dayStr = firstRow.date;
+    }
     slipLines.push({
-      debitAccount: entry.account,
-      debitSubAccount: entry.subAccount,
-      debitAmount: Number(entry.line.amountOut || entry.line.amount || 0),
+      debitAccount: debitSide.account,
+      debitSubAccount: debitSide.subAccount,
+      debitAmount: debitSide.amount,
       debitTax: 0,
       debitTaxRuleId: null,
-      creditAccount: credit.account,
-      creditSubAccount: credit.subAccount,
-      creditAmount: ( credit.account ) ? Number(entry.line.amountOut || entry.line.amount || 0) : 0,
+      creditAccount: creditSide.account,
+      creditSubAccount: creditSide.subAccount,
+      creditAmount: creditSide.amount,
       creditTax: 0,
       creditTaxRuleId: null,
-      application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
-      application2: entry.line.memo || null,
-      statementLineId: entry.line.id
+      application1: label,
+      application2: ( firstRow && firstRow.memo ) || null,
+      statementLineId: firstRow ? firstRow.id : null
     });
+    layoutLines.push({
+      label: label,
+      debit: { patterns: debitSide.patterns, account: debitSide.account, sub: debitSide.subAccount },
+      credit: { patterns: creditSide.patterns, account: creditSide.account, sub: creditSide.subAccount }
+    });
+    // この行に割り付けた取込行は、同じ伝票明細に紐付ける
+    lineRowIds.push(( ( dl.debit && dl.debit.rows ) || [] ).concat(( dl.credit && dl.credit.rows ) || []));
   }
-  // 貸借合計は第1行で調い: 借合計 振込+費用 = 貸合計 売上合計（検算済み）
+  if  ( slipLines.length === 0 )  {
+    const err = new Error('伝票が空です。計算書の行を割り付けてください。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  // 伝票全体の貸借一致
+  const debitTotal = slipLines.reduce((a, l) => a + Number(l.debitAmount || 0), 0);
+  const creditTotal = slipLines.reduce((a, l) => a + Number(l.creditAmount || 0), 0);
+  if  ( Math.round(debitTotal) !== Math.round(creditTotal) )  {
+    const err = new Error(`貸借が合いません（借方 ${debitTotal.toLocaleString()} vs 貸方 ${creditTotal.toLocaleString()}）。割り付けを見直してください。`);
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  // 伝票日付
+  dayStr = body.day || dayStr || statement.periodFrom;
+  const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if  ( !m )  {
+    const err = new Error('伝票日付が特定できません。');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
   const slip = await createCrossSlip({
     year: Number(m[1]),
     month: Number(m[2]),
     day: Number(m[3]),
     lines: slipLines
   }, user, { forceUnapproved: true });
-  // 売上側は1明細に複数の取込行を集約する。createCrossSlipの紐付けは
-  // 1明細1行だけなので、残りの売上行を同じ明細に付け替える
+  // 割り付けた取込行は「起票済み」にして、データに結び付ける
   const details = await models.CrossSlipDetail.findAll({
     where: { crossSlipId: slip.id },
     order: [[ 'lineNo', 'ASC' ]]
   });
-  const creditDetail = details.find((d) => String(d.creditAccount) === String(sale.account));
-  if ( creditDetail ) {
-    const saleIds = saleDefs.map((r) => r.line.id);
-    await models.BankStatementLine.update({
-      status: 'booked',
-      crossSlipDetailId: creditDetail.id
-    }, {
-      where: { id: { [Op.in]: saleIds }, crossSlipDetailId: null }
-    });
+  for  ( const [ i, d ] of details.entries() )  {
+    for  ( const id of ( lineRowIds[ i ] || [] ) )  {
+      await models.BankStatementLine.update({
+        status: 'booked',
+        crossSlipDetailId: d.id
+      }, { where: { id: Number(id), crossSlipDetailId: null } });
+    }
   }
-  // 費用行のラベル→仕訳（借方と貸方）を学習する（この計算書の口座単位）。
-  // 起票に成功したときの内容そのものを覚える。振込行・売上行は学習しない
-  // （振込の摘要は銀行明細側のものが正）
-  for ( const entry of feeEntries ) {
-    await learnSettleRule(statement.financialId, entry);
+  // 起票が成功したので、この構成（どの摘要を貸借のどこに置いたか）を
+  // 口座に学習する。次回取込では同じ構成の下書きが自動生成される
+  try {
+    const financial = statement.financial || await models.Financial.findByPk(statement.financialId);
+    if  ( financial )  {
+      financial.settleLayout = JSON.stringify({ lines: layoutLines });
+      await financial.save();
+    }
+  } catch (e) {
+    console.log('settleLayout save failed', e.message);
   }
-  return { slip: slip, breakdown: breakdown };
+  return { slip: slip };
 };
+
 
 // 計算書取込のプレビュー（GET用）。分類の集計+費用行の科目候補（学習ルール）
 // + プロファイルの約束科目（received/sale。未設定なら null）
@@ -1112,6 +1066,10 @@ export const settlementPreview = async (statement) => {
     status: raw.status,
     defaultRole: roleOf(raw)
   } ));
+  // 学習済みレイアウトから下書きを生成する（digest: どの摘要を貸借のどこに
+  // 置くかの前回構成）。メンバの正規化パターンで現在の取込行を照合して
+  // テン候補組み立てる。フロント側の未保存下書きが無い場合だけ使う
+  const seedDraft = await seedDraftFromLayout(statement, breakdown, linesOf(lines).map((l) => l), profile);
   return {
     profileName: profile ? profile.name : null,
     received: { account: ( profile && profile.receivedAccount ) || null, subAccount: ( profile && profile.receivedSubAccount ) ?? null },
@@ -1122,8 +1080,68 @@ export const settlementPreview = async (statement) => {
     transferDate: ( breakdown.transferLine && breakdown.transferLine.date ) || null,
     warnings: breakdown.warnings,
     suggestions: suggestions,
-    lines: lineViews
+    lines: lineViews,
+    seedDraft: seedDraft
   };
+};
+
+// 学習済み layout から伝票下書きを組み立てる。pattern が当たった取込行だけを
+// 割り当て、当たらなかったパターンは捨てる（部分一致は seed として提示する）
+const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
+  try {
+    if  ( !statement.financialId )  {
+      return null;
+    }
+    const financial = statement.financial || await models.Financial.findByPk(statement.financialId);
+    if  ( !financial || !financial.settleLayout )  {
+      return null;
+    }
+    const layout = JSON.parse(financial.settleLayout) || {};
+    if  ( !Array.isArray(layout.lines) || layout.lines.length === 0 )  {
+      return null;
+    }
+    const byPattern = new Map();
+    for  ( const raw of lineRows )  {
+      const pattern = makePattern(raw.rawDescription || raw.description || raw.merchant || '');
+      if  ( !byPattern.has(pattern) )  {
+        byPattern.set(pattern, { raw: raw, used: false });
+      }
+    }
+    const draftLines = [];
+    const unusedPatterns = new Map(byPattern);
+    for  ( const layoutLine of layout.lines )  {
+      const side = (spec) => {
+        const out = { rows: [], account: spec && spec.account || '', sub: spec && spec.sub != null ? spec.sub : null };
+        for  ( const pattern of ( ( spec && spec.patterns ) || [] ) )  {
+          const hit = unusedPatterns.get(pattern);
+          if  ( hit && !hit.used )  {
+            hit.used = true;
+            out.rows.push(hit.raw.id);
+          } else  {
+            unusedPatterns.delete(pattern);
+          }
+        }
+        return out;
+      };
+      const debit = side(layoutLine.debit);
+      const credit = side(layoutLine.credit);
+      if  ( debit.rows.length === 0 && credit.rows.length === 0 )  {
+        continue;
+      }
+      draftLines.push({
+        label: layoutLine.label || '',
+        debit: debit,
+        credit: credit
+      });
+    }
+    if  ( draftLines.length === 0 )  {
+      return null;
+    }
+    return { lines: draftLines };
+  } catch (e) {
+    console.log('seedDraft failed', e.message);
+    return null;
+  }
 };
 
 // 取込明細行の配列（sequelize）を plain object にする（settlementPreview 用）。
