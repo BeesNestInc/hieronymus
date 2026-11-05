@@ -256,9 +256,17 @@ describe('vision.suggestRuleAccounts with catalog', () => {
         { catalog: CATALOG, examples: [{ pattern: '振込手数料', account: '7030060', sub: null }], financialName: 'テストカード' }
       );
       assert.strictEqual(requests.length, 1);
-      // openai互換トランスポートはテキストを文字列に平坦化する
-      const content0 = requests[0].body.messages[0].content;
-      const prompt = ( typeof content0 === 'string' ) ? content0 : content0[0].text;
+      // engine は指示文を system、動的データ（カタログ・例・摘要）を user に分ける
+      // （transport-shape）。システム + user の全文を連結して調べる
+      const prompt = requests[0].body.messages.map((m) => {
+        if ( typeof m.content === 'string' ) {
+          return m.content;
+        }
+        return ( Array.isArray(m.content) ? m.content : [] )
+          .filter((p) => ( p.type === 'text' ))
+          .map((p) => p.text)
+          .join('\n');
+      }).join('\n');
       // わからないなら提案しない冶令・カタログ・例がプロンプトに載る
       assert.include(prompt, '提案しないこと');
       assert.include(prompt, '7030050 通信費');
