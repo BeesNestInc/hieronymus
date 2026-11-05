@@ -1,3 +1,6 @@
+// クレデンシャルは親プロセスの env か cwd の .env から（Legion の .env に HIERONYMUS_LOGIN_* を書くと
+// この MCP を設定者の知らないパスワードを yaml に書かずに使える）
+import 'dotenv/config';
 import axios from 'axios';
 import { CookieJar } from 'tough-cookie';
 import { wrapper } from 'axios-cookiejar-support';
