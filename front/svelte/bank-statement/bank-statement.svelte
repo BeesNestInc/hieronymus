@@ -34,7 +34,7 @@
       value={statement.id} title="この通帳に取り込んだ計算書を読み替える"
       on:change={(e) => { routerLink(`/bank-statement/${e.target.value}`); }}>
       {#each financialSettlements as sv (sv.id)}
-      <option value={sv.id}>#{sv.id} {sv.fileName || '（無題）'}（{sv.periodFrom || '—'}〜{sv.periodTo || '—'} / {sv.lineCount || 0}行{sv.booked ? `、起票済${sv.booked}` : ''}）</option>
+      <option value={sv.id}>#{sv.id} {sv.fileName || '（無題）'}（{sv.periodFrom || '—'}〜{sv.periodTo || '—'} / {sv.lineCount || 0}行）</option>
       {/each}
     </select>
     {:else}{#if statement.kind === 'settlement'}
