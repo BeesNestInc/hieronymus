@@ -739,7 +739,63 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     }
     created.push(slip);
   }
+  // 「計算書が先・通帳が後」の順番の統合。settleStatement は起票時に入金仮
+  // 伝票と統合するが、通帳の取り込みが後から来た順番では、settleの時点で
+  // 候補がまだ無かった。新しい入金仮伝票に統合できる未承認の計算書伝票が
+  // 待っていたら、ここで統合する（通帳側の番号・日付が生きる。失敗しても
+  // 取込起票自体は失敗させない）
+  for ( const slip of created ) {
+    try {
+      await autoMergeSlipAfterBook(slip, user);
+    } catch (e) {
+      console.log('auto deposit merge skipped', e.message || e);
+    }
+  }
   return { slips: created, bookedIds: bookedIds };
+};
+
+// 通帳取り込みの明細が未承認の計算書伝票と統合できるか探す（計算書を
+// 先に起票して通帳が後から入った順番の実装。暗黙候補検索と同じ条件）。
+// 候補がちょうど1つ（この新しい通帳側伝票）のときだけ統合する
+export const autoMergeSlipAfterBook = async (placeholderSlip, user) => {
+  if ( !placeholderSlip || placeholderSlip.approvedAt || placeholderSlip.expenseReportId ) {
+    return null;
+  }
+  // この伝票が入金の仮起票（借方銀行+貸方入金仮）であること
+  const details = await models.CrossSlipDetail.findAll({
+    where: { crossSlipId: placeholderSlip.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  if ( details.some((d) => !isTempAccount(d.creditAccount || '')) ) {
+    return null;  // 仮起票の形でない（実科目が貸方に立っている）なら統合の必要はない
+  }
+  if ( !details.some((d) => ( String(d.creditAccount) === TEMP_ACCOUNTS.IN ) && Number(d.debitAmount) > 0) ) {
+    return null;
+  }
+  // 最近の未承認・精算書由来でない伝票を調べる（計算書伝票は settleStatement で
+  // 起票される。直近の100件で打ち切る: 起票から見て時間が遠いものは
+  // ±3日の候補に載らないので遡る必要はない）
+  const scan = await models.CrossSlip.findAll({
+    where: {
+      approvedAt: null,
+      expenseReportId: null,
+      id: { [Op.ne]: placeholderSlip.id }
+    },
+    order: [[ 'id', 'DESC' ]],
+    limit: 100
+  });
+  for ( const settleSlip of scan ) {
+    const candidates = await findDepositMergeCandidates(settleSlip);
+    if ( ( candidates.length === 1 ) &&
+         ( Number(candidates[0].slip.id) === Number(placeholderSlip.id) ) ) {
+      const merge = await mergeSettlementIntoDeposit(settleSlip, user);
+      if ( merge && merge.merged ) {
+        console.log(`[settlement] auto-merged existing slip ${settleSlip.id} into placeholder slip ${placeholderSlip.id} (no ${placeholderSlip.no})`);
+        return merge;
+      }
+    }
+  }
+  return null;
 };
 
 // 個人カード明細の選択行を精算書の明細に変換する。
@@ -2036,6 +2092,7 @@ export default {
   settlementPreview: settlementPreview,
   findDepositMergeCandidates: findDepositMergeCandidates,
   mergeSettlementIntoDeposit: mergeSettlementIntoDeposit,
+  autoMergeSlipAfterBook: autoMergeSlipAfterBook,
   findSpendMergeCandidates: findSpendMergeCandidates,
   mergeSpendIntoPlaceholder: mergeSpendIntoPlaceholder,
   suggestSettlementDeposits: suggestSettlementDeposits,
