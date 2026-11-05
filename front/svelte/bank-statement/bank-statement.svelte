@@ -91,7 +91,7 @@
       <span class="badge bg-primary ms-2">起票済み</span>
       {:else}
       <div class="row g-2 mt-1 settle-columns">
-        <div class="col-12 col-lg-6 composer-col">
+        <div class="col-12 composer-col">
           <div class="card border-primary mb-1">
             <div class="card-header" style="font-size:0.8rem;">計算書仕訳（伝票ビュー）。摘要チップはドラッグで移動でき、
               蠑取行を直接ドラッグしたときは、そのまま置いた側（借方/貸方）に割り付く。</div>
@@ -235,7 +235,7 @@
               on:click={() => { discardStatement(); }}>この取り込みをなかったことにする</button>
           </div>
         </div>
-        <div class="col-12 col-lg-6 pool-col">
+        <div class="col-12 pool-col">
           <div class="d-flex align-items-center mb-1">
             <span style="font-size:0.8rem;"><b>読み取った明細</b>（ドラッグして伝票へ）</span>
           </div>
