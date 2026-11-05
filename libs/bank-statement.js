@@ -455,7 +455,7 @@ const isFragmentNoise = (text) => (
 
 // カード明細PDFの解析（支払日・支払総額をプロファイルの正規表現で抽出）
 // PDFの全ページのテキスト行（計算書の決定的解析に使う）
-export const pdfTextLinesOf = async (buffer) => {
+const pdfTextLinesOf = async (buffer) => {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const loadingTask = getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
   const doc = await loadingTask.promise;
