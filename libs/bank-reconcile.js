@@ -1642,6 +1642,157 @@ export const mergeSettlementIntoDeposit = async (settlementSlip, user, options =
   return { merged: true, slip: depositSlip, discarded: settlementSlip.id };
 };
 
+// === 経費精算伝票 → 出金仮伝票の統合（placeholder merge・出金側） ===
+// 通帳・カード取り込みで仮登録された明細（借: 出金仮 1900000 / 貸: カード等）
+// は、経費精算書の承認で起票された伝票（借: 費用 / 貸: カード等）と同じ取引。
+// 精算書側の伝票にカード行の突合先を付け替えて、仮伝票を消す。
+// 内容の移設は不要（精算書側の伝票が完成形。支払日=ユーザー入力の実際の取引日）。
+// 精算書側の伝票は expenseReportId を持つ（expense flowで起票される。approvedAtは
+// 承認フローで後に付く。この統合の判定には触れない）
+
+// 精算書伝票の「出金元側」（creditに立つ銀行・カードのfinancial）を解決する。
+// グループ起票（同日の同一出金元）では同 financial の行が複数並ぶ: 合計が
+// 取り込んだ出金行と突き合わさる（代表行は最初の1行。紐付けは代表行に付ける）
+const resolveSlipPaymentSide = async (slip) => {
+  const details = await models.CrossSlipDetail.findAll({
+    where: { crossSlipId: slip.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  if ( details.length === 0 ) return null;
+  if ( details.some((d) => ( isTempAccount(d.debitAccount) || isTempAccount(d.creditAccount) )) ) {
+    return null;
+  }
+  const first = details[0];
+  const financial = await findFinancialBySide(first.creditAccount, first.creditSubAccount);
+  if ( !financial ) return null;
+  if ( BANK_ACCOUNT_RE.test(String(first.creditAccount || '')) ) {
+    return null;  // 預金そのもの（出金）は対象外（this is the IN direction）
+  }
+  // credit 側が全部同じ出金元の行でなければならない（同一伝票=同一出金元の約束）
+  for ( const d of details ) {
+    const f = await findFinancialBySide(d.creditAccount, d.creditSubAccount);
+    if ( !f || ( Number(f.id) !== Number(financial.id) ) ) {
+      return null;
+    }
+  }
+  const total = details.reduce((a, d) => a + Number(d.creditAmount || 0), 0);
+  return { financial: financial, total: total, detail: first };
+};
+
+// 精算書伝票（expenseReportIdあり・未承認）に統合できる出金仮候補を探す。
+// 戻り値: [{ slip: 出金仮伝票, detail: 仮明細(借: 出金仮/貸: カード), diff }]
+export const findSpendMergeCandidates = async (realSlip, options = {}) => {
+  const days = ( options.days === undefined ) ? 3 : options.days;
+  // 精算書経由の伝票（expenseReportIdあり）が対象。承認済みでも内容は
+  // 変えない（取込行の突合先の付け替えと仮伝票の廃棄だけ）ので対象にする
+  if ( !realSlip || !realSlip.expenseReportId ) {
+    return [];
+  }
+  const fy = await models.FiscalYear.findOne({ where: { term: realSlip.term } });
+  if ( fy && isLocked(fy) ) {
+    return [];
+  }
+  const paymentSide = await resolveSlipPaymentSide(realSlip);
+  if ( !paymentSide || !paymentSide.total ) {
+    return [];
+  }
+  const amount = paymentSide.total;
+  const tempDetails = await models.CrossSlipDetail.findAll({
+    where: {
+      debitAccount: TEMP_ACCOUNTS.OUT,
+      debitAmount: amount
+    },
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+  });
+  const realDate = new Date(realSlip.year, realSlip.month - 1, realSlip.day).getTime();
+  const candidates = [];
+  for ( const td of tempDetails ) {
+    const slip = td.crossSlip;
+    if ( !slip || slip.approvedAt || slip.expenseReportId ) continue;
+    if ( Number(slip.id) === Number(realSlip.id) ) continue;
+    // 仮明細の貸方（カード等）が同じ出金元であること
+    const cardFinancial = await findFinancialBySide(td.creditAccount, td.creditSubAccount);
+    if ( !cardFinancial || ( Number(cardFinancial.id) !== Number(paymentSide.financial.id) ) ) continue;
+    // 実取り込行（kindがsettlementでない= 通帳・カードの行）に紐付いていること
+    const binders = await models.BankStatementLine.findAll({ where: { crossSlipDetailId: td.id } });
+    let expenseBound = false;
+    for ( const binder of binders ) {
+      const owner = await models.BankStatement.findByPk(binder.statementId, { raw: true });
+      if ( owner && ( owner.kind !== 'settlement' ) ) {
+        expenseBound = true;
+      }
+    }
+    if ( !expenseBound ) continue;
+    const diff = Math.abs(
+      ( new Date(slip.year, slip.month - 1, slip.day).getTime() - realDate ) / 86400000
+    );
+    if ( diff > days ) continue;
+    candidates.push({ slip: slip, detail: td, diff: diff });
+  }
+  candidates.sort((a, b) => ( ( a.diff - b.diff ) || ( a.slip.id - b.slip.id ) ));
+  return candidates;
+};
+
+// 出金仮の統合の実行。取込行の突合先を精算書側の明細（代表行）に付け替え、
+// 仮伝票を消す（精算書側の伝票・紐付け・expenseReportId はそのまま）
+export const mergeSpendIntoPlaceholder = async (realSlip, user, options = {}) => {
+  const candidates = ( options.candidate ) ? [ options.candidate ] :
+    await findSpendMergeCandidates(realSlip, options);
+  if ( candidates.length !== 1 ) {
+    const reason = ( candidates.length === 0 ) ? '候補がありません' :
+      '候補が複数あります（手動で突合してください）';
+    const err = new Error(`統合できません: ${reason}`);
+    err.name = 'BankReconcileError';
+    err.candidates = candidates;
+    throw err;
+  }
+  const candidate = candidates[0];
+  const tempSlip = candidate.slip;
+  const tempDetail = candidate.detail;
+  const paymentSide = await resolveSlipPaymentSide(realSlip);
+  if ( !paymentSide ) {
+    const err = new Error('精算書側の伝票の出金元を解決できません');
+    err.name = 'BankReconcileError';
+    throw err;
+  }
+  const t = await models.sequelize.transaction();
+  try {
+    // 二重確認
+    const nowReal = await models.CrossSlip.findByPk(realSlip.id, { transaction: t });
+    if ( !nowReal || nowReal.approvedAt || !nowReal.expenseReportId ) {
+      throw new Error('精算書側の伝票が使えなくなりました');
+    }
+    // 取り込み行: 仮明細に付いていたカード行を精算書側の代表行へ付け替える。
+    // 代表行にすでに別の取込行が付いているなら二重運用（1明細=1取込行）になるので止める
+    const binders = await models.BankStatementLine.findAll({
+      where: { crossSlipDetailId: paymentSide.detail.id }, transaction: t
+    });
+    if ( binders.length > 0 ) {
+      throw new Error('精算書側の明細にすでに取り込み行が付いています');
+    }
+    await models.BankStatementLine.update({
+      crossSlipDetailId: paymentSide.detail.id
+    }, {
+      where: { crossSlipDetailId: tempDetail.id },
+      transaction: t
+    });
+    // 仮伝票を消す（紐付けは付け替え済み。伝票・明細は痕跡なし）
+    await models.CrossSlipDetail.destroy({
+      where: { crossSlipId: tempSlip.id }, transaction: t
+    });
+    await models.CrossSlip.destroy({
+      where: { id: tempSlip.id }, transaction: t
+    });
+    await t.commit();
+  } catch (e) {
+    await t.rollback();
+    throw e;
+  }
+  console.log(`[expense] merged placeholder slip ${tempSlip.id} (no ${tempSlip.no}) into report slip ${realSlip.id} (no ${realSlip.no})`);
+  return { merged: true, slip: realSlip, discarded: tempSlip.id };
+};
+
+
 // 「再実行」。ルール追加や手作業修正の後に、取込から起票した未承認伝票を
 // 解放して現行ルールで起票し直す。承認済み（確定）伝票・精算書由来伝票・
 // 佩戴中（会計年度ロック中）の伝票は決して触らない
@@ -1885,6 +2036,8 @@ export default {
   settlementPreview: settlementPreview,
   findDepositMergeCandidates: findDepositMergeCandidates,
   mergeSettlementIntoDeposit: mergeSettlementIntoDeposit,
+  findSpendMergeCandidates: findSpendMergeCandidates,
+  mergeSpendIntoPlaceholder: mergeSpendIntoPlaceholder,
   suggestSettlementDeposits: suggestSettlementDeposits,
   linkDepositToSettlement: linkDepositToSettlement,
   reconcilePlaceholders: reconcilePlaceholders,

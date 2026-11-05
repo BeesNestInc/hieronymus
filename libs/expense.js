@@ -312,6 +312,21 @@ export const createSlipForReport = async (report, lines, approver) => {
       });
     }
     created.push(slip);
+    // カード・口座取り込みで仮登録された出金仮の明細（借: 出金仮 / 貸: この出金元）
+    // があったら、この伝票に差し替える（同じ取引を2つの伝票にしない）。
+    // 候補が1つに決まるときだけ自動。複数候補は現状のまま残す（手動で突合）
+    try {
+      const reconcile = await import('./bank-reconcile.js');
+      // createCrossSlip の返しはプレーンオブジェクト（id等）なので、
+      // 候補の検索にはDBから改めて伝票を引く
+      const full = await models.CrossSlip.findByPk(slip.id);
+      const candidates = await reconcile.findSpendMergeCandidates(full, {});
+      if ( candidates.length === 1 ) {
+        await reconcile.mergeSpendIntoPlaceholder(full, approver, { candidate: candidates[0] });
+      }
+    } catch (e) {
+      console.log('placeholder merge skipped:', e.message || e);
+    }
   }
   return { slips: created, slipApproved: simultaneous, reuse: false };
 };
@@ -320,3 +335,4 @@ export default {
   createSlipForReport: createSlipForReport,
   pickPayeeMapping: pickPayeeMapping
 };
+
