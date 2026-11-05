@@ -105,11 +105,15 @@
                   <span class="badge text-bg-light" style="font-size:0.7rem;">行{di + 1}</span>
                 </div>
                 <div class="col">
-                  <div class="row g-1 align-items-center mb-1">
+                  <div class="row g-1 align-items-center mb-1 side-zone
+                    {dropOverKey === `${di}:debit` ? 'drop-over' : ''}"
+                    on:dragover|preventDefault={(e) => overZone(e, `${di}:debit`)}
+                    on:dragleave={() => leaveZone(`${di}:debit`)}
+                    on:drop={(e) => dropZone(e, di, 'debit')}>
                     <div class="col-auto"><span class="badge text-bg-warning">借</span></div>
                     <div class="col">
                       {#if ( ( dl.debit.rows || [] ).length === 0 )}
-                      <span class="text-muted" style="font-size:0.75rem;">（未割付）</span>
+                      <span class="text-muted" style="font-size:0.75rem;">（未割付。ここへドロップ）</span>
                       {/if}
                     </div>
                     <div class="col-auto"><Account accounts={bankAccounts}
@@ -117,8 +121,12 @@
                       title="借方の科目"></Account></div>
                     <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'debit'))}</b>円</div>
                   </div>
-                  {#each ( dl.debit.rows || [] ) as rowId}
-                  <div class="row g-1 align-items-center mb-0" style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;">
+                  {#each ( dl.debit.rows || [] ) as rowId (rowId)}
+                  <div class="row g-1 align-items-center mb-0 chip" draggable="true"
+                    on:dragstart={(e) => startChipDrag(e, di, 'debit', rowId)}
+                    on:dragend={endDrag}
+                    title="ドラッグで別の行・側へ移動できます"
+                    style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;cursor:grab;">
                     <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
                     <div class="col-auto">
                       <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
@@ -127,11 +135,16 @@
                     </div>
                   </div>
                   {/each}
-                  <div class="row g-1 align-items-center mb-1" style="margin-top:0.3rem;">
+                  <div class="row g-1 align-items-center mb-1 side-zone
+                    {dropOverKey === `${di}:credit` ? 'drop-over' : ''}"
+                    on:dragover|preventDefault={(e) => overZone(e, `${di}:credit`)}
+                    on:dragleave={() => leaveZone(`${di}:credit`)}
+                    on:drop={(e) => dropZone(e, di, 'credit')}
+                    style="margin-top:0.3rem;">
                     <div class="col-auto"><span class="badge text-bg-success">貸</span></div>
                     <div class="col">
                       {#if ( ( dl.credit.rows || [] ).length === 0 )}
-                      <span class="text-muted" style="font-size:0.75rem;">（未割付）</span>
+                      <span class="text-muted" style="font-size:0.75rem;">（未割付。ここへドロップ）</span>
                       {/if}
                     </div>
                     <div class="col-auto"><Account accounts={oppositeAccounts}
@@ -139,8 +152,12 @@
                       title="貸方の科目"></Account></div>
                     <div class="col-auto"><b>{numberFmt(sideAmount(dl, 'credit'))}</b>円</div>
                   </div>
-                  {#each ( dl.credit.rows || [] ) as rowId}
-                  <div class="row g-1 align-items-center mb-0" style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;">
+                  {#each ( dl.credit.rows || [] ) as rowId (rowId)}
+                  <div class="row g-1 align-items-center mb-0 chip" draggable="true"
+                    on:dragstart={(e) => startChipDrag(e, di, 'credit', rowId)}
+                    on:dragend={endDrag}
+                    title="ドラッグで別の行・側へ移動できます"
+                    style="font-size:0.72rem;color:var(--bs-secondary-color);padding-left:1.4rem;cursor:grab;">
                     <div class="col-auto">└ {lineLabel(rowId)} — {numberFmt(lineAmount(rowId))}円</div>
                     <div class="col-auto">
                       <button type="button" class="btn btn-sm text-muted" style="padding:0 0.2rem;"
@@ -167,9 +184,25 @@
                 </div>
               </div>
               {/each}
+              <div class="row g-1 mb-1">
+                <div class="col side-zone new-zone {dropOverKey === 'new-debit' ? 'drop-over' : ''}"
+                  on:dragover|preventDefault={(e) => overZone(e, 'new-debit')}
+                  on:dragleave={() => leaveZone('new-debit')}
+                  on:drop={(e) => dropNewLine(e, 'debit')}
+                  title="ここにドロップすると、新しい伝票行の借方になります">
+                  ＋新しい行の借方へ ドロップ
+                </div>
+                <div class="col side-zone new-zone {dropOverKey === 'new-credit' ? 'drop-over' : ''}"
+                  on:dragover|preventDefault={(e) => overZone(e, 'new-credit')}
+                  on:dragleave={() => leaveZone('new-credit')}
+                  on:drop={(e) => dropNewLine(e, 'credit')}
+                  title="ここにドロップすると、新しい伝票行の貸方になります">
+                  ＋新しい行の貸方へ ドロップ
+                </div>
+              </div>
               <div class="d-flex align-items-center justify-content-between">
                 <button type="button" class="btn btn-sm btn-outline-primary"
-                  on:click={() => { addLine(); }}>＋伝票行を追加</button>
+                  on:click={() => { addLine(); }}>＋伝票行を追加（クリックで空行・DnDを併用可）</button>
                 <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}">
                   借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
                   {#if ( settleBalanceOk )}✓ 貸借一致
@@ -195,14 +228,16 @@
             <tbody>
               {#each settleLineViews as lv (lv.lineId)}
               {#if ( !lineUsed(lv.lineId) )}
-              <tr style="background-color:rgba(13,110,253,0.05);">
+              <tr draggable="true" style="background-color:rgba(13,110,253,0.05);cursor:grab;"
+                on:dragstart={(e) => startRowDrag(e, lv.lineId)}
+                on:dragend={endDrag}
+                title="ドラッグして伝票行の「借方」「貸方」へ DROP。クリック選択＋ボタンでも割り付けられます">
                 <td class="text-center">
                   <input type="checkbox" class="form-check-input"
                     checked={ pickFor(lv.lineId) }
-                    on:change={() => { togglePicked(lv.lineId); }}
-                    title="選ぶと、伝票行の「→ 借方」「→ 貸方」でこの摘要を割り付けられます">
+                    on:change={() => { togglePicked(lv.lineId); }} />
                 </td>
-                <td>{lv.label}</td>
+                <td>{lv.label}<i class="bi bi-grip-vertical ms-2 text-muted" style="font-size:0.7rem;"></i></td>
                 <td class="number">{numberFmt(lineAmount(lv.lineId))}</td>
                 <td style="font-size:0.7rem;">{lv.status === 'booked' ? '起票済' : ''}</td>
               </tr>
@@ -1593,8 +1628,12 @@ let settleSaleSubAccount = '';
 // voucher: 起票する伝票の下書き。各行は借方・貸方それぞれに
 // 「読み取った明細（取込行）」のラベルを割り付け、科目を決める。
 // 明細リストで選ぶ → 伝票行の「→ 借方」「→ 貸方」で割り付け。
+// 伝票ビュー（pick & place + DnD）の state 部分置き換え用。
 let voucher = { lines: [] };    // [{id, label?, debit:{rows:[],account,sub}, credit:{...}}]
 let pickedLines = [];           // 明細リストで選択中の lineId
+// DnD 状態。dragging: { rowId, from: {di, side} | null }（fromがある=行間移動）
+let dragRow = null;
+let dropOverKey = '';           // `${di}:${side}` | `new-debit` | `new-credit`
 
 const numberFmt = (v) => Number(v || 0).toLocaleString();
 const lineData = (lineId) => (
@@ -1623,29 +1662,6 @@ $: settlementBooked = settlement && statement && ( statement.lines || [] ).lengt
   ( statement.lines ).every((l) => ( l.status === 'booked' ));
 
 // pick & place 操作
-// 取り込みを「なかったこと」にする。計算書レコードと明細を消す
-// （起票済みがある計算書は server 側で拒否される）。消した後に
-// 同じファイルをもう一度取り込める（取得済みファイルは Financial 側の履歴）
-const discardStatement = async () => {
-  if  ( !window.confirm('この取り込みを破棄（なかったこと）にしますか？\n計算書と明細行が消えます。ファイルからもう一度取り込むことはできます。') )  {
-    return;
-  }
-  busy = true;
-  try {
-    const result = await axios.delete(`/api/bank_statement/${id}`);
-    if  ( result.data && result.data.code === 0 )  {
-      toast.show('明細取込', '取り込みを破棄しました（なかったことにしました）');
-      routerLink('/bank-statement');
-    } else  {
-      toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');
-    }
-  } catch (e) {
-    const message = ( e.response && e.response.data && e.response.data.message ) ? e.response.data.message : '破棄に失敗しました';
-    toast.show('明細取込', message, 'warning');
-  } finally {
-    busy = false;
-  }
-};
 const addLine = () => {
   voucher = { lines: [...( voucher.lines || [] ), {
     id: `L${Date.now()}`,
@@ -1670,34 +1686,43 @@ const togglePicked = (lineId) => {
 const suggestAccountFor = (rowId) => (
   ( ( settlement && settlement.suggestions ) || [] ).find((sp) => ( String(sp.lineId) === String(rowId) )) || null
 );
+const attachRow = (di, side, rowId) => {
+  const lines = [...( voucher.lines || [] )];
+  for  ( let j = 0 ; j < lines.length ; j += 1 )  {
+    // 同一取込行は複数箇所に置けない（サーバ検証と同じ規則）。既に居たら移動の扱い
+    for  ( const s2 of [ 'debit', 'credit' ] )  {
+      const rows = lines[ j ][ s2 ].rows || [];
+      if  ( rows.indexOf(String(rowId)) >= 0 && !( j === di && s2 === side ) )  {
+        lines[ j ][ s2 ].rows = rows.filter((x) => ( String(x) !== String(rowId) ));
+      }
+    }
+  }
+  const dl = lines[ di ];
+  dl[ side ] = dl[ side ] || { rows: [], account: '', sub: null };
+  if  ( ( dl[ side ].rows || [] ).indexOf(String(rowId)) < 0 )  {
+    dl[ side ].rows = [...( dl[ side ].rows || [] ), String(rowId)];
+  }
+  if  ( !( dl[ side ].account ) )  {
+    const sp = suggestAccountFor(rowId);
+    const acc = ( sp && sp.account && side === 'debit' ) ? sp.account :
+      ( ( sp && sp.creditAccount && side === 'credit' ) ? sp.creditAccount : null );
+    if  ( acc )  {
+      dl[ side ].account = acc;
+      dl[ side ].sub = ( side === 'debit' && sp.subAccount != null && sp.subAccount !== '' && sp.subAccount !== 0 ) ? String(sp.subAccount) : dl[ side ].sub;
+    }
+  }
+  voucher = { lines: lines };
+  saveSettleDraft();
+};
 const attachPicked = (di, side) => {
   if  ( ( pickedLines || [] ).length === 0 )  {
     toast.show('計算書', '先に下の明細を選んでください', 'warning');
     return;
   }
-  const lines = [...( voucher.lines || [] )];
-  const dl = lines[ di ];
-  if  ( !dl[ side ] )  {
-    dl[ side ] = { rows: [], account: '', sub: null };
-  }
   for  ( const id of pickedLines )  {
-    dl[ side ].rows = [...( dl[ side ].rows || [] ), String(id)];
-  }
-  if  ( !( dl[ side ].account ) )  {
-    for  ( const id of pickedLines )  {
-      const sp = suggestAccountFor(id);
-      const acc = ( sp && sp.account && side === 'debit' ) ? sp.account :
-        ( ( sp && sp.creditAccount && side === 'credit' ) ? sp.creditAccount : null );
-      if  ( acc )  {
-        dl[ side ].account = acc;
-        dl[ side ].sub = ( side === 'debit' && sp.subAccount != null && sp.subAccount !== '' && sp.subAccount !== 0 ) ? String(sp.subAccount) : dl[ side ].sub;
-        break;
-      }
-    }
+    attachRow(di, side, id);
   }
   pickedLines = [];
-  voucher = { lines: lines };
-  saveSettleDraft();
 };
 const detachRow = (di, side, rowId) => {
   const lines = [...( voucher.lines || [] )];
@@ -1705,6 +1730,48 @@ const detachRow = (di, side, rowId) => {
   dl[ side ].rows = ( dl[ side ].rows || [] ).filter((x) => ( String(x) !== String(rowId) ));
   voucher = { lines: lines };
   saveSettleDraft();
+};
+
+// DnD ハンドラ
+const startRowDrag = (e, rowId) => {
+  dragRow = { rowId: String(rowId), from: null };
+  if ( e.dataTransfer )  {
+    e.dataTransfer.setData('text/plain', String(rowId));
+    e.dataTransfer.effectAllowed = 'copyMove';
+  }
+};
+const startChipDrag = (e, di, side, rowId) => {
+  dragRow = { rowId: String(rowId), from: { di: di, side: side } };
+  if ( e.dataTransfer )  {
+    e.dataTransfer.setData('text/plain', String(rowId));
+    e.dataTransfer.effectAllowed = 'move';
+  }
+};
+const endDrag = () => { dragRow = null; dropOverKey = ''; };
+const overZone = (e, key) => {
+  if  ( !dragRow )  return;
+  e.preventDefault();
+  e.dataTransfer && ( e.dataTransfer.dropEffect = ( dragRow.from ? 'move' : 'copy' ) );
+  dropOverKey = key;
+};
+const leaveZone = (key) => {
+  if  ( dropOverKey === key )  dropOverKey = '';
+};
+const dropZone = (e, di, side) => {
+  if  ( !dragRow )  return;
+  e.preventDefault();
+  if  ( dragRow.from )  {
+    detachRow(dragRow.from.di, dragRow.from.side, dragRow.rowId);
+  }
+  attachRow(di, side, dragRow.rowId);
+  endDrag();
+};
+const dropNewLine = (e, side) => {
+  if  ( !dragRow )  return;
+  e.preventDefault();
+  addLine();
+  attachRow(( voucher.lines || [] ).length - 1, side, dragRow.rowId);
+  endDrag();
 };
 
 // 計算書パネルの伝票ビュー（PICK & PLACE 下書き）は、この取込の「作業下書き」として
