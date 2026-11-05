@@ -761,17 +761,29 @@ export const autoMergeSlipAfterBook = async (placeholderSlip, user) => {
   if ( !placeholderSlip || placeholderSlip.approvedAt || placeholderSlip.expenseReportId ) {
     return null;
   }
-  // この伝票が入金の仮起票（借方銀行+貸方入金仮）であること
+  // この伝票が仮起票の形（どちらかの脚に仮入科目が立つ）であること
   const details = await models.CrossSlipDetail.findAll({
     where: { crossSlipId: placeholderSlip.id },
     order: [[ 'lineNo', 'ASC' ]]
   });
-  if ( details.some((d) => !isTempAccount(d.creditAccount || '')) ) {
-    return null;  // 仮起票の形でない（実科目が貸方に立っている）なら統合の必要はない
-  }
-  if ( !details.some((d) => ( String(d.creditAccount) === TEMP_ACCOUNTS.IN ) && Number(d.debitAmount) > 0) ) {
+  if ( details.length === 0 ) {
     return null;
   }
+  // 入金側: 貸入金仮（計算書伝票を後から統合する）
+  if ( details.some((d) => ( String(d.creditAccount) === TEMP_ACCOUNTS.IN ) && Number(d.debitAmount) > 0) ) {
+    return await autoMergeDeposit(placeholderSlip, user);
+  }
+  // 出金側: 借出金仮（精算書伝票を後から統合する）
+  if ( details.some((d) => ( String(d.debitAccount) === TEMP_ACCOUNTS.OUT ) && Number(d.creditAmount) > 0) ) {
+    return await autoMergeSpend(placeholderSlip, user);
+  }
+  return null;
+};
+
+// 入金側の自動統合。settleStatement は計算書起票時に入金仮伝票と統合するが、
+// 通帳の取り込みが後から来た順番では、settleの時点で候補がまだ無かった。
+// 新しい入金仮伝票に統合できる未承認の計算書伝票が待っていたら、ここで統合する
+const autoMergeDeposit = async (placeholderSlip, user) => {
   // 最近の未承認・精算書由来でない伝票を調べる（計算書伝票は settleStatement で
   // 起票される。直近の100件で打ち切る: 起票から見て時間が遠いものは
   // ±3日の候補に載らないので遡る必要はない）
@@ -791,6 +803,33 @@ export const autoMergeSlipAfterBook = async (placeholderSlip, user) => {
       const merge = await mergeSettlementIntoDeposit(settleSlip, user);
       if ( merge && merge.merged ) {
         console.log(`[settlement] auto-merged existing slip ${settleSlip.id} into placeholder slip ${placeholderSlip.id} (no ${placeholderSlip.no})`);
+        return merge;
+      }
+    }
+  }
+  return null;
+};
+
+// 出金側の自動統合。OUT merge（mergeSpendIntoPlaceholder）は精算書の承認起票時に
+// 走る。カード・通帳の取り込みが精算の承認より後の順番では、承認の時点で
+// 仮伝票がまだ無かった。新しい出金仮の仮伝票に統合できる精算書伝票が
+// 待っていたら、ここで統合する（精算書側の伝票が残る。承認済みでも対象）
+const autoMergeSpend = async (placeholderSlip, user) => {
+  const scan = await models.CrossSlip.findAll({
+    where: {
+      expenseReportId: { [Op.ne]: null },
+      id: { [Op.ne]: placeholderSlip.id }
+    },
+    order: [[ 'id', 'DESC' ]],
+    limit: 100
+  });
+  for ( const realSlip of scan ) {
+    const candidates = await findSpendMergeCandidates(realSlip);
+    if ( ( candidates.length === 1 ) &&
+         ( Number(candidates[0].slip.id) === Number(placeholderSlip.id) ) ) {
+      const merge = await mergeSpendIntoPlaceholder(realSlip, user, { candidate: candidates[0] });
+      if ( merge && merge.merged ) {
+        console.log(`[expense] auto-merged existing slip ${realSlip.id} into placeholder slip ${placeholderSlip.id} (no ${placeholderSlip.no})`);
         return merge;
       }
     }
