@@ -825,7 +825,10 @@ export default {
     res.json({ code: 0 });
   },
 
-  // 取込の削除（起票済み行がある場合は取り消せない）
+  // 取込の削除（「なかったこと」）。
+  // 起票済みの行があっても、それがこの取込から生まれた未承認の伝票だけなら、
+  // 伝票もまとめて消して取り消せる（=「さっき取り込んだものを無効化して再取込」ができる）。
+  // 承認済み・精算書由来の伝票が混ざる場合は触れずに拒否する
   delete: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;
@@ -838,12 +841,35 @@ export default {
       res.json({ code: -1 });
       return;
     }
-    const booked = await models.BankStatementLine.count({
+    const bookedLines = await models.BankStatementLine.findAll({
       where: { statementId: statement.id, status: 'booked' }
     });
-    if ( booked > 0 ) {
-      res.status(422).json({ code: -3, message: '起票済みの明細があるため削除できません。' });
+    const detailIds = bookedLines.map((l) => l.crossSlipDetailId).filter((v) => v);
+    const details = ( detailIds.length > 0 ) ?
+      await models.CrossSlipDetail.findAll({ where: { id: { [Op.in]: detailIds } } }) : [];
+    const slipIds = [ ...new Set(details.map((d) => d.crossSlipId)) ];
+    const slips = ( slipIds.length > 0 ) ?
+      await models.CrossSlip.findAll({ where: { id: { [Op.in]: slipIds } } }) : [];
+    // 伝票が他の取込行も載せているケース（計算書は1伝票1計算書だが安全側で確認）。
+    // 伝票が承認済み精算書から来ている場合は取り消せない
+    const allDetailIds = ( slipIds.length > 0 ) ?
+      await models.CrossSlipDetail.findAll({ where: { crossSlipId: { [Op.in]: slipIds } } }) : [];
+    const foreign = allDetailIds.filter((d) => {
+      const statementLineId = d.statementLineId;
+      return ( !statementLineId ) ||
+        ( !bookedLines.some((l) => l.id === statementLineId) );
+    });
+    const approved = slips.filter((s) => ( s.approvedAt || s.expenseReportId ));
+    if  ( foreign.length > 0 || approved.length > 0 )  {
+      const reason = ( approved.length > 0 ) ?
+        'この取込から作った伝票に承認済みのものがあるため削除できません。' :
+        '伝票に他の取込由来の明細が混ざっているため削除できません。';
+      res.status(422).json({ code: -3, message: reason });
       return;
+    }
+    for  ( const slip of slips )  {
+      await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });
+      await slip.destroy();
     }
     await statement.destroy();
     res.json({ code: 0 });

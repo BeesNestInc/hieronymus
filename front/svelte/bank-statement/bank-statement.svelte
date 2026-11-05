@@ -9,6 +9,10 @@
       on:click={() => { openRulesModal(); }}>
       学習ルール&nbsp;<i class="bi bi-mortarboard"></i>
     </button>
+    <button type="button" class="btn btn-outline-danger me-2" title="この取り込みを破棄します（計算書と明細を消す。起票済みの伝票がまとめて消える。ファイルはもう一度取り込めます）"
+      on:click={() => { discardStatement(); }}>
+      なかったことにする&nbsp;<i class="bi bi-trash"></i>
+    </button>
     {:else}
     <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF/計算書）を取り込みます"
       on:click={openModal}>
@@ -216,9 +220,6 @@
                 ( ( !settleBalanceOk ) ? `押せません: 貸借が合っていません` :
                   'この伝票を承認待ちで起票します（成功したら構成が学習されます）' )}
               on:click={runSettle}><i class="bi bi-sticky me-1"></i>起票</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" disabled={busy}
-              title="この取込を破棄します（計算書と明細は消えます。ファイルはもう一度取り込めます）"
-              on:click={() => { discardStatement(); }}>この取り込みをなかったことにする</button>
           </div>
         </div>
         <div class="col-12 pool-col">
