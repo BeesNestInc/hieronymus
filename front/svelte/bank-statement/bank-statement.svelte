@@ -9,9 +9,9 @@
       on:click={() => { openRulesModal(); }}>
       学習ルール&nbsp;<i class="bi bi-mortarboard"></i>
     </button>
-    <button type="button" class="btn btn-outline-danger me-2" title="この取り込みを破棄します（計算書と明細を消す。起票済みの伝票がまとめて消える。ファイルはもう一度取り込めます）"
+    <button type="button" class="btn btn-outline-danger me-2" title="この取込を削除します（計算書と明細を消す。起票済みの伝票がまとめて消える。ファイルはもう一度取り込めます）"
       on:click={() => { discardStatement(); }}>
-      なかったことにする&nbsp;<i class="bi bi-trash"></i>
+      削除&nbsp;<i class="bi bi-trash"></i>
     </button>
     {:else}
     <button type="button" class="btn btn-primary" title="明細ファイル（Excel/CSV/通帳PDF/カード明細PDF/計算書）を取り込みます"
@@ -377,6 +377,20 @@
         bind:checked={showClosedFinancials} on:change={loadList}>
       <label class="form-check-label" style="font-size:0.85rem;" for="showClosed">「もう使わない」通帳も表示</label>
     </div>
+    {#if settlementVersions.length > 0}
+    <!-- 計算書はファイル単位の処理なので、取り込んだ計算書はここから開く。
+         通帳一覧には（通帳・カードは累積取り込みなので）計算書単位の行を出さない -->
+    <div class="ms-auto d-flex align-items-center">
+      <label class="me-2" style="font-size:0.85rem;">計算書</label>
+      <select class="form-select form-select-sm" style="width:auto;max-width:340px;"
+        bind:value={settlementSelected} on:change={goSettlement}>
+        <option value="">取り込んだ計算書を開く…</option>
+        {#each settlementVersions as sv (sv.id)}
+        <option value={sv.id}>#{sv.id} {sv.fileName || '（無題）'}（{sv.periodFrom || '—'}〜{sv.periodTo || '—'} / {sv.lineCount || 0}行{sv.booked ? `、起票済${sv.booked}` : ''}）</option>
+        {/each}
+      </select>
+    </div>
+    {/if}
   </div>
   <div class="table-responsive table-scroll">
     <table class="table table-striped table-bordered">
@@ -422,37 +436,6 @@
             </button>
           </td>
         </tr>
-        <!-- 計算書（settlement）だけはファイル単位の処理（破棄・起票）をするので
-            取込をバージョンとして出す。通帳・カードは累積取り込み（重複は
-            無視して足す）でファイル単位の操作が意味を持たないため出さない -->
-        {#each ( row.kind === 'settlement' ? ( statementVersions[ row.id ] || [] ) : [] ) as sv (sv.id)}
-        <tr class="statement-version-row">
-          <td></td>
-          <td>
-            <span class="ms-4">
-              <a class="btn btn-link btn-sm p-0" href={`/bank-statement/${sv.id}`}
-                on:click|preventDefault={() => { routerLink(`/bank-statement/${sv.id}`); }}>
-                #{sv.id} {sv.fileName || '(無題ファイル)'}
-              </a>
-              {#if ( row.statementId === sv.id )}
-              <span class="badge text-bg-info" style="font-size:0.65rem;" title="この通帳でいま処理対象の計算書（詳細を開くとこの計算書が出ます）">処理対象</span>
-              {/if}
-            </span>
-          </td>
-          <td style="font-size:0.75rem;">{sv.periodFrom || '—'}〜{sv.periodTo || '—'}</td>
-          <td class="number" style="font-size:0.75rem;">
-            {sv.lineCount || 0}行
-            {#if ( sv.booked )}<span class="badge bg-primary ms-1" style="font-size:0.65rem;">起票済{sv.booked}</span>{/if}
-            {#if ( sv.unmatched )}<span class="badge bg-secondary ms-1" style="font-size:0.65rem;">未照合{sv.unmatched}</span>{/if}
-          </td>
-          <td class="text-center" style="white-space:nowrap;">
-            <button type="button" class="btn btn-sm btn-outline-danger" title="この計算書を破棄する（なかったことにする。未承認の起票伝票も一緒に消える）"
-              on:click={() => { discardVersion(sv); }}>
-              <i class="bi bi-trash"></i>
-            </button>
-          </td>
-        </tr>
-        {/each}
         {/each}
       </tbody>
     </table>
@@ -1219,41 +1202,27 @@ const goList = () => {
 const loadList = async () => {
   const result = await axios.get(`/api/financial${ showClosedFinancials ? '?closed=1' : '' }`);
   statements = ( result.data && result.data.values ) || [];
-  // 口座ごとの取り込んだ計算書（取込単位）の一覧も取得する
+  // 取り込んだ計算書（取込=ファイル単位）の一覧。詳細画面へは上のセレクトから
   try {
     const versions = await axios.get('/api/bank_statement/versions');
     const values = ( versions.data && versions.data.values ) || [];
-    const map = {};
-    for ( const v of values ) {
-      ( map[ v.financialId ] = map[ v.financialId ] || [] ).push(v);
-    }
-    statementVersions = map;
+    // 通帳・カードは累積取り込み（重複無視・追加）なのでファイル単位の
+    // 一覧は要らない。計算書（settlement）だけを出す
+    settlementVersions = values.filter((v) => ( v.kind === 'settlement' ));
   } catch (e) {
     console.error('load statement versions failed', e);
-    statementVersions = {};
+    settlementVersions = [];
   }
 };
-// 口座ごとの取り込んだ計算書（取込単位）。削除・起票・ルール編集はこの単位
-let statementVersions = {};
-// 計算書単位の破棄（なかったことにする）
-const discardVersion = async (sv) => {
-  if ( !window.confirm(`計算書 #${sv.id}（${sv.fileName || '無題'}）を破棄します。\n起票済みの伝票も（未承認なら）一緒に消えます。よろしいですか？`) ) {
-    return;
-  }
-  busy = true;
-  try {
-    const result = await axios.delete(`/api/bank_statement/${sv.id}`);
-    if ( result.data && result.data.code === 0 ) {
-      toast.show('明細取込', `計算書 #${sv.id} を破棄しました（なかったことにしました）`);
-      loadList();
-    } else {
-      toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');
-    }
-  } catch (e) {
-    const message = ( e.response && e.response.data && e.response.data.message ) || '破棄に失敗しました';
-    toast.show('明細取込', message, 'warning');
-  } finally {
-    busy = false;
+// 取り込んだ計算書（settlement）の一覧（versions API の計算書分）
+let settlementVersions = [];
+// 計算書の詳細への移動（セレクトで選んだとき）
+let settlementSelected = '';
+const goSettlement = () => {
+  const value = settlementSelected;
+  settlementSelected = '';
+  if ( value ) {
+    routerLink(`/bank-statement/${value}`);
   }
 };
 // 通帳セレクト用。全使用中の通帳
@@ -1814,14 +1783,14 @@ $: settlementBooked = settlement && statement && ( statement.lines || [] ).lengt
 // （起票済みがある計算書は server 側で拒否される）。消した後に
 // 同じファイルをもう一度取り込める
 const discardStatement = async () => {
-  if  ( !window.confirm('この取り込みを破棄（なかったこと）にしますか？\n計算書と明細行が消えます。ファイルからもう一度取り込むことはできます。') )  {
+  if  ( !window.confirm('この取込を削除しますか？\n計算書と明細行が消えます（起票済みの伝票があれば未承認のものは一緒に消えます）。ファイルからもう一度取り込むことはできます。') )  {
     return;
   }
   busy = true;
   try {
     const result = await axios.delete(`/api/bank_statement/${id}`);
     if  ( result.data && result.data.code === 0 )  {
-      toast.show('明細取込', '取り込みを破棄しました（なかったことにしました）');
+      toast.show('明細取込', '取り込みを削除しました');
       routerLink('/bank-statement');
     } else  {
       toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');

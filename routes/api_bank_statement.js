@@ -508,6 +508,7 @@ export default {
       }
       values.push({
         id: statement.id,
+        kind: statement.kind,
         financialId: statement.financialId,
         financialName: ( statement.financial ) ? statement.financial.name : null,
         fileName: statement.fileName,
