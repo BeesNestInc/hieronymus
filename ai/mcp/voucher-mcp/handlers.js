@@ -131,6 +131,9 @@ export const handlers = {
       day: args.day,
       lines: createLines
     };
+    if ( args.forceUnapproved === true ) {
+      body.forceUnapproved = true;
+    }
     const result = await api.createCrossSlip(body);
     return text(result);
   },

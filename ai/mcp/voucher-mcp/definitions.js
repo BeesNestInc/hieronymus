@@ -108,14 +108,15 @@ export const toolDefinitions = [
   },
   {
     name: 'create_cross_slip',
-    description: '仕訳伝票を作成します。税額はサーバ側で自動計算・上書きされます。承認権限が無いユーザーが作成した場合は承認待ちになります。',
+    description: '仕訳伝票を作成します。税額はサーバ側で自動計算・上書きされます。承認権限が無いユーザーが作成した場合は承認待ちになります。forceUnapproved を付けると承認権限者でも未承認（draft）で作成します（AIの起案フロー用途）。',
     inputSchema: {
       type: 'object',
       properties: {
         year: { type: 'integer', description: '年' },
         month: { type: 'integer', description: '月' },
         day: { type: 'integer', description: '日（1-31）' },
-        lines: { type: 'array', items: slipLineSchema, description: '仕訳明細行' }
+        lines: { type: 'array', items: slipLineSchema, description: '仕訳明細行' },
+        forceUnapproved: { type: 'boolean', description: 'true で承認権限者でも未承認で作成（draft起案用。省略時は false）' }
       },
       required: ['year', 'month', 'day', 'lines']
     }

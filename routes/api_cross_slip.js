@@ -49,6 +49,16 @@ const recalcReject = (req, res) => {
   })();
 };
 
+// 伝票一覧/詳細に乗るユーザー（creater/approver/updater）は、ハッシュ等の
+// 機密列を出さない（ログインユーザー全員に返るため）
+export const userPublicFields = ['id', 'name'];
+
+const userInclude = (as) => ({
+  model: models.User,
+  as: as,
+  attributes: userPublicFields
+});
+
 export default {
   list: async(req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -75,16 +85,10 @@ export default {
         let cross_slips = await models.CrossSlip.findAll({
           where: where,
           include: [
+            userInclude('creater'),
+            userInclude('approver'),
+            userInclude('updater'),
             {
-              model: models.User,
-              as: 'creater'
-            }, {
-              model: models.User,
-              as: 'approver'
-            }, {
-              model: models.User,
-              as: 'updater'
-            }, {
               model: models.CrossSlipDetail,
               as: 'lines',
             }
@@ -153,10 +157,7 @@ export default {
           model: models.User,
           as: 'creater'
         },
-        {
-          model: models.User,
-          as: 'approver'
-        }
+        userInclude('approver')
       ],
       order: [
         ['lines', 'lineNo', 'ASC']
@@ -177,7 +178,9 @@ export default {
     let body = await recalcReject(req, res);
     if ( !body ) return;
     try {
-      let slip = await createCrossSlip(body, req.session.user);
+      // forceUnapproved: 承認権限者でも未承認（draft）で登録する
+      // （AIの起案フローなど「人が確認してから承認」の運用に使う）
+      let slip = await createCrossSlip(body, req.session.user, { forceUnapproved: Boolean(body.forceUnapproved) });
       if  ( slip )  {
         // 「後の処理」。実科目の伝票が増えたので、仮入科目の未承認伝票を
         // 突合して差し替える（完全自動運用。失敗しても登録自体は成功）
