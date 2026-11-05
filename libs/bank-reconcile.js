@@ -971,6 +971,19 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   } catch (e) {
     console.log('settleLayout save failed', e.message);
   }
+  // 通帳側に仮登録された伝票（借: 銀行 / 貸: 入金仮）がちょうど1つ合致するなら
+  // 統合する（同じ取引を2つの伝票にせず、通帳側の番号・日付・紐付けを生かす）。
+  // 候補が無い/複数のときは計算書側の伝票をそのまま残す（計算書ビューの
+  // 「統合」から手動で扱う）
+  try {
+    const merge = await mergeSettlementIntoDeposit(slip, user, {});
+    if ( merge && merge.merged ) {
+      // slip=統合後の通帳側伝票、discarded=破棄した計算書側の伝票
+      return { slip: merge.slip, merged: true, discarded: merge.discarded };
+    }
+  } catch (e) {
+    console.log('deposit merge skipped:', e.message || e);
+  }
   return { slip: slip };
 };
 
@@ -1393,6 +1406,242 @@ export const reconcilePlaceholders = async (options = {}) => {
   return { replaced: replaced };
 };
 
+// === 計算書伝票 → 入金仮伝票の統合（deposit merge） ===
+// 通帳取り込みで仮登録された伝票（借: 銀行科目 / 貸: 入金仮）と、計算書から
+// 起票した複合伝票は同じ取引（送金のタイムラグで日付が数日ずれる）。
+// 計算書側の中身を通帳側の伝票に移してひとつにする。伝票番号・日付・
+// 通帳行の紐付けは通帳側を生かす（実際の入金日が正しい日付）。
+
+const BANK_ACCOUNT_RE = /^101/;
+
+// 統合候補の「入金仮伝票」を探す。settlementSlip は計算書から起票した伝票
+// （未承認。全明細が計算書の取込行に紐付いている）。戻り値:
+// [{ slip: 入金仮伝票, detail: 仮明細(貸: 入金仮/借: 銀行), diff: 日付差 }]
+export const findDepositMergeCandidates = async (settlementSlip, options = {}) => {
+  const days = ( options.days === undefined ) ? 3 : options.days;
+  if ( !settlementSlip || settlementSlip.approvedAt || settlementSlip.expenseReportId ) {
+    return [];
+  }
+  const fy = await models.FiscalYear.findOne({ where: { term: settlementSlip.term } });
+  if ( fy && isLocked(fy) ) {
+    return [];
+  }
+  const settleDetails = await models.CrossSlipDetail.findAll({
+    where: { crossSlipId: settlementSlip.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  if ( settleDetails.length === 0 ) {
+    return [];
+  }
+  // 計算書側に仮科目が混ざっているなら統合しない（保険）
+  if ( settleDetails.some((d) => ( isTempAccount(d.debitAccount) || isTempAccount(d.creditAccount) )) ) {
+    return [];
+  }
+  // 計算書伝票の銀行借方明細はちょうど1つ。その銀行科目・金額が合致票に必要
+  const bankDetails = settleDetails.filter((d) => BANK_ACCOUNT_RE.test(String(d.debitAccount || '')));
+  if ( bankDetails.length !== 1 ) {
+    return [];
+  }
+  const bankDetail = bankDetails[0];
+  const amount = Number(bankDetail.debitAmount);
+  if ( !amount ) {
+    return [];
+  }
+  // 全明細が計算書（kind: settlement）の取込行に紐付いていること。実通帳由来の
+  // 行が混ざる伝票は「計算書側の伝票」ではない（あるいはすでに統合済み）
+  const sourceLines = await models.BankStatementLine.findAll({
+    where: { crossSlipDetailId: { [Op.in]: settleDetails.map((d) => d.id) } }
+  });
+  const boundDetailIds = new Set(sourceLines.map((l) => Number(l.crossSlipDetailId)));
+  if ( settleDetails.some((d) => !boundDetailIds.has(Number(d.id))) ) {
+    return [];
+  }
+  const owners = await models.BankStatement.findAll({
+    where: { id: { [Op.in]: [ ...new Set(sourceLines.map((l) => l.statementId)) ] } },
+    raw: true
+  });
+  if ( owners.some((o) => ( o.kind !== 'settlement' )) ) {
+    return [];
+  }
+  // 口座（計算書側の銀行科目と同じ financial の預金）の入金仮を集める
+  const settleFinancial = await findFinancialBySide(bankDetail.debitAccount, bankDetail.debitSubAccount);
+  if ( !settleFinancial ) {
+    return [];
+  }
+  const tempDetails = await models.CrossSlipDetail.findAll({
+    where: {
+      creditAccount: TEMP_ACCOUNTS.IN,
+      debitAmount: amount
+    },
+    include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+  });
+  const settleDate = new Date(settlementSlip.year, settlementSlip.month - 1, settlementSlip.day).getTime();
+  const candidates = [];
+  for ( const td of tempDetails ) {
+    const slip = td.crossSlip;
+    if ( !slip || slip.approvedAt || slip.expenseReportId ) continue;
+    if ( Number(slip.id) === Number(settlementSlip.id) ) continue;
+    // 仮明細の借方＝銀行科目で同額に立っていること（bookLines 標準の1行形）
+    if ( Number(td.debitAmount) !== amount ) continue;
+    if ( !BANK_ACCOUNT_RE.test(String(td.debitAccount || '')) ) continue;
+    // 口座が同じこと（通帳の financial = 計算書側の銀行科目の financial）
+    const depositFinancial = await findFinancialBySide(td.debitAccount, td.debitSubAccount);
+    if ( !depositFinancial || ( Number(depositFinancial.id) !== Number(settleFinancial.id) ) ) continue;
+    // 実通帳（kind: bank）の入金行に紐付いていること。計算書同士の突合はしない
+    const binders = await models.BankStatementLine.findAll({ where: { crossSlipDetailId: td.id } });
+    let bankBound = false;
+    for ( const binder of binders ) {
+      const owner = await models.BankStatement.findByPk(binder.statementId, { raw: true });
+      if ( owner && ( owner.kind !== 'settlement' ) ) {
+        bankBound = true;
+      }
+    }
+    if ( !bankBound ) continue;
+    const diff = Math.abs(
+      ( new Date(slip.year, slip.month - 1, slip.day).getTime() - settleDate ) / 86400000
+    );
+    if ( diff > days ) continue;
+    candidates.push({ slip: slip, detail: td, diff: diff });
+  }
+  // 番号が新しい順に安定化（同額の伝票が複数ある場合の再現性）
+  candidates.sort((a, b) => ( ( a.diff - b.diff ) || ( b.slip.id - a.slip.id ) ));
+  return candidates;
+};
+
+// 統合の実行。candidates は事前検算済みのもの（routes のフォールバックでは
+// 再検索して渡す）。戻り値: { merged, slip(統合後の通帳側伝票), discarded }
+export const mergeSettlementIntoDeposit = async (settlementSlip, user, options = {}) => {
+  const candidates = ( options.candidate ) ? [ options.candidate ] :
+    await findDepositMergeCandidates(settlementSlip, options);
+  if ( candidates.length !== 1 ) {
+    const reason = ( candidates.length === 0 ) ? '候補がありません' :
+      '候補が複数あります（計算書ビューから選んでください）';
+    const err = new Error(`統合できません: ${reason}`);
+    err.name = 'BankReconcileError';
+    err.candidates = candidates;
+    throw err;
+  }
+  const candidate = candidates[0];
+  const depositSlip = candidate.slip;
+  const depositDetail = candidate.detail;
+  const t = await models.sequelize.transaction();
+  try {
+    // 二重確認（候補生成後の変化に備える。承認状態とロックの再検査）
+    const nowSlip = await models.CrossSlip.findByPk(depositSlip.id, { transaction: t });
+    if ( !nowSlip || nowSlip.approvedAt || nowSlip.expenseReportId ) {
+      throw new Error('統合先の伝票が使えなくなりました');
+    }
+    const settleDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: settlementSlip.id },
+      order: [[ 'lineNo', 'ASC' ]],
+      transaction: t
+    });
+    const bankDetail = settleDetails.find((d) => BANK_ACCOUNT_RE.test(String(d.debitAccount || '')));
+    if ( !bankDetail ) {
+      throw new Error('計算書側の伝票に銀行明細がありません');
+    }
+    // 貸借の組替え計算。
+    // - 統合先の仮明細: 借方（銀行）を保持し、貸方の入金仮を外す。
+    //   計算書側の銀行明細に貸方（売上高等）が付いているならそれを引き受ける
+    // - 計算書側の銀行明細は統合先に吸収される（新規明細は作らない）
+    // - それ以外の明細（費用・売上側）は統合先に新規明細として移設する
+    let nextLineNo = ( await models.CrossSlipDetail.max('lineNo', {
+      where: { crossSlipId: depositSlip.id },
+      transaction: t
+    }) ) || 0;
+    const movedSourceIds = new Map();  // sourceDetail.id -> newDetail.id
+    const detailFields = [
+      'debitAccount', 'debitSubAccount', 'debitAmount', 'debitTax',
+      'debitVoucherId', 'debitTaxRuleId',
+      'creditAccount', 'creditSubAccount', 'creditAmount', 'creditTax',
+      'creditVoucherId', 'creditTaxRuleId',
+      'projectId', 'application1', 'application2', 'statementLineId'
+    ];
+    let absorbCredit = null;
+    for ( const source of settleDetails ) {
+      if ( Number(source.id) === Number(bankDetail.id) ) {
+        if ( source.creditAccount && !isTempAccount(source.creditAccount) ) {
+          absorbCredit = {
+            creditAccount: source.creditAccount,
+            creditSubAccount: source.creditSubAccount,
+            creditAmount: source.creditAmount,
+            creditTax: source.creditTax,
+            creditVoucherId: source.creditVoucherId,
+            creditTaxRuleId: source.creditTaxRuleId
+          };
+        }
+        movedSourceIds.set(Number(source.id), Number(depositDetail.id));
+        continue;
+      }
+      nextLineNo += 1;
+      const values = { crossSlipId: depositSlip.id, lineNo: nextLineNo };
+      for ( const field of detailFields ) {
+        if ( source[ field ] !== null && source[ field ] !== undefined ) {
+          values[ field ] = source[ field ];
+        }
+      }
+      const moved = await models.CrossSlipDetail.create(values, { transaction: t });
+      movedSourceIds.set(Number(source.id), moved.id);
+    }
+    // 仮明細を書き換える（入金仮を外し、計算書側の貸方を引き受ける）
+    depositDetail.creditAccount = absorbCredit ? absorbCredit.creditAccount : null;
+    depositDetail.creditSubAccount = absorbCredit ? absorbCredit.creditSubAccount : null;
+    depositDetail.creditAmount = absorbCredit ? absorbCredit.creditAmount : null;
+    depositDetail.creditTax = absorbCredit ? absorbCredit.creditTax : null;
+    depositDetail.creditVoucherId = absorbCredit ? absorbCredit.creditVoucherId : null;
+    depositDetail.creditTaxRuleId = absorbCredit ? absorbCredit.creditTaxRuleId : null;
+    await depositDetail.save({ transaction: t });
+    // 検算（貸借が合わなくなる組替えは許さない。念のため）
+    const finalDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: depositSlip.id },
+      transaction: t
+    });
+    const debitTotal = finalDetails.reduce((a, d) => a + Number(d.debitAmount || 0), 0);
+    const creditTotal = finalDetails.reduce((a, d) => a + Number(d.creditAmount || 0), 0);
+    if ( Math.round(debitTotal) !== Math.round(creditTotal) ) {
+      throw new Error(`統合後の貸借が合いません（借方 ${debitTotal} vs 貸方 ${creditTotal}）`);
+    }
+    // 取込行の紐付けを新しい明細へ付け替える（計算書側の取込行は通帳側伝票に
+    // 結び付いて維持される。振込行は通帳側の銀行明細に統合される）
+    for ( const [ sourceId, targetId ] of movedSourceIds.entries() ) {
+      await models.BankStatementLine.update({
+        crossSlipDetailId: targetId
+      }, {
+        where: { crossSlipDetailId: sourceId },
+        transaction: t
+      });
+    }
+    // 計算書側の伝票: 明細と伝票を捨てる（未承認なので痕跡は残らない）
+    await models.CrossSlipDetail.destroy({
+      where: { crossSlipId: settlementSlip.id },
+      transaction: t
+    });
+    const detailCount = await models.CrossSlipDetail.count({
+      where: { crossSlipId: depositSlip.id },
+      transaction: t
+    });
+    depositSlip.lineCount = detailCount;
+    depositSlip.updatedBy = ( user && user.id ) || depositSlip.updatedBy;
+    await depositSlip.save({ transaction: t });
+    await models.CrossSlip.destroy({
+      where: { id: settlementSlip.id },
+      transaction: t
+    });
+    await t.commit();
+  } catch (e) {
+    await t.rollback();
+    throw e;
+  }
+  // 学習: 統合後の伝票から「摘要→相手方」を覚え直す（伝票作成/更新フックと同じ方針）
+  try {
+    await learnFromSlip(depositSlip);
+  } catch (e) {
+    console.log('deposit merge learn failed', e.message);
+  }
+  console.log(`[settlement] merged slip ${settlementSlip.id} into deposit slip ${depositSlip.id} (no ${depositSlip.no})`);
+  return { merged: true, slip: depositSlip, discarded: settlementSlip.id };
+};
+
 // 「再実行」。ルール追加や手作業修正の後に、取込から起票した未承認伝票を
 // 解放して現行ルールで起票し直す。承認済み（確定）伝票・精算書由来伝票・
 // 佩戴中（会計年度ロック中）の伝票は決して触らない
@@ -1634,6 +1883,8 @@ export default {
   selectForExpense: selectForExpense,
   settleStatement: settleStatement,
   settlementPreview: settlementPreview,
+  findDepositMergeCandidates: findDepositMergeCandidates,
+  mergeSettlementIntoDeposit: mergeSettlementIntoDeposit,
   suggestSettlementDeposits: suggestSettlementDeposits,
   linkDepositToSettlement: linkDepositToSettlement,
   reconcilePlaceholders: reconcilePlaceholders,

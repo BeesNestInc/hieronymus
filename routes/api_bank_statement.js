@@ -717,12 +717,114 @@ export default {
         slip: result.slip ? {
           id: result.slip.id, year: result.slip.year, month: result.slip.month, no: result.slip.no
         } : null,
+        // 自動統合が効いたときは「廃棄した計算書側の伝票」を返す
+        // （UIは通帳側の伝票が残ったことを示せる）
+        mergedInto: ( result.merged && result.discarded ) ? {
+          discarded: result.discarded,
+          slip: result.slip ? { id: result.slip.id, year: result.slip.year, month: result.slip.month, no: result.slip.no } : null
+        } : null,
         settlement: await reconcile.settlementPreview(statement),
         lines: fresh.lines.map(lineToJSON)
       });
     } catch (e) {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '計算書の伝票化に失敗しました。' });
+    }
+  },
+
+  // 計算書ビューの「入金仮伝票と統合」（フォールバック）。
+  // この計算書から起票した伝票と、通帳側の仮伝票（借: 銀行 / 貸: 入金仮）の
+  // 統合候補を返す（自動統合が効かなかった: 候補複数・日付超過・
+  // 仮伝票が後からできた、のような場合の手動経路）
+  mergeCandidates: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statementId = parseInt(req.params.id);
+    const statement = await models.BankStatement.findByPk(statementId);
+    if ( !statement || statement.kind !== 'settlement' ) {
+      res.json({ code: -1 });
+      return;
+    }
+    // この計算書から起票した伝票（起票済みの取込行の明細の伝票）
+    const booked = await models.BankStatementLine.findAll({
+      where: { statementId: statementId, crossSlipDetailId: { [Op.ne]: null } },
+      attributes: [ 'crossSlipDetailId' ], raw: true
+    });
+    const details = await models.CrossSlipDetail.findAll({
+      where: { id: { [Op.in]: booked.map((b) => b.crossSlipDetailId) } },
+      include: [{ model: models.CrossSlip, as: 'crossSlip' }],
+      raw: true
+    });
+    const slipId = details.length > 0 ? details[0].crossSlipId : null;
+    if ( !slipId ) {
+      res.json({ code: 0, slip: null, candidates: [] });
+      return;
+    }
+    const slip = await models.CrossSlip.findByPk(slipId);
+    const candidates = await reconcile.findDepositMergeCandidates(slip, {});
+    res.json({
+      code: 0,
+      slip: { id: slip.id, year: slip.year, month: slip.month, no: slip.no },
+      candidates: candidates.map((c) => ({
+        slipId: c.slip.id,
+        year: c.slip.year, month: c.slip.month, day: c.slip.day, no: c.slip.no,
+        amount: Number(c.detail.debitAmount),
+        diff: Math.round(c.diff)
+      }))
+    });
+  },
+
+  // 統合の実行（計算書側の伝票を通帳側の仮伝票に統合して捨てる）
+  mergeSettlement: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statementId = parseInt(req.params.id);
+    const statement = await models.BankStatement.findByPk(statementId);
+    if ( !statement || statement.kind !== 'settlement' ) {
+      res.json({ code: -1 });
+      return;
+    }
+    const lockFy = await lockedStatementMessage(statement);
+    if ( lockFy ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。', term: lockFy.term });
+      return;
+    }
+    try {
+      const booked = await models.BankStatementLine.findAll({
+        where: { statementId: statementId, crossSlipDetailId: { [Op.ne]: null } },
+        attributes: [ 'crossSlipDetailId' ], raw: true
+      });
+      const details = await models.CrossSlipDetail.findAll({
+        where: { id: { [Op.in]: booked.map((b) => b.crossSlipDetailId) } },
+        include: [{ model: models.CrossSlip, as: 'crossSlip' }],
+        raw: true
+      });
+      const slipId = details.length > 0 ? details[0].crossSlipId : null;
+      const slip = slipId ? await models.CrossSlip.findByPk(slipId) : null;
+      if ( !slip ) {
+        res.json({ code: -1, message: 'この計算書の伝票がありません。' });
+        return;
+      }
+      const merge = await reconcile.mergeSettlementIntoDeposit(slip, user, {});
+      const fresh = await getStatement(statementId);
+      res.json({
+        code: 0,
+        slip: merge.slip ? { id: merge.slip.id, year: merge.slip.year, month: merge.slip.month, no: merge.slip.no } : null,
+        discarded: merge.discarded,
+        settlement: await reconcile.settlementPreview(statement),
+        lines: fresh.lines.map(lineToJSON)
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '統合に失敗しました。' });
     }
   },
 

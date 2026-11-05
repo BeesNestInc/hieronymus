@@ -170,6 +170,8 @@ router.post('/bank_statement/upload', bank_statement.upload);
 router.post('/bank_statement/:id/match', bank_statement.match);
 router.post('/bank_statement/:id/book', bank_statement.book);
 router.post('/bank_statement/:id/settle', bank_statement.settle);
+router.get('/bank_statement/:id/merge_candidates', bank_statement.mergeCandidates);
+router.post('/bank_statement/:id/merge_settlement', bank_statement.mergeSettlement);
 router.post('/bank_statement/:id/link_settlement', bank_statement.linkSettlement);
 router.post('/bank_statement/:id/select', bank_statement.select);
 router.post('/bank_statement/:id/rebook', bank_statement.rebook);

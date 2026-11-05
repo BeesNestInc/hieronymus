@@ -53,6 +53,17 @@
       on:click={loadDetail} title="最新の状態に更新">
       <i class="bi bi-arrow-clockwise"></i>
     </button>
+    {#if statement.kind === 'settlement' && mergeCandidates.length > 0}
+    <!-- 起票済みの計算書伝票と、通帳取り込みで仮登録された伝票（入金仮）の統合。
+         自動統合が効かなかった場合（候補複数・日付超過・仮伝票後でき）の手動経路 -->
+    <button type="button" class="btn btn-sm btn-outline-warning ms-2"
+      title={mergeCandidates.length === 1 ?
+        `未承認の伝票 #${mergeCandidates[0].no}（${mergeCandidates[0].year}/${mergeCandidates[0].month}/${mergeCandidates[0].day}）に統合します` :
+        '候補が複数あります。同じ取引の通帳側伝票に計算書の中身を統合します'}
+      on:click={mergeIntoDeposit}>
+      入金仮伝票と統合&nbsp;<i class="bi bi-box-arrow-in-down-right"></i>
+    </button>
+    {/if}
   </div>
   {#if ( statement.note )}
   <div class="text-muted" style="font-size:0.75rem;">{statement.note.replace(/\n/g, ' / ')}</div>
@@ -1379,6 +1390,51 @@ const dismissWarnings = async () => {
 // 同じ通帳に取り込んだ計算書（ファイル単位）の一覧。ヘッダのセレクトで
 // 読み替えるときに使う（計算書の詳細画面だけ）
 let financialSettlements = [];
+// 起票済みの計算書伝票と統合できる通帳側の仮伝票候補（入金仮）。
+// 自動統合が効かなかったときに「入金仮伝票と統合」ボタンを出す
+let mergeCandidates = [];
+const loadMergeCandidates = async () => {
+  mergeCandidates = [];
+  if ( !statement || statement.kind !== 'settlement' ) {
+    return;
+  }
+  try {
+    const result = await axios.get(`/api/bank_statement/${statement.id}/merge_candidates`);
+    if ( result.data && result.data.code === 0 ) {
+      mergeCandidates = result.data.candidates || [];
+    }
+  } catch (e) {
+    console.error('load merge candidates failed', e);
+  }
+};
+// 「入金仮伝票と統合」。この計算書の伝票を通帳側の仮伝票に統合して捨てる
+// （通帳側の番号・日付・紐付けを生かす）
+const mergeIntoDeposit = async () => {
+  const target = mergeCandidates.length === 1 ? mergeCandidates[0] : null;
+  const message = target ?
+    `未承認の伝票 #${target.no}（${target.year}/${target.month}/${target.day}）に統合します。計算書側の伝票は破棄されます。よろしいですか？` :
+    '候補の通帳側伝票に統合します。計算書側の伝票は破棄されます。よろしいですか？';
+  if ( !window.confirm(message) ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.post(`/api/bank_statement/${statement.id}/merge_settlement`, {});
+    if ( result.data && result.data.code === 0 ) {
+      toast.show('計算書', `通帳側の伝票（#${result.data.slip.no}）に統合しました`);
+      applySettlement(result.data.settlement);
+      statement = Object.assign({}, statement, { lines: result.data.lines });
+      await loadMergeCandidates();
+    } else {
+      toast.show('計算書', `統合に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) ? e.response.data.message : '統合に失敗しました';
+    toast.show('計算書', message, 'warning');
+  } finally {
+    busy = false;
+  }
+};
 // 取込直後だけ「学習した構成で自動で組みました」のヒントを出す。
 // ヘッダのセレクトで読み替えるだけのときは出さない（文脈的に意味不明）
 let seedToastPendingFor = null;
@@ -1390,6 +1446,7 @@ const loadDetail = async (statementId) => {
   cardSuggestions = [];
   settlementDeposits = result.data.settlementDeposits || [];
   financialSettlements = [];
+  await loadMergeCandidates();
   if ( statement && statement.kind === 'settlement' && statement.financialId ) {
     try {
       const versions = await axios.get(`/api/bank_statement/versions?financialId=${statement.financialId}`);
@@ -2111,11 +2168,19 @@ const runSettle = async () => {
       }
     });
     if  ( result.data && result.data.code === 0 )  {
-      toast.show('計算書', '起票しました（承認待ち）。この構成はこの通帳に学習されました');
+      // 自動統合が効いたときは、廃棄した計算書側の伝票と、残った通帳側の
+      // 伝票番号を知らせる（同じ取引が2つの伝票になるのを避ける仕組み）
+      const merged = result.data.mergedInto;
+      if ( merged && merged.discarded ) {
+        toast.show('計算書', `同じ取引の通帳側伝票（#${merged.slip.no}）に統合しました（計算書側の伝票 #${merged.discarded} は破棄）`);
+      } else {
+        toast.show('計算書', '起票しました（承認待ち）。この構成はこの通帳に学習されました');
+      }
       clearSettleDraft();
       applySettlement(result.data.settlement);
       statement = Object.assign({}, statement, { lines: result.data.lines });
-    } else  {
+      await loadMergeCandidates();
+    } else {
       toast.show('計算書', `伝票化に失敗しました（code=${result.data.code}）`, 'warning');
     }
   } catch (e) {
