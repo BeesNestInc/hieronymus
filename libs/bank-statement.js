@@ -531,43 +531,62 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
     if ( /^期首残高/.test(line) ) {
       continue;
     }
-    if ( saleHeader.test(line) ) {
-      section = 'sale';
-      // 集計行（「売上 ￥177,941」）も計算書の行として読む。pick & place の
-      // 伝票ビューでは、内訳ではなく集計行そのものを貸方に置くこともできる。
-      // 集計の金額が読めない場合は従来どおり集計行を捨てる
-      const agg = pickAmount(line);
-      if ( agg !== null ) {
-        out.push({
-          date: null,
-          rawDescription: '売上',
-          merchant: '売上',
-          amountIn: agg,
-          amountOut: null,
-          balance: null,
-          category: 'aggregate',
-          memo: null
-        });
-      }
-      continue;
+  // 集計行の判定: ヘッダ語（売上/支出。プロファイルの aggregate*）に続くのが
+  // 「￥額」だけで、内訳ラベルが続かない行だけを集計行とみなす。
+  // これが無いと「学習した pattern が '^売上' のみ」ときに、內訳行
+  // （売上 商品代金 など）まで集計として飲み込まれ、1行しか出てこなくなる
+  const aggregateOnly = (line, header) => {
+    const m = line.match(header);
+    if ( !m )  {
+      return null;
     }
-    if ( expenseHeader.test(line) ) {
-      section = 'expense';
-      // 集計行（「支出 -￥66,223」）も計算書の行として読む（同上）
-      const agg = pickAmount(line);
-      if ( agg !== null ) {
-        out.push({
-          date: null,
-          rawDescription: '支出',
-          merchant: '支出',
-          amountIn: null,
-          amountOut: agg,
-          balance: null,
-          category: 'aggregate',
-          memo: null
-        });
-      }
-      continue;
+    const rest = line.slice(m[0].length).trim();
+    // 借りた ￥ の有無は学習直前で低下しやすい。金額以外の語が続くなら内訳
+    if  ( !( /^[\-–]?[\u00a5￥]?([\d,]+)\s*$/.test(rest) ) )  {
+      return null;
+    }
+    return pickAmount(line);
+  };
+  if ( saleHeader.test(line) ) {
+    section = 'sale';
+    // 集計行（「売上 ￥177,941」）も計算書の行として読む。pick & place の
+    // 伝票ビューでは、内訳ではなく集計行そのものを貸方に置くこともできる。
+    // 集計の金額が読めない場合（＝内訳行など）は従来どおり集計行を捨てて
+    // 後段の内訳解析に回す
+    const agg = aggregateOnly(line, saleHeader);
+    if ( agg !== null ) {
+      out.push({
+        date: null,
+        rawDescription: '売上',
+        merchant: '売上',
+        amountIn: agg,
+        amountOut: null,
+        balance: null,
+        category: 'aggregate',
+        memo: null
+      });
+    }
+    continue;
+  }
+  if ( expenseHeader.test(line) ) {
+    section = 'expense';
+    // 集計行（「支出 -￥66,223」）も計算書の行として読む（同上）。
+    // 內訳行（支出 プロモーション割引額 -￥1,240 など）が乗ってきたときは
+    // 集計として飲まず、あとの内訳解析に回す
+    const agg = aggregateOnly(line, expenseHeader);
+    if ( agg !== null ) {
+      out.push({
+        date: null,
+        rawDescription: '支出',
+        merchant: '支出',
+        amountIn: null,
+        amountOut: agg,
+        balance: null,
+        category: 'aggregate',
+        memo: null
+      });
+    }
+    continue;
     }
     // 振込行。**行末が￥額の行だけ**を対象にする（「…の振込みが予定され
     // ています」のような説明文も振込の語を含むため、文法で弾かないと
