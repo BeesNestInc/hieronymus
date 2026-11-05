@@ -27,6 +27,7 @@
   {#if ( statement )}
   <div class="mb-1 text-muted d-flex align-items-center">
     <span class="fs-5 text-dark fw-bold me-2">{ ( statement.financial || {}).name || statement.fileName }</span>
+    <span class="badge text-bg-info me-1" style="font-size:0.7rem;" title="この画面で処理（起票・削除・ルール編集）している計算書">処理対象: 計算書#{statement.id}</span>
     <span>{statement.fileName} / {statement.periodFrom || '?'}〜{statement.periodTo || '?'} / {statement.lines.length}行</span>
     <a class="btn btn-link btn-sm ms-2" href={`/api/bank_statement/file/${statement.id}`}
       download title="取り込んだファイル（通帳の原典）をダウンロードします（申告で「通帳出せ」のときに）">
@@ -421,6 +422,34 @@
             </button>
           </td>
         </tr>
+        {#each ( statementVersions[ row.id ] || [] ) as sv (sv.id)}
+        <tr class="statement-version-row">
+          <td></td>
+          <td>
+            <span class="ms-4">
+              <a class="btn btn-link btn-sm p-0" href={`/bank-statement/${sv.id}`}
+                on:click|preventDefault={() => { routerLink(`/bank-statement/${sv.id}`); }}>
+                #{sv.id} {sv.fileName || '(無題ファイル)'}
+              </a>
+              {#if ( row.statementId === sv.id )}
+              <span class="badge text-bg-info" style="font-size:0.65rem;" title="この通帳でいま処理対象の計算書（詳細を開くとこの計算書が出ます）">処理対象</span>
+              {/if}
+            </span>
+          </td>
+          <td style="font-size:0.75rem;">{sv.periodFrom || '—'}〜{sv.periodTo || '—'}</td>
+          <td class="number" style="font-size:0.75rem;">
+            {sv.lineCount || 0}行
+            {#if ( sv.booked )}<span class="badge bg-primary ms-1" style="font-size:0.65rem;">起票済{sv.booked}</span>{/if}
+            {#if ( sv.unmatched )}<span class="badge bg-secondary ms-1" style="font-size:0.65rem;">未照合{sv.unmatched}</span>{/if}
+          </td>
+          <td class="text-center" style="white-space:nowrap;">
+            <button type="button" class="btn btn-sm btn-outline-danger" title="この計算書を破棄する（なかったことにする。未承認の起票伝票も一緒に消える）"
+              on:click={() => { discardVersion(sv); }}>
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {/each}
         {/each}
       </tbody>
     </table>
@@ -1187,6 +1216,42 @@ const goList = () => {
 const loadList = async () => {
   const result = await axios.get(`/api/financial${ showClosedFinancials ? '?closed=1' : '' }`);
   statements = ( result.data && result.data.values ) || [];
+  // 口座ごとの取り込んだ計算書（取込単位）の一覧も取得する
+  try {
+    const versions = await axios.get('/api/bank_statement/versions');
+    const values = ( versions.data && versions.data.values ) || [];
+    const map = {};
+    for ( const v of values ) {
+      ( map[ v.financialId ] = map[ v.financialId ] || [] ).push(v);
+    }
+    statementVersions = map;
+  } catch (e) {
+    console.error('load statement versions failed', e);
+    statementVersions = {};
+  }
+};
+// 口座ごとの取り込んだ計算書（取込単位）。削除・起票・ルール編集はこの単位
+let statementVersions = {};
+// 計算書単位の破棄（なかったことにする）
+const discardVersion = async (sv) => {
+  if ( !window.confirm(`計算書 #${sv.id}（${sv.fileName || '無題'}）を破棄します。\n起票済みの伝票も（未承認なら）一緒に消えます。よろしいですか？`) ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.delete(`/api/bank_statement/${sv.id}`);
+    if ( result.data && result.data.code === 0 ) {
+      toast.show('明細取込', `計算書 #${sv.id} を破棄しました（なかったことにしました）`);
+      loadList();
+    } else {
+      toast.show('明細取込', `破棄に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    const message = ( e.response && e.response.data && e.response.data.message ) || '破棄に失敗しました';
+    toast.show('明細取込', message, 'warning');
+  } finally {
+    busy = false;
+  }
 };
 // 通帳セレクト用。全使用中の通帳
 const loadFinancials = async () => {

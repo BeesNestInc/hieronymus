@@ -479,6 +479,45 @@ export default {
   // 一覧（ファイル本体は除く）。非会計ユーザーは自分の個人カード明細のみ
   // 一覧は口座（Financial）単位。取込が無い口座も行として出す（取り込忘れの備忘）。
   // 「もう使わない」（closedAt）の口座は出さない。middle: extra filter by user type
+  // 口座に取り込まれた計算書（取込単位）の一覧。list は「最新の1本」の
+  // サマリしか返さないため、「どの計算書を処理対象にするか」「削除する」を
+  // 計算書単位で選べるようにバージョン一覧を出す
+  versions: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    // financialId が無ければ全口座の計算書を返す（一覧画面でのグルーピング用）
+    const financialId = parseInt(req.query.financialId, 10);
+    const includeTables = [{ model: models.BankStatementLine, as: 'lines' }];
+    if  ( !financialId )  {
+      includeTables.push({ model: models.Financial, as: 'financial' });
+    }
+    const statements = await models.BankStatement.findAll({
+      where: ( financialId ) ? { financialId: financialId } : {},
+      order: [[ 'id', 'DESC' ]],
+      include: includeTables
+    });
+    const values = [];
+    for  ( const statement of statements )  {
+      const counts = { booked: 0, unmatched: 0, ignored: 0 };
+      for  ( const line of ( statement.lines || [] ) )  {
+        if  ( counts[ line.status ] !== undefined )  counts[ line.status ] += 1;
+      }
+      values.push({
+        id: statement.id,
+        financialId: statement.financialId,
+        financialName: ( statement.financial ) ? statement.financial.name : null,
+        fileName: statement.fileName,
+        periodFrom: statement.periodFrom,
+        periodTo: statement.periodTo,
+        lineCount: statement.lineCount,
+        booked: counts.booked,
+        unmatched: counts.unmatched,
+        createdAt: statement.createdAt
+      });
+    }
+    res.json({ code: 0, values: values });
+  },
+
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;

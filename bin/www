@@ -1,5 +1,17 @@
 #!/usr/bin/env node
 
+// 長命なサーバを非同期エラーで落とさない（NaN クエリ等の想定外入力での
+// 予期しない rejection はログに残して継続する。起動直後に登録する）
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', ( reason && reason.message ) || reason);
+  if ( reason && reason.sql ) console.error('sql:', String(reason.sql).slice(0, 400));
+});
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', ( err && err.message ) || err);
+  if ( err && err.sql ) console.error('sql:', String(err.sql).slice(0, 400));
+});
+
+
 /**
  * Module dependencies.
  */
