@@ -859,49 +859,14 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   // 「FBA 1,447」の集計行とその内訳「納品895+在庫552」が両方載る。
   // 集計行か内訳かのどちらか一方だけを選べば、検算が合う）
   const bookingMap = new Map(( body.lines || [] ).map((b) => [ Number(b.lineId), b ]));
-  // 学習ルールの貸方指定（1行で貸借が確定するルール）も費用行に引き当てる
+  // 学習ルール（借方/貸方の指定を含む）を費用行に引き当てる。
+  // 「伝票ビュー」では 1明細行=借方(摘要の費用)と貸方(任意指定)のペアで
+  // 編集できる。貸方指定はルール (creditAccount) からの継承か、今回の
+  // 送信値（優先）
   const financialRules = statement.financialId ?
     await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
-  // 明細の複数行を伝票の1行にまとめるグループ（groups は front が include
-  // のみ送る）。計算書の「集計+内訳」をまとめて1行にする等に使う
-  const bodyGroups = ( Array.isArray(body.groups) && body.groups.length > 0 ) ? body.groups : [];
-  const groupLines = new Set();
-  const groupDefs = [];
-  for ( const g of bodyGroups ) {
-    const lineIds = ( Array.isArray(g.lineIds) ? g.lineIds : [] ).map(Number);
-    const gLabel = String(g.label || '').trim();
-    if  ( lineIds.length === 0 || !gLabel || !g.account )  continue;
-    const gLines = [];
-    for  ( const id of lineIds )  {
-      const line = breakdown.expenseLines.find((l) => l.id === id);
-      if  ( !line || groupLines.has(line.id) )  continue;
-      groupLines.add(line.id);
-      gLines.push(line);
-    }
-    if  ( gLines.length === 0 )  continue;
-    if  ( isTempAccount(String(g.account)) )  {
-      const err = new Error(`グループ「${gLabel}」に仮入科目は指定できません。`);
-      err.name = 'BankReconcileError';
-      throw err;
-    }
-    const gRule = findLearnedRule(financialRules, gLabel, 'out');
-    groupDefs.push({
-      label: gLabel,
-      lines: gLines,
-      account: String(g.account),
-      subAccount: ( g.subAccount !== undefined && g.subAccount !== null && g.subAccount !== '' ) ? Number(g.subAccount) : null,
-      // ルールに貸方の指定があればそれ、なければ売上高を貸方にする
-      credit: ( gRule && gRule.creditAccount && !isTempAccount(gRule.creditAccount) ) ?
-        { account: gRule.creditAccount, subAccount: gRule.creditSubAccount || null } : null,
-      memo: gLines[0].memo || null
-    });
-  }
   const feeEntries = [];
   for ( const line of breakdown.expenseLines ) {
-    // グループに参加した行は個別の明細にしない（まとまりの1行になる）
-    if ( groupLines.has(line.id) ) {
-      continue;
-    }
     const booking = bookingMap.get(line.id);
     if ( booking && booking.include === false ) {
       continue;
@@ -914,22 +879,24 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     }
     const label = line.rawDescription || line.description || line.merchant || '';
     const rule = findLearnedRule(financialRules, label, 'out');
+    // 貸方: 今回の送信値を優先し、未指定なら学習済みルールの貸方
+    const sentCredit = ( booking.creditAccount && !isTempAccount(booking.creditAccount) ) ?
+      { account: String(booking.creditAccount), sub: ( booking.creditSubAccount != null && booking.creditSubAccount !== '' ) ? Number(booking.creditSubAccount) : null } : null;
+    const ruleCredit = ( rule && rule.creditAccount && !isTempAccount(rule.creditAccount) ) ?
+      { account: rule.creditAccount, subAccount: rule.creditSubAccount || null } : null;
+    const credit = sentCredit || ruleCredit || null;
     feeEntries.push({
       line: line,
       account: account,
       subAccount: ( booking.subAccount !== undefined && booking.subAccount !== null && booking.subAccount !== '' ) ? Number(booking.subAccount) : null,
-      // ルールに貸方の指定があればそれ、なければ売上高を貸方にする
-      credit: ( rule && rule.creditAccount && !isTempAccount(rule.creditAccount) ) ?
-        { account: rule.creditAccount, subAccount: rule.creditSubAccount || null } : null
+      credit: credit,
+      // 起票後にルールへ覚える（学習失敗でも起票は失敗させない方針）
+      learnCredit: sentCredit
     });
   }
   // 検算（借方 = 振込 + 選択費用 / 貸方 = 売上高）。選択の合計が合わない
-  // （入れ子の集計行が重なっている等）ときは起票しない。
-  // グループはまとまった金額がすべて載る（チェック個別の概念はない）
-  const ungroupedFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
-  const groupFeeTotal = groupDefs.reduce((acc, g) => acc +
-    g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0), 0);
-  const enteredFeeTotal = ungroupedFeeTotal + groupFeeTotal;
+  // （入れ子の集計行が重なっている等）ときは起票しない
+  const enteredFeeTotal = feeEntries.reduce((acc, e) => acc + Number(e.line.amountOut), 0);
   if ( Math.round(breakdown.transferAmount + enteredFeeTotal) !== Math.round(breakdown.saleTotal) ) {
     const err = new Error(`検算が合いません（振込 ${Number(breakdown.transferAmount).toLocaleString()} + 選択費用 ${enteredFeeTotal.toLocaleString()} vs 売上 ${Number(breakdown.saleTotal).toLocaleString()}）。起票する行の選択を見直してください。`);
     err.name = 'BankReconcileError';
@@ -959,15 +926,20 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     debitTaxRuleId: null,
     creditAccount: sale.account,
     creditSubAccount: sale.subAccount,
-    creditAmount: breakdown.saleTotal,
+    creditAmount: ( breakdown.saleTotal - ruledCreditTotal ),
     creditTax: 0,
     creditTaxRuleId: null,
     application1: `振込 ${finName}`.trim(),
     application2: breakdown.transferLine.memo || null,
     statementLineId: breakdown.transferLine.id
   });
-  // 借:費用（学習ルールの相手方）/ 貸:ルールの貸方指定があればそれ
-  // （指定がなければ貸方なしの借方単行。売上高は第1行に丸ごと載る）
+  // 借:費用（学習ルールの相手方）/ 貸:ルール・今回指定の貸方（キャッシング
+  // リボ→短期借入金 等。指定がなければ貸方なしの借方単行）。
+  // 貸方指定行があるときは、第1行の売上高からその分を控える（伝票全体の
+  // 貸借合計を壊さないため。通常の費用行は貸方指定なしで第1行のみ対照）
+  const ruledCreditTotal = feeEntries.reduce((acc, e) => (
+    ( e.credit && e.credit.account ) ? acc + Number(e.line.amountOut) : acc
+  ), 0);
   for ( const entry of feeEntries ) {
     const credit = entry.credit || { account: null, subAccount: null };
     slipLines.push({
@@ -984,26 +956,6 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       application1: entry.line.rawDescription || entry.line.description || entry.line.merchant || '',
       application2: entry.line.memo || null,
       statementLineId: entry.line.id
-    });
-  }
-  // グループ: 明細の複数行をこの1行にまとめる（借:グループの科目のみ。
-  // ルールの貸方指定があればそれを対置）。摘要はグループの代表ラベル
-  for ( const g of groupDefs ) {
-    const credit = g.credit || null;
-    slipLines.push({
-      debitAccount: g.account,
-      debitSubAccount: g.subAccount,
-      debitAmount: g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0),
-      debitTax: 0,
-      debitTaxRuleId: null,
-      creditAccount: ( credit ) ? credit.account : null,
-      creditSubAccount: ( credit ) ? credit.subAccount : null,
-      creditAmount: ( credit ) ? g.lines.reduce((a, l) => a + Number(l.amountOut || 0), 0) : 0,
-      creditTax: 0,
-      creditTaxRuleId: null,
-      application1: g.label,
-      application2: g.memo,
-      statementLineId: g.lines[0].id
     });
   }
   // 貸借合計は第1行で調い: 借合計 振込+費用 = 貸合計 売上合計（検算済み）
@@ -1029,63 +981,27 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       where: { id: { [Op.in]: saleIds }, crossSlipDetailId: null }
     });
   }
-  // 費用行のラベル→科目を学習する（この計算書の口座単位）。振込行・売上行は
-  // 学習しない（振込の摘要は銀行明細側のものが正）。グループは代表ラベルで
-  // 学習する（明細各行のラベルではなく、まとまり摘要）
+  // 費用行のラベル→仕訳（借方と貸方）を学習する（この計算書の口座単位）。
+  // 起票に成功したときの内容そのものを覚える。振込行・売上行は学習しない
+  // （振込の摘要は銀行明細側のものが正）
   for ( const entry of feeEntries ) {
-    await learnOpposite(statement.financialId, entry.line.rawDescription || entry.line.description || entry.line.merchant || '', {
-      account: entry.account,
-      sub: entry.subAccount
-    }, 'out');
-  }
-  for ( const g of groupDefs ) {
-    await learnOpposite(statement.financialId, g.label, {
-      account: g.account,
-      sub: g.subAccount
-    }, 'out');
-  }
-  // 「まとめ」そのものをルールとして覚える（メンバ明細の正規化パターン）。
-  // 次回取込でメンバーが揃うと同じまとめが自動的に組み直される
-  for ( const g of groupDefs ) {
-    await learnGroupRule(statement.financialId, g);
-  }
-  // グループの先頭行の detail に、残りの参加行をすべて紐付ける（元帳連携
-  // 表示で「まとまった1行」+ 後続行が同じで伝票明細として繋がるため）
-  const groupDetail = new Map();
-  for ( const d of details ) {
-    if ( d.statementLineId ) groupDetail.set(String(d.statementLineId), d);
-  }
-  for ( const g of groupDefs ) {
-    const detail = groupDetail.get(String(g.lines[0].id));
-    const rest = g.lines.slice(1);
-    if ( ( !detail ) || ( rest.length === 0 ) ) {
-      continue;
-    }
-    await models.BankStatementLine.update({
-      status: 'booked',
-      crossSlipDetailId: detail.id
-    }, {
-      where: { id: { [Op.in]: rest.map((l) => l.id) }, crossSlipDetailId: null }
-    });
+    await learnSettleRule(statement.financialId, entry);
   }
   return { slip: slip, breakdown: breakdown };
 };
 
 // 計算書取込のプレビュー（GET用）。分類の集計+費用行の科目候補（学習ルール）
 // + プロファイルの約束科目（received/sale。未設定なら null）
-// まとめグループを学習ルールに永続化する（計算書の起票副作用）。
-// pattern=代表ラベル（まとめの摘要）、member=参加明細の正規化パターン。
-// 次回取込でメンバーが揃うと同じまとめが自動的に組まれる。
+
+// 計算書の起票時に、そのとき使った「摘要→借方・貸方」を丸ごと覚える。
+// 貸方の指定がない行は credit を null にして（=口座の科目側）覚える。
 // 学習失敗しても起票自体は失敗させない（learnOpposite と同じ方針）
-const learnGroupRule = async (financialId, g) => {
+const learnSettleRule = async (financialId, entry) => {
   try {
-    if  ( !financialId || !g.label || !g.account || isTempAccount(g.account) )  return;
-    const pattern = makePattern(g.label);
+    const label = entry.line.rawDescription || entry.line.description || entry.line.merchant || '';
+    if  ( !financialId || !entry.account || isTempAccount(entry.account) )  return;
+    const pattern = makePattern(label);
     if  ( !pattern )  return;
-    const members = g.lines
-      .map((l) => makePattern(l.rawDescription || l.description || l.merchant || ''))
-      .filter(Boolean);
-    if  ( members.length < 2 )  return;
     const [ rule, created ] = await models.BankStatementRule.findOrCreate({
       where: {
         financialId: financialId,
@@ -1093,24 +1009,24 @@ const learnGroupRule = async (financialId, g) => {
         direction: 'out'
       },
       defaults: {
-        oppositeAccount: g.account,
-        oppositeSubAccount: g.subAccount || null,
-        creditAccount: ( g.credit && g.credit.account ) ? g.credit.account : null,
-        creditSubAccount: ( g.credit && g.credit.subAccount ) ? g.credit.subAccount : null,
+        oppositeAccount: entry.account,
+        oppositeSubAccount: entry.subAccount || null,
+        creditAccount: ( entry.credit && entry.credit.account ) ? entry.credit.account : null,
+        creditSubAccount: ( entry.credit && entry.credit.subAccount ) ? entry.credit.subAccount : null,
         usageCount: 1
       }
     });
     if  ( !created )  {
-      // 既存ルール（同じ代表ラベterの単行ルール等）なら内容を最新に寄せる
-      rule.oppositeAccount = g.account;
-      rule.oppositeSubAccount = g.subAccount || null;
-      rule.creditAccount = ( g.credit && g.credit.account ) ? g.credit.account : null;
-      rule.creditSubAccount = ( g.credit && g.credit.subAccount ) ? g.credit.subAccount : null;
+      // 起票されたときの内容を最優先で覚え直す
+      rule.oppositeAccount = entry.account;
+      rule.oppositeSubAccount = entry.subAccount || null;
+      rule.creditAccount = ( entry.credit && entry.credit.account ) ? entry.credit.account : null;
+      rule.creditSubAccount = ( entry.credit && entry.credit.subAccount ) ? entry.credit.subAccount : null;
     }
-    rule.groupMembers = JSON.stringify(members);
+    rule.usageCount = ( rule.usageCount || 0 ) + 1;
     await rule.save();
   } catch (e) {
-    console.log('learnGroupRule failed', e.message);
+    console.log('learnSettleRule failed', e.message);
   }
 };
 
@@ -1129,6 +1045,8 @@ export const settlementPreview = async (statement) => {
   const financialRules = statement.financialId ?
     await models.BankStatementRule.findAll({ where: { financialId: statement.financialId } }) : [];
   const subTitle = (line) => ( line.rawDescription || line.description || line.merchant || '' );
+  // 1行=貸借の伝票ビュー: 借方(相手方)と貸方(任意指定)をあわせて候補として
+  // 返す。起票時に覚えた内容そのものが次回に来る
   const suggestions = breakdown.expenseLines.map((line) => {
     const label = subTitle(line);
     const rule = findLearnedRule(financialRules, label, 'out');
@@ -1137,33 +1055,11 @@ export const settlementPreview = async (statement) => {
       label: label,
       amount: Number(line.amountOut || 0),
       account: rule ? rule.oppositeAccount : null,
-      subAccount: rule ? ( rule.oppositeSubAccount ?? null ) : null
+      subAccount: rule ? ( rule.oppositeSubAccount ?? null ) : null,
+      creditAccount: rule ? ( rule.creditAccount ?? null ) : null,
+      creditSubAccount: rule ? ( rule.creditSubAccount ?? null ) : null
     };
   });
-  // 学習済みの「まとめ」を提示する。メンバの正規化パターンが全部揃う
-  // （2行以上）ときだけ、同じまとめを自動的に組める
-  const groupSuggestions = [];
-  for ( const rule of financialRules ) {
-    if ( !rule.groupMembers ) {
-      continue;
-    }
-    const members = (() => {
-      try { return JSON.parse(rule.groupMembers || '[]'); } catch (e) { return []; }
-    })();
-    if  ( !Array.isArray(members) || members.length < 2 )  {
-      continue;
-    }
-    const matched = breakdown.expenseLines.filter((l) => members.includes(makePattern(subTitle(l))));
-    if  ( matched.length !== members.length )  {
-      continue;
-    }
-    groupSuggestions.push({
-      label: rule.pattern,
-      lineIds: matched.map((l) => l.id),
-      account: rule.oppositeAccount,
-      subAccount: rule.oppositeSubAccount ?? null
-    });
-  }
   return {
     profileName: profile ? profile.name : null,
     received: { account: ( profile && profile.receivedAccount ) || null, subAccount: ( profile && profile.receivedSubAccount ) ?? null },
@@ -1173,8 +1069,7 @@ export const settlementPreview = async (statement) => {
     transferAmount: breakdown.transferAmount,
     transferDate: ( breakdown.transferLine && breakdown.transferLine.date ) || null,
     warnings: breakdown.warnings,
-    suggestions: suggestions,
-    groupSuggestions: groupSuggestions
+    suggestions: suggestions
   };
 };
 
