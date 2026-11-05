@@ -1773,6 +1773,9 @@ let settleSaleSubAccount = '';
 // 明細リストで選ぶ → 伝票行の「→ 借方」「→ 貸方」で割り付け。
 // 伝票ビュー（pick & place + DnD）の state 部分置き換え用。
 let voucher = { lines: [] };    // [{id, label?, debit:{rows:[],account,sub}, credit:{...}}]
+// voucher がどの計算書（statementId）の下書きか。違う計算書に移ってきた
+// ときは残留物を捨てる（applySettlement で判定に使う）
+let voucherFor = null;
 // DnD 状態。dragging: { rowId, from: {di, side} | null }（fromがある=行間移動）
 let dragRow = null;
 let dropOverKey = '';           // `${di}:${side}` | `new-debit` | `new-credit`
@@ -1781,7 +1784,10 @@ const numberFmt = (v) => Number(v || 0).toLocaleString();
 const lineData = (lineId) => (
   ( ( settlement && settlement.lines ) || [] ).find((raw) => ( String(raw.lineId) === String(lineId) )) || null
 );
-const lineLabel = (lineId) => ( lineData(lineId).label || '' );
+// 割付行の行IDは今見ている計算書のものでなければ解決できない。
+// 旧計算書の残留IDなどで見つからないことがあるので、label/amountは
+// null を許容して表示が壊れないようにする
+const lineLabel = (lineId) => ( ( lineData(lineId) || {} ).label || '' );
 const lineAmount = (lineId) => {
   const raw = lineData(lineId);
   return Number(( raw && ( raw.amountOut || raw.amountIn || raw.amount ) ) || 0);
@@ -2028,20 +2034,32 @@ const reflectNewRows = (data) => {
 
 const applySettlement = (data) => {
   // 伝票ビュー（pick & place）の下書きを復元する。
-  // 1) 同じページ内の取り直しはメモリ上の voucher を優先
+  // 1) 同じ計算書に画面内で取り掛かっている（メモリ上の voucherが残る）
+  //    場合はそれを優先
   // 2) reload 直後は sessionStorage／サーバの作業下書きを復元
   // 3) どちらもない場合は、起票成功時に学習した構成（seedDraft）を使う
-  if  ( ( voucher.lines || [] ).length > 0 )  {
+  // 別の計算書に遷移してきたとき（取込直後の routerLink 等）は、前の
+  // 計算書の下書きを持ってきてはいけない（割付のrowIdは計算書ごとの
+  // ものなので、貸借計算も混ざる）
+  const sameStatement = voucherFor === statement.id;
+  voucherFor = statement.id;
+  if  ( sameStatement && ( voucher.lines || [] ).length > 0 )  {
     settlement = data || null;
-    // 後から取り込んだ明細を、学習済み構成に従って秘密裏に反映
+    // 後から取り込んだ明細を、学習済み構成に従ってひっそり反映
     reflectNewRows(data);
     return;
   }
+  // 違う計算書に移ってきた。残留状態（voucher・伝票日付）を捨てる
+  voucher = { lines: [] };
+  settleDay = '';
   settlement = data || null;
   if  ( !settlement )  {
     return;
   }
   settleDay = settleDay || ( settlement.transferDate || statement.periodFrom || '' );
+  // この計算書にない行IDを指す旧残留の割付は解決できないので除く
+  const knownRows = new Set(( ( settlement.lines ) || [] ).map((raw) => String(raw.lineId)));
+  const clean = (rows) => ( rows || [] ).map(String).filter((r) => knownRows.has(r));
   const drafts = [];
   try {
     const local = loadSettleDraft(statement.id);
@@ -2059,8 +2077,8 @@ const applySettlement = (data) => {
         lines: d.lines.map((dl) => ( {
           id: dl.id || `L${Date.now()}-${Math.random().toString(36).slice(2)}`,
           label: dl.label || '',
-          debit: { rows: ( dl.debit && dl.debit.rows || [] ).map(String), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
-          credit: { rows: ( dl.credit && dl.credit.rows || [] ).map(String), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
+          debit: { rows: clean(( dl.debit && dl.debit.rows || [] )), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
+          credit: { rows: clean(( dl.credit && dl.credit.rows || [] )), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
         } ))
       };
       return;
@@ -2073,8 +2091,8 @@ const applySettlement = (data) => {
       lines: seed.lines.map((dl, i) => ( {
         id: `seed${i}-${dl.label || ''}`,
         label: dl.label || '',
-        debit: { rows: ( dl.debit && dl.debit.rows || [] ).map(String), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
-        credit: { rows: ( dl.credit && dl.credit.rows || [] ).map(String), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
+        debit: { rows: clean(( dl.debit && dl.debit.rows || [] )), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
+        credit: { rows: clean(( dl.credit && dl.credit.rows || [] )), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
       } ))
     };
     toast.show('計算書', `この通帳で学習した伝票構成（${seed.lines.length}行）を自動で組みました。確認・調整して起票してください`);
