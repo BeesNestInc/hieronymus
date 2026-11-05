@@ -141,47 +141,41 @@
                         on:input={(e) => { if ( dl.debit.rows.length === 0 ) { dl.debitManual = e.target.value; saveSettleDraft(); } }} />
                     </td>
                     <td class="input app-cell">
-                      <div class="chip-group side-drop debit
-                        {dropOverKey === `D${di}` ? 'drop-over' : ''}"
-                        on:dragover|preventDefault={(e) => overZone(e, `D${di}`)}
-                        on:dragleave={() => leaveZone(`D${di}`)}
-                        on:drop={(e) => dropZone(e, di, 'debit')}>
-                        <span class="badge text-bg-warning" style="font-size:0.65rem;">借</span>
-                        {#each ( dl.debit.rows || [] ) as rowId (rowId)}
-                        <span class="chip" draggable="true"
-                          on:dragstart={(e) => startChipDrag(e, di, 'debit', rowId)}
-                          on:dragend={endDrag}
-                          title="ドラッグで移動">
-                          {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
-                          <button type="button" class="btn btn-sm text-muted chip-x"
-                            title="この摘要を外す（明細へ戻る）"
-                            on:click|stopPropagation={() => { detachRow(di, 'debit', rowId); }}><i class="bi bi-trash"></i></button>
-                        </span>
-                        {/each}
-                        {#if ( ( dl.debit.rows || [] ).length === 0 )}
-                        <span class="text-muted" style="font-size:0.7rem;">（未割付。）</span>
-                        {/if}
-                      </div>
-                      <div class="chip-group side-drop credit
-                        {dropOverKey === `C${di}` ? 'drop-over' : ''}"
-                        on:dragover|preventDefault={(e) => overZone(e, `C${di}`)}
-                        on:dragleave={() => leaveZone(`C${di}`)}
-                        on:drop={(e) => dropZone(e, di, 'credit')}>
-                        <span class="badge text-bg-success" style="font-size:0.65rem;">貸</span>
-                        {#each ( dl.credit.rows || [] ) as rowId (rowId)}
-                        <span class="chip" draggable="true"
-                          on:dragstart={(e) => startChipDrag(e, di, 'credit', rowId)}
-                          on:dragend={endDrag}
-                          title="ドラッグで移動">
-                          {lineLabel(rowId)} {numberFmt(lineAmount(rowId))}円
-                          <button type="button" class="btn btn-sm text-muted chip-x"
-                            title="この摘要を外す（明細へ戻る）"
-                            on:click|stopPropagation={() => { detachRow(di, 'credit', rowId); }}><i class="bi bi-trash"></i></button>
-                        </span>
-                        {/each}
-                        {#if ( ( dl.credit.rows || [] ).length === 0 )}
-                        <span class="text-muted" style="font-size:0.7rem;">（未割付。）</span>
-                        {/if}
+                      <div class="d-flex side-drop-wrap">
+                        <div class="chip-group side-drop debit
+                          {dropOverKey === `D${di}` ? 'drop-over' : ''}"
+                          on:dragover|preventDefault={(e) => overZone(e, `D${di}`)}
+                          on:dragleave={() => leaveZone(`D${di}`)}
+                          on:drop={(e) => dropZone(e, di, 'debit')}>
+                          {#each ( dl.debit.rows || [] ) as rowId (rowId)}
+                          <span class="chip" draggable="true"
+                            on:dragstart={(e) => startChipDrag(e, di, 'debit', rowId)}
+                            on:dragend={endDrag}
+                            title="ドラッグで移動">
+                            {lineLabel(rowId)}
+                            <button type="button" class="btn btn-sm text-muted chip-x"
+                              title="この摘要を外す（明細へ戻る）"
+                              on:click|stopPropagation={() => { detachRow(di, 'debit', rowId); }}><i class="bi bi-trash"></i></button>
+                          </span>
+                          {/each}
+                        </div>
+                        <div class="chip-group side-drop credit
+                          {dropOverKey === `C${di}` ? 'drop-over' : ''}"
+                          on:dragover|preventDefault={(e) => overZone(e, `C${di}`)}
+                          on:dragleave={() => leaveZone(`C${di}`)}
+                          on:drop={(e) => dropZone(e, di, 'credit')}>
+                          {#each ( dl.credit.rows || [] ) as rowId (rowId)}
+                          <span class="chip" draggable="true"
+                            on:dragstart={(e) => startChipDrag(e, di, 'credit', rowId)}
+                            on:dragend={endDrag}
+                            title="ドラッグで移動">
+                            {lineLabel(rowId)}
+                            <button type="button" class="btn btn-sm text-muted chip-x"
+                              title="この摘要を外す（明細へ戻る）"
+                              on:click|stopPropagation={() => { detachRow(di, 'credit', rowId); }}><i class="bi bi-trash"></i></button>
+                          </span>
+                          {/each}
+                        </div>
                       </div>
                       <input type="text" class="form-control form-control-sm label-input" size="40" maxlength="51"
                         placeholder="摘要（空白なら先頭の明細ラベル）"
