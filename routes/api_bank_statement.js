@@ -427,11 +427,15 @@ export default {
           req.body.fy
         );
       }
-      // 同じ口座の既存取込に追加する（口座単位の集積。重複行は挿入しない）
-      const existing = await models.BankStatement.findOne({
-        where: { financialId: financial.id },
-        order: [[ 'id', 'DESC' ]]
-      });
+      // 同じ口座の既存取込に追加する（口座単位の集積。重複行は挿入しない）。
+      // 計算書（settlement）はファイル単位の処理（1ファイル=1伝票構成の
+      // 内訳。破棄・再取込もファイル単位）なので累積にせず、常に
+      // 新しい取込を作る。通帳・カードは続けて足していく
+      const existing = ( financial.kind === 'settlement' ) ? null :
+        await models.BankStatement.findOne({
+          where: { financialId: financial.id },
+          order: [[ 'id', 'DESC' ]]
+        });
       if ( existing ) {
         return await attachToStatement(existing, parsed, upload, user, res);
       }
