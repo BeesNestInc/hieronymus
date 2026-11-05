@@ -91,13 +91,6 @@
       <span class="badge bg-primary ms-2">起票済み</span>
       {:else}
       <div class="mt-1">
-        <div class="row g-1">
-          <div class="col-auto">入金先（借方）</div>
-          <div class="col-auto"><Account accounts={bankAccounts} bind:code={settleReceivedAccount} bind:sub_code={settleReceivedSubAccount}></Account></div>
-          <div class="col-auto">売上高（貸方）</div>
-          <div class="col-auto"><Account accounts={oppositeAccounts} bind:code={settleSaleAccount} bind:sub_code={settleSaleSubAccount}></Account></div>
-        </div>
-        <div class="mt-1">
           <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
             <thead class="table-light">
               <tr>
