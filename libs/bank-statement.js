@@ -455,7 +455,7 @@ const isFragmentNoise = (text) => (
 
 // カード明細PDFの解析（支払日・支払総額をプロファイルの正規表現で抽出）
 // PDFの全ページのテキスト行（計算書の決定的解析に使う）
-const pdfTextLinesOf = async (buffer) => {
+export const pdfTextLinesOf = async (buffer) => {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const loadingTask = getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
   const doc = await loadingTask.promise;
@@ -500,9 +500,19 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
       return null;
     }
   }
-  const saleHeader = new RegExp(( profile && profile.aggregateSale ) || '^売上\\s*[\\u00a5￥]');
-  const expenseHeader = new RegExp(( profile && profile.aggregateExpense ) || '^支出\\s*[\\u00a5￥-]');
-  const transferPattern = String( ( profile && profile.transferPattern ) || DEFAULT_TRANSFER_PATTERN ).trim() || DEFAULT_TRANSFER_PATTERN;
+  // normalizeText は NFKC（全角￥→半角¥、全角数字→半角）がかかった行に使う。
+  // 学習・起草で yaml に書かれた pattern（全角￥表記が混ざる）も同じ前提に
+  // 揃えるため、pattern 側の ￥（U+FFE5 U+00A5の混在）と全角ハイフン、全角
+  // 数字は正規化してから使う。これが無いと学習直後に諸々のヘッダ一致が
+  // 崩れて、明細が1行も取れなくなる（2026-11-04発覚）
+  const normPattern = (src) => String(src || '')
+    .replace(/[￥]/g, '¥')          // 全角円→半角
+    .replace(/[－ー―]/g, '-')      // 全角/長音ハイフン→ASCIIハイフン
+    .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+  const saleHeader = new RegExp(normPattern(( profile && profile.aggregateSale ) || '^売上\\s*[\\u00a5￥]'));
+  const expenseHeader = new RegExp(normPattern(( profile && profile.aggregateExpense ) || '^支出\\s*[\\u00a5￥-]'));
+  const transferPatternSafe = (v) => String(v || '').trim() || DEFAULT_TRANSFER_PATTERN;
+  const transferPattern = normPattern(transferPatternSafe(( profile && profile.transferPattern ) || DEFAULT_TRANSFER_PATTERN));
   const datePattern = ( profile && profile.transferDatePattern ) || '(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2})に、.*?口座へ';
   const memoPattern = ( profile && profile.memoPattern ) || '^銀行振込ID';
   const tryLabel = (text, pattern) => {
@@ -571,7 +581,7 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
   if ( expenseHeader.test(line) ) {
     section = 'expense';
     // 集計行（「支出 -￥66,223」）も計算書の行として読む（同上）。
-    // 內訳行（支出 プロモーション割引額 -￥1,240 など）が乗ってきたときは
+    // 内訳行（支出 プロモーション割引額 -￥1,240 など）が乗ってきたときは
     // 集計として飲まず、あとの内訳解析に回す
     const agg = aggregateOnly(line, expenseHeader);
     if ( agg !== null ) {
@@ -587,7 +597,7 @@ export const parseSettlementTextLines = (pdfLines, profile = null) => {
       });
     }
     continue;
-    }
+  }
     // 振込行。**行末が￥額の行だけ**を対象にする（「…の振込みが予定され
     // ています」のような説明文も振込の語を含むため、文法で弾かないと
     // 説明文を振込行として拾ってしまう）
