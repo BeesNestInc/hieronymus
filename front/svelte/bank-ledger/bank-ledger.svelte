@@ -1,6 +1,6 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>通帳元帳</h1>
+    <h1>通帳</h1>
   </div>
   <ul class="page-subtitle d-flex justify-content-between">
     <div class="nav">
