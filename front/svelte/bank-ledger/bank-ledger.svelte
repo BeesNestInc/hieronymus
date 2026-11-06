@@ -27,7 +27,7 @@
         </li>
         {/each}
         {#if ( financials.length === 0 )}
-        <li><span class="dropdown-item-text text-muted">通帳がありません（明細取込で通帳を追加してください）</span></li>
+        <li><span class="dropdown-item-text text-muted">通帳がありません（通帳一覧で通帳を追加してください）</span></li>
         {/if}
       </ul>
     </li>
@@ -35,7 +35,7 @@
     <div>
     	<button type="button" class="btn btn-outline-secondary" id="open-bank-statement"
     		on:click={() => { openStatement(); }}>
-        明細取込&nbsp;<i class="bi bi-upload"></i>
+        通帳一覧&nbsp;<i class="bi bi-upload"></i>
       </button>
     	<button type="button" class="btn btn-primary" id="open-cross-slip"
     		on:click={openNewSlip}>

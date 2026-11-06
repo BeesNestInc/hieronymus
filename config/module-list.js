@@ -44,7 +44,7 @@ export default [
     icon: { name: 'bi:bank' },
     description: `
 通帳（銀行・カード・計算書）など、外部の帳簿を扱う画面です。<br/>
-預金通帳を模した「通帳元帳」と、通帳・カード・計算書の取込を行う「明細取込」があります。`,
+預金通帳を模した「通帳元帳」と、通帳・カード・計算書の一覧と取込を行う「通帳一覧」があります。`,
     submenu: [
       {
         title: '通帳元帳',
@@ -53,7 +53,7 @@ export default [
         },
         match: /^\/bank-ledger/,
       }, {
-        title: '明細取込',
+        title: '通帳一覧',
         href: (status) => {
           return	(`/bank-statement`);
         },

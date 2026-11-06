@@ -1,7 +1,7 @@
 <svelte:window on:beforeunload={saveSettleDraft} />
 
 <div class="page-title d-flex justify-content-between">
-  <h1>明細取込</h1>
+  <h1>通帳一覧</h1>
   <div>
     {#if ( id )}
     <button type="button" class="btn btn-outline-secondary" on:click={goList}>一覧へ戻る</button>
