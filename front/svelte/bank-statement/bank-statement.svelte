@@ -415,7 +415,17 @@
       <tbody>
         {#each statements as row}
         <tr>
-          <td>{kindLabel(row.kind)}</td>
+          <td>
+            {#if ( ( row.kind === 'bank' || row.kind === 'corporate_card' ) && row.accountCode )}
+            <a class="btn btn-link p-0" title="通帳元帳を開きます"
+              href={`/bank-ledger/${row.accountCode}${row.subAccountCode ? `/${row.subAccountCode}` : ''}`}
+              on:click|preventDefault={() => { routerLink(`/bank-ledger/${row.accountCode}${row.subAccountCode ? `/${row.subAccountCode}` : ''}`); }}>
+              {kindLabel(row.kind)}
+            </a>
+            {:else}
+            {kindLabel(row.kind)}
+            {/if}
+          </td>
           <td>
             {#if ( row.statementId )}
             <a class="btn btn-link p-0" href={`/bank-statement/${row.statementId}`}
