@@ -89,3 +89,21 @@ GEMINI.md
 # 口座の約束科目などを含むのでリポジトリには載せない（sampleのみ追跡）
 config/banks/*.yaml
 config/banks/*.yml
+
+# ここから下は GitHub (公開) に載せないもの（ここから先は新規のみの追視）。
+# Docs/ は運用記録。すでに追跡済のものはそのまま（secret を書かない運用を守る）
+/Docs/
+/test-data/
+/testDB/
+/chrome/
+/graphify-out/
+/knowledge/
+/dist-ssr/
+
+# 実データ・バックアップ（SQLダンプ・取込pdf・スクショ・ローカル設定）
+/*.sql
+/*.sql.*
+/*.pdf
+/*.png
+/config/*.json
+/config/config.yaml
