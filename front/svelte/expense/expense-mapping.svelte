@@ -6,6 +6,7 @@
   <p style="padding:10px;">読み込み中...</p>
   {:else}
   <div style="padding:10px;">
+    {#key kind}
     <TableMaintenance
       card={false}
       title={kind === 'payee' ? '支払先マッピング' : '出金元マッピング'}
@@ -15,6 +16,7 @@
       initialRow={initialRow}
       columns={columnsForKind}>
     </TableMaintenance>
+    {/key}
     {#if ( kind === 'payee' )}
     <p class="text-muted px-2" style="font-size:0.75rem;">
       説明は同じ取引先で仕訳を変えるときのヒントです（例: 書籍,本）。
