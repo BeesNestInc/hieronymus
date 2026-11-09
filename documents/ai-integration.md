@@ -144,7 +144,7 @@ mcpServers:
   voucher-mcp:
     command: node
     args:
-    - /home/ogochan/git/hieronymus.main/ai/mcp/voucher-mcp/index.js
+    - /path/to/hieronymus/ai/mcp/voucher-mcp/index.js
     env:
       HIERONYMUS_BASE_URL: 'http://localhost:3010'
     requiresApp: accounting-system
