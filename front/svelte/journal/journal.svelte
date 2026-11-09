@@ -106,11 +106,13 @@ const ready = (slips) => {
 
       _lines.push({
         id: line.id,
+        year: slip.year,
         month: slip.month,
         day: slip.day,
         no: slip.no,
         approvedAt: slip.approvedAt,
         lineNo: line.lineNo,
+        expenseReportId: slip.expenseReportId || null,
 
         debitAmount: line.debitAmount !== null ? numeric(line.debitAmount).toLocaleString() : '',
         debitTax: line.debitTax != null ? numeric(line.debitTax).toLocaleString() : '',

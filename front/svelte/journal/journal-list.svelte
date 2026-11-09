@@ -27,6 +27,15 @@
       <tr>
         <td style="width:50px;text-align:center;">
           {line.month}/{line.day}
+          {#if ( line.expenseReportId )}
+          <div>
+            <a class="text-info" style="font-size:0.7rem;" href={`/expense/entry/${line.expenseReportId}?returnTo=${encodeURIComponent('/journal/' + line.year + '/' + line.month)}`}
+              on:click|preventDefault={() => { routerLink(`/expense/entry/${line.expenseReportId}?returnTo=${encodeURIComponent('/journal/' + line.year + '/' + line.month)}`); }}
+              title="この伝票の載っている経費精算書を開きます">
+              <i class="bi bi-wallet2"></i>&nbsp;経費精算
+            </a>
+          </div>
+          {/if}
         </td>
         <td style="width:50px;" class={'number ' + ( line.approvedAt ? 'bg-body' : 'bg-warning' )}>
           <button type="button" class="btn btn-link"

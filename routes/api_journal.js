@@ -30,6 +30,11 @@ export const fetchJournal = async (year, month) => {
 
     for ( let i = 0; i < slips.length; i ++ ) {
       let slip = slips[i];
+      // アクセサ（expenses系）があれば精算書への導線を返す。「この伝票は
+      // どの精算書か」に一覧から答えられるようにする（関連は伝票側の
+      // expenseReportId。削除済み精算書の場合は出ない）
+      const linkedReport = slip.expenseReportId ?
+        await models.ExpenseReport.findByPk(slip.expenseReportId) : null;
       let details = await models.CrossSlipDetail.findAll({
         where: {
           crossSlipId: slip.id
@@ -109,6 +114,11 @@ export const fetchJournal = async (year, month) => {
         createrName: slip.creater ? slip.creater.name : '',
         approverName: slip.approver ? slip.approver.name : '',
         approvedAt: slip.approvedAt,
+        expenseReportId: slip.expenseReportId || null,
+        expenseReport: linkedReport ? {
+          id: linkedReport.id,
+          purpose: linkedReport.purpose
+        } : null,
         lines: lines
       });
     }
