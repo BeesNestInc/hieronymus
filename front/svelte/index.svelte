@@ -77,6 +77,7 @@ import OkModal from './common/ok-modal.svelte';
 
 import Router from './components/router.svelte';
 import {currentPage, getStore} from '../javascripts/router.js';
+import {buildTitle, pageTitleDetail} from '../javascripts/title.js';
 import { getCompanyInfo } from '../../libs/utils.js';
 
 export let term;
@@ -187,6 +188,10 @@ let status = {
 let mainCount = 0;
 // 全幅で使いたいページ（マッピング等の表がある設定画面）。他は従来の1200px固定
 $: isWide = /^\/expense\/(home|unsorted|payee|payment)/.test($currentPage || '');
+// タブの<TITLE>を画面に合わせる（タイトル用の新規fetchはしない.
+// 会社名は取得済みの status.company、メニュー名は表示用取得済み値を流用）
+$: docTitle = buildTitle($currentPage, status.company?.name, $pageTitleDetail);
+$: if (typeof document !== 'undefined' && docTitle) { document.title = docTitle; }
 
 let reply;
 const doReply = (event) => {

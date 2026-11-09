@@ -19,6 +19,9 @@ let status = {
   current: 'login'
 }
 let reply;
+// ログイン系はSPA外の別バンドルのためここで直接付ける（会社名はログイン前なので付けない）
+$: loginTitle = status.current === 'signup' ? 'アカウント登録::Hieronymus' : 'ログイン::Hieronymus';
+$: if (typeof document !== 'undefined' && loginTitle) { document.title = loginTitle; }
 onMount(() => {
   console.log('index onMount');
   status.pathname = location.pathname;

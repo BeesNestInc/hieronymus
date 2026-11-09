@@ -48,8 +48,9 @@
 <script>
 import axios from 'axios';
 import Menu from '../components/menu.svelte';
-import { onMount, beforeUpdate, tick} from "svelte";
+import { onMount, onDestroy, beforeUpdate, tick} from "svelte";
 import {currentMenu, getStore} from '../../javascripts/current-record.js'
+import {pageTitleDetail} from '../../javascripts/title.js';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {eventBus as tableBus} from '../../javascripts/table-maintenance.js';
 import menuBus from '../../javascripts/event-bus.js';
@@ -63,6 +64,8 @@ let widgets = [];
 let arg2;
 let reload = 0; // ★ これで変更を通知
 let isEditMode = false;
+// <TITLE>用に表示用の menu.title をそのまま流用する（タイトル用の新規fetchはしない）
+$: pageTitleDetail.set(menu?.title || null);
 
 const startWidgetDrag = (event) => {
   let name = event.target.dataset.type;
@@ -178,5 +181,9 @@ onMount(() => {
   console.log('menu onMount');
   menu = null;
   widgets = [];
+})
+
+onDestroy(() => {
+  pageTitleDetail.set(null);
 })
 </script>
