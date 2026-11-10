@@ -299,7 +299,7 @@ export default [
     name: 'users',
     title: 'ユーザ管理',
     authority: (user) => {
-      return  (user.administrable || user.personnelManagement);
+      return  (user.administrable);
     },
     href: (status) => {
       return	('/users/');
