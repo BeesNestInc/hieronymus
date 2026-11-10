@@ -128,13 +128,15 @@
               </div>
             </td>
             <td class="input">
+              {#key rows.length}
               <select class="form-select form-select-sm"
-                bind:value={row.paymentMappingId}>
-                <option value={null}></option>
-                {#each paymentMappings as mapping}
-                <option value={mapping.id}>{mapping.name}</option>
+                bind:value={row.paymentSource}>
+                <option value=""></option>
+                {#each cashSources as src}
+                <option value={src.value}>{src.label}</option>
                 {/each}
               </select>
+              {/key}
             </td>
             <td class="number input">
               <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
@@ -175,6 +177,7 @@
 
 <script>
 import axios from 'axios';
+import {setAccounts} from '../../javascripts/cross-slip';
 import {numeric} from '../../../libs/utils';
 import {onMount} from 'svelte';
 import {link} from '../../javascripts/router.js';
@@ -187,19 +190,53 @@ const KARIBARAI_CODE = '1130000';
 let subs = [];
 let total = { debit: 0, credit: 0, balance: 0 };
 let rows = [];
-let mappings = [];
+let accounts = [];
 let ok = true;
 let errorMessages = [];
 let settlementYear;
 let settlementMonth;
 let settlementDay;
 
-$: paymentMappings = mappings.filter((m) => ( m.kind === 'payment' ) && !m.advance );
+// 出金元は「現金」と「普通預金（各口座の補助科目）」に限定する。
+// 検索ではなく決定的なリスト。仮払金自身（1130000）は除外。
+// 現金・預金に対象がほぼ確定している（例外科目は将来の拡張）。
+let assetAccountIds = null;
+// 選択値(paymentSource)から accountCode/subCode を復号する
+const decodePaymentSource = (currentRows) => {
+  for ( const row of currentRows ) {
+    const [code, sub] = ( row.paymentSource || '' ).split(':');
+    row.accountCode = code || null;
+    row.subCode = sub || null;
+  }
+};
+$: rows = rows;
+$: decodePaymentSource(rows);
+
+$: cashSources = ( accounts || [] )
+  .filter((a) => ( a.major_name === '資産' &&
+                   ( a.minor_name === '現金' ||
+                     ( a.minor_name === '預金' && a.name === '普通預金' ) ) &&
+                   a.accountCode !== KARIBARAI_CODE ))
+  .flatMap((a) => {
+    if ( a.subAccounts && a.subAccounts.length > 0 ) {
+      return a.subAccounts.map((s) => ({
+        value: `${a.code}:${s.code}`,
+        label: `${a.name}/${s.name}`
+      }));
+    }
+    return [{
+      value: `${a.code}:`,
+      label: a.name
+    }];
+  });
 
 const blankRow = () => {
   return {
     subAccountCode: '',
     direction: 'repay',
+    paymentSource: '',
+    accountCode: null,
+    subCode: null,
     paymentMappingId: null,
     amount: ''
   };
@@ -236,7 +273,7 @@ const validateForm = () => {
       ok = false;
       errorMessages.push(`${i + 1}行目 : 立替者が未選択です。`);
     }
-    if ( !row.paymentMappingId ) {
+    if ( !row.accountCode ) {
       ok = false;
       errorMessages.push(`${i + 1}行目 : 出金元が未選択です。`);
     }
@@ -259,22 +296,21 @@ const book = async (event) => {
       continue;
     }
     const amount = numeric(row.amount);
-    const mapping = mappings.find((m) => ( m.id == row.paymentMappingId ));
-    if ( !mapping || !mapping.account ) {
+    if ( !row.accountCode ) {
       ok = false;
-      errorMessages.push(`出金元のマッピングが未登録です。`);
+      errorMessages.push(`${rows.indexOf(row) + 1}行目 : 出金元（口座・現金）が入力されていません。`);
       continue;
     }
-    // 「返す」: 借方=仮払金/立替者、貸方=出金元マッピングの科目
-    // 「もらう」: 借方=出金元マッピングの科目、貸方=仮払金/立替者
+    // 「返す」: 借方=仮払金/立替者、貸方=出金元の口座（資産科目）
+    // 「もらう」: 借方=出金元の口座（資産科目）、貸方=仮払金/立替者
     const karibaraiSide = {
       account: KARIBARAI_CODE,
       subAccount: parseInt(row.subAccountCode),
       amount: amount
     };
     const oppositeSide = {
-      account: mapping.account,
-      subAccount: mapping.subAccount || undefined,
+      account: row.accountCode,
+      subAccount: ( row.subCode != null && row.subCode !== '' ) ? parseInt(row.subCode) : undefined,
       amount: amount
     };
     lines.push({
@@ -332,9 +368,16 @@ const errMsg = (e) => {
 
 onMount(async () => {
   await loadBalances();
-  axios.get('/api/expense_mapping').then((result) => {
-    mappings = result.data.values || [];
-  });
+  // 出金元候補は勘定科目そのもの（資産科目のみ。マッピングは経由しない）。
+  // Accountコンポーネントの検索は setAccounts に投入済みの科目から引く
+  try {
+    // major/middle名付き（all(): パターンはmajor名が無い）
+    const res = await axios.get(`/api/accounts2/${status.fy.term}`);
+    accounts = res.data || [];
+    setAccounts(accounts);
+  } catch (e) {
+    accounts = [];
+  }
   rows = [blankRow()];
   const today = new Date();
   settlementYear = today.getFullYear();
