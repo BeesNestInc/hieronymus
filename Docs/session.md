@@ -74,9 +74,32 @@
 - 未整理証憑のAI整理（複数枚スキャンの分離→個別証憑化→金額/取引先抽出→仕訳化。PDF/画像データはBLOBにそのままあるので実装可能）
 - 経費精算書の帳票出力（PDF: `Docs/精算書.xlsx` 雛形）
 - `PAGEERROR: y`ノイズ（既存）
+- マニュアル残課題: 税セレクタ系スクショ（fy2税込のため撮影時だけtaxIncluded=falseにする必要あり）、project系・展開系の補足スクショ
+- 本番DBへのマイグレーション適用（20261013000000, 20261016000000〜000004）
+
+## 現在の状態（2026-11-10時点の追補）
+
+以後の作業（詳細は `Docs/logs/20261014.md` 〜 `20261109.md`、`20261106.md`）:
+
+- **AI読み取り**: `libs/vision.js` がVercel AI SDK化、`config/llms.yaml`（yaml優先）で
+  provider選択（gemini/openai/openai-compatible）。抽出は候補（companies+payeeMappings）
+  込みの一発呼び出しで companyId/payeeMappingId を返す。画像は1600pxに縮小
+- **伝票と精算書は1:n**: `CrossSlips.expenseReportId` 逆FKで複数伝票を1精算書に紐付け
+  （分割起票=支払日×出金元ごと）。ジャーナル個別画面から精算書へジャンプ可能
+- **承認**: 会計権限者は精算書承認と伝票確定を同時に行う
+- **仮払金精算**: 出金元はマッピング経由でなく勘定科目直接選択（現金/普通預金のみ。
+  それ以外は直接伝票起票で対応=例外扱い）。残高は**全期間通算の精算待ち額**
+  （貸方−借方。期をまたぐ精算も正しく相殺される）
+- **ユーザ管理**: メニュー・URLとも administrable 限定。他人のユーザー情報取得は
+  権限チェック+hashPassword除去済み（personnelManagementは名前一覧のみ取得可）
+- **設定ページは3分割**: /expense/unsorted（未整理の証憑: 認識・OK済みフラグ・
+  編集可能な認識結果）、/expense/payee、/expense/payment
+- **マニュアル用DB**: dev DBは匿名化・サンプル化済み（サンプル太郎等。fy1〜3の
+  実名伝票は消去、テスト系マスタ削除済み）。バックアップは
+  `/tmp/opencode/manualbackups/`。マニュアル本体はコミット済み
 
 ## 参照
 
-- 詳細な実装記録: `Docs/logs/20261007.md` / `Docs/logs/20261008.md` / `Docs/logs/20261014.md`
+- 詳細な実装記録: `Docs/logs/20261007.md` / `20261008.md` / `20261014.md` / `20261106.md`
 - `knowledge/wiki/accounting/仕訳パターン.md`（仮払金補助科目=立替者ごと、仮払精算は振替）
 
