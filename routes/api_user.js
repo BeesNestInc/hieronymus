@@ -35,6 +35,18 @@ export default {
     })
   },
   list: (req, res, next) => {
+    // ユーザー管理ページはadministrable専用。人事管理権限のユーザーは
+    // 役職員の紐付けに「id+名前」だけ必要なので、権限フラグ等は返さない
+    const canSeeAll = Boolean(req.session.user.administrable);
+    const strip = (user) => {
+      if ( canSeeAll ) {
+        return user;
+      }
+      return {
+        id: user.id,
+        name: user.name
+      };
+    };
     if  ( req.query && req.query.nomember ) {
       models.User.findAll({
         include: [
@@ -50,7 +62,7 @@ export default {
         let users = [];
         _users.forEach((user) => {
           if  ( !user.member )  {
-            users.push(user);
+            users.push(strip(user));
           }
         })
         res.json({
@@ -64,7 +76,7 @@ export default {
         ]
       }).then((users) => {
         res.json({
-          users: users
+          users: users.map(strip)
         });
       });
     }
@@ -72,6 +84,14 @@ export default {
   get: async (req, res, next) => {
     let id = req.params.id;
     if  ( id )  {
+      // 他人のユーザー情報（権限フラグ等）は管理者・人事管理権限でのみ取得できる。
+      // 自分自身の情報は常に取得可
+      if (( Number(id) !== req.session.user.id ) &&
+          ( !req.session.user.administrable ) &&
+          ( !req.session.user.personnelManagement )) {
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
       models.User.findByPk(id).then((user) => {
         res.json({
           user: user

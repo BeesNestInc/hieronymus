@@ -19,9 +19,12 @@ _passport.use(new Local({
     process.nextTick(() => {
       auth_user(user_name, password).then((user) => {
         //console.log('auth', user);
+        // セッションに保存するユーザー情報からはパスワードハッシュを除く
+        const values = { ...user.dataValues };
+        delete values.hashPassword;
         return done(null, {
           user_name: user_name,
-          user: user.dataValues
+          user: values
         });
       }).catch((e) => {
         console.log('login error', e);

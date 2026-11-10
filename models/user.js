@@ -13,6 +13,13 @@ import {Model} from 'sequelize';
 
 export default (sequelize, DataTypes) => {
 	class User extends Model  {
+		// API応答へパスワードハッシュが漏れないようtoJSONで除去する。
+		// 認証（passport）はインスタンスのhashPasswordを直接読むため影響しない
+		toJSON() {
+			const values = { ...this.get() };
+			delete values.hashPassword;
+			return values;
+		}
     static  associate(models) {
       this.hasOne(models.Member, {
         foreignKey: 'userId',
