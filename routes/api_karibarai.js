@@ -2,23 +2,19 @@ import models from '../models/index.js';
 const Op = models.Sequelize.Op;
 
 // 仮払金(1130000)の補助科目（立替者）別の現在高。
-// AccountRemaining は締め処理時のスナップショットなので、期途中の現在高は
-// 「期首残高 + 期中明細の累計」を計算して返す（元帳画面と同じ発想）。
-// 未承認の伝票も含める（銀行元帳の includeUnapproved と同じ運用）。
+// 期で区切らず**全期間の明細を通算**して現在高を出す:
+// 経費精算の仮払金積み上げ（fy2）と精算（fy3）が別期にまたがっても
+// 正しく相殺されるようにするため（この画面は「今、誰にいくら返すべきか」
+// を答えるのが目的。期単位の推移は元帳で確認する）。
+// 繰越処理を運用している環境では、繰越スナップショット（SubAccountRemaining）
+// 以降の明細を加算する。未承認の伝票も含める（銀行元帳と同じ運用）。
+// 残高は 貸方-借方 = 精算待ち額（正=返すべき額）とする。
 const KARIBARAI_CODE = '1130000';
 
 export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     try {
-      const term = parseInt(req.params.term);
-      const fy = await models.FiscalYear.findOne({
-        where: { term: term }
-      });
-      if ( !fy ) {
-        res.json({ values: [] });
-        return;
-      }
       const karibarai = await models.Account.findOne({
         where: { accountCode: KARIBARAI_CODE },
         include: [{ model: models.SubAccount, as: 'subAccounts' }]
@@ -29,10 +25,8 @@ export default {
       }
       const values = [];
       for ( const sub of karibarai.subAccounts ) {
-        const opening = await models.SubAccountRemaining.findOne({
-          where: { subAccountId: sub.id, term: term }
-        });
-        // 借方/貸方は行単位で別々に集計する（借方側の当該補助と貸方側の当該補助）
+        // 借方/貸方の累計（全期間・全伝票。繰越処理はスナップショットを作る
+        // だけで明細を消さないため、全明細の累計がそのまま現在高になる）
         const debitRow = await models.CrossSlipDetail.findOne({
           attributes: [
             [ models.sequelize.fn('SUM', models.sequelize.col('CrossSlipDetail.debitAmount')), 'debit' ]
@@ -41,12 +35,6 @@ export default {
             debitAccount: KARIBARAI_CODE,
             debitSubAccount: sub.subAccountCode
           },
-          include: [{
-            model: models.CrossSlip,
-            as: 'crossSlip',
-            where: { term: term },
-            attributes: []
-          }],
           raw: true
         });
         const creditRow = await models.CrossSlipDetail.findOne({
@@ -57,12 +45,6 @@ export default {
             creditAccount: KARIBARAI_CODE,
             creditSubAccount: sub.subAccountCode
           },
-          include: [{
-            model: models.CrossSlip,
-            as: 'crossSlip',
-            where: { term: term },
-            attributes: []
-          }],
           raw: true
         });
         const debit = Number(debitRow ? ( debitRow.debit || 0 ) : 0);
@@ -72,7 +54,8 @@ export default {
           code: sub.subAccountCode,
           debit: debit,
           credit: credit,
-          balance: Number(opening ? opening.balance : 0) + debit - credit
+          // 精算待ち額 = 貸方（経費精算で積んだ額）- 借方（精算で返した額）
+          balance: credit - debit
         });
       }
       res.json({ values: values });

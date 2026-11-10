@@ -14,7 +14,7 @@
   {/if}
   <div class="full-height-2 fontsize-12pt scroll-table">
     <div class="container-fluid">
-      <h2 class="fs-5">仮払金の残高（立替者別・承認待ち含む）</h2>
+      <h2 class="fs-5">仮払金の残高（立替者別・精算待ち額・承認待ち含む）</h2>
       <div class="col-8">
       <table class="table table-bordered">
         <thead class="table-light">
@@ -29,7 +29,7 @@
               貸方
             </th>
             <th scope="col" style="width: 120px;">
-              残高
+              精算待ち額
             </th>
           </tr>
         </thead>
