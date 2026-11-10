@@ -276,7 +276,7 @@ export default {
       // プレビュー済み（previewId）ならAI読取を2度やらない
       let parsed = previewCacheGet(req.body && req.body.previewId);
       if ( !parsed ) {
-        parsed = await parser.parseStatement(upload.buffer, upload.mimeType);
+        parsed = await parser.parseStatement(upload.buffer, upload.mimeType, { memoryUserId: req.session.user.id });
       }
       if ( parsed.lines.length === 0 ) {
         res.status(422).json({ code: -3, message: 'この取り込みはまだ読み取れていません（先にプレビューしてください）。' });
@@ -367,7 +367,7 @@ export default {
     }
     try {
       const parsed = await filterFiscalYear(
-        await parser.parseStatement(upload.buffer, upload.mimeType),
+        await parser.parseStatement(upload.buffer, upload.mimeType, { memoryUserId: req.session.user.id }),
         req.body.fy
       );
       res.json({
@@ -423,7 +423,7 @@ export default {
         parsed = await filterFiscalYear(parsed, req.body.fy);
       } else {
         parsed = await filterFiscalYear(
-          await parser.parseStatement(upload.buffer, upload.mimeType),
+          await parser.parseStatement(upload.buffer, upload.mimeType, { memoryUserId: req.session.user.id }),
           req.body.fy
         );
       }

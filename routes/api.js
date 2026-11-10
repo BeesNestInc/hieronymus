@@ -134,6 +134,8 @@ router.get('/expense_reports/:type', expense_report.list);
 router.get('/expense_reports', expense_report.list);
 router.get('/expense_report/ai_available', expense_report.aiAvailable);
 router.get('/expense_report/tasks', expense_report.tasks);
+router.get('/expense_report/merge_candidates', expense_report.mergeCandidates);
+router.post('/expense_report/:id/merge_spend', expense_report.mergeSpend);
 router.get('/expense_report/:id', expense_report.get);
 router.post('/expense_report', expense_report.post);
 router.post('/expense_report/vouchers', expense_report.uploadVouchers);

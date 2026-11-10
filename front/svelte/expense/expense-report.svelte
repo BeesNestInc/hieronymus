@@ -2,6 +2,7 @@
 <ExpenseList
   bind:status={status}
   bind:reports={reports}
+  {toast}
   on:open={openEntry}
   on:update={refreshReports}
   ></ExpenseList>

@@ -432,6 +432,9 @@ export default {
             code: -2
           })
         });
+      } else {
+        // 存在しない証憑はhangせずnot foundを返す（他エラーと区別できる）
+        res.status(404).json({ code: -3, message: '証憑がありません。' });
       }
     }).catch((err) => {
       res.json({

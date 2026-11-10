@@ -346,15 +346,22 @@ export const fixEraDate = (text) => {
   }
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
-export const extractStatement = async (buffer, mimeType) => {
+export const extractStatement = async (buffer, mimeType, options = {}) => {
   const prepared = await prepareImage(buffer, mimeType);
+  const inputs = [
+    '通帳・明細の画像を1枚添付します。この画像から入出金の明細行をすべて読み取ってください。',
+  ];
+  // メモリー（振り返りで蓄えた定番パターン）を文脈に載せる
+  // （options.memoryUserId を渡した場合のみ。帳票OCRと同じ方針）
+  if ( options.memoryUserId ) {
+    const { memoryText } = await import('../ai/host/memory.js');
+    const notes = await memoryText(options.memoryUserId);
+    if ( notes ) {
+      inputs.push(notes);
+    }
+  }
   const { createOcrStatement } = await import('../ai/manifests/ocr-statement.js');
-  const result = await runManifest(createOcrStatement(), {
-    inputs: [
-      '通帳・明細の画像を1枚添付します。この画像から入出金の明細行をすべて読み取ってください。',
-    ],
-    imageBuffers: [ prepared ]
-  });
+  const result = await runManifest(createOcrStatement(), { inputs: inputs, imageBuffers: [ prepared ] });
   return { lines: normalizeStatementLines(extractJson(result)), warnings: [] };
 };
 

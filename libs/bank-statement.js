@@ -786,7 +786,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
       if ( parsed.lines.length < 2 ) {
         const vision = await import('./vision.js');
         if ( vision.isAvailable() ) {
-          const ocr = await vision.extractStatement(buffer, mimeType);
+          const ocr = await vision.extractStatement(buffer, mimeType, { memoryUserId: options.memoryUserId });
           if ( ocr.lines.length >= parsed.lines.length ) {
             const cardWarnings = parsed.warnings;
             parsed = { lines: ocr.lines, total: null, payDate: null,
@@ -803,7 +803,7 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
   } else if ( /^image\//.test(type) ) {
     // 通帳スキャン等はAI読取（libs/vision.js）
     const vision = await import('./vision.js');
-    parsed = await vision.extractStatement(buffer, mimeType);
+    parsed = await vision.extractStatement(buffer, mimeType, { memoryUserId: options.memoryUserId });
     profile = null;
   } else {
     const rows = ( /excel|spreadsheet|sheet/.test(type) || ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4b ) )

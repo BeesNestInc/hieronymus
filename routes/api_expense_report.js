@@ -4,7 +4,7 @@ import fs from 'fs';
 import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
 import { createSlipForReport, pickPayeeMapping } from '../libs/expense.js';
-import { releaseStatementLines } from '../libs/bank-reconcile.js';
+import { releaseStatementLines, findSpendMergeCandidates, mergeSpendIntoPlaceholder } from '../libs/bank-reconcile.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
 import { splitImage, straightenImage, trimImage, rotateImage } from '../libs/imaging.js';
@@ -620,6 +620,85 @@ export default {
       next(e);
     }
   },
+  // 出金仮の仮伝票と統合できる候補の一覧（OUT mergeの手動突合）。
+  // 自動統合は承認時・取り込み時の両方で走るが、候補が複数あるときは
+  // 自動では統合しない（伝票が重複したまま残る）。この一覧から人が選ぶ
+  mergeCandidates: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canAccessAll(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    try {
+      const reports = await models.ExpenseReport.findAll({
+        include: [{ model: models.CrossSlip, as: 'crossSlips' }],
+        order: [[ 'id', 'DESC' ]],
+        limit: 30
+      });
+      const merges = [];
+      for ( const report of reports ) {
+        for ( const slip of ( report.crossSlips || [] ) ) {
+          const candidates = await findSpendMergeCandidates(slip);
+          if ( candidates.length === 0 ) {
+            continue;
+          }
+          merges.push({
+            reportId: report.id,
+            expenseSlipId: slip.id,
+            no: slip.no,
+            year: slip.year,
+            month: slip.month,
+            day: slip.day,
+            candidates: candidates.map((c) => ({
+              slipId: c.slip.id,
+              no: c.slip.no,
+              year: c.slip.year,
+              month: c.slip.month,
+              day: c.slip.day
+            }))
+          });
+        }
+      }
+      res.json({ code: 0, merges: merges });
+    } catch (e) {
+      console.error(e);
+      res.json({ code: -1, merges: [] });
+    }
+  },
+
+  // 選んだ候補で統合する。body: { expenseSlipId, placeholderSlipId }
+  mergeSpend: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canAccessAll(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    try {
+      const body = req.body || {};
+      const realSlip = await models.CrossSlip.findByPk(parseInt(body.expenseSlipId, 10));
+      if ( !realSlip || ( Number(realSlip.expenseReportId) !== parseInt(req.params.id, 10) ) ) {
+        res.status(422).json({ code: -2, message: '精算書の伝票が見つかりません。' });
+        return;
+      }
+      const fy = ( await models.FiscalYear.findOne({ where: { term: realSlip.term } }) );
+      if  ( fy && isLocked(fy) ) {
+        res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。', term: fy.term });
+        return;
+      }
+      const candidates = await findSpendMergeCandidates(realSlip);
+      const candidate = candidates.find((c) => ( Number(c.slip.id) === parseInt(body.placeholderSlipId, 10) ));
+      if ( !candidate ) {
+        res.status(422).json({ code: -3, message: '候補がありません（既に統合済みの可能性があります）。' });
+        return;
+      }
+      const merge = await mergeSpendIntoPlaceholder(realSlip, req.session.user, { candidate: candidate });
+      res.json({ code: 0, merged: { slipNo: merge.slip.no, discarded: merge.discarded } });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '統合に失敗しました。' });
+    }
+  },
+
   // AIの利用可否。AI未設定環境ではボタンを非表示にするためのフラグ
   aiAvailable: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
