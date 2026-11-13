@@ -37,7 +37,9 @@
           {#each subs as sub}
           <tr>
             <td>
-              <a href={`/ledger/${KARIBARAI_CODE}/${sub.code}`}>{sub.name}</a>
+              <!-- svelte-ignore a11y-missing-attribute -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <a style="cursor:pointer;" on:click|preventDefault={() => link(`/ledger/${KARIBARAI_CODE}/${sub.code}`)}>{sub.name}</a>
             </td>
             <td class="number">
               {sub.debit ? sub.debit.toLocaleString() : ''}
@@ -96,7 +98,9 @@
             <td>{h.counterName}{h.counterSubName ? `/${h.counterSubName}` : ''}</td>
             <td>{h.approved ? '確定' : '承認待ち'}</td>
             <td style="text-align:center;">
-              <a href={`/slip/${h.year}/${h.month}/${h.no}`}>伝票</a>
+              <!-- svelte-ignore a11y-missing-attribute -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <a style="cursor:pointer;" on:click|preventDefault={() => link(`/slip/${h.year}/${h.month}/${h.no}`)}>伝票</a>
             </td>
           </tr>
           {/each}
