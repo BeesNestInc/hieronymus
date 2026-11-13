@@ -262,6 +262,16 @@ const validateForm = () => {
     ok = false;
     errorMessages.push('精算日が正しくありません。');
   }
+  // 精算はこの画面が表示している期の中で行う（年度外に起票させない）。
+  // 日付は日単位で比較（タイムゾーンずれの影響を避ける）
+  if ( ok && status.fy && status.fy.startDate && status.fy.endDate ) {
+    const dayOf = ( d ) => Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
+    const settlement = dayOf(new Date(settlementYear, settlementMonth - 1, settlementDay));
+    if ( settlement < dayOf(status.fy.startDate) || settlement > dayOf(status.fy.endDate) ) {
+      ok = false;
+      errorMessages.push(`精算日が第${status.fy.term}期の期間外です。年度外の精算はできません。`);
+    }
+  }
   let sum = 0;
   for ( let i = 0; i < rows.length; i ++ ) {
     const row = rows[i];
@@ -379,9 +389,18 @@ onMount(async () => {
     accounts = [];
   }
   rows = [blankRow()];
-  const today = new Date();
-  settlementYear = today.getFullYear();
-  settlementMonth = today.getMonth() + 1;
-  settlementDay = today.getDate();
+  // 精算日の既定値は当日。ただし表示中の期の範囲外（年度外）なら、
+  // その期の末日（未来なら）または期首日（過去なら）に合わせる
+  let d = new Date();
+  if ( status.fy && status.fy.startDate && status.fy.endDate ) {
+    if ( d < status.fy.startDate ) {
+      d = status.fy.startDate;
+    } else if ( d > status.fy.endDate ) {
+      d = status.fy.endDate;
+    }
+  }
+  settlementYear = d.getFullYear();
+  settlementMonth = d.getMonth() + 1;
+  settlementDay = d.getDate();
 })
 </script>
