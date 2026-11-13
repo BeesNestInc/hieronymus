@@ -37,7 +37,7 @@
           {#each subs as sub}
           <tr>
             <td>
-              {sub.name}
+              <a href={`/ledger/${KARIBARAI_CODE}/${sub.code}`}>{sub.name}</a>
             </td>
             <td class="number">
               {sub.debit ? sub.debit.toLocaleString() : ''}
@@ -67,6 +67,43 @@
         </tbody>
       </table>
       </div>
+    </div>
+    <div class="container-fluid mt-4">
+      <h2 class="fs-5">精算履歴（全期間・直近{history.length}件）</h2>
+      {#if history.length === 0}
+      <div class="text-muted">精算の記録はありません。</div>
+      {:else}
+      <div class="col-10">
+      <table class="table table-striped table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th scope="col" style="width: 110px;">日付</th>
+            <th scope="col">立替者</th>
+            <th scope="col" style="width: 130px;">種別</th>
+            <th scope="col" style="width: 110px;" class="number">金額</th>
+            <th scope="col">相手科目</th>
+            <th scope="col" style="width: 100px;">状態</th>
+            <th scope="col" style="width: 90px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each history as h}
+          <tr>
+            <td>{h.year}/{h.month}/{h.day}</td>
+            <td>{h.subName}</td>
+            <td>{h.kind}</td>
+            <td class="number">{h.amount.toLocaleString()}</td>
+            <td>{h.counterName}{h.counterSubName ? `/${h.counterSubName}` : ''}</td>
+            <td>{h.approved ? '確定' : '承認待ち'}</td>
+            <td style="text-align:center;">
+              <a href={`/slip/${h.year}/${h.month}/${h.no}`}>伝票</a>
+            </td>
+          </tr>
+          {/each}
+        </tbody>
+      </table>
+      </div>
+      {/if}
     </div>
     <div class="container-fluid mt-4">
       <h2 class="fs-5">精算</h2>
@@ -118,12 +155,12 @@
                 <div class="form-check me-4">
                   <input type="radio" class="form-check-input" name="direction-{i}"
                     id="repay-{i}" value="repay" bind:group={row.direction}>
-                  <label class="form-check-label" for="repay-{i}">返す</label>
+                  <label class="form-check-label" for="repay-{i}">返す（会社 → 立替者）</label>
                 </div>
                 <div class="form-check">
                   <input type="radio" class="form-check-input" name="direction-{i}"
                     id="receive-{i}" value="receive" bind:group={row.direction}>
-                  <label class="form-check-label" for="receive-{i}">もらう</label>
+                  <label class="form-check-label" for="receive-{i}">もらう（立替者 → 会社）</label>
                 </div>
               </div>
             </td>
@@ -159,8 +196,9 @@
         </tbody>
       </table>
       <div class="text-muted" style="font-size:0.875rem;">
-        「返す」= 会社から立替者へ精算する（仮払金 → 出金元）。<br/>
-        「もらう」= 立替者から会社へ返納する（出金元に相当する科目 → 仮払金）。
+        主体は「会社」です。立替者は精算を受ける側・返納する側です。<br/>
+        「返す（会社 → 立替者）」= 会社が立替者に支払って精算する（借方 仮払金 / 貸方 出金元）。<br/>
+        「もらう（立替者 → 会社）」= 立替者から返納を受ける（借方 出金元 / 貸方 仮払金）。
       </div>
     </div>
   </div>
@@ -189,6 +227,7 @@ const KARIBARAI_CODE = '1130000';
 
 let subs = [];
 let total = { debit: 0, credit: 0, balance: 0 };
+let history = [];
 let rows = [];
 let accounts = [];
 let ok = true;
@@ -245,6 +284,7 @@ const blankRow = () => {
 const loadBalances = async () => {
   const result = await axios.get(`/api/karibarai/${status.fy.term}`);
   subs = result.data.values || [];
+  history = result.data.history || [];
   let debit = 0;
   let credit = 0;
   for ( const sub of subs ) {
