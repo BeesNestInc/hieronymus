@@ -83,9 +83,23 @@ app.use('/public', express.static(path.join(__dirname, './public')));
 const screen = async (req, res, next) => {
   console.log('current', req.params.current);
   console.log('command', req.params.command);
+  // モジュールはトップレベルか、親モジュールのsubmenuに入っている
   let per = modules.find((ent) => {
     return	( req.params.current === ent.name );
-  })
+  });
+  if	( !per )	{
+    for ( const ent of modules ) {
+      if ( !ent.submenu ) {
+        continue;
+      }
+      per = ent.submenu.find((sub) => {
+        return	( req.params.current === sub.name );
+      });
+      if ( per ) {
+        break;
+      }
+    }
+  }
   if	( per )	{
     const company = await getCompanyInfo();
   	if ( !per.authority || per.authority(req.session.user, company) )	{

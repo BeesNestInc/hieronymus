@@ -1,26 +1,48 @@
 import models from '../models/index.js';
+import modules from '../config/module-list.js';
 const Op = models.Sequelize.Op;
 
-// 仮払金(1130000)の補助科目（立替者）別の現在高。
+// 精算画面: 精算対象科目（補助科目=立替者）別の現在高。
+// 対象科目は module-list.js のkaribaraiエントリの settlementAccountCode で設定
+// （既定は仮払金1130000。立替金(負債)を導入する場合はここを変更する）。
 // 期で区切らず**全期間の明細を通算**して現在高を出す:
-// 経費精算の仮払金積み上げ（fy2）と精算（fy3）が別期にまたがっても
+// 経費精算の積み上げ（fy2）と精算（fy3）が別期にまたがっても
 // 正しく相殺されるようにするため（この画面は「今、誰にいくら返すべきか」
 // を答えるのが目的。期単位の推移は元帳で確認する）。
 // 繰越処理はスナップショットを作るだけで明細を消さないため、
 // 全明細の累計がそのまま現在高になる。未承認の伝票も含める
-// （銀行元帳と同じ運用）。残高は 貸方-借方 = 精算待ち額（正=返すべき額）。
-const KARIBARAI_CODE = '1130000';
+// （銀行元帳と同じ運用）。
+// 貸借の用語は画面に出さない。純額を「返す/もらう」の方向で返す:
+//   貸方残(貸方>借方) = 会社が立替者に負う → 返すべき額
+//   借方残(借方>貸方) = 前渡し/払いすぎ     → もらうべき額
+// この向きは対象科目が資産(仮払金)でも負債(立替金)でも同じ
+// （決算の繰越処理はこの画面の対象外）。
+const DEFAULT_SETTLEMENT_ACCOUNT = '1130000';
+
+const settlementAccountCode = () => {
+  for ( const ent of modules ) {
+    const sub = ( ent.submenu || [] ).find((s) => ( s.name === 'karibarai' ));
+    if ( sub && sub.settlementAccountCode ) {
+      return sub.settlementAccountCode;
+    }
+  }
+  return DEFAULT_SETTLEMENT_ACCOUNT;
+};
 
 export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     try {
+      const code = settlementAccountCode();
       const karibarai = await models.Account.findOne({
-        where: { accountCode: KARIBARAI_CODE },
-        include: [{ model: models.SubAccount, as: 'subAccounts' }]
+        where: { accountCode: code },
+        include: [
+          { model: models.SubAccount, as: 'subAccounts' },
+          { model: models.AccountClass, as: 'accountClass' }
+        ]
       });
       if ( !karibarai || !karibarai.subAccounts ) {
-        res.json({ values: [] });
+        res.json({ values: [], history: [] });
         return;
       }
       const values = [];
@@ -32,7 +54,7 @@ export default {
             [ models.sequelize.fn('SUM', models.sequelize.col('CrossSlipDetail.debitAmount')), 'debit' ]
           ],
           where: {
-            debitAccount: KARIBARAI_CODE,
+            debitAccount: code,
             debitSubAccount: sub.subAccountCode
           },
           raw: true
@@ -42,23 +64,22 @@ export default {
             [ models.sequelize.fn('SUM', models.sequelize.col('CrossSlipDetail.creditAmount')), 'credit' ]
           ],
           where: {
-            creditAccount: KARIBARAI_CODE,
+            creditAccount: code,
             creditSubAccount: sub.subAccountCode
           },
           raw: true
         });
         const debit = Number(debitRow ? ( debitRow.debit || 0 ) : 0);
         const credit = Number(creditRow ? ( creditRow.credit || 0 ) : 0);
+        const net = credit - debit;
         values.push({
           name: sub.name,
           code: sub.subAccountCode,
-          debit: debit,
-          credit: credit,
-          // 精算待ち額 = 貸方（経費精算で積んだ額）- 借方（精算で返した額）
-          balance: credit - debit
+          // 正=会社が立替者に返すべき額 / 負=立替者からもらうべき額
+          net: net
         });
       }
-      // 精算履歴: 仮払金に触れた明細（新着順。直近30明細）。
+      // 精算履歴: 対象科目に触れた明細（新着順。直近30明細）。
       // 期をまたぐ運用なので全期間対象。補助科目・相手科目名も付けて返す
       const subNameMap = {};
       for ( const sub of karibarai.subAccounts ) {
@@ -67,8 +88,8 @@ export default {
       const detailRows = await models.CrossSlipDetail.findAll({
         where: {
           [Op.or]: [
-            { debitAccount: KARIBARAI_CODE },
-            { creditAccount: KARIBARAI_CODE }
+            { debitAccount: code },
+            { creditAccount: code }
           ]
         },
         include: [{
@@ -86,7 +107,7 @@ export default {
       // 相手科目名の解決（科目+補助科目）
       const counterCodes = [];
       for ( const d of detailRows ) {
-        const counter = ( d.debitAccount === KARIBARAI_CODE ) ? d.creditAccount : d.debitAccount;
+        const counter = ( d.debitAccount === code ) ? d.creditAccount : d.debitAccount;
         if ( counter && !counterCodes.includes(counter) ) {
           counterCodes.push(counter);
         }
@@ -107,13 +128,18 @@ export default {
       const history = [];
       for ( const d of detailRows ) {
         const slip = d.crossSlip;
-        const isDebit = ( d.debitAccount === KARIBARAI_CODE );
+        const isDebit = ( d.debitAccount === code );
         const counterAccount = isDebit ? d.creditAccount : d.debitAccount;
         const counterSub = isDebit ? d.creditSubAccount : d.debitSubAccount;
         const counter = accountMap[counterAccount];
+        // 種別は摘要の「精算（返す/もらう）」で判定（旧「仮払精算（…）」行も
+        // 同じロジックで拾う）。それ以外は経費精算による積み上げ
         let kind = '経費精算';
-        if ( ( d.application1 || '' ).includes('仮払精算') ) {
-          kind = d.application1.includes('返す') ? '精算（返す）' : '精算（もらう）';
+        const app1 = d.application1 || '';
+        if ( app1.includes('精算（返す') ) {
+          kind = '精算（返す）';
+        } else if ( app1.includes('精算（もらう') ) {
+          kind = '精算（もらう）';
         }
         history.push({
           year: slip.year,
@@ -128,7 +154,15 @@ export default {
           counterSubName: ( counter && counterSub && counter.subs[counterSub] ) ? counter.subs[counterSub] : ''
         });
       }
-      res.json({ values: values, history: history });
+      res.json({
+        account: {
+          code: karibarai.accountCode,
+          name: karibarai.name,
+          major: karibarai.accountClass ? karibarai.accountClass.major : ''
+        },
+        values: values,
+        history: history
+      });
     } catch (e) {
       next(e);
     }

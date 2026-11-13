@@ -1,6 +1,6 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>仮払金精算</h1>
+    <h1>精算</h1>
   </div>
   {#if !ok }
   <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">
@@ -14,22 +14,16 @@
   {/if}
   <div class="full-height-2 fontsize-12pt scroll-table">
     <div class="container-fluid">
-      <h2 class="fs-5">仮払金の残高（立替者別・精算待ち額・承認待ち含む）</h2>
-      <div class="col-8">
+      <h2 class="fs-5">立替者別の精算残高（承認待ち含む）</h2>
+      <div class="col-9">
       <table class="table table-bordered">
         <thead class="table-light">
           <tr>
             <th scope="col">
               立替者
             </th>
-            <th scope="col" style="width: 120px;">
-              借方
-            </th>
-            <th scope="col" style="width: 120px;">
-              貸方
-            </th>
-            <th scope="col" style="width: 120px;">
-              精算待ち額
+            <th scope="col" style="width: 320px;">
+              精算額
             </th>
           </tr>
         </thead>
@@ -39,16 +33,14 @@
             <td>
               <!-- svelte-ignore a11y-missing-attribute -->
               <!-- svelte-ignore a11y-no-static-element-interactions -->
-              <a style="cursor:pointer;" on:click|preventDefault={() => link(`/ledger/${KARIBARAI_CODE}/${sub.code}`)}>{sub.name}</a>
+              <a style="cursor:pointer;" on:click|preventDefault={() => link(`/ledger/${settleAccount.code}/${sub.code}`)}>{sub.name}</a>
             </td>
             <td class="number">
-              {sub.debit ? sub.debit.toLocaleString() : ''}
-            </td>
-            <td class="number">
-              {sub.credit ? sub.credit.toLocaleString() : ''}
-            </td>
-            <td class="number">
-              {sub.balance ? sub.balance.toLocaleString() : ''}
+              {#if sub.net > 0}
+              返す（会社 → 立替者） {sub.net.toLocaleString()}
+              {:else if sub.net < 0}
+              もらう（立替者 → 会社） {(-sub.net).toLocaleString()}
+              {/if}
             </td>
           </tr>
           {/each}
@@ -57,13 +49,15 @@
               合計
             </td>
             <td class="number">
-              {total.debit ? total.debit.toLocaleString() : ''}
-            </td>
-            <td class="number">
-              {total.credit ? total.credit.toLocaleString() : ''}
-            </td>
-            <td class="number">
-              {total.balance ? total.balance.toLocaleString() : ''}
+              {#if total.repay > 0}
+              返す（会社 → 立替者） {total.repay.toLocaleString()}
+              {/if}
+              {#if total.repay > 0 && total.receive > 0}
+              ／
+              {/if}
+              {#if total.receive > 0}
+              もらう（立替者 → 会社） {total.receive.toLocaleString()}
+              {/if}
             </td>
           </tr>
         </tbody>
@@ -201,8 +195,8 @@
       </table>
       <div class="text-muted" style="font-size:0.875rem;">
         主体は「会社」です。立替者は精算を受ける側・返納する側です。<br/>
-        「返す（会社 → 立替者）」= 会社が立替者に支払って精算する（借方 仮払金 / 貸方 出金元）。<br/>
-        「もらう（立替者 → 会社）」= 立替者から返納を受ける（借方 出金元 / 貸方 仮払金）。
+        「返す（会社 → 立替者）」= 会社が立替者に支払って精算する。<br/>
+        「もらう（立替者 → 会社）」= 立替者から受け取る（返納）。
       </div>
     </div>
   </div>
@@ -226,11 +220,12 @@ import {link} from '../../javascripts/router.js';
 
 export let status;
 
-// 仮払金の科目コード（仕訳パターン・accounts.csv の既定）
-const KARIBARAI_CODE = '1130000';
+// 精算対象科目はサーバから受け取る（module-list.js のkaribarai設定に由来。
+// 既定は仮払金1130000。立替金(負債)を導入する場合は設定側を変更する）
+let settleAccount = { code: '', name: '', major: '' };
 
 let subs = [];
-let total = { debit: 0, credit: 0, balance: 0 };
+let total = { repay: 0, receive: 0 };
 let history = [];
 let rows = [];
 let accounts = [];
@@ -241,7 +236,7 @@ let settlementMonth;
 let settlementDay;
 
 // 出金元は「現金」と「普通預金（各口座の補助科目）」に限定する。
-// 検索ではなく決定的なリスト。仮払金自身（1130000）は除外。
+// 検索ではなく決定的なリスト。精算対象科目自身は除外。
 // 現金・預金に対象がほぼ確定している（例外科目は将来の拡張）。
 let assetAccountIds = null;
 // 選択値(paymentSource)から accountCode/subCode を復号する
@@ -259,7 +254,7 @@ $: cashSources = ( accounts || [] )
   .filter((a) => ( a.major_name === '資産' &&
                    ( a.minor_name === '現金' ||
                      ( a.minor_name === '預金' && a.name === '普通預金' ) ) &&
-                   a.accountCode !== KARIBARAI_CODE ))
+                   a.accountCode !== settleAccount.code ))
   .flatMap((a) => {
     if ( a.subAccounts && a.subAccounts.length > 0 ) {
       return a.subAccounts.map((s) => ({
@@ -287,15 +282,20 @@ const blankRow = () => {
 
 const loadBalances = async () => {
   const result = await axios.get(`/api/karibarai/${status.fy.term}`);
+  settleAccount = result.data.account || { code: '', name: '', major: '' };
   subs = result.data.values || [];
   history = result.data.history || [];
-  let debit = 0;
-  let credit = 0;
+  // 合計は返す側ともらう側を別々に積む（方向が混在する場合も両方見えるように）
+  let repay = 0;
+  let receive = 0;
   for ( const sub of subs ) {
-    debit += sub.debit;
-    credit += sub.credit;
+    if ( sub.net > 0 ) {
+      repay += sub.net;
+    } else if ( sub.net < 0 ) {
+      receive += -sub.net;
+    }
   }
-  total = { debit: debit, credit: credit, balance: debit - credit };
+  total = { repay: repay, receive: receive };
 };
 
 const validateForm = () => {
@@ -355,10 +355,10 @@ const book = async (event) => {
       errorMessages.push(`${rows.indexOf(row) + 1}行目 : 出金元（口座・現金）が入力されていません。`);
       continue;
     }
-    // 「返す」: 借方=仮払金/立替者、貸方=出金元の口座（資産科目）
-    // 「もらう」: 借方=出金元の口座（資産科目）、貸方=仮払金/立替者
-    const karibaraiSide = {
-      account: KARIBARAI_CODE,
+    // 「返す（会社 → 立替者）」: 借方=精算科目/立替者、貸方=出金元の口座
+    // 「もらう（立替者 → 会社）」: 借方=出金元の口座、貸方=精算科目/立替者
+    const settleSide = {
+      account: settleAccount.code,
       subAccount: parseInt(row.subAccountCode),
       amount: amount
     };
@@ -369,9 +369,9 @@ const book = async (event) => {
     };
     lines.push({
       ...( row.direction === 'repay' ) ? {
-        debitAccount: karibaraiSide.account,
-        debitSubAccount: karibaraiSide.subAccount,
-        debitAmount: karibaraiSide.amount,
+        debitAccount: settleSide.account,
+        debitSubAccount: settleSide.subAccount,
+        debitAmount: settleSide.amount,
         debitTax: 0,
         creditAccount: oppositeSide.account,
         creditSubAccount: oppositeSide.subAccount,
@@ -382,12 +382,12 @@ const book = async (event) => {
         debitSubAccount: oppositeSide.subAccount,
         debitAmount: oppositeSide.amount,
         debitTax: 0,
-        creditAccount: karibaraiSide.account,
-        creditSubAccount: karibaraiSide.subAccount,
-        creditAmount: karibaraiSide.amount,
+        creditAccount: settleSide.account,
+        creditSubAccount: settleSide.subAccount,
+        creditAmount: settleSide.amount,
         creditTax: 0
       },
-      application1: `仮払精算（${row.direction === 'repay' ? '返す' : 'もらう'}）`
+      application1: `精算（${row.direction === 'repay' ? '返す' : 'もらう'}）`
     });
   }
   if ( !ok ) {

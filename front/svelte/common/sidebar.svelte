@@ -110,6 +110,7 @@
         {#if ( entry.submenu && menuOpenState.get(entry.name) )}
         <ul>
           {#each entry.submenu as subentry}
+          {#if ( !subentry.authority || subentry.authority(status.user, status.company) )}
           <li class="nav-item">
             <a class={ $currentPage && $currentPage.match(subentry.match) ? 'nav-link active': 'nav-link'}
               draggable="true"
@@ -131,6 +132,7 @@
               {subentry.title}
             </a>
           </li>
+          {/if}
           {/each}
         </ul>
         {/if}
