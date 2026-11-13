@@ -15,6 +15,9 @@
   <div class="full-height-2 fontsize-12pt scroll-table">
     <div class="container-fluid">
       <h2 class="fs-5">立替者別の精算残高（承認待ち含む）</h2>
+      {#if setupMessage}
+      <div class="text-danger">{setupMessage}</div>
+      {/if}
       <table class="table table-bordered" style="width: auto;">
         <thead class="table-light">
           <tr>
@@ -200,9 +203,11 @@ import {link} from '../../javascripts/router.js';
 
 export let status;
 
-// 精算対象科目はサーバから受け取る（module-list.js のkaribarai設定に由来。
-// 既定は仮払金1130000。立替金(負債)を導入する場合は設定側を変更する）
+// 精算対象科目はサーバから受け取る。対象科目は**立替フラグ付き出金元
+// マッピングの勘定科目**から決まる（経費精算の積み上げ先と一致）。
+// マッピングが無い/科目が複数の場合は setupMessage で案内される
 let settleAccount = { code: '', name: '', major: '' };
+let setupMessage = '';
 
 let subs = [];
 let total = { net: 0 };
@@ -262,6 +267,7 @@ const blankRow = () => {
 const loadBalances = async () => {
   const result = await axios.get(`/api/karibarai/${status.fy.term}`);
   settleAccount = result.data.account || { code: '', name: '', major: '' };
+  setupMessage = result.data.message || '';
   subs = result.data.values || [];
   history = result.data.history || [];
   // 合計は純額の総和（正=立替者が返してもらえる / 負=会社が受け取る）

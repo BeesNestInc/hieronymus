@@ -1,10 +1,10 @@
 import models from '../models/index.js';
-import modules from '../config/module-list.js';
 const Op = models.Sequelize.Op;
 
 // 精算画面: 精算対象科目（補助科目=立替者）別の現在高。
-// 対象科目は module-list.js のkaribaraiエントリの settlementAccountCode で設定
-// （既定は仮払金1130000。立替金(負債)を導入する場合はここを変更する）。
+// 対象科目は**出金元マッピング（立替フラグ付き）の勘定科目**から決める。
+// 経費精算の承認時起票はそのマッピングの科目に積み上げるので、
+// 積み上げ先と精算画面が必ず一致する（単一の情報源）。
 // 期で区切らず**全期間の明細を通算**して現在高を出す:
 // 経費精算の積み上げ（fy2）と精算（fy3）が別期にまたがっても
 // 正しく相殺されるようにするため（この画面は「今、誰にいくら返すべきか」
@@ -17,23 +17,31 @@ const Op = models.Sequelize.Op;
 //   借方残(借方>貸方) = 前渡し/払いすぎ     → もらうべき額
 // この向きは対象科目が資産(仮払金)でも負債(立替金)でも同じ
 // （決算の繰越処理はこの画面の対象外）。
-const DEFAULT_SETTLEMENT_ACCOUNT = '1130000';
 
-const settlementAccountCode = () => {
-  for ( const ent of modules ) {
-    const sub = ( ent.submenu || [] ).find((s) => ( s.name === 'karibarai' ));
-    if ( sub && sub.settlementAccountCode ) {
-      return sub.settlementAccountCode;
-    }
+// 立替フラグ付き出金元マッピングの勘定科目を解決する。
+// 複数の科目に分かれている（= 仮払金と立替金の併用等）場合は
+// 設定不備として message を返す
+const resolveSettlementAccount = async () => {
+  const advs = await models.ExpenseMapping.findAll({ where: { advance: true } });
+  const codes = [ ...new Set(advs.map((m) => m.account).filter(Boolean)) ];
+  if ( codes.length === 0 ) {
+    return { code: null, message: '立替フラグ付きの出金元マッピングがありません。経費精算の出金元マッピング設定を確認してください。' };
   }
-  return DEFAULT_SETTLEMENT_ACCOUNT;
+  if ( codes.length > 1 ) {
+    return { code: null, message: `立替フラグ付きの出金元マッピングの勘定科目が複数あります（${codes.join('、')}）。精算対象は1科目に統一してください。` };
+  }
+  return { code: codes[0], message: null };
 };
 
 export default {
   get: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     try {
-      const code = settlementAccountCode();
+      const { code, message } = await resolveSettlementAccount();
+      if ( !code ) {
+        res.json({ account: null, values: [], history: [], message: message });
+        return;
+      }
       const karibarai = await models.Account.findOne({
         where: { accountCode: code },
         include: [
