@@ -22,7 +22,7 @@
             <th scope="col">
               立替者
             </th>
-            <th scope="col" style="width: 320px;">
+            <th scope="col" style="width: 200px;">
               精算額
             </th>
           </tr>
@@ -102,28 +102,34 @@
     <div class="container-fluid mt-4">
       <h2 class="fs-5">精算</h2>
       <div class="row mb-3">
-        <div class="col-4 input-group">
-          <input type="text" autocomplete="off" class="number" size="4" maxlength="5"
-            bind:value={settlementYear}>
-          <span class="input-group-text">年</span>
-          <input type="text" autocomplete="off" class="number" size="2" maxlength="3"
-            bind:value={settlementMonth}>
-          <span class="input-group-text">月</span>
-          <input type="text" autocomplete="off" class="number" size="2" maxlength="3"
-            bind:value={settlementDay}>
-          <span class="input-group-text">日</span>
+        <div class="col-auto">
+          <div class="input-group">
+            <input type="text" autocomplete="off" class="number" maxlength="5"
+              style="width: 4.5rem;"
+              bind:value={settlementYear}>
+            <span class="input-group-text">年</span>
+            <input type="text" autocomplete="off" class="number" maxlength="3"
+              style="width: 3rem;"
+              bind:value={settlementMonth}>
+            <span class="input-group-text">月</span>
+            <input type="text" autocomplete="off" class="number" maxlength="3"
+              style="width: 3rem;"
+              bind:value={settlementDay}>
+            <span class="input-group-text">日</span>
+          </div>
         </div>
       </div>
+      <div class="col-9">
       <table class="table table-striped table-bordered">
         <thead class="table-light">
           <tr>
-            <th scope="col" style="width: 200px;">
+            <th scope="col" style="width: 240px;">
               立替者
             </th>
-            <th scope="col">
+            <th scope="col" style="width: 280px;">
               出金元
             </th>
-            <th scope="col" style="width: 120px;">
+            <th scope="col" style="width: 150px;">
               金額
             </th>
             <th scope="col" style="width: 74px;"></th>
@@ -153,7 +159,8 @@
               {/key}
             </td>
             <td class="number input">
-              <input type="text" class="number" autocomplete="off" size="12" maxlength="13"
+              <input type="text" class="number" autocomplete="off" maxlength="13"
+                style="width: 100%;"
                 bind:value={row.amount}>
             </td>
             <td style="text-align:center;">
@@ -175,6 +182,7 @@
       <div class="text-muted" style="font-size:0.875rem;">
         精算の向きは立替者別の精算額の符号で自動的に決まります。
         正なら会社から立替者へ支払って精算し、負なら立替者から返納を受けます。
+      </div>
       </div>
     </div>
   </div>
