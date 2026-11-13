@@ -36,10 +36,8 @@
               <a style="cursor:pointer;" on:click|preventDefault={() => link(`/ledger/${settleAccount.code}/${sub.code}`)}>{sub.name}</a>
             </td>
             <td class="number">
-              {#if sub.net > 0}
-              返す（会社 → 立替者） {sub.net.toLocaleString()}
-              {:else if sub.net < 0}
-              もらう（立替者 → 会社） {(-sub.net).toLocaleString()}
+              {#if sub.net}
+              {sub.net.toLocaleString()}
               {/if}
             </td>
           </tr>
@@ -49,19 +47,17 @@
               合計
             </td>
             <td class="number">
-              {#if total.repay > 0}
-              返す（会社 → 立替者） {total.repay.toLocaleString()}
-              {/if}
-              {#if total.repay > 0 && total.receive > 0}
-              ／
-              {/if}
-              {#if total.receive > 0}
-              もらう（立替者 → 会社） {total.receive.toLocaleString()}
+              {#if total.net}
+              {total.net.toLocaleString()}
               {/if}
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
+      <div class="text-muted" style="font-size:0.875rem;">
+        精算額は正のとき立替者が返してもらえる額（会社から立替者へ支払う）、
+        負のとき会社が受け取る額（立替者から返納）です。承認待ちの伝票も含みます。
       </div>
     </div>
     <div class="container-fluid mt-4">
@@ -124,9 +120,6 @@
             <th scope="col" style="width: 200px;">
               立替者
             </th>
-            <th scope="col" style="width: 220px;">
-              方向
-            </th>
             <th scope="col">
               出金元
             </th>
@@ -147,20 +140,6 @@
                 <option value={sub.code}>{sub.name}</option>
                 {/each}
               </select>
-            </td>
-            <td class="input">
-              <div class="d-flex align-items-center">
-                <div class="form-check me-4">
-                  <input type="radio" class="form-check-input" name="direction-{i}"
-                    id="repay-{i}" value="repay" bind:group={row.direction}>
-                  <label class="form-check-label" for="repay-{i}">返す（会社 → 立替者）</label>
-                </div>
-                <div class="form-check">
-                  <input type="radio" class="form-check-input" name="direction-{i}"
-                    id="receive-{i}" value="receive" bind:group={row.direction}>
-                  <label class="form-check-label" for="receive-{i}">もらう（立替者 → 会社）</label>
-                </div>
-              </div>
             </td>
             <td class="input">
               {#key rows.length}
@@ -194,9 +173,8 @@
         </tbody>
       </table>
       <div class="text-muted" style="font-size:0.875rem;">
-        主体は「会社」です。立替者は精算を受ける側・返納する側です。<br/>
-        「返す（会社 → 立替者）」= 会社が立替者に支払って精算する。<br/>
-        「もらう（立替者 → 会社）」= 立替者から受け取る（返納）。
+        精算の向きは立替者別の精算額の符号で自動的に決まります。
+        正なら会社から立替者へ支払って精算し、負なら立替者から返納を受けます。
       </div>
     </div>
   </div>
@@ -225,7 +203,7 @@ export let status;
 let settleAccount = { code: '', name: '', major: '' };
 
 let subs = [];
-let total = { repay: 0, receive: 0 };
+let total = { net: 0 };
 let history = [];
 let rows = [];
 let accounts = [];
@@ -271,7 +249,6 @@ $: cashSources = ( accounts || [] )
 const blankRow = () => {
   return {
     subAccountCode: '',
-    direction: 'repay',
     paymentSource: '',
     accountCode: null,
     subCode: null,
@@ -285,17 +262,12 @@ const loadBalances = async () => {
   settleAccount = result.data.account || { code: '', name: '', major: '' };
   subs = result.data.values || [];
   history = result.data.history || [];
-  // 合計は返す側ともらう側を別々に積む（方向が混在する場合も両方見えるように）
-  let repay = 0;
-  let receive = 0;
+  // 合計は純額の総和（正=立替者が返してもらえる / 負=会社が受け取る）
+  let net = 0;
   for ( const sub of subs ) {
-    if ( sub.net > 0 ) {
-      repay += sub.net;
-    } else if ( sub.net < 0 ) {
-      receive += -sub.net;
-    }
+    net += ( sub.net || 0 );
   }
-  total = { repay: repay, receive: receive };
+  total = { net: net };
 };
 
 const validateForm = () => {
@@ -326,6 +298,14 @@ const validateForm = () => {
     if ( !row.subAccountCode ) {
       ok = false;
       errorMessages.push(`${i + 1}行目 : 立替者が未選択です。`);
+    } else {
+      // 精算額が0の立替者は向きが決められない（精算の必要もない）
+      const subBalance = ( subs || [] ).find((s) => ( String(s.code) === String(row.subAccountCode) ));
+      if ( !subBalance || !subBalance.net ) {
+        ok = false;
+        const subName = ( subs || [] ).find((s) => ( String(s.code) === String(row.subAccountCode) ));
+        errorMessages.push(`${i + 1}行目 : ${subName ? subName.name : '立替者'}の精算すべき額がありません。`);
+      }
     }
     if ( !row.accountCode ) {
       ok = false;
@@ -355,8 +335,11 @@ const book = async (event) => {
       errorMessages.push(`${rows.indexOf(row) + 1}行目 : 出金元（口座・現金）が入力されていません。`);
       continue;
     }
-    // 「返す（会社 → 立替者）」: 借方=精算科目/立替者、貸方=出金元の口座
-    // 「もらう（立替者 → 会社）」: 借方=出金元の口座、貸方=精算科目/立替者
+    // 向きは立替者別の精算額の符号で自動決定（自明なので入力させない）。
+    // 正=立替者が返してもらえる → 「返す（会社 → 立替者）」
+    // 負=会社が受け取る → 「もらう（立替者 → 会社）」
+    const subBalance = ( subs || [] ).find((s) => ( String(s.code) === String(row.subAccountCode) ));
+    const direction = ( subBalance && subBalance.net < 0 ) ? 'receive' : 'repay';
     const settleSide = {
       account: settleAccount.code,
       subAccount: parseInt(row.subAccountCode),
@@ -368,7 +351,7 @@ const book = async (event) => {
       amount: amount
     };
     lines.push({
-      ...( row.direction === 'repay' ) ? {
+      ...( direction === 'repay' ) ? {
         debitAccount: settleSide.account,
         debitSubAccount: settleSide.subAccount,
         debitAmount: settleSide.amount,
@@ -387,7 +370,7 @@ const book = async (event) => {
         creditAmount: settleSide.amount,
         creditTax: 0
       },
-      application1: `精算（${row.direction === 'repay' ? '返す' : 'もらう'}）`
+      application1: `精算（${direction === 'repay' ? '返す' : 'もらう'}）`
     });
   }
   if ( !ok ) {
