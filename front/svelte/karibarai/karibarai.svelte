@@ -378,7 +378,7 @@ const book = async (event) => {
     return;
   }
   try {
-    await axios.post('/api/cross_slip', {
+    const result = await axios.post('/api/cross_slip', {
       year: parseInt(settlementYear),
       month: parseInt(settlementMonth),
       day: parseInt(settlementDay),
@@ -386,7 +386,9 @@ const book = async (event) => {
     });
     ok = true;
     errorMessages = [];
-    link(`/journal/${settlementYear}/${settlementMonth}`);
+    // 起票した伝票個別画面へ飛ぶ（ジャーナル一覧ではなく伝票）
+    const slip = result.data;
+    link(`/slip/${slip.year}/${slip.month}/${slip.no}`);
   } catch (e) {
     ok = false;
     errorMessages = [errMsg(e)];
