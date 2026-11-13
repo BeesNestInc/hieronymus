@@ -386,9 +386,11 @@ const book = async (event) => {
     });
     ok = true;
     errorMessages = [];
-    // 起票した伝票個別画面へ飛ぶ（ジャーナル一覧ではなく伝票）
+    // 起票した伝票個別画面へ飛ぶ（ジャーナル一覧ではなく伝票）。
+    // returnToは直リンク等で遷移スタックが無いときの「もどる」フォールバック
     const slip = result.data;
-    link(`/slip/${slip.year}/${slip.month}/${slip.no}`);
+    const returnTo = encodeURIComponent('/karibarai');
+    link(`/slip/${slip.year}/${slip.month}/${slip.no}?returnTo=${returnTo}`);
   } catch (e) {
     ok = false;
     errorMessages = [errMsg(e)];
