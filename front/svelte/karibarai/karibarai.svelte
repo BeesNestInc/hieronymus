@@ -15,14 +15,13 @@
   <div class="full-height-2 fontsize-12pt scroll-table">
     <div class="container-fluid">
       <h2 class="fs-5">立替者別の精算残高（承認待ち含む）</h2>
-      <div class="col-9">
-      <table class="table table-bordered">
+      <table class="table table-bordered" style="width: auto;">
         <thead class="table-light">
           <tr>
-            <th scope="col">
+            <th scope="col" style="width: 260px;">
               立替者
             </th>
-            <th scope="col" style="width: 200px;">
+            <th scope="col" style="width: 130px;">
               精算額
             </th>
           </tr>
@@ -54,7 +53,6 @@
           </tr>
         </tbody>
       </table>
-      </div>
       <div class="text-muted" style="font-size:0.875rem;">
         精算額は正のとき立替者が返してもらえる額（会社から立替者へ支払う）、
         負のとき会社が受け取る額（立替者から返納）です。承認待ちの伝票も含みます。
@@ -65,17 +63,16 @@
       {#if history.length === 0}
       <div class="text-muted">精算の記録はありません。</div>
       {:else}
-      <div class="col-10">
-      <table class="table table-striped table-bordered">
+      <table class="table table-striped table-bordered" style="width: auto;">
         <thead class="table-light">
           <tr>
-            <th scope="col" style="width: 110px;">日付</th>
-            <th scope="col">立替者</th>
+            <th scope="col" style="width: 100px;">日付</th>
+            <th scope="col" style="width: 160px;">立替者</th>
             <th scope="col" style="width: 130px;">種別</th>
-            <th scope="col" style="width: 110px;" class="number">金額</th>
-            <th scope="col">相手科目</th>
-            <th scope="col" style="width: 100px;">状態</th>
-            <th scope="col" style="width: 90px;"></th>
+            <th scope="col" style="width: 120px;" class="number">金額</th>
+            <th scope="col" style="width: 260px;">相手科目</th>
+            <th scope="col" style="width: 80px;">状態</th>
+            <th scope="col" style="width: 70px;"></th>
           </tr>
         </thead>
         <tbody>
@@ -96,7 +93,6 @@
           {/each}
         </tbody>
       </table>
-      </div>
       {/if}
     </div>
     <div class="container-fluid mt-4">
@@ -119,17 +115,16 @@
           </div>
         </div>
       </div>
-      <div class="col-9">
-      <table class="table table-striped table-bordered">
+      <table class="table table-striped table-bordered" style="width: auto;">
         <thead class="table-light">
           <tr>
-            <th scope="col" style="width: 240px;">
+            <th scope="col" style="width: 200px;">
               立替者
             </th>
-            <th scope="col" style="width: 280px;">
+            <th scope="col" style="width: 220px;">
               出金元
             </th>
-            <th scope="col" style="width: 150px;">
+            <th scope="col" style="width: 120px;">
               金額
             </th>
             <th scope="col" style="width: 74px;"></th>
@@ -182,7 +177,6 @@
       <div class="text-muted" style="font-size:0.875rem;">
         精算の向きは立替者別の精算額の符号で自動的に決まります。
         正なら会社から立替者へ支払って精算し、負なら立替者から返納を受けます。
-      </div>
       </div>
     </div>
   </div>
