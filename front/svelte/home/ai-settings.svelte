@@ -29,13 +29,12 @@
   let warnings = [];
   let apiKeyInput = '';
 
-  const isManual = () => {
-    const hit = catalog.find((e) => ( e.key === catalogKey ));
-    return hit ? Boolean(hit.manual) : true;
-  };
-  const isKeylessProvider = () => (
-    ( candidate.provider !== 'gemini' ) && ( candidate.provider !== 'openai' )
-  );
+  // テンプレート内の関数呼び出しは Svelte が依存を追跡できないので
+  // リアクティブ変数にしておく（catalogKey/catalog/candidate を監視）
+  $: selectedEntry = catalog.find((e) => ( e.key === catalogKey ));
+  $: isManualSelected = selectedEntry ? Boolean(selectedEntry.manual) : true;
+  $: isKeylessProvider = ( candidate.provider !== 'gemini' ) &&
+    ( candidate.provider !== 'openai' );
 
   const load = async () => {
     try {
@@ -58,7 +57,7 @@
 
   const handleSave = async () => {
     const body = { catalogKey: catalogKey, apiKey: apiKeyInput };
-    if ( isManual() ) {
+    if ( isManualSelected ) {
       Object.assign(body, {
         description: candidate.description || '',
         provider: candidate.provider,
@@ -131,7 +130,7 @@
       </div>
       {/each}
     </div>
-    {#if !isManual()}
+    {#if !isManualSelected}
     <div class="mb-2">
       <label class="form-label" for="aiApiKey">APIキー</label>
       <input class="form-control" id="aiApiKey" type="password" autocomplete="off"
@@ -159,7 +158,7 @@
           placeholder={apiKeyMasked ? `${apiKeyMasked}（変更する場合のみ入力）` : ''}
           bind:value={apiKeyInput}>
       </div>
-      {#if !isKeylessProvider()}
+      {#if !isKeylessProvider}
       <div class="mb-2">
         <label class="form-label" for="aiBaseURL">接続先（baseURL）</label>
         <input class="form-control" id="aiBaseURL" type="text"
