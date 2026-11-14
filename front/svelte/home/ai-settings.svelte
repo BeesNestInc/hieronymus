@@ -6,7 +6,8 @@
   export let title = 'AI設定';
   export let minimize = true;
 
-  const providers = [
+  // カタログ外の構成用（「手動設定（上級者向け）」を選んだときだけ出る）
+  const manualProviders = [
     { value: 'gemini', label: 'Gemini' },
     { value: 'openai', label: 'OpenAI' },
     { value: 'openai-compatible', label: 'OpenAI互換' },
@@ -19,6 +20,8 @@
     { value: 'pdf', label: 'PDF' }
   ];
 
+  let catalog = [];
+  let catalogKey;
   let candidate = {};
   let apiKeyMasked = '';
   let available;
@@ -26,16 +29,19 @@
   let warnings = [];
   let apiKeyInput = '';
 
-  const isOpenAIFamily = () => (
-    ( candidate.provider === 'openai' ) ||
-    ( candidate.provider === 'openai-compatible' ) ||
-    ( candidate.provider === 'opencode_openai' ) ||
-    ( candidate.provider === 'local' )
+  const isManual = () => {
+    const hit = catalog.find((e) => ( e.key === catalogKey ));
+    return hit ? Boolean(hit.manual) : true;
+  };
+  const isKeylessProvider = () => (
+    ( candidate.provider !== 'gemini' ) && ( candidate.provider !== 'openai' )
   );
 
   const load = async () => {
     try {
       const res = await axios.get('/api/admin/llms');
+      catalog = res.data.catalog || [];
+      catalogKey = res.data.catalogKey;
       candidate = res.data.candidate || {};
       apiKeyMasked = candidate.apiKeyMasked || '';
       available = res.data.available;
@@ -51,15 +57,17 @@
   onMount(load);
 
   const handleSave = async () => {
-    const body = {
-      description: candidate.description || '',
-      provider: candidate.provider,
-      model: candidate.model,
-      apiKey: apiKeyInput,
-      baseURL: candidate.baseURL || '',
-      accepts: candidate.accepts || [],
-      structuredOutput: candidate.structuredOutput !== false
-    };
+    const body = { catalogKey: catalogKey, apiKey: apiKeyInput };
+    if ( isManual() ) {
+      Object.assign(body, {
+        description: candidate.description || '',
+        provider: candidate.provider,
+        model: candidate.model,
+        baseURL: candidate.baseURL || '',
+        accepts: candidate.accepts || [],
+        structuredOutput: candidate.structuredOutput !== false
+      });
+    }
     try {
       const res = await axios.put('/api/admin/llms', body);
       warnings = res.data.warnings || [];
@@ -108,51 +116,73 @@
     <div class="alert alert-warning py-2">{warning}</div>
     {/each}
     <div class="mb-2">
-      <label class="form-label" for="aiDescription">説明</label>
-      <input class="form-control" id="aiDescription" type="text"
-        bind:value={candidate.description}>
+      <span class="form-label d-block">モデル</span>
+      {#each catalog as entry}
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="aiModelChoice"
+          id="aiModelChoice{entry.key}" value={entry.key}
+          bind:group={catalogKey}>
+        <label class="form-check-label" for="aiModelChoice{entry.key}">
+          {entry.label}
+          {#if entry.note}
+          <span class="text-muted small">— {entry.note}</span>
+          {/if}
+        </label>
+      </div>
+      {/each}
     </div>
-    <div class="mb-2">
-      <label class="form-label" for="aiProvider">プロバイダ</label>
-      <select class="form-select" id="aiProvider" bind:value={candidate.provider}>
-        {#each providers as p}
-        <option value={p.value}>{p.label}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="mb-2">
-      <label class="form-label" for="aiModel">モデル名</label>
-      <input class="form-control" id="aiModel" type="text"
-        bind:value={candidate.model}>
-    </div>
+    {#if !isManual()}
     <div class="mb-2">
       <label class="form-label" for="aiApiKey">APIキー</label>
       <input class="form-control" id="aiApiKey" type="password" autocomplete="off"
         placeholder={apiKeyMasked ? `${apiKeyMasked}（変更する場合のみ入力）` : ''}
         bind:value={apiKeyInput}>
     </div>
-    {#if isOpenAIFamily()}
-    <div class="mb-2">
-      <label class="form-label" for="aiBaseURL">接続先（baseURL）</label>
-      <input class="form-control" id="aiBaseURL" type="text"
-        bind:value={candidate.baseURL}>
+    {:else}
+    <div class="mb-2 border-top pt-2">
+      <div class="mb-2">
+        <label class="form-label" for="aiProvider">プロバイダ</label>
+        <select class="form-select" id="aiProvider" bind:value={candidate.provider}>
+          {#each manualProviders as p}
+          <option value={p.value}>{p.label}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="aiModel">モデル名</label>
+        <input class="form-control" id="aiModel" type="text"
+          bind:value={candidate.model}>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="aiApiKey">APIキー</label>
+        <input class="form-control" id="aiApiKey" type="password" autocomplete="off"
+          placeholder={apiKeyMasked ? `${apiKeyMasked}（変更する場合のみ入力）` : ''}
+          bind:value={apiKeyInput}>
+      </div>
+      {#if !isKeylessProvider()}
+      <div class="mb-2">
+        <label class="form-label" for="aiBaseURL">接続先（baseURL）</label>
+        <input class="form-control" id="aiBaseURL" type="text"
+          bind:value={candidate.baseURL}>
+      </div>
+      {/if}
+      <div class="mb-2">
+        <span class="form-label d-block">受容する添付</span>
+        {#each acceptsKinds as a}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="aiAccepts{a.value}"
+            value={a.value} bind:group={candidate.accepts}>
+          <label class="form-check-label" for="aiAccepts{a.value}">{a.label}</label>
+        </div>
+        {/each}
+      </div>
+      <div class="mb-2 form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+          id="aiStructuredOutput" bind:checked={candidate.structuredOutput}>
+        <label class="form-check-label" for="aiStructuredOutput">構造化出力（generateObject）を使用する</label>
+      </div>
     </div>
     {/if}
-    <div class="mb-2">
-      <span class="form-label d-block">受容する添付</span>
-      {#each acceptsKinds as a}
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="checkbox" id="aiAccepts{a.value}"
-          value={a.value} bind:group={candidate.accepts}>
-        <label class="form-check-label" for="aiAccepts{a.value}">{a.label}</label>
-      </div>
-      {/each}
-    </div>
-    <div class="mb-2 form-check form-switch">
-      <input class="form-check-input" type="checkbox" role="switch"
-        id="aiStructuredOutput" bind:checked={candidate.structuredOutput}>
-      <label class="form-check-label" for="aiStructuredOutput">構造化出力（generateObject）を使用する</label>
-    </div>
     <button type="button" class="btn btn-primary" on:click={handleSave}>保存</button>
   </div>
   {/if}

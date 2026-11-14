@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
+import { expandCatalogPatch, catalogKeyFor, catalogInfo } from './model-catalog.js';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
@@ -282,7 +283,9 @@ const envOverrides = () => {
   return names.filter((n) => ( Boolean(process.env[n]) ));
 };
 
-// パネル表示用の状態（apiKey はマスクする。生キーはブラウザへ渡さない）
+// パネル表示用の状態（apiKey はマスクする。生キーはブラウザへ渡さない）。
+// catalog はパネルのモデル選択肢、catalogKey は現在の先頭候補と一致する
+// カタログエントリ（カタログ外なら manual）
 export const standardCandidateInfo = () => {
   const candidate = firstStandardEntry() || { ...DEFAULT_CANDIDATE };
   const masked = maskKey(candidate.apiKey);
@@ -296,6 +299,8 @@ export const standardCandidateInfo = () => {
       structuredOutput: candidate.structuredOutput !== false,
       apiKeyMasked: masked
     },
+    catalogKey: catalogKeyFor(candidate),
+    catalog: catalogInfo(),
     available: isAvailable(),
     envOverrides: envOverrides()
   };
@@ -339,9 +344,13 @@ const LLMS_HEADER = `# AI（LLM）設定。管理者ホームの「AI設定」�
 `;
 
 const buildEntry = (current, patch) => {
-  // apiKey は空欄保存で既存キーを維持する（生キーをブラウザに返さない前提）
+  // apiKey は空欄保存で既存キーを維持する（生キーをブラウザに返さない前提）。
+  // dropExistingKey はプロバイダ変更時に旧キーを引きずらないための内部フラグ
   const entry = {
-    ...( current ? { description: current.description, apiKey: current.apiKey } : {} )
+    ...( current ? {
+      description: current.description,
+      ...( patch.dropExistingKey ? {} : { apiKey: current.apiKey } )
+    } : {} )
   };
   if ( String(patch.description || '').trim() ) {
     entry.description = String(patch.description);
@@ -380,14 +389,22 @@ const buildEntry = (current, patch) => {
 };
 
 // standard 群の先頭候補を保存する。他の候補・群・参照は書き換えない。
+// patch.catalogKey があればカタログから provider/model 等を展開する
+// （'manual' と未知キーは patch の生値をそのまま使う）。
 // 失敗時は { error }、成功時は standardCandidateInfo() と同じ形を返す
-export const updateStandardCandidate = (patch) => {
+export const updateStandardCandidate = (patchRaw) => {
+  const patch = expandCatalogPatch(patchRaw || {});
   const config = loadConfig();
   const llms = ( config.llms && typeof config.llms === 'object' && !Array.isArray(config.llms) ) ?
     config.llms : {};
   const entries = Array.isArray(llms.standard) ? [ ...llms.standard ] : [];
   const currentIndex = entries.findIndex((e) => ( e && typeof e === 'object' && !Array.isArray(e) ));
   const current = ( currentIndex >= 0 ) ? normalizeCandidate(entries[currentIndex], 'standard') : null;
+  // プロバイダが替わるのにキー未入力なら、旧プロバイダのキーを引きずらない
+  if ( !String(patch.apiKey || '').trim() && current &&
+       ( patch.provider !== current.provider ) ) {
+    patch.dropExistingKey = true;
+  }
   const check = validateStandardCandidate(patch, current);
   if ( check ) {
     return check;

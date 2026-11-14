@@ -239,5 +239,67 @@ describe('ai/host llms 群（Legion 形式）', () => {
       // model まで見るなら candidatesForGroup を使う）
       assert.equal(mp.candidatesForGroup('other')[0].model, 'm1');
     });
+
+    it('catalogKey による選択で provider/model 等がカタログから展開される', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      const info = mp.standardCandidateInfo();
+      // 現在の先頭候補（fixture: gemini-2.0-flash + test-key）はカタログ一致
+      ok(Array.isArray(info.catalog) && info.catalog.length > 1);
+      assert.equal(info.catalogKey, 'gemini-2-0-flash');
+      // カタログ選択で保存すると provider/model/accepts/structuredOutput が揃う
+      const result = mp.updateStandardCandidate({
+        catalogKey: 'gemini-3-5-flash-lite', apiKey: ''
+      });
+      ok(!result.error);
+      const c = result.candidate;
+      assert.equal(c.provider, 'gemini');
+      assert.equal(c.model, 'gemini-3.5-flash-lite');
+      assert.deepEqual(c.accepts, [ 'text', 'image', 'pdf' ]);
+      ok(c.structuredOutput === true);
+      assert.equal(c.description, 'Gemini 3.5 Flash Lite');
+      // 同一プロバイダ内の切替なので既存キーは維持される
+      assert.equal(mp.settings().apiKey, 'test-key');
+      // 保存後の catalogKey は新しいエントリに一致する
+      assert.equal(mp.standardCandidateInfo().catalogKey, 'gemini-3-5-flash-lite');
+    });
+
+    it('プロバイダが替わる保存では旧プロバイダのキーを引きずらない', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      // gemini（キーあり）→ muse-spark（キー未入力）: 旧キーは捨てる
+      const result = mp.updateStandardCandidate({
+        catalogKey: 'muse-spark', apiKey: ''
+      });
+      ok(!result.error);
+      assert.equal(result.candidate.provider, 'opencode_openai');
+      assert.equal(result.candidate.model, 'muse-spark-1.3-contributor');
+      assert.equal(result.candidate.baseURL, 'https://opencode.ai/zen/go/v1');
+      assert.equal(result.candidate.apiKeyMasked, '');
+      // opencode_openai は baseURL があればキーなしでも有効（既存仕様）
+      ok(mp.isAvailable() === true);
+      // 同一プロバイダ（opencode_openai）内でキーを入れ直せば有効になる
+      const result2 = mp.updateStandardCandidate({
+        catalogKey: 'muse-spark', apiKey: 'gateway-key'
+      });
+      ok(!result2.error);
+      assert.equal(mp.settings().apiKey, 'gateway-key');
+      ok(mp.isAvailable() === true);
+    });
+
+    it('カタログ外の構成は manual として返り、生の patch で保存できる', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      const result = mp.updateStandardCandidate({
+        provider: 'openai-compatible', model: 'my-local-model',
+        baseURL: 'http://localhost:11434/v1', structuredOutput: false
+      });
+      ok(!result.error);
+      assert.equal(mp.standardCandidateInfo().catalogKey, 'manual');
+      // manual 選択での保存（生 patch）も従来通り通る
+      const result2 = mp.updateStandardCandidate({
+        provider: 'openai-compatible', model: 'my-local-model-2',
+        baseURL: 'http://localhost:11434/v1', apiKey: ''
+      });
+      ok(!result2.error);
+      assert.equal(mp.settings().model, 'my-local-model-2');
+    });
   });
 });
