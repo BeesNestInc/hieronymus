@@ -2,7 +2,7 @@
   {#if ( status.user.accounting && aiAvailable === false )}
   <div class="col-12" style="padding:10px;">
     <MessagePanel level="info"
-      messages={["AIの設定がありません（config/llms.yaml）。証憑のOCRや明細画像の取り込み、ルール候補のAI提案を使うには設定してください。"]}></MessagePanel>
+      messages={["AIの設定がありません。証憑のOCRや明細画像の取り込み、ルール候補のAI提案を使うには、管理者ホームの「AI設定」パネルから設定してください。"]}></MessagePanel>
   </div>
   {/if}
 </div>
@@ -170,6 +170,17 @@
   </div>
   {/if}
 </div>
+<div class="row">
+  {#if ( status.user.administrable) }
+  <div class="col-6" style="padding:10px;">
+    <AiSettings
+      title={'AI設定'}
+      bind:minimize={aiSettingsMinimize}
+      bind:toast={toast}
+    />
+  </div>
+  {/if}
+</div>
 <script>
 import { onMount, beforeUpdate } from "svelte";
 
@@ -179,6 +190,7 @@ import Password from './password.svelte';
 import Backup from './backup.svelte';
 import Approve from './approve.svelte';
 import SystemSettings from './system-settings.svelte';
+import AiSettings from './ai-settings.svelte';
 import TableMaintenance from '../components/table-maintenance.svelte';
 import MessagePanel from '../components/message-panel.svelte';
 import axios from 'axios';
@@ -194,6 +206,7 @@ let voucherMinimize = true;
 let itemMinimize = true;
 let taxRuleMinimize = true;
 let systemSettingsMinimize = true;
+let aiSettingsMinimize = true;
 let company;
 // AIの設定有無（サーバの /api/user が返す。設定が無ければ案内を出す）
 let aiAvailable;

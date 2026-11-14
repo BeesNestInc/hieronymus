@@ -2,6 +2,8 @@
 // config/llms.yaml（Legion 形式）を engine hooks の形で解決できることを確認する。
 import assert from 'assert';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ok = (cond) => assert.ok(Boolean(cond));
@@ -101,5 +103,141 @@ describe('ai/host llms 群（Legion 形式）', () => {
     ok(dups.length === 1);
     assert.equal(dups[0].name, 'dup-candidate');
     ok(dups[0].groups.length === 2);
+  });
+
+  describe('管理者パネル用の standard 先頭候補の読み書き', () => {
+    let tmpDir;
+    let src;
+    let dst;
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llms-panel-test-'));
+      src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/llms-group-test.yaml');
+      dst = path.join(tmpDir, 'llms.yaml');
+      fs.copyFileSync(src, dst);
+      process.env.LLM_CONFIG_PATH = dst;
+      delete process.env.LLM_PROVIDER;
+      delete process.env.LLM_MODEL;
+      delete process.env.LLM_API_KEY;
+      delete process.env.LLM_BASE_URL;
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('先頭候補だけを更新し、他の候補・群を壊さない', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      const result = mp.updateStandardCandidate({
+        provider: 'openai-compatible',
+        model: 'test-model-2',
+        apiKey: 'new-key',
+        baseURL: 'http://test.local/v2',
+        accepts: [ 'text', 'image' ],
+        structuredOutput: false
+      });
+      ok(!result.error);
+      assert.equal(result.candidate.provider, 'openai-compatible');
+      assert.equal(result.candidate.model, 'test-model-2');
+      // 保存内容が読み込み側に反映される（毎回再読込）
+      const s = mp.settings();
+      assert.equal(s.provider, 'openai-compatible');
+      assert.equal(s.model, 'test-model-2');
+      // 他群（alternate）と standard 群の件数は保持される
+      assert.equal(mp.candidates('standard').length, 1);
+      assert.equal(mp.candidates('alternate').length, 2);
+      assert.equal(mp.candidates('alternate')[1].name, 'standard');
+    });
+
+    it('apiKey をマスクして返し、空欄保存で既存キーを維持する', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      const info = mp.standardCandidateInfo();
+      // 生キーは返らない（test-key が露出しない）
+      ok(JSON.stringify(info).indexOf('test-key') === -1);
+      assert.equal(info.candidate.apiKeyMasked, 'test***');
+      // 空欄のまま保存してもキーは消えない
+      const result = mp.updateStandardCandidate({
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        apiKey: ''
+      });
+      ok(!result.error);
+      assert.equal(mp.settings().apiKey, 'test-key');
+      // 新しいキーを入れれば差し変わる
+      const result2 = mp.updateStandardCandidate({
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        apiKey: 'replaced-key'
+      });
+      ok(!result2.error);
+      assert.equal(mp.settings().apiKey, 'replaced-key');
+    });
+
+    it('structuredOutput は false のときだけ書き出される', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      ok(mp.standardCandidateInfo().candidate.structuredOutput === true);
+      const result = mp.updateStandardCandidate({
+        provider: 'openai-compatible',
+        model: 'no-struct',
+        baseURL: 'http://test.local/v1',
+        structuredOutput: false
+      });
+      ok(!result.error);
+      ok(result.candidate.structuredOutput === false);
+      assert.equal(mp.modelConfig('standard').structuredOutput, false);
+      // true で保存すると yaml からキーが消える（未書き = true）。
+      // 検索は standard 群の先頭エントリに限る（alternate 群にも同名キーがある）
+      const result2 = mp.updateStandardCandidate({
+        provider: 'openai-compatible',
+        model: 'no-struct',
+        baseURL: 'http://test.local/v1',
+        structuredOutput: true
+      });
+      ok(!result2.error);
+      const parsed = ( await import('js-yaml') ).load(fs.readFileSync(dst, 'utf-8'));
+      ok(parsed.llms.standard[0].structuredOutput === undefined);
+      ok(mp.modelConfig('standard').structuredOutput === true);
+    });
+
+    it('不正な入力は保存せずエラーを返す', async () => {
+      const mp = await import('../ai/host/model-provider.js');
+      const before = fs.readFileSync(dst, 'utf-8');
+      // 未対応プロバイダ
+      ok(mp.updateStandardCandidate({
+        provider: 'unknown', model: 'x', apiKey: ''
+      }).error);
+      // モデル名なし
+      ok(mp.updateStandardCandidate({
+        provider: 'gemini', model: '', apiKey: ''
+      }).error);
+      // openai系なのに baseURL なし（既存キーはあるが baseURL が要件）
+      ok(mp.updateStandardCandidate({
+        provider: 'openai-compatible', model: 'x', apiKey: ''
+      }).error);
+      // gemini なのに既存キーがなく apiKey も空
+      process.env.LLM_CONFIG_PATH = path.join(tmpDir, 'empty.yaml');
+      fs.writeFileSync(path.join(tmpDir, 'empty.yaml'), 'llms:\n  standard: []\n', 'utf-8');
+      ok(mp.updateStandardCandidate({
+        provider: 'gemini', model: 'x', apiKey: ''
+      }).error);
+      // 何も書き換わっていない
+      assert.equal(fs.readFileSync(dst, 'utf-8'), before);
+    });
+
+    it('standard 群が無い設定に先頭候補を作る', async () => {
+      process.env.LLM_CONFIG_PATH = path.join(
+        path.dirname(dst), 'no-standard.yaml'
+      );
+      fs.writeFileSync(process.env.LLM_CONFIG_PATH, 'llms:\n  other:\n  - provider: gemini\n    model: m1\n    apiKey: k\n', 'utf-8');
+      const mp = await import('../ai/host/model-provider.js');
+      const result = mp.updateStandardCandidate({
+        provider: 'gemini', model: 'gemini-2.0-flash', apiKey: 'fresh-key'
+      });
+      ok(!result.error);
+      assert.equal(mp.settings().model, 'gemini-2.0-flash');
+      // other 群は残る（candidates() は name/accepts/alternate のみを返すので
+      // model まで見るなら candidatesForGroup を使う）
+      assert.equal(mp.candidatesForGroup('other')[0].model, 'm1');
+    });
   });
 });

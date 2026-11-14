@@ -49,6 +49,8 @@ router.get('/admin/backups', admin.backups);
 router.get('/admin/backup/:date', admin.download);
 router.post('/admin/upload', admin.upload);
 router.delete('/admin/backup/:date', admin.delete);
+router.get('/admin/llms', admin.llmsGet);
+router.put('/admin/llms', admin.llmsPut);
 
 router.get('/user', user.get);
 router.get('/user/:id', user.get);

@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { load as yamlLoad } from 'js-yaml';
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
@@ -25,11 +25,11 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 // 環境変数 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL は、解決した
 // 候補の各フィールドを上書きする（テスト・一時切替の便宜的な口）。
 
+// 設定ファイルのパス（テスト時は LLM_CONFIG_PATH でfixtureを指せる）
+export const configPath = () => ( process.env.LLM_CONFIG_PATH || 'config/llms.yaml' );
+
 export const loadConfig = () => {
-  // テスト時は LLM_CONFIG_PATH でfixtureを指せる（yamlのみ。jsonは廃止）
-  const paths = process.env.LLM_CONFIG_PATH ?
-    [ process.env.LLM_CONFIG_PATH ] :
-    [ 'config/llms.yaml' ];
+  const paths = [ configPath() ];
   for ( const path of paths ) {
     try {
       return yamlLoad(fs.readFileSync(path, 'utf-8')) || {};
@@ -250,4 +250,169 @@ export const candidates = (ref) => {
     return null;
   }
   return group.map((c) => ({ name: c.name, accepts: c.accepts, alternate: c.alternate }));
+};
+
+// ---------------------------------------------------------------
+// 管理者ホーム「AI設定」パネル用の読み書き。編集対象は llms.standard
+// 群の先頭候補のみ（他の候補・群はファイル上にそのまま保持する）。
+// 書き込みはこのモジュールだけが行い、loadConfig が毎回読み直すので
+// 保存は即時反映（再起動不要）。
+
+const STANDARD_PROVIDERS = [ 'gemini', 'openai', 'openai-compatible', 'opencode_openai', 'local' ];
+const ACCEPTS_KINDS = [ 'text', 'image', 'pdf' ];
+
+const rawStandardEntries = () => {
+  const llms = loadConfig().llms || {};
+  return Array.isArray(llms.standard) ? llms.standard : [];
+};
+
+const firstStandardEntry = () => {
+  const raw = rawStandardEntries().find((e) => ( e && typeof e === 'object' && !Array.isArray(e) ));
+  return raw ? normalizeCandidate(raw, 'standard') : null;
+};
+
+const maskKey = (key) => {
+  if ( !key ) return '';
+  return ( String(key).length <= 4 ) ? '****' : `${String(key).slice(0, 4)}***`;
+};
+
+// 環境変数による上書きの検出（UIの見た目と解決結果がずれる可能性の警告用）
+const envOverrides = () => {
+  const names = [ 'LLM_PROVIDER', 'LLM_MODEL', 'LLM_API_KEY', 'LLM_BASE_URL' ];
+  return names.filter((n) => ( Boolean(process.env[n]) ));
+};
+
+// パネル表示用の状態（apiKey はマスクする。生キーはブラウザへ渡さない）
+export const standardCandidateInfo = () => {
+  const candidate = firstStandardEntry() || { ...DEFAULT_CANDIDATE };
+  const masked = maskKey(candidate.apiKey);
+  return {
+    candidate: {
+      description: candidate.description || '',
+      provider: candidate.provider,
+      model: candidate.model,
+      baseURL: candidate.baseURL || '',
+      accepts: Array.isArray(candidate.accepts) ? candidate.accepts : [],
+      structuredOutput: candidate.structuredOutput !== false,
+      apiKeyMasked: masked
+    },
+    available: isAvailable(),
+    envOverrides: envOverrides()
+  };
+};
+
+// 先頭候補の入力チェック。問題がなければ null、なければ { error: "..." }
+// （apiKey 必須は gemini/openai。baseURL 必須はそれ以外 — makeModel の挙動に揃える。
+//   existing を渡すと「空欄 = 既存キー維持」もキー要件の判定に使える）
+export const validateStandardCandidate = (patch, existing) => {
+  const p = patch || {};
+  if ( !STANDARD_PROVIDERS.includes(p.provider) ) {
+    return { error: `未対応のAIプロバイダ: ${String(p.provider)}` };
+  }
+  if ( !String(p.model || '').trim() ) {
+    return { error: 'モデル名が入力されていません。' };
+  }
+  const keepsKey = Boolean(existing && existing.apiKey) && !String(p.apiKey || '').trim();
+  if (( p.provider === 'gemini' ) || ( p.provider === 'openai' )) {
+    if ( !keepsKey && !String(p.apiKey || '').trim() ) {
+      return { error: `${p.provider === 'gemini' ? 'Gemini' : 'OpenAI'}にはAPIキーが必要です。` };
+    }
+  }
+  if ( p.provider !== 'gemini' && !String(p.baseURL || '').trim() ) {
+    return { error: 'openai系プロバイダには接続先（baseURL）が必要です。' };
+  }
+  if ( p.accepts !== undefined ) {
+    if ( !Array.isArray(p.accepts) ||
+         ( p.accepts.some((a) => ( !ACCEPTS_KINDS.includes(a) )) ) ) {
+      return { error: 'accepts は text / image / pdf の組み合わせで指定してください。' };
+    }
+  }
+  if ( p.structuredOutput !== undefined && typeof p.structuredOutput !== 'boolean' ) {
+    return { error: 'structuredOutput は真偽値で指定してください。' };
+  }
+  return null;
+};
+
+// ファイルのヘッダコメント（yamlダンプでコメントは消えるため毎回再生成する）
+const LLMS_HEADER = `# AI（LLM）設定。管理者ホームの「AI設定」パネルから編集できる。
+# llms 群形式の詳細は ai/host/index.md を参照（standard 群の先頭候補が使用される）。
+`;
+
+const buildEntry = (current, patch) => {
+  // apiKey は空欄保存で既存キーを維持する（生キーをブラウザに返さない前提）
+  const entry = {
+    ...( current ? { description: current.description, apiKey: current.apiKey } : {} )
+  };
+  if ( String(patch.description || '').trim() ) {
+    entry.description = String(patch.description);
+  } else {
+    delete entry.description;
+  }
+  entry.provider = patch.provider;
+  entry.model = String(patch.model).trim();
+  if ( String(patch.apiKey || '').trim() ) {
+    entry.apiKey = String(patch.apiKey);
+  }
+  if ( String(patch.baseURL || '').trim() ) {
+    entry.baseURL = String(patch.baseURL).trim();
+  } else {
+    delete entry.baseURL;
+  }
+  if ( patch.accepts !== undefined ) {
+    if ( Array.isArray(patch.accepts) && ( patch.accepts.length > 0 ) ) {
+      entry.accepts = [ ...patch.accepts ];
+    } else {
+      delete entry.accepts;
+    }
+  }
+  if ( patch.structuredOutput !== undefined ) {
+    // yaml上は false のときだけ書く（未書き = true の解釈）
+    if ( patch.structuredOutput === false ) {
+      entry.structuredOutput = false;
+    } else {
+      delete entry.structuredOutput;
+    }
+  }
+  for ( const k of Object.keys(entry) ) {
+    if ( entry[k] === undefined ) delete entry[k];
+  }
+  return entry;
+};
+
+// standard 群の先頭候補を保存する。他の候補・群・参照は書き換えない。
+// 失敗時は { error }、成功時は standardCandidateInfo() と同じ形を返す
+export const updateStandardCandidate = (patch) => {
+  const config = loadConfig();
+  const llms = ( config.llms && typeof config.llms === 'object' && !Array.isArray(config.llms) ) ?
+    config.llms : {};
+  const entries = Array.isArray(llms.standard) ? [ ...llms.standard ] : [];
+  const currentIndex = entries.findIndex((e) => ( e && typeof e === 'object' && !Array.isArray(e) ));
+  const current = ( currentIndex >= 0 ) ? normalizeCandidate(entries[currentIndex], 'standard') : null;
+  const check = validateStandardCandidate(patch, current);
+  if ( check ) {
+    return check;
+  }
+  const entry = buildEntry(current, patch);
+  if ( currentIndex >= 0 ) {
+    // 現在の先頭オブジェクトだけを差し替える（文字列参照や後続候補は保持）
+    entries[currentIndex] = entry;
+  } else {
+    entries.unshift(entry);
+  }
+  const next = { ...config, llms: { ...llms, standard: entries } };
+  try {
+    fs.writeFileSync(configPath(), LLMS_HEADER + yamlDump(next, { lineWidth: -1 }), 'utf-8');
+  } catch (e) {
+    return { error: `設定ファイルの書き込みに失敗しました（${configPath()}）。` };
+  }
+  // 名前の重複は保存を妨げない（既存設定由来の可能性がある）が、警告として返す。
+  // validateLlmsNames の結線（Phase 3 の残留タスク）
+  const dups = validateLlmsNames();
+  const info = standardCandidateInfo();
+  if ( dups.length > 0 ) {
+    info.warnings = dups.map((d) => (
+      `候補名「${d.name}」が群 ${d.groups.join(', ')} で重複しています。`
+    ));
+  }
+  return info;
 };

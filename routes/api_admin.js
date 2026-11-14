@@ -76,6 +76,32 @@ const remove = async(json) => {
 }
 
 export default {
+  // 管理者ホーム「AI設定」パネル。llms.standard 群の先頭候補を読み書きする
+  // （apiKey はマスクして返し、空欄保存で既存キーを維持）。AI SDKのロードを
+  // 他の起動経路に広げないため動的import
+  llmsGet: async(req, res, next) => {
+    try {
+      const mp = await import('../ai/host/model-provider.js');
+      res.json(mp.standardCandidateInfo());
+    } catch (e) {
+      console.log(e);
+      res.status(500).json({ code: -1, message: 'AI設定の読み込みに失敗しました。' });
+    }
+  },
+  llmsPut: async(req, res, next) => {
+    try {
+      const mp = await import('../ai/host/model-provider.js');
+      const result = mp.updateStandardCandidate(req.body || {});
+      if ( result.error ) {
+        res.status(422).json({ code: -1, message: result.error });
+        return;
+      }
+      res.json(result);
+    } catch (e) {
+      console.log(e);
+      res.status(500).json({ code: -1, message: 'AI設定の保存に失敗しました。' });
+    }
+  },
   backups:backups,
   backup: async(req, res, next) => {
     backup().then(() =>  {
