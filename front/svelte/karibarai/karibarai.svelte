@@ -177,16 +177,14 @@
           {/each}
         </tbody>
       </table>
-      <div class="text-muted" style="font-size:0.875rem;">
+      <div class="d-flex align-items-center mt-2">
+        <button type="button" class="btn btn-primary"
+          on:click={book} id="book-button">起票</button>
+      </div>
+      <div class="text-muted mt-2" style="font-size:0.875rem;">
         精算の向きは立替者別の精算額の符号で自動的に決まります。
         正なら会社から立替者へ支払って精算し、負なら立替者から返納を受けます。
       </div>
-    </div>
-  </div>
-  <div class="d-flex justify-content-end mt-3 mb-5">
-    <div>
-      <button type="button" class="btn btn-primary"
-        on:click={book} id="book-button">起票</button>
     </div>
   </div>
 </div>
