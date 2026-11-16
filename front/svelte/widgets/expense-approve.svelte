@@ -44,7 +44,7 @@
               {report.purpose || ''}
             </td>
             <td class="text-end">
-              {formatMoney(sumOf(report))}円
+              {formatMoney(sumOf(report))}
             </td>
           </tr>
           {/each}
@@ -56,7 +56,10 @@
 </div>
 
 <style>
-
+/* コンテナに左右のマージンを取らないとテーブルが切れる */
+.body {
+  padding: 4px 10px 6px;
+}
 </style>
 <script>
 import axios from 'axios';
