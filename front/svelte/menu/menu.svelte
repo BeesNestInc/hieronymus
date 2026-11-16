@@ -23,6 +23,13 @@
         {/each}
       </ul>
     </div>
+    {#if ( status.user && status.user.administrable && menu.id )}
+    <button class="btn btn-outline-info" style="display: inline;"
+      title="このマイページを全ユーザーがテンプレートとして追加できるようにします"
+      on:click={publish}>
+      <i class="bi bi-box-arrow-up"></i>&nbsp;テンプレートとして公開
+    </button>
+    {/if}
     <button class="btn btn-success" on:click={save}>
       配置を保存
     </button>
@@ -37,6 +44,17 @@
   }}><i class="bi bi-pencil"></i>編集モードへ</button>
 	{/if}
 </div>
+{#if ( isEditMode )}
+<div class="mypage-guide small text-muted mb-2">
+  サイドバーの項目や「ウィジェットを追加」から<b>ドラッグ＆ドロップ</b>で配置できます。
+  ブラウザのURLをドロップするとブックマークになります。位置や大きさはドラッグで調整してください。
+</div>
+{/if}
+{#if ( widgets && widgets.length === 0 && !isEditMode )}
+<div class="text-muted p-4 border rounded">
+  何も置かれていません。右上部の「編集モードへ」からウィジェットを追加してください。
+</div>
+{/if}
 <Menu
   bind:status={status}
   bind:toast={toast}
@@ -94,8 +112,23 @@ const deserializeMenu = (_menu) => {
   })
 }
 
-const save = (event) => {
-  console.log('save');
+// 自分のマイページを全ユーザー用のテンプレートとして公開する（管理者のみ）。
+// 公開は複製を作るだけなので、元のマイページはそのまま残る
+const publish = () => {
+  if ( !confirm(`マイページ「${menu.title}」をテンプレートとして公開しますか？\n公開すると全ユーザーが「＋」からこのページを追加できるようになります。`) ) {
+    return;
+  }
+  axios.post(`/api/menu/publish/${menu.id}`).then((result) => {
+    if ( result.data.code === 0 ) {
+      toast.show('公開しました', `テンプレート「${result.data.template.title}」を公開しました。全ユーザーが「＋」から追加できます。`);
+      menuBus.emit('menuUpdated');
+    } else {
+      toast.show('公開に失敗しました', '', 'danger');
+    }
+  });
+};
+
+const save = (event) => {  console.log('save');
   console.log(JSON.stringify(menu.widgets));
   try {
     let pr;

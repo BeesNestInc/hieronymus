@@ -15,11 +15,11 @@
           <!-- svelte-ignore a11y-missing-attribute -->
           <a class="nav-link">
 					  <i class="bi bi-menu-button-wide me-1"></i>
-            メニュー
+            マイページ
           </a>
           {#if ( isMenuEditMode)}
           <div>
-          <button class="btn btn-narrow dropdown-toggle"
+          <button class="btn btn-narrow dropdown-toggle" title="テンプレートからマイページを追加します"
           	type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <Icon icon="bi:plus" class="text-warning"></Icon>
           </button>
@@ -35,15 +35,21 @@
             {/each}
           </ul>
 
-          <button type="button" class="btn btn-narrow" on:click={menuEditDone}>
+          <button type="button" class="btn btn-narrow" title="並べ替えを保存して編集を終わります" on:click={menuEditDone}>
             <Icon icon="bi:check" class="text-warning"></Icon></button>
           </div>
           {:else}
-          <button type="button" class="btn btn-narrow" on:click={() => {
+          <button type="button" class="btn btn-narrow" title="マイページを追加・並べ替え・削除します"
+            on:click={() => {
             isMenuEditMode = true;
           }}><Icon icon="bi:pencil" class="text-warning"></Icon></button>
           {/if}
         </div>
+        {#if ( isMenuEditMode )}
+        <div class="mypage-hint">
+          ＋からテンプレートでマイページを追加。ドラッグで並べ替え、×で削除。
+        </div>
+        {/if}
         <ul class="nav nav-pills nav-sidebar flex-column"
         	style="margin-left:20px;list-style: none;"
         	bind:this={menuItems}>
@@ -176,6 +182,12 @@
   align-items: center;
   justify-content: space-between;
   user-select: none;
+}
+.mypage-hint {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0.25rem 1rem 0.2rem 1rem;
+  margin-left: 1rem;
 }
 .nav-caption:hover {
   color: rgba(255, 255, 255, 0.85);

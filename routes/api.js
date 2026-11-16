@@ -258,11 +258,12 @@ router.put('/member/:id', member.update);
 router.delete('/member', member.delete);
 router.delete('/member/:id', member.delete);
 
+// :id に 'templates' が拾われないよう、具体的なパスを先に置く
 router.get('/menu/templates', menu.getTemplates);
-router.get('/menu/preview', menu.preview);
-router.get('/menu/:id', menu.get);
+router.post('/menu/publish/:id', menu.publish);
 router.get('/menu', menu.get);
 router.post('/menu', menu.post);
+router.get('/menu/:id', menu.get);
 router.put('/menu', menu.update);
 router.put('/menu/:id', menu.update);
 router.delete('/menu/:id', menu.delete);

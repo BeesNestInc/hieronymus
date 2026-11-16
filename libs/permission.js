@@ -158,7 +158,13 @@ const RULES = [
   { match: /^\/schedule(\/year\/\d+|\/\d+\/\d+)?$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
   { match: /^\/schedule/, methods: ['POST', 'PUT', 'DELETE'], access: ['accounting', 'administrable'] },
 
-  { match: /^\/menu/, access: ['administrable'] },
+  // マイページ（カスタムメニュー）。全ユーザーが自分のページを作成・編集できる
+  // （所有権の判定は api_menu.js 側。他人やテンプレートの変更は不可）。
+  // テンプレート一覧の閲覧は全員。テンプレートへの公開は管理者
+  { match: /^\/menu\/templates$/, methods: ['GET'], access: ANY },
+  { match: /^\/menu\/publish/, methods: ['POST'], access: ['administrable'] },
+  { match: /^\/menu(\/\d+)?$/, methods: ['GET', 'POST', 'PUT', 'DELETE'], access: ANY },
+
   { match: /^\/admin/, access: ['administrable'] }
 ];
 

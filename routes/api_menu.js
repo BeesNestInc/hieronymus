@@ -3,6 +3,18 @@ const Op = models.Sequelize.Op;
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 
+// マイページ（カスタムメニュー）の所有権。
+// - 自分のページ（userId = 自分）は自由に読み書きできる
+// - テンプレート（userId = null）の変更・削除は管理者のみ
+// - 他人のページは管理者のみ読める（編集はしない）
+const isOwner = (menu, user) => {
+  return menu.userId === user.id;
+};
+
+const canManage = (menu, user) => {
+  return isOwner(menu, user) || Boolean(user.administrable);
+};
+
 export default {
   get: async (req, res, next) => {
     let id =  req.params.id;
@@ -30,8 +42,16 @@ export default {
         });
       });
     } else {
-      models.Menu.findByPk(id, {
-      }).then((menu) => {
+      models.Menu.findByPk(id).then((menu) => {
+        if ( !menu ) {
+          res.status(404).json({ code: -2, message: 'not found' });
+          return;
+        }
+        // 自分のページか、テンプレート（userId=null）か、管理者のみ参照可
+        if ( !canManage(menu, req.session.user) && menu.userId !== null ) {
+          res.status(403).json({ code: -10, message: 'permission denied' });
+          return;
+        }
         res.json({
           menu: menu
         });
@@ -40,7 +60,12 @@ export default {
   },
   post: (req, res, next) => {
     let body = req.body;
+    // userId は常に自分。テンプレート(userId=null)をAPIで作ることはできず、
+    // 管理者の「公開」操作でのみ作られる
     body.userId = req.session.user.id;
+    if ( body.displayOrder === undefined ) {
+      body.displayOrder = 99;
+    }
     models.Menu.create(body).then((menu) => {
       //console.log(menu);
       res.json({
@@ -50,21 +75,34 @@ export default {
   },
   update: async(req, res, next) => {
     let body = req.body;
+    const me = req.session.user;
 
     if	( body.menus )	{
 			let menus = req.body.menus;
+      // サイドバーの並べ替え。自分のページのみ対象（他人の指定は拒否）
       for ( const menu of menus ) {
         if  ( menu.id ) {
           let result = await models.Menu.findByPk(menu.id);
+          if ( !result || !canManage(result, me) ) {
+            res.status(403).json({ code: -10, message: 'permission denied' });
+            return;
+          }
+          if ( result.userId === null ) {
+            // テンプレートの並び順を変えさせない（公開順は管理者が管理）
+            res.status(403).json({ code: -10, message: 'permission denied' });
+            return;
+          }
+          menu.userId = result.userId;
           result.set(menu);
           await result.save();
         } else {
+          menu.userId = me.id;
           await models.Menu.create(menu);
         }
       }
       models.Menu.findAll({
         where: {
-          userId: req.session.user.id,
+          userId: me.id,
           displayOrder: {
             [Op.gt]: 0
           }
@@ -81,21 +119,28 @@ export default {
       }).then((menus) => {
         res.json({
           menus: menus
-      	})
+       	})
       }).catch((e) => {
         console.log(e);
       })
     } else {
       let id = req.params.id ? req.params.id : body.id;
-    	let menu = await models.Menu.findByPk(id)
-    	if	( menu )	{
-      	menu.set(body);
-      	menu.save().then(() => {
+     	let menu = await models.Menu.findByPk(id)
+     	if	( menu )	{
+        if ( !canManage(menu, me) ) {
+          res.status(403).json({ code: -10, message: 'permission denied' });
+          return;
+        }
+        // 所有者（userId）は更新で書き換えられない
+        // （テンプレートを個人のページにすり替えることを防ぐ）
+        body.userId = menu.userId;
+        menu.set(body);
+        menu.save().then(() => {
         	res.json({
           	menu: menu
         	});
-      	});
-    	}
+        });
+      }
     }
   },
   delete: async(req, res, next) => {
@@ -104,10 +149,51 @@ export default {
 
     let menu = await models.Menu.findByPk(id);
     if	( menu )	{
+      // 自分のページのみ削除できる。テンプレートは管理者のみ
+      if ( !canManage(menu, req.session.user) ) {
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
       menu.destroy().then(() => {
         res.json({
           code: 0});
       });
+    } else {
+      res.json({ code: -2 });
+    }
+  },
+  // 自分（または任意の）マイページをテンプレートとして公開する。管理者のみ。
+  // 公開されたマイページは全ユーザーの「＋」一覧に現れ、各自が複製して使う
+  publish: async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const menu = await models.Menu.findByPk(id);
+      if ( !menu ) {
+        res.status(404).json({ code: -2, message: 'not found' });
+        return;
+      }
+      if ( !canManage(menu, req.session.user) ) {
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
+      const maxOrder = await models.Menu.max('displayOrder', {
+        where: {
+          userId: null
+        }
+      });
+      const template = await models.Menu.create({
+        title: menu.title,
+        userId: null,
+        displayOrder: ( Number.isInteger(maxOrder) ? maxOrder : 0 ) + 1,
+        body: menu.body
+      });
+      res.json({
+        code: 0,
+        template: template
+      });
+    } catch (e) {
+      console.log('menu publish error', e);
+      res.json({ code: -1 });
     }
   },
   getTemplates: async (req, res, next) => {
