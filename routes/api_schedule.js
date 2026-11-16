@@ -39,7 +39,22 @@ const feedWindow = () => {
   return [first, last];
 };
 
-const expandSchedules = (schedules, year, month) => {
+// 展開済み予定に個別設定（ScheduleOverrides）を適用するための
+// 参照マップを作る。キーは `${scheduleId}:${date}`
+const overrideMap = (overrides) => {
+  const map = {};
+  for ( const o of overrides ) {
+    map[`${o.scheduleId}:${o.date}`] = o;
+  }
+  return map;
+};
+
+const loadOverrides = async () => {
+  return models.ScheduleOverride.findAll();
+};
+
+const expandSchedules = (schedules, year, month, overrides = []) => {
+  const oMap = overrideMap(overrides);
   const items = [];
   for ( const schedule of schedules ) {
     if ( !schedule.enabled ) {
@@ -49,14 +64,22 @@ const expandSchedules = (schedules, year, month) => {
     if ( !date ) {
       continue;
     }
+    // 月次予定には (scheduleId, 発生日) の個別設定があれば差し替える
+    const o = oMap[`${schedule.id}:${date}`];
+    if ( o && o.deleted ) {
+      // 「この月は予定を取り消す」設定
+      continue;
+    }
     items.push({
       scheduleId: schedule.id,
       date: date,
       day: parseInt(String(date).split('-')[2]),
-      kind: schedule.kind,
-      title: schedule.title,
-      amount: Number(schedule.amount),
-      note: schedule.note
+      kind: ( o && o.kind ) ? o.kind : schedule.kind,
+      title: ( o && o.title ) ? o.title : schedule.title,
+      amount: Number(( o && o.amount !== null && o.amount !== undefined ) ?
+        o.amount : schedule.amount),
+      note: ( o && o.note !== null && o.note !== undefined ) ? o.note : schedule.note,
+      overridden: Boolean(o)
     });
   }
   items.sort((a, b) => ( a.day - b.day ) || a.title.localeCompare(b.title, 'ja'));
@@ -128,7 +151,7 @@ const icsEscape = (text) => {
 
 const icsDate = (date) => String(date).replaceAll('-', '');
 
-const buildICS = (schedules) => {
+const buildICS = (schedules, overrides = []) => {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
   const [winStart, winEnd] = feedWindow();
@@ -144,7 +167,7 @@ const buildICS = (schedules) => {
   while ( cursor < winEnd ) {
     const year = cursor.getFullYear();
     const month = cursor.getMonth() + 1;
-    const { items } = expandSchedules(schedules, year, month);
+    const { items } = expandSchedules(schedules, year, month, overrides);
     for ( const item of items ) {
       if ( item.date < `${winStart.getFullYear()}-${pad2(winStart.getMonth() + 1)}-01` ) {
         continue;
@@ -207,9 +230,11 @@ export default {
         user.feedToken = token;
         await user.save();
       }
+      const overrides = await loadOverrides();
       res.json({
         code: 0,
         schedules: schedules,
+        overrides: overrides,
         feedToken: token,
         feedUrl: `/api/schedule/feed?token=${encodeURIComponent(token)}`
       });
@@ -230,7 +255,8 @@ export default {
         return;
       }
       const schedules = await models.Schedule.findAll();
-      const result = expandSchedules(schedules, year, month);
+      const overrides = await loadOverrides();
+      const result = expandSchedules(schedules, year, month, overrides);
       res.json({
         code: 0,
         year: year,
@@ -252,9 +278,10 @@ export default {
         return;
       }
       const schedules = await models.Schedule.findAll();
+      const overrides = await loadOverrides();
       const months = [];
       for ( let month = 1; month <= 12; month += 1 ) {
-        const result = expandSchedules(schedules, year, month);
+        const result = expandSchedules(schedules, year, month, overrides);
         months.push({
           month: month,
           totalIn: result.totalIn,
@@ -331,6 +358,112 @@ export default {
     }
   },
 
+  // 個別設定（この月だけの上書き/取り消し）。月次予定にのみ使う。
+  // 用途: 「ざくっと金額を入れておいて、確定したら本当の金額を入れる」
+  overrideUpsert: async (req, res, next) => {
+    try {
+      const body = req.body;
+      const scheduleId = parseInt(body.scheduleId);
+      const date = String(body.date || '');
+      if ( !Number.isInteger(scheduleId) || !/^\d{4}-\d{2}-\d{2}$/.test(date) ) {
+        res.json({ code: -3, message: '予定または日付が不正です' });
+        return;
+      }
+      const schedule = await models.Schedule.findByPk(scheduleId);
+      if ( !schedule ) {
+        res.json({ code: -2 });
+        return;
+      }
+      if ( schedule.recurrence !== 'monthly' ) {
+        res.json({ code: -3, message: '単発の予定には個別設定は使えません' });
+        return;
+      }
+      if ( body.deleted ) {
+        // この月の予定を取り消す
+        let o = await models.ScheduleOverride.findOne({
+          where: {
+            scheduleId: scheduleId,
+            date: date
+          }
+        });
+        if ( o ) {
+          await o.set({ deleted: true });
+          await o.save();
+        } else {
+          o = await models.ScheduleOverride.create({
+            scheduleId: scheduleId,
+            date: date,
+            deleted: true
+          });
+        }
+        res.json({ code: 0, override: o });
+        return;
+      }
+      const error = validate({
+        title: ( body.title !== undefined && body.title !== null ) ? body.title : schedule.title,
+        kind: ( body.kind !== undefined && body.kind !== null ) ? body.kind : schedule.kind,
+        amount: ( body.amount !== undefined && body.amount !== null ) ? body.amount : schedule.amount,
+        recurrence: 'monthly',
+        dayOfMonth: 1
+      });
+      if ( error ) {
+        res.json({ code: -3, message: error });
+        return;
+      }
+      const values = {
+        scheduleId: scheduleId,
+        date: date,
+        title: String(body.title !== undefined && body.title !== null ? body.title : schedule.title).trim(),
+        kind: ( body.kind !== undefined && body.kind !== null ) ? body.kind : schedule.kind,
+        amount: Math.round(Number(body.amount !== undefined && body.amount !== null ?
+          body.amount : schedule.amount)),
+        note: ( body.note !== undefined ) ?
+          ( body.note ? String(body.note) : null ) :
+          schedule.note,
+        deleted: false
+      };
+      let o = await models.ScheduleOverride.findOne({
+        where: {
+          scheduleId: scheduleId,
+          date: date
+        }
+      });
+      if ( o ) {
+        await o.set(values);
+        await o.save();
+      } else {
+        o = await models.ScheduleOverride.create(values);
+      }
+      res.json({ code: 0, override: o });
+    } catch (e) {
+      console.log('schedule override error', e);
+      res.json({ code: -1 });
+    }
+  },
+
+  // 個別設定を取り消して毎月の予定に戻す
+  overrideReset: async (req, res, next) => {
+    try {
+      const scheduleId = parseInt(req.params.scheduleId);
+      const date = req.params.date;
+      if ( !Number.isInteger(scheduleId) ||
+           !/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ) {
+        res.json({ code: -3, message: '予定または日付が不正です' });
+        return;
+      }
+      const count = await models.ScheduleOverride.destroy({
+        where: {
+          scheduleId: scheduleId,
+          date: date
+        }
+      });
+      res.json({ code: count > 0 ? 0 : -2 });
+    } catch (e) {
+      console.log('schedule override reset error', e);
+      res.json({ code: -1 });
+    }
+  },
+
   // 自分のフィードトークンを再生成（旧トークンは無効になる）
   token: async (req, res, next) => {
     try {
@@ -363,8 +496,9 @@ export default {
           enabled: true
         }
       });
+      const overrides = await loadOverrides();
       res.set('Content-Type', 'text/calendar; charset=utf-8');
-      res.send(buildICS(schedules));
+      res.send(buildICS(schedules, overrides));
     } catch (e) {
       console.log('schedule feed error', e);
       res.json({ code: -1 });

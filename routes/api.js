@@ -304,6 +304,8 @@ router.post('/schedule', schedule.post);
 router.post('/schedule/token', schedule.token);
 router.get('/schedule/year/:year', schedule.year);
 router.get('/schedule/:year/:month', schedule.month);
+router.put('/schedule/override', schedule.overrideUpsert);
+router.delete('/schedule/override/:scheduleId/:date', schedule.overrideReset);
 router.put('/schedule/:id', schedule.update);
 router.delete('/schedule/:id', schedule.delete);
 router.post('/sticky', sticky.post);

@@ -44,6 +44,7 @@ describe('schedule (test db)', () => {
     creator = data.creator; // 会計権限なし（編集不可のはず）
     approver = data.approver; // 会計権限あり（編集可）
     // 前回実行の残データを掃除する（テストDBは繰り返し使われる）
+    await models.ScheduleOverride.destroy({ where: {} });
     await models.Schedule.destroy({ where: {} });
     await models.User.update({ feedToken: null }, { where: {} });
   });
@@ -379,5 +380,180 @@ describe('schedule (test db)', () => {
     });
     assert.isTrue(nextCalled);
     assert.equal(status, 200);
+  });
+
+  // ---- 個別設定（この月だけ編集） ----
+
+  it('権限: 個別設定の編集も会計権限が必要', async () => {
+    for ( const [path, method] of [
+      ['/schedule/override', 'PUT'],
+      ['/schedule/override/1/2026-11-25', 'DELETE']
+    ]) {
+      let nextCalled = false;
+      let status = 200;
+      const res = {
+        status: (c) => { status = c; return res; },
+        json: () => res
+      };
+      await guard({ path: path, method: method, session: { user: creator } }, res, () => {
+        nextCalled = true;
+      });
+      assert.isFalse(nextCalled, `${method} ${path} が通ってしまいました`);
+      assert.equal(status, 403);
+    }
+  });
+
+  it('個別設定: この月だけ金額を差し替えられる', async () => {
+    const result = await create({
+      title: '個別設定テスト', kind: 'out', amount: 80000,
+      recurrence: 'monthly', dayOfMonth: 25
+    });
+    const scheduleId = result.body.schedule.id;
+    // ざくっと入れた予定の11月だけ、確定した金額に差し替える
+    const upsert = await call(apiSchedule.overrideUpsert, {
+      body: {
+        scheduleId: scheduleId,
+        date: '2026-11-25',
+        amount: 90000,
+        note: '確定額'
+      },
+      session: { user: approver }
+    });
+    assert.equal(upsert.body.code, 0);
+    const nov = await call(apiSchedule.month, {
+      params: { year: 2026, month: 11 },
+      session: { user: approver }
+    });
+    const item = nov.body.items.filter((i) => i.title === '個別設定テスト')[0];
+    assert.equal(item.amount, 90000);
+    assert.equal(item.note, '確定額');
+    assert.isTrue(item.overridden);
+    // 他の月は元の金額のまま
+    const dec = await call(apiSchedule.month, {
+      params: { year: 2026, month: 12 },
+      session: { user: approver }
+    });
+    const decItem = dec.body.items.filter((i) => i.title === '個別設定テスト')[0];
+    assert.equal(decItem.amount, 80000);
+    assert.isFalse(decItem.overridden);
+  });
+
+  it('個別設定: 値を省略すると元の予定の値を引き継ぐ', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.title === '個別設定テスト');
+    await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: target.id, date: '2026-10-25' },
+      session: { user: approver }
+    });
+    const oct = await call(apiSchedule.month, {
+      params: { year: 2026, month: 10 },
+      session: { user: approver }
+    });
+    const item = oct.body.items.filter((i) => i.title === '個別設定テスト')[0];
+    assert.equal(item.amount, 80000);
+    assert.equal(item.kind, 'out');
+  });
+
+  it('個別設定: 同じ日への再設定は更新になる（一意制約）', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.title === '個別設定テスト');
+    await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: target.id, date: '2026-11-25', amount: 95000 },
+      session: { user: approver }
+    });
+    const count = await models.ScheduleOverride.count({
+      where: { scheduleId: target.id, date: '2026-11-25' }
+    });
+    assert.equal(count, 1);
+    const nov = await call(apiSchedule.month, {
+      params: { year: 2026, month: 11 },
+      session: { user: approver }
+    });
+    assert.equal(
+      nov.body.items.filter((i) => i.title === '個別設定テスト')[0].amount,
+      95000
+    );
+  });
+
+  it('個別設定: この月の予定を取り消せる', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.title === '個別設定テスト');
+    const upsert = await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: target.id, date: '2026-12-25', deleted: true },
+      session: { user: approver }
+    });
+    assert.equal(upsert.body.code, 0);
+    const dec = await call(apiSchedule.month, {
+      params: { year: 2026, month: 12 },
+      session: { user: approver }
+    });
+    assert.notOk(dec.body.items.some((i) => i.title === '個別設定テスト'));
+    // 翌月には出る
+    const jan = await call(apiSchedule.month, {
+      params: { year: 2027, month: 1 },
+      session: { user: approver }
+    });
+    assert.ok(jan.body.items.some((i) => i.title === '個別設定テスト'));
+  });
+
+  it('個別設定: 取り消すと毎月の予定に戻る', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.title === '個別設定テスト');
+    const reset = await call(apiSchedule.overrideReset, {
+      params: { scheduleId: target.id, date: '2026-12-25' },
+      session: { user: approver }
+    });
+    assert.equal(reset.body.code, 0);
+    const dec = await call(apiSchedule.month, {
+      params: { year: 2026, month: 12 },
+      session: { user: approver }
+    });
+    assert.ok(dec.body.items.some((i) => i.title === '個別設定テスト'));
+    // 個別設定も消えている
+    const count = await models.ScheduleOverride.count({
+      where: { scheduleId: target.id, date: '2026-12-25' }
+    });
+    assert.equal(count, 0);
+  });
+
+  it('個別設定: 単発の予定には使えない', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.recurrence === 'once');
+    const result = await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: target.id, date: '2026-03-10', amount: 1 },
+      session: { user: approver }
+    });
+    assert.equal(result.body.code, -3);
+  });
+
+  it('個別設定: 年次集計に反映される', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const target = list.body.schedules.find((s) => s.title === '個別設定テスト');
+    await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: target.id, date: '2026-11-25', amount: 95000 },
+      session: { user: approver }
+    });
+    const result = await call(apiSchedule.year, {
+      params: { year: 2026 },
+      session: { user: approver }
+    });
+    // 通常月の出金計は 160000+80000=240000（確認用支払を含む）。
+    // 個別設定された11月は 80000 が 95000 に置き換わる
+    assert.equal(result.body.months[10].totalOut, 160000 + 95000);
+    // 年計 = 240000×10（個別設定のない月）+ 3月(240000+120000) + 11月(255000)
+    assert.equal(result.body.totalOut, 240000 * 10 + 360000 + 255000);
+  });
+
+  it('個別設定: ICSフィードにも反映される', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const token = list.body.feedToken;
+    const result = await call(apiSchedule.feed, {
+      query: { token: token },
+      session: null
+    });
+    // 個別設定された金額がDESCRIPTIONに出る
+    assert.include(result.body, '金額 95,000円');
+    // 通常分（8万円）も他の月に出る
+    assert.include(result.body, 'SUMMARY:(出) 個別設定テスト');
   });
 });

@@ -49,8 +49,8 @@
           {#each cell.items as item (item.scheduleId)}
           <div class="cal-ev {item.kind === 'in' ? 'cal-in' : 'cal-out'}"
             role="button"
-            title="{item.title} {formatMoney(item.amount)}円"
-            on:click={() => { editById(item.scheduleId); }}>{item.title}</div>
+            title="{item.title} {formatMoney(item.amount)}円{item.overridden ? '（個別設定あり）' : ''}"
+            on:click={() => { editById(item.scheduleId, cell.date); }}>{item.title}</div>
           {/each}
           {/if}
         </td>
@@ -124,7 +124,12 @@
         {/if}
         {#each sortedSchedules as schedule (schedule.id)}
         <tr class:opacity-50={!schedule.enabled}>
-          <td>{schedule.title}{#if ( !schedule.enabled )}<span class="badge bg-secondary ms-1">停止中</span>{/if}</td>
+          <td>{schedule.title}{#if ( !schedule.enabled )}<span class="badge bg-secondary ms-1">停止中</span>{/if}
+            {#if ( overrideCount(schedule.id) > 0 )}
+            <span class="badge bg-info text-dark ms-1"
+              title="特定の月だけ個別の金額等が設定されています">個別設定 ×{overrideCount(schedule.id)}</span>
+            {/if}
+          </td>
           <td>
             {#if ( schedule.kind === 'in' )}
             <span class="badge bg-success">入金</span>
@@ -168,10 +173,67 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">{editing.id ? '予定の編集' : '予定の新規登録'}</h5>
+        <h5 class="modal-title">
+          {#if ( editScope === 'occurrence' )}
+          予定の個別変更（{occurrenceDate}）
+          {:else if ( editing.id )}
+          予定の編集
+          {:else}
+          予定の新規登録
+          {/if}
+        </h5>
         <button type="button" class="btn-close" on:click={() => { closeModal(); }}></button>
       </div>
       <div class="modal-body">
+        {#if ( isOccurrenceContext )}
+        <div class="mb-2 p-2 border rounded bg-light">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="schedule-scope-occurrence"
+              value="occurrence" bind:group={editScope}>
+            <label class="form-check-label" for="schedule-scope-occurrence">この月だけ変更する（{occurrenceDate}）</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="schedule-scope-recurrence"
+              value="recurrence" bind:group={editScope}>
+            <label class="form-check-label" for="schedule-scope-recurrence">毎月の予定を変更する</label>
+          </div>
+        </div>
+        {/if}
+        {#if ( editScope === 'occurrence' )}
+        <div class="mb-2">
+          <label class="form-label" for="schedule-title">タイトル</label>
+          <input type="text" class="form-control" id="schedule-title" bind:value={editing.title}>
+        </div>
+        <div class="mb-2 d-flex">
+          <div class="me-4">
+            <label class="form-label">種別</label>
+            <div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="schedule-kind-out"
+                  value="out" bind:group={editing.kind}>
+                <label class="form-check-label" for="schedule-kind-out">出金</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="schedule-kind-in"
+                  value="in" bind:group={editing.kind}>
+                <label class="form-check-label" for="schedule-kind-in">入金</label>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="schedule-amount">金額（円）</label>
+            <input type="number" class="form-control" id="schedule-amount"
+              style="width: 160px;" min="0" bind:value={editing.amount}>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="schedule-note">備考</label>
+          <textarea class="form-control" id="schedule-note" rows="2" bind:value={editing.note}></textarea>
+        </div>
+        <p class="small text-muted mb-0">
+          この変更は {occurrenceDate} の予定にだけ反映され、他の月は変わりません。
+        </p>
+        {:else}
         <div class="mb-2">
           <label class="form-label" for="schedule-title">タイトル</label>
           <input type="text" class="form-control" id="schedule-title" bind:value={editing.title}>
@@ -240,12 +302,17 @@
             bind:checked={editing.enabled}>
           <label class="form-check-label" for="schedule-enabled">有効</label>
         </div>
+        {/if}
       </div>
       <div class="modal-footer">
+        {#if ( editScope === 'occurrence' && occurrenceOverride )}
+        <button type="button" class="btn btn-outline-secondary me-auto"
+          on:click={() => { resetOverride(); }}>毎月の予定に戻す</button>
+        {/if}
         <button type="button" class="btn btn-secondary" on:click={() => { closeModal(); }}>キャンセル</button>
         <button type="button" class="btn btn-primary"
           disabled={!canSave}
-          on:click={() => { save(); }}>保存</button>
+          on:click={() => { save(); }}>{editScope === 'occurrence' ? 'この月だけ変更する' : '保存'}</button>
       </div>
     </div>
   </div>
@@ -266,6 +333,7 @@ let totalIn = 0;
 let totalOut = 0;
 let balance = 0;
 let schedules = [];
+let overrides = [];
 let feedUrl = '';
 let modalOpen = false;
 let editing = {};
@@ -274,6 +342,12 @@ let yearTotalIn = 0;
 let yearTotalOut = 0;
 let yearBalance = 0;
 let listOrder = 'date';
+// 編集スコープ。カレンダーから開いた場合は「この月だけ」か「毎月の予定」を
+// 選べる（ざくっと入れた金額を、確定したらこの月だけ差し替える用途）
+let editScope = 'recurrence';
+let isOccurrenceContext = false;
+let occurrenceDate = null;
+let occurrenceOverride = null;
 
 const formatMoney = (value) => ( Number(value) || 0 ).toLocaleString('ja-JP');
 
@@ -307,6 +381,7 @@ const buildWeeks = (y, m, monthItems) => {
   for ( let day = 1; day <= days; day += 1 ) {
     cells.push({
       day: day,
+      date: `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       items: byDay[day] || [],
       isToday: isToday && day === today.getDate()
     });
@@ -321,9 +396,18 @@ const buildWeeks = (y, m, monthItems) => {
   return weeks;
 };
 
-const editById = (scheduleId) => {
+const editById = (scheduleId, date = null) => {
   const schedule = schedules.find((s) => s.id === scheduleId);
-  if ( schedule ) {
+  if ( !schedule ) {
+    return;
+  }
+  // 月次予定をカレンダーから開いたときは、この月だけの個別変更を初期選択にする
+  const override = date ?
+    ( overrides.find((o) => o.scheduleId === scheduleId && o.date === date) || null ) :
+    null;
+  if ( date && schedule.recurrence === 'monthly' ) {
+    openEditor(schedule, date, override);
+  } else {
     openEditor(schedule);
   }
 };
@@ -390,20 +474,43 @@ const loadYear = async () => {
 const loadDefs = async () => {
   const result = await axios.get('/api/schedule');
   schedules = result.data.schedules;
+  overrides = result.data.overrides || [];
   feedUrl = result.data.feedUrl || '';
 };
 
-const openEditor = (schedule) => {
-  if ( schedule ) {
-    editing = {
-      id: schedule.id,
+const overrideCount = (scheduleId) => {
+  return overrides.filter((o) => o.scheduleId === scheduleId).length;
+};
+
+const openEditor = (schedule, occurrence = null, override = null) => {
+  isOccurrenceContext = Boolean(occurrence);
+  occurrenceDate = occurrence;
+  occurrenceOverride = override;
+  editScope = occurrence ? 'occurrence' : 'recurrence';
+  // 編集の出発値。個別設定がある場合はそれを、無ければ元の予定を引き継ぐ。
+  // （新規登録のときは schedule が undefined なので評価しない）
+  const base = ( schedule ) ?
+    ( ( override ) ? {
+      title: override.title !== null ? override.title : schedule.title,
+      kind: override.kind !== null ? override.kind : schedule.kind,
+      amount: Number(override.amount !== null ? override.amount : schedule.amount),
+      note: override.note !== null ? override.note : schedule.note
+    } : {
       title: schedule.title,
       kind: schedule.kind,
       amount: Number(schedule.amount),
+      note: schedule.note
+    } ) : null;
+  if ( schedule ) {
+    editing = {
+      id: schedule.id,
+      title: base.title,
+      kind: base.kind,
+      amount: base.amount,
       recurrence: schedule.recurrence,
       dayOfMonth: parseInt(schedule.dayOfMonth) || 0,
       date: schedule.date,
-      note: schedule.note,
+      note: base.note,
       enabled: schedule.enabled
     };
   } else {
@@ -430,24 +537,47 @@ const closeModal = () => {
 
 $: canSave = editing.title && editing.title.trim() &&
   Number(editing.amount) > 0 &&
-  ( ( editing.recurrence === 'monthly' ) || editing.date );
+  ( editScope === 'occurrence' ||
+    ( editing.recurrence === 'monthly' ) || editing.date );
 
 const save = async () => {
-  const values = {
-    title: editing.title,
-    kind: editing.kind,
-    amount: Number(editing.amount),
-    recurrence: editing.recurrence,
-    dayOfMonth: editing.recurrence === 'monthly' ? parseInt(editing.dayOfMonth) || 0 : null,
-    date: editing.recurrence === 'once' ? editing.date : null,
-    note: editing.note,
-    enabled: editing.enabled
-  };
-  if ( editing.id ) {
-    await axios.put(`/api/schedule/${editing.id}`, values);
+  if ( editScope === 'occurrence' ) {
+    // この月だけの個別設定（上書き）
+    await axios.put('/api/schedule/override', {
+      scheduleId: editing.id,
+      date: occurrenceDate,
+      title: editing.title,
+      kind: editing.kind,
+      amount: Number(editing.amount),
+      note: editing.note
+    });
   } else {
-    await axios.post('/api/schedule', values);
+    const values = {
+      title: editing.title,
+      kind: editing.kind,
+      amount: Number(editing.amount),
+      recurrence: editing.recurrence,
+      dayOfMonth: editing.recurrence === 'monthly' ? parseInt(editing.dayOfMonth) || 0 : null,
+      date: editing.recurrence === 'once' ? editing.date : null,
+      note: editing.note,
+      enabled: editing.enabled
+    };
+    if ( editing.id ) {
+      await axios.put(`/api/schedule/${editing.id}`, values);
+    } else {
+      await axios.post('/api/schedule', values);
+    }
   }
+  closeModal();
+  refreshAll();
+};
+
+// 個別設定を取り消して毎月の予定に戻す
+const resetOverride = async () => {
+  if ( !confirm(`${occurrenceDate} の個別設定を取り消し、毎月の予定に戻しますか？`) ) {
+    return;
+  }
+  await axios.delete(`/api/schedule/override/${editing.id}/${occurrenceDate}`);
   closeModal();
   refreshAll();
 };

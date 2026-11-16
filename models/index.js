@@ -31,6 +31,7 @@ import LabelAccount from './labelaccount.js';
 import Sticky from './sticky.js';
 import StickyStatus from './stickystatus.js';
 import Schedule from './schedule.js';
+import ScheduleOverride from './scheduleoverride.js';
 import SubAccount from './subaccount.js';
 import SubAccountRemaining from './subaccountremaining.js';
 import Task from './task.js';
@@ -95,6 +96,7 @@ const models = {
   Sticky: Sticky(sequelize, DataTypes),
   StickyStatus: StickyStatus(sequelize, DataTypes),
   Schedule: Schedule(sequelize, DataTypes),
+  ScheduleOverride: ScheduleOverride(sequelize, DataTypes),
   SubAccount: SubAccount(sequelize, DataTypes),
   SubAccountRemaining: SubAccountRemaining(sequelize, DataTypes),
   Task: Task(sequelize, DataTypes),
