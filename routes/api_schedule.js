@@ -243,6 +243,42 @@ export default {
     }
   },
 
+  // 指定年の月別集計（年ビュー用）
+  year: async (req, res, next) => {
+    try {
+      const year = parseInt(req.params.year);
+      if ( !Number.isInteger(year) ) {
+        res.json({ code: -3, message: '年が不正です' });
+        return;
+      }
+      const schedules = await models.Schedule.findAll();
+      const months = [];
+      for ( let month = 1; month <= 12; month += 1 ) {
+        const result = expandSchedules(schedules, year, month);
+        months.push({
+          month: month,
+          totalIn: result.totalIn,
+          totalOut: result.totalOut,
+          balance: result.balance,
+          count: result.items.length
+        });
+      }
+      const totalIn = months.reduce((sum, m) => sum + m.totalIn, 0);
+      const totalOut = months.reduce((sum, m) => sum + m.totalOut, 0);
+      res.json({
+        code: 0,
+        year: year,
+        months: months,
+        totalIn: totalIn,
+        totalOut: totalOut,
+        balance: totalIn - totalOut
+      });
+    } catch (e) {
+      console.log('schedule year error', e);
+      res.json({ code: -1 });
+    }
+  },
+
   post: async (req, res, next) => {
     try {
       const error = validate(req.body);

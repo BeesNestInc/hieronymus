@@ -2,57 +2,110 @@
   <div class="page-title d-flex justify-content-between">
     <h1 class="fs-3">予定表</h1>
     <div class="d-flex align-items-center">
-      <button type="button" class="btn btn-sm btn-outline-secondary me-2"
-        on:click={() => { moveMonth(-1); }}>&lt;</button>
-      <span class="fs-5 fw-bold">{year}年{month}月</span>
-      <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
-        on:click={() => { moveMonth(1); }}>&gt;</button>
+      <div class="btn-group btn-group-sm me-3">
+        <button type="button" class="btn btn-outline-secondary"
+          class:active={view === 'month'}
+          on:click={() => { switchView('month'); }}>月</button>
+        <button type="button" class="btn btn-outline-secondary"
+          class:active={view === 'year'}
+          on:click={() => { switchView('year'); }}>年</button>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+        on:click={() => { move(-1); }}>&lt;</button>
+      <span class="fs-5 fw-bold mx-2">{view === 'year' ? `${year}年` : `${year}年${month}月`}</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+        on:click={() => { move(1); }}>&gt;</button>
       <button type="button" class="btn btn-primary ms-4"
         on:click={() => { openEditor(); }}>新規&nbsp;<i class="bi bi-plus-lg"></i></button>
     </div>
   </div>
 
+  {#if ( view === 'month' )}
   <div class="d-flex fs-5 mt-2 mb-2">
     <span class="me-4">入金計 <span class="text-success fw-bold">{formatMoney(totalIn)}</span>円</span>
     <span class="me-4">出金計 <span class="text-danger fw-bold">{formatMoney(totalOut)}</span>円</span>
     <span>差引 <span class="fw-bold" class:text-success={balance >= 0} class:text-danger={balance < 0}>{formatMoney(balance)}</span>円</span>
   </div>
 
-  <div class="fontsize-12pt">
+  <table class="table table-bordered cal">
+    <thead class="table-light">
+      <tr>
+        <th class="cal-dow text-center">日</th>
+        <th class="cal-dow text-center">月</th>
+        <th class="cal-dow text-center">火</th>
+        <th class="cal-dow text-center">水</th>
+        <th class="cal-dow text-center">木</th>
+        <th class="cal-dow text-center">金</th>
+        <th class="cal-dow text-center">土</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each weeks as week}
+      <tr>
+        {#each week as cell}
+        <td class="cal-cell align-top" class:cal-today={cell && cell.isToday}>
+          {#if ( cell )}
+          <div class="cal-day small text-muted">{cell.day}</div>
+          {#each cell.items as item (item.scheduleId)}
+          <div class="cal-ev {item.kind === 'in' ? 'cal-in' : 'cal-out'}"
+            role="button"
+            title="{item.title} {formatMoney(item.amount)}円"
+            on:click={() => { editById(item.scheduleId); }}>{item.title}</div>
+          {/each}
+          {/if}
+        </td>
+        {/each}
+      </tr>
+      {/each}
+    </tbody>
+  </table>
+  {:else}
+  <div class="fontsize-12pt mt-2" style="max-width: 800px;">
     <table class="table table-bordered">
       <thead class="table-light">
         <tr>
-          <th scope="col" style="width: 120px;">日付</th>
-          <th scope="col" style="width: 100px;">種別</th>
-          <th scope="col" style="width: 300px;">タイトル</th>
-          <th scope="col" style="width: 150px;">金額</th>
-          <th scope="col">備考</th>
+          <th scope="col" class="text-center" style="width: 100px;">月</th>
+          <th scope="col" class="text-end">入金計</th>
+          <th scope="col" class="text-end">出金計</th>
+          <th scope="col" class="text-end">差引</th>
+          <th scope="col" class="text-center" style="width: 80px;">件数</th>
         </tr>
       </thead>
       <tbody>
-        {#if ( items.length === 0 )}
-        <tr><td colspan="5" class="text-muted">この月の予定はありません</td></tr>
-        {/if}
-        {#each items as item (item.scheduleId + item.date)}
-        <tr>
-          <td>{item.day}日</td>
-          <td>
-            {#if ( item.kind === 'in' )}
-            <span class="badge bg-success">入金</span>
-            {:else}
-            <span class="badge bg-danger">出金</span>
-            {/if}
+        {#each yearMonths as m (m.month)}
+        <tr class:table-active={m.month === month}>
+          <td class="text-center">
+            <button type="button" class="btn btn-link p-0"
+              on:click={() => { switchMonth(m.month); }}>{m.month}月</button>
           </td>
-          <td>{item.title}</td>
-          <td class="text-end">{formatMoney(item.amount)}円</td>
-          <td class="small">{item.note || ''}</td>
+          <td class="text-end text-success">{m.totalIn ? formatMoney(m.totalIn) : '-'}</td>
+          <td class="text-end text-danger">{m.totalOut ? formatMoney(m.totalOut) : '-'}</td>
+          <td class="text-end">{formatMoney(m.balance)}</td>
+          <td class="text-center">{m.count || '-'}</td>
         </tr>
         {/each}
+        <tr class="table-light fw-bold">
+          <td class="text-center">年計</td>
+          <td class="text-end text-success">{formatMoney(yearTotalIn)}</td>
+          <td class="text-end text-danger">{formatMoney(yearTotalOut)}</td>
+          <td class="text-end">{formatMoney(yearBalance)}</td>
+          <td></td>
+        </tr>
       </tbody>
     </table>
   </div>
+  {/if}
 
-  <h2 class="fs-4 mt-4">予定の定義</h2>
+  <h2 class="fs-4 mt-4">予定の一覧</h2>
+  <div class="d-flex align-items-center mb-1">
+    <span class="small text-muted me-2">表示順</span>
+    <select class="form-select form-select-sm w-auto" bind:value={listOrder}>
+      <option value="date">発生日順</option>
+      <option value="amount">金額順</option>
+      <option value="kind">種別順</option>
+      <option value="created">登録順</option>
+    </select>
+  </div>
   <div class="fontsize-12pt">
     <table class="table table-bordered">
       <thead class="table-light">
@@ -69,7 +122,7 @@
         {#if ( schedules.length === 0 )}
         <tr><td colspan="6" class="text-muted">予定が登録されていません</td></tr>
         {/if}
-        {#each schedules as schedule (schedule.id)}
+        {#each sortedSchedules as schedule (schedule.id)}
         <tr class:opacity-50={!schedule.enabled}>
           <td>{schedule.title}{#if ( !schedule.enabled )}<span class="badge bg-secondary ms-1">停止中</span>{/if}</td>
           <td>
@@ -206,6 +259,7 @@ import {link, currentPage} from '../../javascripts/router.js';
 
 export let status;
 
+let view = 'month';
 let year, month;
 let items = [];
 let totalIn = 0;
@@ -215,6 +269,11 @@ let schedules = [];
 let feedUrl = '';
 let modalOpen = false;
 let editing = {};
+let yearMonths = [];
+let yearTotalIn = 0;
+let yearTotalOut = 0;
+let yearBalance = 0;
+let listOrder = 'date';
 
 const formatMoney = (value) => ( Number(value) || 0 ).toLocaleString('ja-JP');
 
@@ -226,9 +285,90 @@ const recurrenceLabel = (schedule) => {
   return `毎月 (${day <= 0 ? '月末' : day + '日'})`;
 };
 
-const moveMonth = (delta) => {
-  const date = new Date(year, month - 1 + delta, 1);
-  link(`/schedule?ym=${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+// ---- カレンダー（日曜始まり） ----
+$: weeks = buildWeeks(year, month, items);
+const buildWeeks = (y, m, monthItems) => {
+  if ( !y || !m ) {
+    return [];
+  }
+  const first = new Date(y, m - 1, 1);
+  const days = new Date(y, m, 0).getDate();
+  const byDay = {};
+  for ( const item of monthItems ) {
+    const day = parseInt(String(item.date).split('-')[2]);
+    ( byDay[day] = byDay[day] || [] ).push(item);
+  }
+  const today = new Date();
+  const isToday = (y === today.getFullYear() && m === today.getMonth() + 1);
+  const cells = [];
+  for ( let i = 0; i < first.getDay(); i += 1 ) {
+    cells.push(null);
+  }
+  for ( let day = 1; day <= days; day += 1 ) {
+    cells.push({
+      day: day,
+      items: byDay[day] || [],
+      isToday: isToday && day === today.getDate()
+    });
+  }
+  while ( cells.length % 7 !== 0 ) {
+    cells.push(null);
+  }
+  const weeks = [];
+  for ( let i = 0; i < cells.length; i += 7 ) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  return weeks;
+};
+
+const editById = (scheduleId) => {
+  const schedule = schedules.find((s) => s.id === scheduleId);
+  if ( schedule ) {
+    openEditor(schedule);
+  }
+};
+
+// ---- 表示順 ----
+$: sortedSchedules = sortSchedules(schedules, listOrder);
+const sortSchedules = (defs, order) => {
+  const list = [...defs];
+  if ( order === 'amount' ) {
+    return list.sort((a, b) => Number(b.amount) - Number(a.amount));
+  }
+  if ( order === 'kind' ) {
+    return list.sort((a, b) =>
+      ( a.kind === b.kind ) ?
+        ( Number(b.amount) - Number(a.amount) ) :
+        ( a.kind === 'in' ? -1 : 1 ));
+  }
+  if ( order === 'created' ) {
+    return list.sort((a, b) => a.id - b.id);
+  }
+  // 発生日順: 毎月は発生日（月末は最後）、単発はその日付（月を含めて昇順）
+  return list.sort((a, b) => {
+    const ka = a.recurrence === 'once' ?
+      100000 + String(a.date || '').replaceAll('-', '') : a.dayOfMonth || 32;
+    const kb = b.recurrence === 'once' ?
+      100000 + String(b.date || '').replaceAll('-', '') : b.dayOfMonth || 32;
+    return ka - kb;
+  });
+};
+
+const switchView = (mode) => {
+  link(`/schedule?view=${mode}&ym=${year}-${String(month).padStart(2, '0')}`);
+};
+
+const switchMonth = (m) => {
+  link(`/schedule?view=month&ym=${year}-${String(m).padStart(2, '0')}`);
+};
+
+const move = (delta) => {
+  if ( view === 'year' ) {
+    link(`/schedule?view=year&ym=${year + delta}-${String(month).padStart(2, '0')}`);
+  } else {
+    const date = new Date(year, month - 1 + delta, 1);
+    link(`/schedule?view=month&ym=${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  }
 };
 
 const loadMonth = async () => {
@@ -237,6 +377,14 @@ const loadMonth = async () => {
   totalIn = result.data.totalIn;
   totalOut = result.data.totalOut;
   balance = result.data.balance;
+};
+
+const loadYear = async () => {
+  const result = await axios.get(`/api/schedule/year/${year}`);
+  yearMonths = result.data.months;
+  yearTotalIn = result.data.totalIn;
+  yearTotalOut = result.data.totalOut;
+  yearBalance = result.data.balance;
 };
 
 const loadDefs = async () => {
@@ -298,8 +446,7 @@ const save = async () => {
     await axios.post('/api/schedule', values);
   }
   closeModal();
-  loadMonth();
-  loadDefs();
+  refreshAll();
 };
 
 const remove = (schedule) => {
@@ -307,8 +454,7 @@ const remove = (schedule) => {
     return;
   }
   axios.delete(`/api/schedule/${schedule.id}`).then(() => {
-    loadMonth();
-    loadDefs();
+    refreshAll();
   });
 };
 
@@ -330,15 +476,23 @@ const regenerateToken = () => {
   });
 };
 
-// URLクエリ ?ym=YYYY-MM で表示月を指定（無ければ当月）。
-// lastYm の初期値は 'init'（null のままでは「クエリなし」の初回が
-// 未処理のままになるため）
-let lastYm = 'init';
+const refreshAll = () => {
+  loadMonth();
+  loadYear();
+  loadDefs();
+};
+
+// URLクエリ ?view=month|year&ym=YYYY-MM で表示を指定（無ければ当月・月ビュー）。
+// lastKey の初期値は 'init'（null 同士の比較で初回処理がスキップされないように）
+let lastKey = 'init';
 $: {
   const query = ($currentPage || '').split('?')[1];
-  const ym = new URLSearchParams(query || '').get('ym');
-  if ( ym !== lastYm ) {
-    lastYm = ym;
+  const params = new URLSearchParams(query || '');
+  const ym = params.get('ym');
+  const v = params.get('view') === 'year' ? 'year' : 'month';
+  const key = `${v}:${ym}`;
+  if ( key !== lastKey ) {
+    lastKey = key;
     const now = new Date();
     if ( ym && /^\d{4}-\d{2}$/.test(ym) ) {
       year = parseInt(ym.split('-')[0]);
@@ -347,12 +501,8 @@ $: {
       year = now.getFullYear();
       month = now.getMonth() + 1;
     }
-    if ( typeof loadMonth === 'function' ) {
-      loadMonth();
-    }
-    if ( typeof loadDefs === 'function' ) {
-      loadDefs();
-    }
+    view = v;
+    refreshAll();
   }
 }
 
@@ -361,6 +511,41 @@ onMount(() => {
 </script>
 
 <style>
+.cal {
+  table-layout: fixed;
+  max-width: 1100px;
+}
+.cal-dow {
+  font-size: 0.8rem;
+}
+.cal-cell {
+  height: 90px;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+}
+.cal-today {
+  background: #e7f1ff;
+}
+.cal-day {
+  line-height: 1.2;
+}
+.cal-ev {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  cursor: pointer;
+}
+.cal-in {
+  background: #d1e7dd;
+  color: #0a3622;
+}
+.cal-out {
+  background: #f8d7da;
+  color: #58151c;
+}
 .schedule-modal {
   background: rgba(0, 0, 0, 0.5);
   z-index: 1055;

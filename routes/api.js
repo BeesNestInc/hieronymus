@@ -302,6 +302,7 @@ router.get('/schedule/feed', schedule.feed);
 router.get('/schedule', schedule.list);
 router.post('/schedule', schedule.post);
 router.post('/schedule/token', schedule.token);
+router.get('/schedule/year/:year', schedule.year);
 router.get('/schedule/:year/:month', schedule.month);
 router.put('/schedule/:id', schedule.update);
 router.delete('/schedule/:id', schedule.delete);

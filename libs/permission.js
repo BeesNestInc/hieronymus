@@ -155,7 +155,7 @@ const RULES = [
   // 会計閲覧権（偉い人用の閲覧権限）に開ける。編集は会計・管理者。
   // フィードはトークン認証（PUBLIC_PATHSでguard回避、ハンドラでtoken照合）
   { match: /^\/schedule\/token$/, methods: ['POST'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
-  { match: /^\/schedule(\/\d+\/\d+)?$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
+  { match: /^\/schedule(\/year\/\d+|\/\d+\/\d+)?$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
   { match: /^\/schedule/, methods: ['POST', 'PUT', 'DELETE'], access: ['accounting', 'administrable'] },
 
   { match: /^\/menu/, access: ['administrable'] },

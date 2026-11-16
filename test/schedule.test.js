@@ -97,6 +97,7 @@ describe('schedule (test db)', () => {
     for ( const [path, method] of [
       ['/schedule', 'GET'],
       ['/schedule/2026/11', 'GET'],
+      ['/schedule/year/2027', 'GET'],
       ['/schedule/token', 'POST']
     ]) {
       let nextCalled = false;
@@ -270,6 +271,28 @@ describe('schedule (test db)', () => {
     const days = nov.body.items.map((i) => i.day);
     const sorted = [...days].sort((a, b) => a - b);
     assert.deepEqual(days, sorted);
+  });
+
+  it('年次集計: 月別の入出金計と年計が返る', async () => {
+    const result = await call(apiSchedule.year, {
+      params: { year: 2026 },
+      session: { user: approver }
+    });
+    assert.equal(result.body.code, 0);
+    assert.equal(result.body.months.length, 12);
+    // 月次: 入金 入金テスト400000 / 出金 家賃80000+返済50000+月末30000=160000
+    const nov = result.body.months[10];
+    assert.equal(nov.month, 11);
+    assert.equal(nov.totalIn, 400000);
+    assert.equal(nov.totalOut, 160000);
+    assert.equal(nov.balance, 240000);
+    // 単発（2026-03）だけが他の月と違う月計になる
+    const march = result.body.months[2];
+    assert.equal(march.totalOut, 160000 + 120000);
+    // 年計は月計の合計と一致
+    assert.equal(result.body.totalIn, 400000 * 12);
+    assert.equal(result.body.totalOut, 160000 * 11 + 280000);
+    assert.equal(result.body.balance, result.body.totalIn - result.body.totalOut);
   });
 
   it('ICSフィード: トークンが一致すればtext/calendarで返る', async () => {
