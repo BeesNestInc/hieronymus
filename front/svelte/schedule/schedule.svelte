@@ -535,8 +535,10 @@ const closeModal = () => {
   modalOpen = false;
 };
 
+// 金額0（未確定のざっくり予定など）も許可する
 $: canSave = editing.title && editing.title.trim() &&
-  Number(editing.amount) > 0 &&
+  editing.amount !== null && editing.amount !== undefined && editing.amount !== '' &&
+  Number(editing.amount) >= 0 &&
   ( editScope === 'occurrence' ||
     ( editing.recurrence === 'monthly' ) || editing.date );
 

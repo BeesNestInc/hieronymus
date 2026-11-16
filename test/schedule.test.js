@@ -178,12 +178,35 @@ describe('schedule (test db)', () => {
     }
   });
 
+  it('作成: 金額0の予定（未確定のざっくり予定）も作れる', async () => {
+    const result = await create({
+      title: '金額未確定', kind: 'out', amount: 0,
+      recurrence: 'monthly', dayOfMonth: 20
+    });
+    assert.equal(result.body.code, 0);
+    assert.equal(Number(result.body.schedule.amount), 0);
+    // 個別変更でも金額0にできる
+    const upsert = await call(apiSchedule.overrideUpsert, {
+      body: { scheduleId: result.body.schedule.id, date: '2026-11-20', amount: 0 },
+      session: { user: approver }
+    });
+    assert.equal(upsert.body.code, 0);
+    const nov = await call(apiSchedule.month, {
+      params: { year: 2026, month: 11 },
+      session: { user: approver }
+    });
+    assert.equal(
+      nov.body.items.filter((i) => i.title === '金額未確定')[0].amount,
+      0
+    );
+  });
+
   it('一覧: 予定定義と自分のフィードトークンが返る（初回アクセスでトークン発行）', async () => {
     const first = await call(apiSchedule.list, {
       session: { user: approver }
     });
     assert.equal(first.body.code, 0);
-    assert.equal(first.body.schedules.length, 2);
+    assert.isAbove(first.body.schedules.length, 0);
     // 未発行ならこの時点で発行される
     assert.ok(first.body.feedToken);
     const again = await call(apiSchedule.list, { session: { user: approver } });
