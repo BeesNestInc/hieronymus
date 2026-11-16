@@ -13,8 +13,10 @@
       gs-w={widget.w}
       gs-h={widget.h}
     >
+    <!-- 編集中はGridStackの移動/リサイズに譲る（HTML5ドラッグは
+      実行モード時の「他のマイページへの持ち出し」用） -->
       <div class="grid-stack-item-content border"
-	      draggable="true"
+        draggable={!isEditMode}
         on:dragstart={(event) => {
           startDrag(event,widget)
         }}
@@ -110,6 +112,25 @@
 </div>
   
 <style>
+/* リサイズハンドル（GridStackが実行時に生成するためグローバル指定）。
+   既定の20px（表示は回転45°のひし形）だと角で当たり外れがあり
+   リサイズできないことがあるので、大きくし、回転も解除して
+   グリッドのmargin分の隙間もカバーして角を確実に覆う */
+:global(.grid-stack-item > .ui-resizable-handle) {
+  z-index: 60;
+}
+:global(.grid-stack-item > .ui-resizable-ne),
+:global(.grid-stack-item > .ui-resizable-nw),
+:global(.grid-stack-item > .ui-resizable-se),
+:global(.grid-stack-item > .ui-resizable-sw) {
+  width: 34px !important;
+  height: 34px !important;
+  transform: none !important;
+}
+:global(.grid-stack-item > .ui-resizable-se) {
+  right: -6px !important;
+  bottom: -6px !important;
+}
 </style>
   
 <script>
@@ -253,6 +274,9 @@ const initializeGrid = () => {
       margin: 5,
       draggable: isEditMode,
       resizable: isEditMode,
+      // リサイズハンドルを編集中は常に表示する（autohideだと出現が不安定で、
+      // 少しズレて掴むとHTML5ドラッグが横取りしてリサイズできない）
+      alwaysShowResizeHandle: true,
       float: true,
     });
   
