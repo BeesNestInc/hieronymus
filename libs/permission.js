@@ -141,6 +141,10 @@ const RULES = [
 
   { match: /^\/member/, methods: ['GET'], access: ['administrable', 'personnelManagement'] },
   { match: /^\/member/, methods: ['POST', 'PUT', 'DELETE'], access: ['administrable', 'personnelManagement'] },
+  // Sticky（付箋・申し送り）。付箋は特定権限を要求しない（ログイン済み全員が
+  // 「画面に付箋を貼る」感覚で使う。guard は未登録パスをデフォルト拒否するため
+  // 明示的に ANY を置く必要がある）
+  { match: /^\/sticky/, access: ANY },
   { match: /^\/menu/, access: ['administrable'] },
   { match: /^\/admin/, access: ['administrable'] }
 ];

@@ -30,6 +30,7 @@ import taxRule from './api-tax.js';
 import project from './api-project.js';
 import label from './api-label.js';
 import projectSummary from './api-project-summary.js';
+import sticky from './api_sticky.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
@@ -291,6 +292,14 @@ router.delete('/labels/:id', label.delete);
 router.put('/labels/:id', label.update);
 
 router.get('/project-summary/:projectId', projectSummary.get);
+
+// :statusId / :id の解釈順に注意。具体的なパスを先に置く
+router.get('/sticky', sticky.list);
+router.post('/sticky', sticky.post);
+router.post('/sticky/:id/read', sticky.read);
+router.post('/sticky/:id/forward', sticky.forward);
+router.delete('/sticky/status/:statusId', sticky.deleteStatus);
+router.delete('/sticky/:id', sticky.delete);
 
 router.post('/setup', setup)
 

@@ -1,6 +1,7 @@
 <div class="container-fluid">
   <ul class="navbar-nav">
   </ul>
+  <Sticky></Sticky>
   <span class="havbar-text">
     {#if ( status.fy.startDate && status.fy.endDate )}
     <div class="dropdown d-inline-block">
@@ -57,6 +58,7 @@
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import axios from 'axios';
 import {wareki} from '../../../libs/utils';
+import Sticky from '../components/sticky.svelte';
 
 export let status;
 

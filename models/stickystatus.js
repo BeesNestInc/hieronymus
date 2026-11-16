@@ -16,11 +16,8 @@ export default (sequelize, DataTypes) => {
   StickyStatus.init({
     stickyId: DataTypes.INTEGER,
     receiverId: DataTypes.INTEGER,
-    showHide: DataTypes.BOOLEAN,
     importance: DataTypes.INTEGER,
-    posX: DataTypes.INTEGER,
-    posY: DataTypes.INTEGER,
-    completedAt: {
+    readAt: {
       type: DataTypes.DATE,
       allowNull: true,
     }

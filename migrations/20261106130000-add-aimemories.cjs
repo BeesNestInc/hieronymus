@@ -6,6 +6,17 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
+    // sync 運用の環境ではすでにテーブルと索引が存在することがある。
+    // その場合は適用済みとみなしてスキップする（再実行のために冪等にしておく）
+    let existing;
+    try {
+      existing = await queryInterface.describeTable('Aimemories');
+    } catch (e) {
+      existing = null;
+    }
+    if ( existing ) {
+      return;
+    }
     const t = await queryInterface.sequelize.transaction();
     try {
       await queryInterface.createTable('Aimemories', {
