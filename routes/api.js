@@ -31,6 +31,7 @@ import project from './api-project.js';
 import label from './api-label.js';
 import projectSummary from './api-project-summary.js';
 import sticky from './api_sticky.js';
+import schedule from './api_schedule.js';
 
 import cross_slip from './api_cross_slip.js';
 import cross_slip_detail from './api_cross_slip_detail.js';
@@ -295,6 +296,15 @@ router.get('/project-summary/:projectId', projectSummary.get);
 
 // :statusId / :id の解釈順に注意。具体的なパスを先に置く
 router.get('/sticky', sticky.list);
+
+// :id / :year の解釈順に注意。feed は具体的なパスなので先に置く
+router.get('/schedule/feed', schedule.feed);
+router.get('/schedule', schedule.list);
+router.post('/schedule', schedule.post);
+router.post('/schedule/token', schedule.token);
+router.get('/schedule/:year/:month', schedule.month);
+router.put('/schedule/:id', schedule.update);
+router.delete('/schedule/:id', schedule.delete);
 router.post('/sticky', sticky.post);
 router.post('/sticky/:id/read', sticky.read);
 router.post('/sticky/:id/forward', sticky.forward);

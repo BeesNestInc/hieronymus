@@ -30,6 +30,7 @@ import ProjectLabel from './projectlabel.js';
 import LabelAccount from './labelaccount.js';
 import Sticky from './sticky.js';
 import StickyStatus from './stickystatus.js';
+import Schedule from './schedule.js';
 import SubAccount from './subaccount.js';
 import SubAccountRemaining from './subaccountremaining.js';
 import Task from './task.js';
@@ -93,6 +94,7 @@ const models = {
   LabelAccount: LabelAccount(sequelize, DataTypes),
   Sticky: Sticky(sequelize, DataTypes),
   StickyStatus: StickyStatus(sequelize, DataTypes),
+  Schedule: Schedule(sequelize, DataTypes),
   SubAccount: SubAccount(sequelize, DataTypes),
   SubAccountRemaining: SubAccountRemaining(sequelize, DataTypes),
   Task: Task(sequelize, DataTypes),

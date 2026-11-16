@@ -4,7 +4,12 @@ const PUBLIC_PATHS = [
   { match: /^\/user\/login$/, method: 'POST' },
   { match: /^\/user\/signup$/, method: 'POST' },
   { match: /^\/setup$/, method: 'POST' },
-  { match: /^\/version$/, method: 'GET' }
+  { match: /^\/version$/, method: 'GET' },
+  // 予定表のICSフィード。購読クライアント（Googleカレンダー等）はセッション
+  // Cookieを持てないためトークン付きURLで認証する（ハンドラ内でtoken照合。
+  // 存在しないトークンは404）。guard は未登録パスをデフォルト拒否するので
+  // ここへの登録が必須
+  { match: /^\/schedule\/feed$/, method: 'GET' }
 ];
 
 const RULES = [
@@ -145,6 +150,14 @@ const RULES = [
   // 「画面に付箋を貼る」感覚で使う。guard は未登録パスをデフォルト拒否するため
   // 明示的に ANY を置く必要がある）
   { match: /^\/sticky/, access: ANY },
+
+  // 予定表（資金繰り予定）。入出金予定自体はそこまで機微ではないため、
+  // 会計閲覧権（偉い人用の閲覧権限）に開ける。編集は会計・管理者。
+  // フィードはトークン認証（PUBLIC_PATHSでguard回避、ハンドラでtoken照合）
+  { match: /^\/schedule\/token$/, methods: ['POST'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
+  { match: /^\/schedule(\/\d+\/\d+)?$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing', 'administrable'] },
+  { match: /^\/schedule/, methods: ['POST', 'PUT', 'DELETE'], access: ['accounting', 'administrable'] },
+
   { match: /^\/menu/, access: ['administrable'] },
   { match: /^\/admin/, access: ['administrable'] }
 ];

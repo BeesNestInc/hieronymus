@@ -61,7 +61,10 @@ export default (sequelize, DataTypes) => {
     administrable: DataTypes.BOOLEAN,
     companyManagement: DataTypes.BOOLEAN,
     inventoryManagement: DataTypes.BOOLEAN,
-    personnelManagement: DataTypes.BOOLEAN
+    personnelManagement: DataTypes.BOOLEAN,
+    // 予定表ICSフィードのトークン。購読クライアント（Googleカレンダー等）は
+    // セッションCookieを持てないため、トークン付きURLで認証する
+    feedToken: DataTypes.STRING(64)
   }, {
     sequelize,
     modelName: 'User'

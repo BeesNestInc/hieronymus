@@ -72,7 +72,7 @@ export default [
     },
     icon: { name: 'bi-table' },
     description: `残高試算表が確認できます。`
-  }, {
+  },   {
     name: 'changes',
     title: '推移表',
     match: /^\/changes/,
@@ -86,6 +86,20 @@ export default [
     description: `
 科目毎の月次集計の推移をグラフ表示します。<br/>
 年度内だけではなく、前年同月比較や通年表示もできます。`
+  }, {
+    name: 'schedule',
+    title: '予定表',
+    match: /^\/schedule/,
+    href: (status) => {
+      return	(`/schedule`);
+    },
+    authority: (user) => {
+      return ( user.accounting || user.fiscalBrowsing || user.administrable );
+    },
+    icon: { name: 'bi:calendar-week' },
+    description: `
+月々の決まった入出金や、資金繰りに影響する入出金の予定を管理します。<br/>
+予定はICSフィードとして配信され、Googleカレンダーやグループウェアから購読できます。`
   }, {
     name: 'voucher',
     title: '証憑管理',

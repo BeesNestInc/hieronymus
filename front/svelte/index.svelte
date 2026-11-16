@@ -60,6 +60,7 @@ import Ledger from './ledger/ledger.svelte';
 import BankLedger from './bank-ledger/bank-ledger.svelte';
 import BankStatement from './bank-statement/bank-statement.svelte';
 import TrialBalance from './trial-balance/trial-balance.svelte';
+import Schedule from './schedule/schedule.svelte';
 import Changes from './changes/changes.svelte';
 import Voucher from './voucher/voucher.svelte';
 import Accounts from './accounts/accounts.svelte';
@@ -114,6 +115,10 @@ const routes = [
   {
     match: /^\/trial-balance/,
     component: TrialBalance
+  },
+  {
+    match: /^\/schedule/,
+    component: Schedule
   },
   {
     match: /^\/changes/,

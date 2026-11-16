@@ -48,6 +48,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
   * [取引文書の作成と出力](evidence.md)
 * [年度設定と繰越処理](fiscal-year.md)
 * [消費税の扱い](consumption-tax.md)
+* [予定表（資金繰り予定）](schedule.md)
 
 ### 会計
 * [仕訳明細の入力](crossslip.md)
@@ -90,6 +91,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 ### その他
 * [メニューの作成](menu.md)
 * [付箋・申し送り](sticky.md)
+* [予定表（資金繰り予定）](schedule.md)
 * [消費税の扱い](consumption-tax.md)
 * [年度設定と繰越処理](fiscal-year.md)
 
