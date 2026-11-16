@@ -1,4 +1,5 @@
 import Approve from '../svelte/widgets/approve.svelte';
+import ExpenseApprove from '../svelte/widgets/expense-approve.svelte';
 import Backup from '../svelte/widgets/backup.svelte';
 import Bookmark,{ create as createBookmark, activate as activateBookmark } from '../svelte/widgets/bookmark.svelte';
 import CompanyKinds from '../svelte/widgets/company-kinds.svelte';
@@ -22,6 +23,15 @@ export const componentList = [
         return  (user.approvable);
       },
       component: Approve
+    }, {
+      name: 'ExpenseApprove',
+      title: '経費精算の承認待ち',
+      defaultW: 5,
+      defaultH: 23,
+      authority: (user, options) => {
+        return  (user.approvable);
+      },
+      component: ExpenseApprove
     }, {
       name: 'Backup',
       title: 'バックアップ',
