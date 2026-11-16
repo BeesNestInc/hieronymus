@@ -34,8 +34,11 @@
     <button class="btn btn-success" on:click={save}>
       配置を保存
     </button>
-    <button class="btn link" on:click={() => {
-      isEditMode = !isEditMode;
+    <button class="btn link" title="変更は自動保存されます"
+      on:click={() => {
+      // 保存し忘れて編集が捨てられるのを防ぐため、終了時に自動保存する
+      isEditMode = false;
+      save();
     }}><i class="bi bi-check"></i>編集を終える</button>
   </div>
   {:else}
