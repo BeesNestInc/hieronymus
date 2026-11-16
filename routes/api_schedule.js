@@ -180,16 +180,25 @@ const buildICS = (schedules, overrides = []) => {
       const dtend = `${next.getFullYear()}-${pad2(next.getMonth() + 1)}-${pad2(next.getDate())}`;
       const kindLabel = ( item.kind === 'in' ) ? '入' :
         ( item.kind === 'out' ) ? '出' : '予';
+      // 「予定」種別は金額を持たないのでDESCRIPTIONから省く
+      const descParts = [];
+      if ( item.kind !== 'plan' ) {
+        descParts.push(`金額 ${item.amount.toLocaleString('ja-JP')}円`);
+      }
+      if ( item.note ) {
+        descParts.push(icsEscape(item.note));
+      }
       lines.push(
         'BEGIN:VEVENT',
         `UID:${item.scheduleId}-${item.date}@hieronymus`,
         `DTSTAMP:${stamp}`,
         `DTSTART;VALUE=DATE:${icsDate(item.date)}`,
         `DTEND;VALUE=DATE:${icsDate(dtend)}`,
-        `SUMMARY:(${kindLabel}) ${icsEscape(item.title)}`,
-        `DESCRIPTION:金額 ${item.amount.toLocaleString('ja-JP')}円` +
-          ( item.note ? ` ${icsEscape(item.note)}` : '' )
+        `SUMMARY:(${kindLabel}) ${icsEscape(item.title)}`
       );
+      if ( descParts.length > 0 ) {
+        lines.push(`DESCRIPTION:${descParts.join(' ')}`);
+      }
       lines.push('END:VEVENT');
     }
     cursor.setMonth(cursor.getMonth() + 1);

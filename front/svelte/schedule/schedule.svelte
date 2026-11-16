@@ -52,7 +52,7 @@
           {#each cell.items as item (item.scheduleId)}
           <div class="cal-ev {item.kind === 'in' ? 'cal-in' : item.kind === 'out' ? 'cal-out' : 'cal-plan'}"
             role="button"
-            title="{item.title} {formatMoney(item.amount)}円{item.overridden ? '（個別設定あり）' : ''}"
+            title="{item.title}{item.kind !== 'plan' ? ' ' + formatMoney(item.amount) + '円' : ''}{item.overridden ? '（個別設定あり）' : ''}"
             on:click|stopPropagation={() => { editById(item.scheduleId, cell.date); }}>{item.title}</div>
           {/each}
           {/if}
@@ -143,7 +143,7 @@
             {/if}
           </td>
           <td>{recurrenceLabel(schedule)}</td>
-          <td class="text-end">{formatMoney(schedule.amount)}円</td>
+          <td class="text-end">{schedule.kind !== 'plan' ? formatMoney(schedule.amount) + '円' : ''}</td>
           <td class="small">{schedule.note || ''}</td>
           <td>
             <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -230,11 +230,13 @@
               </div>
             </div>
           </div>
+          {#if ( editing.kind !== 'plan' )}
           <div>
             <label class="form-label" for="schedule-amount">金額（円）</label>
             <input type="number" class="form-control" id="schedule-amount"
               style="width: 160px;" min="0" bind:value={editing.amount}>
           </div>
+          {/if}
         </div>
         <div class="mb-2">
           <label class="form-label" for="schedule-note">備考</label>
@@ -269,11 +271,13 @@
               </div>
             </div>
           </div>
+          {#if ( editing.kind !== 'plan' )}
           <div>
             <label class="form-label" for="schedule-amount">金額（円）</label>
             <input type="number" class="form-control" id="schedule-amount"
               style="width: 160px;" min="0" bind:value={editing.amount}>
           </div>
+          {/if}
         </div>
         <div class="mb-2">
           <label class="form-label">繰り返し</label>

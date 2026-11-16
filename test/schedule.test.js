@@ -616,5 +616,7 @@ describe('schedule (test db)', () => {
       session: null
     });
     assert.include(result.body, 'SUMMARY:(予) 棚卸し');
+    // 「予定」は金額を持たないので「金額 0円」のDESCRIPTIONを出さない
+    assert.notInclude(result.body, 'SUMMARY:(予) 棚卸し\r\nDESCRIPTION:金額');
   });
 });
