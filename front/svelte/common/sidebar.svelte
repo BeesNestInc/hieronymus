@@ -80,11 +80,20 @@
   <nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
       {#each visibleGroups as group (group.section)}
-      {#if ( group.section )}
-      <li class="nav-caption">{sectionLabel(group.section)}</li>
-      {/if}
-      {#each group.entries as entry}
-      {#if ( entry.title )}
+      <li class="nav-group" class:collapsed={!expandedSections.has(group.section)}
+        on:mouseenter={() => { hoveredSection = group.section; }}
+        on:mouseleave={() => { if ( hoveredSection === group.section ) hoveredSection = null; }}>
+        <div class="nav-caption" role="button" tabindex="0"
+          title={ pinnedSet.has(group.section) ? 'クリックで固定を解除' : 'クリックで常に開く' }
+          on:click={() => { togglePinned(group.section); }}
+          on:keydown={(e) => { if ( e.key === 'Enter' || e.key === ' ' ) togglePinned(group.section); }}>
+          {sectionLabel(group.section)}
+          <Icon class="nav-caption-chevron" icon="bi:{ expandedSections.has(group.section) ? 'chevron-down' : 'chevron-right' }"></Icon>
+        </div>
+        {#if ( expandedSections.has(group.section) )}
+        <ul transition:slide={{ duration: 150 }}>
+          {#each group.entries as entry}
+          {#if ( entry.title )}
  			<li class="nav-item">
  			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
           draggable="true"
@@ -143,6 +152,9 @@
  			</li>
       {/if}
       {/each}
+        </ul>
+        {/if}
+      </li>
       {/each}
     </ul>
   </nav>
@@ -159,6 +171,27 @@
   padding: 0.75rem 1rem 0.2rem;
   letter-spacing: 0.08em;
   list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.nav-caption:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+.nav-caption-chevron {
+  font-size: 0.7rem;
+}
+.nav-group.collapsed .nav-caption {
+  padding-top: 0.4rem;
+}
+.nav-group.collapsed .nav-caption-chevron {
+  opacity: 0.6;
+}
+/* 閉じているグループはhoverで中身が見える。隙間を減らしてコンパクトに */
+.nav-group.collapsed {
+  margin-bottom: -0.5rem;
 }
 </style>
 <script>
@@ -167,6 +200,7 @@ import {onMount, afterUpdate, createEventDispatcher, tick} from 'svelte';
 import menu from '../../../config/module-list.js';
 import Sortable from 'sortablejs';
 import Icon from '@iconify/svelte';
+import {slide} from 'svelte/transition';
 import eventBus from '../../javascripts/event-bus.js';
 import {currentMenu, getStore} from '../../javascripts/current-record.js'
 import { currentPage, link } from '../../javascripts/router.js';
@@ -236,6 +270,53 @@ const buildGroups = (entries, status) => {
     current.entries.push(entry);
   }
   return groups;
+};
+
+// ---- グループの開閉 ----
+// 現在地（アクティブページ）を含むグループは常に開く。他は閉じておき、
+// 見出しhoverで中身を一時表示、クリックで常時開閉（ピン留め）する
+let pinnedSections = [];
+let hoveredSection = null;
+
+const findActiveSection = (groups, page) => {
+  if ( !page ) {
+    return null;
+  }
+  for ( const group of groups ) {
+    for ( const entry of group.entries ) {
+      if ( page.match(entry.match) ) {
+        return group.section;
+      }
+      if ( entry.submenu ) {
+        for ( const sub of entry.submenu ) {
+          if ( page.match(sub.match) ) {
+            return group.section;
+          }
+        }
+      }
+    }
+  }
+  return null;
+};
+
+$: activeSection = findActiveSection(visibleGroups, $currentPage);
+
+// テンプレートから関数（isExpanded等）を呼ぶとSvelte4は関数内の依存を
+// 追跡しない（Docs/logs/20261115.md のAI設定パネルバグと同型）。
+// 展開状態はリアクティブなSetに集約してテンプレートから参照する
+$: expandedSections = new Set([
+  activeSection,
+  ...pinnedSections,
+  ...( hoveredSection ? [hoveredSection] : [] )
+].filter((s) => Boolean(s)));
+$: pinnedSet = new Set(pinnedSections);
+
+const togglePinned = (section) => {
+  if ( pinnedSections.includes(section) ) {
+    pinnedSections = pinnedSections.filter((s) => s !== section);
+  } else {
+    pinnedSections = [...pinnedSections, section];
+  }
 };
 
 const newMenu = (template) => {

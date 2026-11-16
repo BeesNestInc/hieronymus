@@ -1,6 +1,6 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
-    <h1>精算</h1>
+    <h1>立替精算</h1>
   </div>
   {#if !ok }
   <div class="border rounded border-danger mb-3 ms-2 me-2 p-3">

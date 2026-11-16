@@ -138,7 +138,7 @@ export default [
   }, {
     name: 'karibarai',
     section: 'expense',
-    title: '精算',
+    title: '立替精算',
     href: (status) => {
       return	(`/karibarai`);
     },

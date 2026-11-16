@@ -28,8 +28,21 @@ const backups = async(req, res, next) => {
       let m;
       if  ( m = ent.match(rex) )   {
         let name = ent.split('.')[0];
-        let d = parse(m[1], 'YYYYMMDDHHmmss');
-        //console.log(m[1], d.toLocaleString());
+        let d;
+        try {
+          d = parse(m[1], 'YYYYMMDDHHmmss');
+        } catch (e) {
+          // tempoのparseは形式が合わないと例外を投げる。
+          // 手動配置のファイル等が混ざっても一覧が壊れないように無視する
+          // （restoreは YYYYMMDDHHmmss 厳密で探すため形式違いは
+          // 復元対象にならない）
+          console.warn(`backup file with unexpected name ignored: ${ent}`);
+          return;
+        }
+        if ( isNaN(d.valueOf()) ) {
+          console.warn(`backup file with unexpected name ignored: ${ent}`);
+          return;
+        }
         files.push(d);
       }
     })
