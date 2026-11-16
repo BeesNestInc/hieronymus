@@ -14,6 +14,15 @@ await page.click('.btn-primary');
 await page.waitForURL((url) => !String(url).includes('/login'), { timeout: 20000 }).catch(() => {});
 await page.goto(`${BASE}/home/2`);
 await page.waitForTimeout(3500);
+// 期表示が第2期になるのを待つ（稀に既定の第1期のまま描画されることがある）
+for ( let i = 0; i < 5; i += 1 ) {
+  const nav = await page.locator('nav.main-header').innerText();
+  if ( nav.includes('第2期') ) {
+    break;
+  }
+  await page.goto(`${BASE}/home/2`);
+  await page.waitForTimeout(1500);
+}
 
 const shot = async (file) => {
   await page.screenshot({ path: `${OUT}/${file}` });
@@ -41,10 +50,18 @@ await page.locator('button:has-text("年")').first().click();
 await page.waitForTimeout(2000);
 await shot('予定表ページ(年ビュー).png');
 
-// ============ 月ビューに戻り、単発予定のある月（2027-06）へ ============
+// ============ 月ビューに戻る（2026-11） ============
 await page.locator('button:has-text("月")').first().click();
-await page.waitForTimeout(1000);
-// ">" を繰り返し押して 2027年6月まで進める
+await page.waitForTimeout(2000);
+
+// ============ 個別変更モーダル（カレンダーの予定をクリック） ============
+await page.locator('.cal-ev:has-text("家賃")').first().click();
+await page.waitForTimeout(800);
+await shot('予定の個別変更モーダル.png');
+await page.locator('.schedule-modal .btn-close').click();
+await page.waitForTimeout(400);
+
+// ============ 単発予定のある月（2027-06） ============
 for ( let i = 0; i < 7; i += 1 ) {
   await page.locator('button:has-text(">")').last().click();
   await page.waitForTimeout(500);
