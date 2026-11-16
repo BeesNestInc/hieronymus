@@ -138,6 +138,21 @@ export const componentList = [
     }
   ];
 
+// ウィジェットの活性化（component の解決と activate による options の補完）。
+// menuページ（配置の保存/読み込み）とグリッドコンポーネントの双方から使う。
+// 呼び出し側で state を持たせないため、引数と対象オブジェクトだけを見る
+export const activateWidgets = (widgets, status) => {
+  for ( let widget of widgets || [] ) {
+    if ( !widget._component ) {
+      const component = findComponent(widget.component);
+      if ( component.activate ) {
+        component.activate(widget.options, status);
+      }
+      widget._component = component.component;
+    }
+  }
+};
+
 export const findComponent = (name) => {
   return  componentList.find((ent) => {
     return (ent.name === name);

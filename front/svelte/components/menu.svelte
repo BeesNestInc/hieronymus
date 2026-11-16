@@ -138,7 +138,7 @@ import { onMount, beforeUpdate, afterUpdate, tick, createEventDispatcher } from 
 import "gridstack/dist/gridstack.min.css";
 import { GridStack } from "gridstack";
 import { v4 as uuidv4 } from "uuid";
-import {findComponent} from '../../javascripts/widget-list.js';
+import {findComponent, activateWidgets} from '../../javascripts/widget-list.js';
 import {isSameOrigin, fetchTitleFromUrl} from '../../javascripts/utils.js';
 
 export let status;
@@ -293,20 +293,7 @@ const initializeGrid = () => {
 }
 
 const initiateWidgets = () => {
-  //console.log('initiateWigets')
-  for ( let widget of widgets) {
-    if	( !widget._component )	{
-    	//console.log({widget});
-    	let component = findComponent(widget.component);
-    	//console.log('activate', component);
-    	if  ( component.activate )  {
-      	component.activate(widget.options, status);
-      	//console.log('widget', widget.options);
-    	}
-      widget._component = component.component;
-    }
-  }
-  //console.log('initiateWigets end', widgets)
+  activateWidgets(widgets, status);
 }
 
 onMount(() => {

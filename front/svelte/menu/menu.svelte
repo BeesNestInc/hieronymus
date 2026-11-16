@@ -34,12 +34,8 @@
     <button class="btn btn-success" on:click={save}>
       配置を保存
     </button>
-    <button class="btn link" title="変更は自動保存されます"
-      on:click={() => {
-      // 保存し忘れて編集が捨てられるのを防ぐため、終了時に自動保存する
-      isEditMode = false;
-      save();
-    }}><i class="bi bi-check"></i>編集を終える</button>
+    <button class="btn link" title="未保存の変更があれば確認します"
+      on:click={finishEdit}><i class="bi bi-check"></i>編集を終える</button>
   </div>
   {:else}
   <h1>{menu?.title}</h1>
@@ -79,7 +75,7 @@ import {pageTitleDetail} from '../../javascripts/title.js';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {eventBus as tableBus} from '../../javascripts/table-maintenance.js';
 import menuBus from '../../javascripts/event-bus.js';
-import {componentList} from '../../javascripts/widget-list.js';
+import {componentList, activateWidgets} from '../../javascripts/widget-list.js';
 
 export let status;
 export let toast;
@@ -135,6 +131,35 @@ const publish = () => {
   });
 };
 
+// 編集を終える。未保存の変更があれば確認する
+// （保存して終了 / 破棄して終了 のどちらでも抜けられる。
+//  「配置を保存」忘れで変更が消える事故と、キャンセルしたい需要の両方に対応）
+const finishEdit = () => {
+  const current = JSON.stringify(serializeMenu());
+  if ( current === savedSnapshot ) {
+    isEditMode = false; // 変更なし。そのまま抜ける
+    return;
+  }
+  if ( confirm('変更が保存されていません。保存して編集を終えますか？\n（キャンセル＝変更を破棄して終了）') ) {
+    isEditMode = false;
+    save();
+  } else {
+    // 破棄して終了: 最後に保存した状態に戻す
+    if ( menu.id ) {
+      axios.get(`/api/menu/${menu.id}`).then((result) => {
+        menu = deserializeMenu(result.data.menu);
+        widgets = menu.widgets;
+        savedSnapshot = JSON.stringify(serializeMenu());
+        reload += 1;
+        isEditMode = false;
+      });
+    } else {
+      // 未保存の新規ページ。そのまま抜ける（残っても保存はされない）
+      isEditMode = false;
+    }
+  }
+};
+
 const save = (event) => {  console.log('save');
   console.log(JSON.stringify(menu.widgets));
   try {
@@ -153,6 +178,8 @@ const save = (event) => {  console.log('save');
       if	( !result.data.code )	{
         menu = deserializeMenu(result.data.menu)
         widgets = menu.widgets;
+        activateWidgets(widgets, status);
+        savedSnapshot = JSON.stringify(serializeMenu());
         reload += 1; // ★ これで通知
       }
       tableBus.emit('menuUpdated');
@@ -167,6 +194,24 @@ const save = (event) => {  console.log('save');
   }
 }
 
+// マイページの読み込み。$リアクティブブロックとbeforeUpdateの
+// 両方から呼ばれていた二重fetchを整理（スナップショットはここで取る）
+const loadMenu = (id) => {
+  widgets = [];
+  axios.get(`/api/menu/${id}`).then((result) => {
+    menu = deserializeMenu(result.data.menu);
+    widgets = menu.widgets;
+    // activate による options への値設定（href等）が済んでから
+    // スナップショットを取らないと、何も変更しなくても
+    // 「未保存」と誤検知する
+    activateWidgets(widgets, status);
+    savedSnapshot = JSON.stringify(serializeMenu());
+    reload += 1; // ★ これで通知
+  }).catch((e) => {
+    console.log('menu fetch failed:', e?.message, e?.response?.status);
+  });
+};
+
 $: {
   let args = location.pathname.split('/');
 	if	( args[2] === 'new')	{
@@ -179,6 +224,7 @@ $: {
       	menu = value;
       	widgets = value.widgets;
         isEditMode = true;
+        savedSnapshot = ''; // 新規未保存
       	reload += 1; // ★ これで通知
     	}
     });
@@ -186,36 +232,25 @@ $: {
     if	( numeric(args[2]) )	{
       if  ( arg2 !== args[2] ) {
         arg2 = args[2];
-        console.log('get');
-        widgets = [];
-    		axios.get(`/api/menu/${args[2]}`).then((result) => {
-          console.log(result.data.menu);
-      		menu = deserializeMenu(result.data.menu);
-          widgets = menu.widgets;
-          reload += 1; // ★ これで通知
-      	});
+        loadMenu(args[2]);
       }
   	}
   }
 }
 
 beforeUpdate(() => {
-  console.log('menu/menu', isEditMode);
   let args = location.pathname.split('/');
   if	( numeric(args[2]) )	{
     if  ( arg2 !== args[2] ) {
       arg2 = args[2];
-      console.log('get');
-      widgets = [];
-    	axios.get(`/api/menu/${args[2]}`).then((result) => {
-        console.log(result.data.menu);
-      	menu = deserializeMenu(result.data.menu);
-        widgets = menu.widgets;
-        reload += 1; // ★ これで通知
-      });
+      loadMenu(args[2]);
     }
   }
 })
+
+// 最後に保存した状態のスナップショット。編集を終えるときの
+// 未保存変更の検出に使う
+let savedSnapshot = '';
 
 onMount(() => {
   console.log('menu onMount');
