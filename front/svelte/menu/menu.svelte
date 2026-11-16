@@ -35,7 +35,7 @@
     </button>
     <button class="btn link" on:click={() => {
       isEditMode = !isEditMode;
-    }}><i class="bi bi-check"></i>実行モードへ</button>
+    }}><i class="bi bi-check"></i>編集を終える</button>
   </div>
   {:else}
   <h1>{menu?.title}</h1>
@@ -45,9 +45,12 @@
 	{/if}
 </div>
 {#if ( isEditMode )}
-<div class="mypage-guide small text-muted mb-2">
-  サイドバーの項目や「ウィジェットを追加」から<b>ドラッグ＆ドロップ</b>で配置できます。
-  ブラウザのURLをドロップするとブックマークになります。位置や大きさはドラッグで調整してください。
+<div class="alert alert-warning py-1 my-1 small">
+  <i class="bi bi-pencil-square"></i>&nbsp;<b>編集中</b> —
+  サイドバーの項目や「ウィジェットを追加」から<b>ドラッグ＆ドロップ</b>で配置し、
+  「配置を保存」で確定します。ブラウザのURLをドロップするとブックマークになります。
+  （左サイドバーのマイページ編集は「ページの追加・並べ替え」、
+  ここは「このページの中身」の編集です）
 </div>
 {/if}
 {#if ( widgets && widgets.length === 0 && !isEditMode )}

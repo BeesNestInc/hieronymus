@@ -47,7 +47,8 @@
         </div>
         {#if ( isMenuEditMode )}
         <div class="mypage-hint">
-          ＋からテンプレートでマイページを追加。ドラッグで並べ替え、×で削除。
+          マイページの一覧を編集中（＋追加・ドラッグで並べ替え・×削除）。
+          各ページの中身は、ページを開いて「編集モードへ」から。
         </div>
         {/if}
         <ul class="nav nav-pills nav-sidebar flex-column"

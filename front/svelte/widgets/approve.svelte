@@ -1,6 +1,8 @@
-{#if ( count > 0 )}
 <div class="menu">
 	<div class="body">
+    {#if ( count === 0 )}
+    <div class="text-muted small p-2">承認待ちの伝票はありません</div>
+    {:else}
     <div class="row">
     	<ul class="list-group">
         <li class="list-group-item">
@@ -8,6 +10,8 @@
         </li>
       </ul>
     </div>
+    {/if}
+    {#if ( count > 0 )}
 	  <div class="row full-height scroll-table">
 		  <table class="table table-bordered">
         <thead class="table-light">
@@ -52,9 +56,9 @@
         </tbody>              
       </table>
     </div>
+    {/if}
   </div>
 </div>
-{/if}
 <style>
 
 </style>
