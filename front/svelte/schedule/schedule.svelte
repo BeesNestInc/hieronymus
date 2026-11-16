@@ -407,13 +407,16 @@ const openEditor = (schedule) => {
       enabled: schedule.enabled
     };
   } else {
+    // 単発予定の既定の発生日は、開いている月の1日（年ビューではその年の1月1日）
     editing = {
       title: '',
       kind: 'out',
       amount: null,
       recurrence: 'monthly',
       dayOfMonth: 25,
-      date: null,
+      date: view === 'year' ?
+        `${year}-01-01` :
+        `${year}-${String(month).padStart(2, '0')}-01`,
       note: '',
       enabled: true
     };
