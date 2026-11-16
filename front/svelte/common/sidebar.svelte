@@ -79,10 +79,14 @@
   </nav>
   <nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
-      {#each menu as entry}
-      {#if ( entry.title && ( !entry.authority || entry.authority(status.user, status.company) )) }
-			<li class="nav-item">
-			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
+      {#each visibleGroups as group (group.section)}
+      {#if ( group.section )}
+      <li class="nav-caption">{sectionLabel(group.section)}</li>
+      {/if}
+      {#each group.entries as entry}
+      {#if ( entry.title )}
+ 			<li class="nav-item">
+ 			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
           draggable="true"
           data-type={entry.name}
           on:dragstart={startDrag}
@@ -122,7 +126,7 @@
               href="#">
               {#if subentry.icon}
               {#if ( subentry.icon.name)}
-              <Icon class="nav-icon" icon={subentry.icon.name}></Icon>
+              <Icon class="nav-icon me-1" icon={subentry.icon.name}></Icon>
               {:else}
               <img src={subentry.icon.src} class="icon-img">
               {/if}
@@ -136,8 +140,9 @@
           {/each}
         </ul>
         {/if}
-			</li>
+ 			</li>
       {/if}
+      {/each}
       {/each}
     </ul>
   </nav>
@@ -147,6 +152,13 @@
 <style>
 .icon {
   margin-right: 0.5rem;
+}
+.nav-caption {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 0.75rem 1rem 0.2rem;
+  letter-spacing: 0.08em;
+  list-style: none;
 }
 </style>
 <script>
@@ -186,6 +198,45 @@ $: menuOpenState = new Map(menu.map((entry) => [
   openSubmenus.has(entry.name) ||
     Boolean( $currentPage && $currentPage.match(entry.match) )
 ]));
+
+// ---- セクション見出し ----
+// module-list.js の section でグループ化し、見出し付きで描画する。
+// 権限でグループ内の全項目が非表示になるセクションは、見出し自体も出さない
+const SECTION_LABELS = {
+  daily: '日々の作業',
+  expense: '経費精算',
+  reports: '確認・帳票',
+  crm: '顧客・案件',
+  master: 'マスタ',
+  admin: '管理'
+};
+const sectionLabel = (section) => SECTION_LABELS[section] || section;
+
+const isEntryVisible = (entry, status) => {
+  return Boolean( entry.title && entry.section &&
+    ( !entry.authority || entry.authority(status.user, status.company) ) );
+};
+
+// グループ化は「並び順の連続性」で決める（section順＝configの記載順）
+$: visibleGroups = buildGroups(menu, status);
+const buildGroups = (entries, status) => {
+  if ( !status || !status.user ) {
+    return [];
+  }
+  const groups = [];
+  let current = null;
+  for ( const entry of entries ) {
+    if ( !isEntryVisible(entry, status) ) {
+      continue;
+    }
+    if ( !current || current.section !== entry.section ) {
+      current = { section: entry.section, entries: [] };
+      groups.push(current);
+    }
+    current.entries.push(entry);
+  }
+  return groups;
+};
 
 const newMenu = (template) => {
   currentMenu.set({

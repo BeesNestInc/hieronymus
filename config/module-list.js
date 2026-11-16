@@ -3,7 +3,9 @@ export default [
     name: 'menu',
     match: /^\/menu/,
   }, {
+    // ---- 日々の作業: 毎日〜頻繁に触る入力・取込 ----
     name: 'journal',
+    section: 'daily',
     title: '仕訳日記帳',
     match: /^\/journal/,
     authority: (user) => {
@@ -17,22 +19,8 @@ export default [
   伝票入力等の基本画面です。<br/>
   入力した伝票の閲覧、伝票の入力(修正)が可能です。`
   }, {
-    name: 'ledger',
-    title: '元帳',
-    match: /^\/ledger/,
-    href: (status) => {
-      return	(`/ledger/1000000`);
-    },
-    authority: (user) => {
-      return ( user.accounting || user.fiscalBrowsing );
-    },
-    icon: { name: 'bi-journal-text' },
-    description: `
-総勘定元帳と補助元帳が複合した画面です。<br/>
-科目及び補助科目毎の明細が表示されます。<br/>
-ここから直接伝票を修正することも可能です(新規入力はできません)。`
-  }, {
     name: 'bank',
+    section: 'daily',
     title: '通帳',
     match: /^\/bank-ledger|^\/bank-statement/,
     href: (status) => {
@@ -61,47 +49,8 @@ export default [
       }
     ]
   }, {
-    name: 'trial-balance',
-    title: '残高試算表',
-    match: /^\/trial-balance/,
-    href: (status) => {
-      return	(`/trial-balance`);
-    },
-    authority: (user) => {
-      return ( user.accounting || user.fiscalBrowsing );
-    },
-    icon: { name: 'bi-table' },
-    description: `残高試算表が確認できます。`
-  },   {
-    name: 'changes',
-    title: '推移表',
-    match: /^\/changes/,
-    href: (status) => {
-      return	(`/changes/${status.fy.term}/6000000`);
-    },
-    authority: (user) => {
-      return ( user.accounting || user.fiscalBrowsing );
-    },
-    icon: { name: 'bi-bar-chart-fill' },
-    description: `
-科目毎の月次集計の推移をグラフ表示します。<br/>
-年度内だけではなく、前年同月比較や通年表示もできます。`
-  }, {
-    name: 'schedule',
-    title: '予定表',
-    match: /^\/schedule/,
-    href: (status) => {
-      return	(`/schedule`);
-    },
-    authority: (user) => {
-      return ( user.accounting || user.fiscalBrowsing || user.administrable );
-    },
-    icon: { name: 'bi:calendar-week' },
-    description: `
-月々の決まった入出金や、資金繰りに影響する入出金の予定を管理します。<br/>
-予定はICSフィードとして配信され、Googleカレンダーやグループウェアから購読できます。`
-  }, {
     name: 'voucher',
+    section: 'daily',
     title: '証憑管理',
     match: /^\/voucher/,
     href: (status) => {
@@ -117,21 +66,140 @@ export default [
 伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。
 `
 	}, {
-    name: 'accounts',
-    title: '勘定科目管理',
-    match: /^\/accounts/,
+    name: 'schedule',
+    section: 'daily',
+    title: '予定表',
+    match: /^\/schedule/,
     href: (status) => {
-      return	(`/accounts`);
+      return	(`/schedule`);
+    },
+    authority: (user) => {
+      return ( user.accounting || user.fiscalBrowsing || user.administrable );
+    },
+    icon: { name: 'bi:calendar-week' },
+    description: `
+月々の決まった入出金や、資金繰りに影響する入出金の予定を管理します。<br/>
+予定はICSフィードとして配信され、Googleカレンダーやグループウェアから購読できます。`
+  }, {
+    // ---- 経費精算: 独立セクション（旧サブメニューをフラット化） ----
+    name: 'expense',
+    section: 'expense',
+    title: '経費精算',
+    match: /^\/expense\/($|entry|new)/,
+    href: (status) => {
+      return	(`/expense/`);
+    },
+    authority: (user) => {
+      return  true;
+    },
+    icon: { name: 'bi:wallet2' },
+    description: `
+経費精算書の入力・提出を行います。<br/>
+領収書等の証憑を添付して提出すると、承認後に仕訳伝票が起票されます。`
+  }, {
+    name: 'expense-unsorted',
+    section: 'expense',
+    title: '未整理の証憑',
+    match: /^\/expense\/unsorted/,
+    href: (status) => {
+      return	(`/expense/unsorted`);
+    },
+    authority: (user) => {
+      return  true;
+    },
+    description: `
+未整理の証憑の認識・管理を行います。`
+  }, {
+    name: 'expense-payee',
+    section: 'expense',
+    title: '支払先マッピング',
+    match: /^\/expense\/payee/,
+    href: (status) => {
+      return	(`/expense/payee`);
+    },
+    authority: (user) => {
+      return  true;
+    },
+    description: `
+精算書の説明から支払先を決めるマッピングを管理します。`
+  }, {
+    name: 'expense-payment',
+    section: 'expense',
+    title: '出金元マッピング',
+    match: /^\/expense\/payment/,
+    href: (status) => {
+      return	(`/expense/payment`);
+    },
+    authority: (user) => {
+      return  true;
+    },
+    description: `
+精算の支払い資金を決める出金元マッピングを管理します。`
+  }, {
+    name: 'karibarai',
+    section: 'expense',
+    title: '精算',
+    href: (status) => {
+      return	(`/karibarai`);
+    },
+    match: /^\/karibarai/,
+    authority: (user) => {
+      return  ( user.accounting );
+    },
+    description: `
+立替者別の精算額を表示し、精算の伝票を起票します。<br/>
+精算対象科目は立替フラグ付き出金元マッピングの勘定科目から決まります。<br/>
+精算額は正なら立替者が返してもらえる額、負なら会社が受け取る額です。<br/>
+精算の向き（返す/もらう）は精算額の符号から自動的に決まります。`
+  }, {
+    // ---- 確認・帳票: 見る・確かめる ----
+    name: 'ledger',
+    section: 'reports',
+    title: '元帳',
+    match: /^\/ledger/,
+    href: (status) => {
+      return	(`/ledger/1000000`);
     },
     authority: (user) => {
       return ( user.accounting || user.fiscalBrowsing );
     },
-    icon: { name: 'bi:tag' },
+    icon: { name: 'bi-journal-text' },
     description: `
-勘定科目を追加変更ができます。<br/>
-なお「削除」はできません。`
+総勘定元帳と補助元帳が複合した画面です。<br/>
+科目及び補助科目毎の明細が表示されます。<br/>
+ここから直接伝票を修正することも可能です(新規入力はできません)。`
   }, {
+    name: 'trial-balance',
+    section: 'reports',
+    title: '残高試算表',
+    match: /^\/trial-balance/,
+    href: (status) => {
+      return	(`/trial-balance`);
+    },
+    authority: (user) => {
+      return ( user.accounting || user.fiscalBrowsing );
+    },
+    icon: { name: 'bi-table' },
+    description: `残高試算表が確認できます。`
+  }, {
+    name: 'changes',
+    section: 'reports',
+    title: '推移表',
+    match: /^\/changes/,
+    href: (status) => {
+      return	(`/changes/${status.fy.term}/6000000`);
+    },
+    authority: (user) => {
+      return ( user.accounting || user.fiscalBrowsing );
+    },
+    icon: { name: 'bi-bar-chart-fill' },
+    description: `
+科目毎の月次集計の推移をグラフ表示します。<br/>
+年度内だけではなく、前年同月比較や通年表示もできます。`
+  }, {
+    // ---- 顧客・案件: CRM系 ----
     name: 'company',
+    section: 'crm',
     title: '取引先管理',
     match: /^\/company/,
     authority: (user) => {
@@ -161,12 +229,12 @@ export default [
     ]
   }, {
     name: 'task',
+    section: 'crm',
     title: '案件管理',
     href: (status) => {
       return	(`/task/`);
     },
     authority: (user) => {
-      //console.log(user);
       return  (user.companyManagement);
     },
     icon: { name: 'bi-folder2-open'},
@@ -176,6 +244,7 @@ export default [
 見積請求等の取引や各種文書の管理等は、案件を単位に行います。`
   }, {
     name: 'transaction',
+    section: 'crm',
     title: '取引管理',
     match: /^\/transaction/,
     href: (status) => {
@@ -189,36 +258,8 @@ export default [
 顧客との「取引」を管理します。<br/>
 見積請求だけではなく、各種文書の管理や経費記録等を行います。`
   }, {
-    name: 'item',
-    title: '品目管理',
-    href: (status) => {
-      return	(`/item/`);
-    },
-    match: /^\/item/,
-    authority: (user) => {
-      return  (user.companyManagement || user.accounting);
-    },
-    icon: { name: 'bi:shop' },
-    description: `
-このシステムで扱う「品(item)」を管理します。<br/>
-有形の商品だけではなく無形の商品(作業)もここで登録します。`,
-    submenu: [
-      {
-        title: '品目管理',
-        href: (status) => {
-          return	(`/item/`);
-        },
-        match: /^\/item\/($|entry|new)/,
-      }, {
-        title: '設定',
-        match: /^\/item\/home/,
-        href: (status) => {
-          return	(`/item/home`);
-        }
-      }
-    ]
-  }, {
     name: 'project',
+    section: 'crm',
     title: 'プロジェクト管理',
     href: (status) => {
       return	(`/project/`);
@@ -255,77 +296,70 @@ export default [
       }
     ]
   }, {
-    name: 'expense',
-    title: '経費精算',
+    // ---- マスタ: 設定後にあまり触らない ----
+    name: 'accounts',
+    section: 'master',
+    title: '勘定科目管理',
+    match: /^\/accounts/,
     href: (status) => {
-      return	(`/expense/`);
+      return	(`/accounts`);
     },
-    match: /^\/expense/,
     authority: (user) => {
-      return  true;
+      return ( user.accounting || user.fiscalBrowsing );
     },
-    icon: { name: 'bi:wallet2' },
+    icon: { name: 'bi:tag' },
     description: `
-経費精算書の入力・提出を行います。<br/>
-領収書等の証憑を添付して提出すると、承認後に仕訳伝票が起票されます。`,
+勘定科目を追加変更ができます。<br/>
+なお「削除」はできません。`
+  }, {
+    name: 'item',
+    section: 'master',
+    title: '品目管理',
+    href: (status) => {
+      return	(`/item/`);
+    },
+    match: /^\/item/,
+    authority: (user) => {
+      return  (user.companyManagement || user.accounting);
+    },
+    icon: { name: 'bi:shop' },
+    description: `
+このシステムで扱う「品(item)」を管理します。<br/>
+有形の商品だけではなく無形の商品(作業)もここで登録します。`,
     submenu: [
       {
-        title: '経費精算',
+        title: '品目管理',
         href: (status) => {
-          return	(`/expense/`);
+          return	(`/item/`);
         },
-        match: /^\/expense\/($|entry|new)/,
+        match: /^\/item\/($|entry|new)/,
       }, {
-        title: '未整理の証憑',
+        title: '設定',
+        match: /^\/item\/home/,
         href: (status) => {
-          return	(`/expense/unsorted`);
-        },
-        match: /^\/expense\/unsorted/,
-      }, {
-        title: '支払先マッピング',
-        href: (status) => {
-          return	(`/expense/payee`);
-        },
-        match: /^\/expense\/payee/,
-      }, {
-        title: '出金元マッピング',
-        href: (status) => {
-          return	(`/expense/payment`);
-        },
-        match: /^\/expense\/payment/,
-      }, {
-        name: 'karibarai',
-        title: '精算',
-        href: (status) => {
-          return	(`/karibarai`);
-        },
-        match: /^\/karibarai/,
-        authority: (user) => {
-          return  ( user.accounting );
-        },
-        description: `
-立替者別の精算額を表示し、精算の伝票を起票します。<br/>
-精算対象科目は立替フラグ付き出金元マッピングの勘定科目から決まります。<br/>
-精算額は正なら立替者が返してもらえる額、負なら会社が受け取る額です。<br/>
-精算の向き（返す/もらう）は精算額の符号から自動的に決まります。`
+          return	(`/item/home`);
+        }
       }
     ]
   }, {
-    name: 'users',
-    title: 'ユーザ管理',
-    authority: (user) => {
-      return  (user.administrable);
-    },
+    // 取引先は支払先としても使うため、マスタ側からも同じページへ
+    // リンクする（submenuを持たない単純リンク）。アクティブ強調は
+    // 顧客・案件側だけにするため match は実在しないパスにしておく
+    name: 'company-master',
+    section: 'master',
+    title: '取引先管理',
+    match: /^\/company\/master$/,
     href: (status) => {
-      return	('/users/');
+      return	(`/company/`);
     },
-    match: /^\/users/,
-    icon: { name: 'bi:people' },
+    authority: (user) => {
+      return  (user.companyManagement || user.accounting);
+    },
     description: `
-本システムの利用者アカウントの管理です。<br/>
-操作権限の設定も可能です。`
+取引先管理へのショートカット（マスタとしての取引先管理）。`
   }, {
     name: 'member',
+    section: 'master',
     title: '役職員管理',
     authority: (user) => {
       return  (user.administrable || user.personnelManagement);
@@ -353,5 +387,21 @@ export default [
         }
       }
     ]
+  }, {
+    // ---- 管理: 管理者向け ----
+    name: 'users',
+    section: 'admin',
+    title: 'ユーザ管理',
+    authority: (user) => {
+      return  (user.administrable);
+    },
+    href: (status) => {
+      return	('/users/');
+    },
+    match: /^\/users/,
+    icon: { name: 'bi:people' },
+    description: `
+本システムの利用者アカウントの管理です。<br/>
+操作権限の設定も可能です。`
   }
 ];
