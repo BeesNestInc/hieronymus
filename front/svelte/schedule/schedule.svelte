@@ -527,11 +527,12 @@ const openEditor = (schedule, occurrence = null, override = null) => {
       enabled: schedule.enabled
     };
   } else {
-    // 単発予定の既定の発生日は、開いている月の1日（年ビューではその年の1月1日）
+    // 単発予定の既定の発生日は、開いている月の1日（年ビューではその年の1月1日）。
+    // 金額の既定値は0（「予定」種別では金額を入力しない）
     editing = {
       title: '',
       kind: 'out',
-      amount: null,
+      amount: 0,
       recurrence: 'monthly',
       dayOfMonth: 25,
       date: view === 'year' ?
@@ -548,10 +549,12 @@ const closeModal = () => {
   modalOpen = false;
 };
 
-// 金額0（未確定のざっくり予定など）も許可する
+// 金額0（未確定のざっくり予定など）も許可する。
+// 「予定」種別はお金の関係しない予定なので金額欄は任意
 $: canSave = editing.title && editing.title.trim() &&
-  editing.amount !== null && editing.amount !== undefined && editing.amount !== '' &&
-  Number(editing.amount) >= 0 &&
+  ( editing.kind === 'plan' ||
+    ( editing.amount !== null && editing.amount !== undefined && editing.amount !== '' &&
+      Number(editing.amount) >= 0 ) ) &&
   ( editScope === 'occurrence' ||
     ( editing.recurrence === 'monthly' ) || editing.date );
 
@@ -563,14 +566,14 @@ const save = async () => {
       date: occurrenceDate,
       title: editing.title,
       kind: editing.kind,
-      amount: Number(editing.amount),
+      amount: Number(editing.amount) || 0,
       note: editing.note
     });
   } else {
     const values = {
       title: editing.title,
       kind: editing.kind,
-      amount: Number(editing.amount),
+      amount: Number(editing.amount) || 0,
       recurrence: editing.recurrence,
       dayOfMonth: editing.recurrence === 'monthly' ? parseInt(editing.dayOfMonth) || 0 : null,
       date: editing.recurrence === 'once' ? editing.date : null,

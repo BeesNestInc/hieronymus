@@ -221,6 +221,15 @@ describe('schedule (test db)', () => {
     assert.equal(nov.body.totalOut, before.body.totalOut);
   });
 
+  it('作成: 「予定」は金額なしでも登録できる', async () => {
+    const result = await create({
+      title: '金額なしの予定', kind: 'plan',
+      recurrence: 'monthly', dayOfMonth: 20
+    });
+    assert.equal(result.body.code, 0);
+    assert.equal(Number(result.body.schedule.amount), 0);
+  });
+
   it('一覧: 予定定義と自分のフィードトークンが返る（初回アクセスでトークン発行）', async () => {
     const first = await call(apiSchedule.list, {
       session: { user: approver }

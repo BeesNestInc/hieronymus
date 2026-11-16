@@ -103,7 +103,10 @@ const validate = (body) => {
   if ( body.kind !== 'in' && body.kind !== 'out' && body.kind !== 'plan' ) {
     return '種別が不正です';
   }
-  const amount = Number(body.amount);
+  // 'plan' はお金の関係しない単純予定。金額は任意（省略時は0）
+  const amount = ( body.kind === 'plan' &&
+      ( body.amount === undefined || body.amount === null || body.amount === '' ) ) ?
+    0 : Number(body.amount);
   if ( !Number.isFinite(amount) || amount < 0 ) {
     return '金額が不正です';
   }
@@ -126,7 +129,7 @@ const scheduleValues = (body) => {
   const values = {
     title: String(body.title).trim(),
     kind: body.kind,
-    amount: Math.round(Number(body.amount)),
+    amount: Math.round(Number(body.amount) || 0),
     recurrence: body.recurrence,
     note: body.note ? String(body.note) : null,
     enabled: ( body.enabled === undefined ) ? true : Boolean(body.enabled)
