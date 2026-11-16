@@ -43,14 +43,17 @@
       {#each weeks as week}
       <tr>
         {#each week as cell}
-        <td class="cal-cell align-top" class:cal-today={cell && cell.isToday}>
+        <td class="cal-cell align-top" class:cal-today={cell && cell.isToday}
+          role={cell ? 'button' : null}
+          title={cell ? `${cell.date} の予定を登録` : null}
+          on:click={cell ? () => { openEditorForDay(cell.date); } : undefined}>
           {#if ( cell )}
           <div class="cal-day small text-muted">{cell.day}</div>
           {#each cell.items as item (item.scheduleId)}
           <div class="cal-ev {item.kind === 'in' ? 'cal-in' : item.kind === 'out' ? 'cal-out' : 'cal-plan'}"
             role="button"
             title="{item.title} {formatMoney(item.amount)}円{item.overridden ? '（個別設定あり）' : ''}"
-            on:click={() => { editById(item.scheduleId, cell.date); }}>{item.title}</div>
+            on:click|stopPropagation={() => { editById(item.scheduleId, cell.date); }}>{item.title}</div>
           {/each}
           {/if}
         </td>
@@ -495,8 +498,26 @@ const overrideCount = (scheduleId) => {
   return overrides.filter((o) => o.scheduleId === scheduleId).length;
 };
 
-const openEditor = (schedule, occurrence = null, override = null) => {
-  isOccurrenceContext = Boolean(occurrence);
+// カレンダーのセルをクリック → その日の予定の新規登録（単発・日付固定）
+const openEditorForDay = (date) => {
+  isOccurrenceContext = false;
+  occurrenceDate = null;
+  occurrenceOverride = null;
+  editScope = 'recurrence';
+  editing = {
+    title: '',
+    kind: 'out',
+    amount: 0,
+    recurrence: 'once',
+    dayOfMonth: null,
+    date: date,
+    note: '',
+    enabled: true
+  };
+  modalOpen = true;
+};
+
+const openEditor = (schedule, occurrence = null, override = null) => {  isOccurrenceContext = Boolean(occurrence);
   occurrenceDate = occurrence;
   occurrenceOverride = override;
   editScope = occurrence ? 'occurrence' : 'recurrence';
@@ -673,6 +694,10 @@ onMount(() => {
   height: 90px;
   padding: 2px 4px;
   font-size: 0.8rem;
+  cursor: pointer;
+}
+.cal-cell:hover {
+  background: #f8f9fa;
 }
 .cal-today {
   background: #e7f1ff;
