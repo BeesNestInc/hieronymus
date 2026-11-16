@@ -3,14 +3,17 @@
   </ul>
   <Sticky></Sticky>
   <span class="havbar-text">
-    {#if ( status.fy.startDate && status.fy.endDate )}
     <div class="dropdown d-inline-block">
       <button type="button" class="btn btn-sm btn-outline-light dropdown-toggle"
         data-bs-toggle="dropdown" aria-expanded="false"
         title="処理する会計年度を切り替えます（取込・伝票入力はここで選んだ年度に行われます）">
+        {#if ( status.fy.term )}
         第{status.fy.term}期
         {#if ( status.fy.lockedAt )}
         <span class="badge bg-warning text-dark ms-1">確定済み</span>
+        {/if}
+        {:else}
+        年度を選択
         {/if}
       </button>
       <ul class="dropdown-menu">
@@ -25,6 +28,7 @@
         {/each}
       </ul>
     </div>
+    {#if ( status.fy.startDate && status.fy.endDate )}
     ({status.fy.startDate.getFullYear()}年
     ({wareki(status.fy.startDate)})
         {status.fy.startDate.getMonth()+1}月
@@ -35,7 +39,7 @@
         {status.fy.endDate.getMonth()+1}月
         {status.fy.endDate.getDate()}日)
     {:else}
-    <span class="text-danger fw-bold"><i class="bi bi-exclamation-diamond-fill"></i>&nbsp; 会計年度を選択してください</span>
+    <span class="text-danger fw-bold"><i class="bi bi-exclamation-diamond-fill"></i>&nbsp; 年度を設定してください</span>
     {/if}
   </span>
   <ul class="navbar-nav ms-auto">

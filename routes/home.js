@@ -23,15 +23,9 @@ const home =  async (req, res, next) => {
     res.redirect('/setup');
   }else{
     if	( !req.params.term )	{
-      if  ( !req.session.term ) {
-        // 既定の処理年度は「未確定の最古の期」（確定済みの期は処理が終わっている。
-        // 常に第1期に落とすと、期の切替前は全操作が確定済み年度を掴む）
-        const fy = await models.FiscalYear.findOne({
-          where: { lockedAt: null },
-          order: [[ 'term', 'ASC' ]]
-        });
-        req.session.term = fy ? fy.term : 1;
-      }
+      // 処理年度の自動選択はしない（うっかり別の年度で作業してしまう事故の元）。
+      // session.term が無いまま描画し、クライアント側で
+      // 「年度を設定してください」を表示して選択させる
       res.render('index.spy', {
         term: req.session.term
       });

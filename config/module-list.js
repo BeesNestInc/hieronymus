@@ -12,6 +12,10 @@ export default [
       return ( user.accounting || user.fiscalBrowsing );
     },
     href: (status) => {
+      // 年度未選択のときは決め打ちのURLに飛ばさない（ホームで選択させる）
+      if ( !status.fy || !status.fy.startDate ) {
+        return '/home';
+      }
       return	(`/journal/${status.fy.startDate.getFullYear()}/${status.fy.startDate.getMonth()+1}`);
     },
     icon: { name: 'bi:calendar3'},
@@ -187,6 +191,10 @@ export default [
     title: '推移表',
     match: /^\/changes/,
     href: (status) => {
+      // 年度未選択のときは決め打ちのURLに飛ばさない（ホームで選択させる）
+      if ( !status.fy || !status.fy.term ) {
+        return '/home';
+      }
       return	(`/changes/${status.fy.term}/6000000`);
     },
     authority: (user) => {

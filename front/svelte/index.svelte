@@ -213,17 +213,23 @@ onMount(async () => {
   // AIの設定有無。AI前提のボタンを見せない(視覚ノイズを減らす)ために使う
   status.aiAvailable = res.data.aiAvailable;
   status.company = await getCompanyInfo();
-  axios.get(`/api/term/${term}`).then((res) => {
-    let fy = res.data;
-    if  ( fy )  {
-      status.fy = fy;
-      console.log({fy});
-      status.fy.startDate = new Date(fy.startDate);
-      status.fy.endDate = new Date(fy.endDate);
-    } else {
-      status.fy = {};
-    }
-  });
+  // 年度が未選択（session.term無し）のまま開いた場合は年度情報を取得しない。
+  // ナビバーに「年度を設定してください」が出て、そこから選択させる
+  if ( term ) {
+    axios.get(`/api/term/${term}`).then((res) => {
+      let fy = res.data;
+      if  ( fy )  {
+        status.fy = fy;
+        console.log({fy});
+        status.fy.startDate = new Date(fy.startDate);
+        status.fy.endDate = new Date(fy.endDate);
+      } else {
+        status.fy = {};
+      }
+    });
+  } else {
+    status.fy = {};
+  }
   window.onpopstate = (event) => {
     console.log('maybe back', event);
     const page = location.pathname + location.search;
