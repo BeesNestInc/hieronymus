@@ -1,8 +1,9 @@
 <div class="page-title d-flex justify-content-between align-items-center">
   {#if isEditMode}
-  <input type="text" class="col-8"
+  <!-- タイトル幅は控えめに（ボタン群が1列に収まるように） -->
+  <input type="text" class="form-control" style="width: 240px; flex-shrink: 0;"
   	bind:value={menu.title}>
-  <div>
+  <div class="d-flex flex-wrap gap-1 justify-content-end">
     <div class="dropdown" style="display: inline;">
       <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
         ウィジェットを追加
