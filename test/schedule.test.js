@@ -201,6 +201,26 @@ describe('schedule (test db)', () => {
     );
   });
 
+  it('作成: お金の関係しない「予定」も登録できる', async () => {
+    // 登録前後で月計（入出金）が変わらないこと（予定は月計に含まれない）
+    const before = await call(apiSchedule.month, {
+      params: { year: 2026, month: 11 },
+      session: { user: approver }
+    });
+    const result = await create({
+      title: '棚卸し', kind: 'plan', amount: 0,
+      recurrence: 'monthly', dayOfMonth: 15
+    });
+    assert.equal(result.body.code, 0);
+    const nov = await call(apiSchedule.month, {
+      params: { year: 2026, month: 11 },
+      session: { user: approver }
+    });
+    assert.ok(nov.body.items.some((i) => i.title === '棚卸し'));
+    assert.equal(nov.body.totalIn, before.body.totalIn);
+    assert.equal(nov.body.totalOut, before.body.totalOut);
+  });
+
   it('一覧: 予定定義と自分のフィードトークンが返る（初回アクセスでトークン発行）', async () => {
     const first = await call(apiSchedule.list, {
       session: { user: approver }
@@ -578,5 +598,14 @@ describe('schedule (test db)', () => {
     assert.include(result.body, '金額 95,000円');
     // 通常分（8万円）も他の月に出る
     assert.include(result.body, 'SUMMARY:(出) 個別設定テスト');
+  });
+
+  it('ICSフィード: 「予定」は(予)付きで配信される', async () => {
+    const list = await call(apiSchedule.list, { session: { user: approver } });
+    const result = await call(apiSchedule.feed, {
+      query: { token: list.body.feedToken },
+      session: null
+    });
+    assert.include(result.body, 'SUMMARY:(予) 棚卸し');
   });
 });

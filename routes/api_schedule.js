@@ -99,7 +99,8 @@ const validate = (body) => {
   if ( !body.title || !String(body.title).trim() ) {
     return 'タイトルが空です';
   }
-  if ( body.kind !== 'in' && body.kind !== 'out' ) {
+  // 'plan' はお金の関係しない単なる予定（「一応あります」レベルのもの）
+  if ( body.kind !== 'in' && body.kind !== 'out' && body.kind !== 'plan' ) {
     return '種別が不正です';
   }
   const amount = Number(body.amount);
@@ -174,7 +175,8 @@ const buildICS = (schedules, overrides = []) => {
       }
       const next = new Date(year, month - 1, item.day + 1);
       const dtend = `${next.getFullYear()}-${pad2(next.getMonth() + 1)}-${pad2(next.getDate())}`;
-      const kindLabel = ( item.kind === 'in' ) ? '入' : '出';
+      const kindLabel = ( item.kind === 'in' ) ? '入' :
+        ( item.kind === 'out' ) ? '出' : '予';
       lines.push(
         'BEGIN:VEVENT',
         `UID:${item.scheduleId}-${item.date}@hieronymus`,

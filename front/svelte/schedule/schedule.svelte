@@ -47,7 +47,7 @@
           {#if ( cell )}
           <div class="cal-day small text-muted">{cell.day}</div>
           {#each cell.items as item (item.scheduleId)}
-          <div class="cal-ev {item.kind === 'in' ? 'cal-in' : 'cal-out'}"
+          <div class="cal-ev {item.kind === 'in' ? 'cal-in' : item.kind === 'out' ? 'cal-out' : 'cal-plan'}"
             role="button"
             title="{item.title} {formatMoney(item.amount)}円{item.overridden ? '（個別設定あり）' : ''}"
             on:click={() => { editById(item.scheduleId, cell.date); }}>{item.title}</div>
@@ -133,8 +133,10 @@
           <td>
             {#if ( schedule.kind === 'in' )}
             <span class="badge bg-success">入金</span>
-            {:else}
+            {:else if ( schedule.kind === 'out' )}
             <span class="badge bg-danger">出金</span>
+            {:else}
+            <span class="badge bg-secondary">予定</span>
             {/if}
           </td>
           <td>{recurrenceLabel(schedule)}</td>
@@ -218,6 +220,11 @@
                   value="in" bind:group={editing.kind}>
                 <label class="form-check-label" for="schedule-kind-in">入金</label>
               </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="schedule-kind-plan"
+                  value="plan" bind:group={editing.kind}>
+                <label class="form-check-label" for="schedule-kind-plan">予定</label>
+              </div>
             </div>
           </div>
           <div>
@@ -251,6 +258,11 @@
                 <input class="form-check-input" type="radio" id="schedule-kind-in"
                   value="in" bind:group={editing.kind}>
                 <label class="form-check-label" for="schedule-kind-in">入金</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="schedule-kind-plan"
+                  value="plan" bind:group={editing.kind}>
+                <label class="form-check-label" for="schedule-kind-plan">予定</label>
               </div>
             </div>
           </div>
@@ -420,10 +432,11 @@ const sortSchedules = (defs, order) => {
     return list.sort((a, b) => Number(b.amount) - Number(a.amount));
   }
   if ( order === 'kind' ) {
+    const kindOrder = { in: 0, out: 1, plan: 2 };
     return list.sort((a, b) =>
       ( a.kind === b.kind ) ?
         ( Number(b.amount) - Number(a.amount) ) :
-        ( a.kind === 'in' ? -1 : 1 ));
+        ( kindOrder[a.kind] - kindOrder[b.kind] ));
   }
   if ( order === 'created' ) {
     return list.sort((a, b) => a.id - b.id);
@@ -680,6 +693,10 @@ onMount(() => {
 .cal-out {
   background: #f8d7da;
   color: #58151c;
+}
+.cal-plan {
+  background: #e2e3e5;
+  color: #41464b;
 }
 .schedule-modal {
   background: rgba(0, 0, 0, 0.5);
