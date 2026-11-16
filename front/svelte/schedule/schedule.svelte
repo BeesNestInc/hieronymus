@@ -166,7 +166,7 @@
     <input type="text" class="form-control form-control-sm" readonly
       value={typeof window !== 'undefined' ? window.location.origin + feedUrl : feedUrl}>
     <button type="button" class="btn btn-sm btn-outline-secondary ms-1" style="white-space: nowrap;"
-      on:click={() => { copyFeedUrl(); }}>コピー</button>
+      on:click={() => { copyFeedUrl(); }}>{copied ? 'コピーしました' : 'コピー'}</button>
     <button type="button" class="btn btn-sm btn-outline-warning ms-1" style="white-space: nowrap;"
       title="現在のトークンを無効にして新しいものを発行します"
       on:click={() => { regenerateToken(); }}>再生成</button>
@@ -636,11 +636,39 @@ const remove = (schedule) => {
 
 const copyFeedUrl = async () => {
   const url = ( typeof window !== 'undefined' ) ? window.location.origin + feedUrl : feedUrl;
+  // navigator.clipboard は secure context（HTTPS/localhost）でしか使えない。
+  // ホスト名でアクセスしている環境では使えないので execCommand にフォールバック
   try {
     await navigator.clipboard.writeText(url);
+    showCopied();
   } catch (e) {
-    console.error('copy failed', e);
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      if ( document.execCommand('copy') ) {
+        showCopied();
+      } else {
+        console.error('copy failed');
+      }
+    } catch (e2) {
+      console.error('copy failed', e2);
+    }
+    document.body.removeChild(textarea);
   }
+};
+
+let copied = false;
+let copiedTimer = null;
+const showCopied = () => {
+  copied = true;
+  if ( copiedTimer ) {
+    clearTimeout(copiedTimer);
+  }
+  copiedTimer = setTimeout(() => { copied = false; }, 2000);
 };
 
 const regenerateToken = () => {
