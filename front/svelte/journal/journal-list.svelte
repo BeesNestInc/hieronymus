@@ -29,10 +29,10 @@
           {line.month}/{line.day}
           {#if ( line.expenseReportId )}
           <div>
-            <a class="text-info" style="font-size:0.7rem;" href={`/expense/entry/${line.expenseReportId}?returnTo=${encodeURIComponent('/journal/' + line.year + '/' + line.month)}`}
+            <a class="text-info" href={`/expense/entry/${line.expenseReportId}?returnTo=${encodeURIComponent('/journal/' + line.year + '/' + line.month)}`}
               on:click|preventDefault={() => { routerLink(`/expense/entry/${line.expenseReportId}?returnTo=${encodeURIComponent('/journal/' + line.year + '/' + line.month)}`); }}
-              title="この伝票の載っている経費精算書を開きます">
-              <i class="bi bi-wallet2"></i>&nbsp;経費精算
+              title="経費精算書へ">
+              <i class="bi bi-wallet2"></i>
             </a>
           </div>
           {/if}
