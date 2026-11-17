@@ -61,7 +61,4 @@ if ( typeof window !== 'undefined' ) {
     currentPage.set(window.location.pathname + window.location.search);
   });
 }
-currentPage.subscribe(v => {
-  console.log('router.js GLOBAL SUB fired:', v);
-});
 

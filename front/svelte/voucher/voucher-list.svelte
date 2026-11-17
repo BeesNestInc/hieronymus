@@ -298,6 +298,10 @@ onMount(() => {
   axios.get(`/api/voucher/classes`).then((result) => {
     voucherClasses = result.data.values;
   });
+  // 年度が未選択のときは月一覧が作れない（年度設定後に表示される）
+  if ( !status.fy?.term ) {
+    return;
+  }
   axios.get(`/api/term/${status.fy.term}`).then((result) => {
     let fy = result.data;
     for ( let mon = new Date(fy.startDate); mon < new Date(fy.endDate); ) {

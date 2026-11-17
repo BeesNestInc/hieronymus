@@ -18,7 +18,6 @@ let count;
 setRoutes(routes);
 $: {
   const page = $currentPage;
-  console.log({page});
   if  ( beforePage !== page ) {
     const route = findRoute(routes, page);
     if  ( route ) {

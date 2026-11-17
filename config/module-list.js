@@ -39,12 +39,14 @@ export default [
 預金通帳を模した「通帳元帳」と、通帳・カード・計算書の一覧と取込を行う「通帳一覧」があります。`,
     submenu: [
       {
+        name: 'bank-ledger',
         title: '通帳元帳',
         href: (status) => {
           return	(`/bank-ledger`);
         },
         match: /^\/bank-ledger/,
       }, {
+        name: 'bank-statement',
         title: '通帳一覧',
         href: (status) => {
           return	(`/bank-statement`);

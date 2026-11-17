@@ -1,4 +1,5 @@
 import { writable } from "svelte/store";
+import { findPage } from "./pages.js";
 
 // 表示用に取得済みの値で上書きする場合に使う（タイトル用の新規fetchはしない）
 // 例: メニューは表示用の menu.title をそのまま流用する
@@ -123,15 +124,15 @@ export const getBaseTitle = (pageUrl) => {
   if  (!pageUrl) {
     return ("Hieronymus");
   }
-  for (const [match, base] of baseTitles) {
-    if  (pageUrl.match(match)) {
-      // 通帳は一覧と詳細で基底名が違う（h1に合わせる）
-      if  (String(match) === String(/^\/bank-statement/) &&
-           !pageUrl.split("?")[0].split("/")[2]) {
-        return ("通帳一覧");
-      }
-      return (base);
+  // 基底名は pages.js（module-list.js の title）から解決する。
+  // タブタイトルの表をここで二重管理しない
+  const found = findPage(pageUrl);
+  if  ( found && found.title )  {
+    // 通帳一覧は伝票指定の有無で呼び方が変わる（h1に合わせる）
+    if  ( pageUrl.match(/^\/bank-statement\/\d+/) ) {
+      return ("通帳");
     }
+    return (found.title);
   }
   return ("Hieronymus");
 };

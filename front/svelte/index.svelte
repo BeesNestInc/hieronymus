@@ -8,21 +8,18 @@
   <NavBar
     status={status}></NavBar>
 </nav>
-<aside 
+<aside
   class="main-sidebar">
   <SideBar
-    bind:mainCount={mainCount}
     bind:status={status}></SideBar>
 </aside>
 <main class="content-wrapper" class:wide-content={isWide}>
   <div class="container-fluid">
-    {#key mainCount}
     <div class="content">
       <Alert bind:alert={alert} {alert_level}></Alert>
       <Router {routes} {toast}
         bind:status={status}/>
     </div>
-    {/key}
   </div>
 </main>
 <footer
@@ -52,123 +49,17 @@ import Alert from './components/alert.svelte';
 
 import Login from './login/login.svelte';
 import SignUp from './login/signup.svelte';
-import Home from './home/home.svelte';
-import Menu from './menu/menu.svelte';
-import Journal from './journal/journal.svelte';
-import SlipPage from './cross-slip/slip-page.svelte';
-import Ledger from './ledger/ledger.svelte';
-import BankLedger from './bank-ledger/bank-ledger.svelte';
-import BankStatement from './bank-statement/bank-statement.svelte';
-import TrialBalance from './trial-balance/trial-balance.svelte';
-import Schedule from './schedule/schedule.svelte';
-import Changes from './changes/changes.svelte';
-import Voucher from './voucher/voucher.svelte';
-import Accounts from './accounts/accounts.svelte';
-import Company from './company/company.svelte';
-import Project from './project/project.svelte';
-import Expense from './expense/expense-report.svelte';
-import Karibarai from './karibarai/karibarai.svelte';
-
-import Users from './users/users.svelte';
-import Transaction from './transaction/transaction.svelte';
-import Item from './item/item.svelte';
-import Member from './member/member.svelte';
-import Task from './task/task.svelte';
 import OkModal from './common/ok-modal.svelte';
 
 import Router from './components/router.svelte';
 import {currentPage, getStore} from '../javascripts/router.js';
 import {buildTitle, pageTitleDetail} from '../javascripts/title.js';
 import { getCompanyInfo } from '../../libs/utils.js';
+import { pageRoutes } from '../javascripts/pages.js';
 
 export let term;
 
-const routes = [
-  {
-    match: /^\/menu/,
-    component: Menu
-  },
-  {
-    match: /^\/home/,
-    component: Home
-  },
-  {
-    match: /^\/journal/,
-    component: Journal
-  },
-  {
-    match: /^\/slip/,
-    component: SlipPage
-  },
-  {
-    match: /^\/ledger/,
-    component: Ledger
-  },
-  {
-    match: /^\/bank-ledger/,
-    component: BankLedger
-  },
-  {
-    match: /^\/bank-statement/,
-    component: BankStatement
-  },
-  {
-    match: /^\/trial-balance/,
-    component: TrialBalance
-  },
-  {
-    match: /^\/schedule/,
-    component: Schedule
-  },
-  {
-    match: /^\/changes/,
-    component: Changes
-  },
-  {
-    match: /^\/voucher/,
-    component: Voucher
-  },
-  {
-    match: /^\/accounts/,
-    component: Accounts
-  },
-  {
-    match: /^\/company/,
-    component: Company
-  },
-  {
-    match: /^\/project/,
-    component: Project
-  },
-  {
-    match: /^\/expense/,
-    component: Expense
-  },
-  {
-    match: /^\/karibarai/,
-    component: Karibarai
-  },
-  {
-    match: /^\/task/,
-    component: Task
-  },
-  {
-    match: /^\/transaction/,
-    component: Transaction
-  },
-  {
-    match: /^\/item/,
-    component: Item
-  },
-  {
-    match: /^\/users/,
-    component: Users
-  },
-  {
-    match: /^\/member/,
-    component: Member
-  }
-];
+const routes = pageRoutes;
 
 let toast;
 let description;
@@ -230,12 +121,7 @@ onMount(async () => {
   } else {
     status.fy = {};
   }
-  window.onpopstate = (event) => {
-    console.log('maybe back', event);
-    const page = location.pathname + location.search;
-    console.log("popstate:", page);
-    currentPage.set(page);
-  };
+  // popstate（戻る/進む）への追従は router.js 側のリスナーが担う
   eventBus.on('okModal', (args) => {
     console.log(args);
     title = args.title;
