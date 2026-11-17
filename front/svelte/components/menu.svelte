@@ -123,9 +123,9 @@
 }
 /* 既定の .footer は margin-top: -10px でボディに重なっており、
    テーブルがスクロールするとボタンの上に表が見えてしまう。
-   重ならないように間隔を空け、背景も塗る */
+   下辺のマージン（10px）と同じ間隔を上にも空け、背景も塗る */
 :global(.grid-stack-item-content > .menu > .footer) {
-  margin-top: 6px;
+  margin-top: 10px;
   background-color: var(--bs-card-bg);
   position: relative;
 }
