@@ -60,6 +60,12 @@
 .body {
   padding: 4px 10px 6px;
 }
+/* bootstrapの.rowが持つネガティブマージンがpaddingを相殺して
+   テーブルをコンテナ外へはみ出させるので打ち消す */
+.body :global(.row) {
+  margin-left: 0;
+  margin-right: 0;
+}
 </style>
 <script>
 import axios from 'axios';
