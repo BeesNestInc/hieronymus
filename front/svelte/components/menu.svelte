@@ -343,7 +343,9 @@ afterUpdate(() => {
 let updatePending = false;
   
 const updateWidgets = () => {
-  if (updatePending) return;
+  // GridStack.init の最中（grid変数への代入が完了する前）に
+  // changeイベントが発火することがある。grid が null のときは何もしない
+  if (updatePending || !grid) return;
   updatePending = true;
   
   grid.off("change", updateWidgets);
