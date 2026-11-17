@@ -78,6 +78,9 @@ const openMonth = (_year, _month) => {
   let href = `/journal/${year}/${month}`
   status.pathname = href;
   update();
+  // currentPage を更新しない意図: ページを再マウントせず表示月だけを
+  // 切り替える。この間 pageParams は旧URLのままなので、pageParams を
+  // 読む処理をここに足すときは注意すること
   window.history.pushState({ page: href }, "", href);
 }
 

@@ -194,6 +194,7 @@ import AiSettings from './ai-settings.svelte';
 import TableMaintenance from '../components/table-maintenance.svelte';
 import MessagePanel from '../components/message-panel.svelte';
 import axios from 'axios';
+import {link as routerLink} from '../../javascripts/router.js';
 
 export	let	status;
 export  let toast;
@@ -212,10 +213,9 @@ let company;
 let aiAvailable;
 
 const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState({ page: href }, "", href);
-  status.pathname = href;
+  // ページ遷移は router の link（currentPage を更新する）へ委譲する。
+  // pushState だけだとURLだけ変わって画面が変わらない
+  routerLink(href);
 }
 
 beforeUpdate(() => {

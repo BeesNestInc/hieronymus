@@ -80,6 +80,115 @@ await page.waitForTimeout(1200);
 const fwdTitle = await page.title();
 if ( fwdTitle.includes('予定表') ) { ok += 1; } else { ng += 1; console.log(`NG: 進む → title="${fwdTitle}"`); }
 
+// ---- 相互作用検査（「URLは変わるのに画面が遷移しない」クラスを捕まえる） ----
+const interaction = async (name, fn) => {
+  try {
+    await fn();
+    ok += 1;
+  } catch (e) {
+    ng += 1;
+    console.log(`NG: ${name}: ${String(e).slice(0, 120)}`);
+  }
+};
+
+// 仕訳日記帳の月送り（openMonth: currentPageを更新しない遷移）→ 選択月が移る
+await interaction('仕訳の月送り', async () => {
+  await page.goto(`${BASE}/journal/2025/8`);
+  await page.waitForTimeout(1800);
+  // 現在月以外の月ボタン（outline）を押す → 選択月（primary）が移る
+  const monthBtn = page.locator('button.btn-outline-primary:has-text("月")').first();
+  const label = (await monthBtn.innerText()).trim();
+  await monthBtn.click();
+  await page.waitForTimeout(1000);
+  const current = (await page.locator('button.btn-primary:has-text("月")').first().innerText()).trim();
+  if ( current !== label ) throw new Error(`選択月が移っていない (期待: ${label} / 実際: ${current})`);
+});
+
+// 元帳の科目切替 → 内容が変わる
+await interaction('元帳の科目切替', async () => {
+  await page.goto(`${BASE}/ledger/1000000`);
+  await page.waitForTimeout(1800);
+  await page.locator('a.nav-link:has-text("予定表")').count(); // タブだけのウォームアップ
+  await page.goto(`${BASE}/ledger/6000000`);
+  await page.waitForTimeout(1800);
+  const code = await page.evaluate(() => document.querySelector('.content').innerText.includes('売上') || document.querySelector('.content').innerText.includes('6000000'));
+  if ( !code ) throw new Error('科目内容が表示されない');
+});
+
+// 付箋の作成 → ベルの未読バッジが増える
+await interaction('付箋の作成', async () => {
+  await page.goto(`${BASE}/home/2`);
+  await page.waitForTimeout(2000);
+  // ベル本体の未読バッジ（.sticky-wrap 内にはパネルのタブバッジ等も
+  // .badge を持つため、ベル直下の要素に限定する）
+  const badge = () => page.locator('.sticky-wrap > button .badge').innerText().then((t) => parseInt(t) || 0).catch(() => 0);
+  const beforeN = await badge();
+  await page.locator('.sticky-wrap > button').click();
+  await page.waitForTimeout(600);
+  await page.locator('.sticky-panel button:has-text("新規")').click();
+  await page.waitForTimeout(500);
+  await page.locator('.sticky-modal textarea').fill('nav-smoke からの付箋');
+  // 自分宛メモ（kind: memo）として保存する（宛先選択不要。ボタンは「保存」）
+  await page.locator('#sticky-kind-memo').click();
+  await page.waitForTimeout(400);
+  await page.locator('.sticky-modal button:has-text("保存")').click();
+  await page.waitForTimeout(1200);
+  const afterN = await badge();
+  if ( afterN <= beforeN ) throw new Error(`未読バッジが増えていない (${beforeN} → ${afterN})`);
+  // 作成した付箋を掃除（自分宛コピーを削除）
+  await page.locator('.sticky-item:has-text("nav-smoke からの付箋")').first().click();
+  await page.waitForTimeout(500);
+  page.once('dialog', (d) => d.accept());
+  await page.locator('.sticky-item button:has-text("削除")').first().click();
+  await page.waitForTimeout(1000);
+});
+
+// 予定表の月送り → 表示月が変わる
+await interaction('予定表の月送り', async () => {
+  await page.goto(`${BASE}/schedule`);
+  await page.waitForTimeout(1800);
+  const before = await page.locator('.page-title span, .page-title .fw-bold').first().innerText();
+  await page.locator('button:has-text(">")').last().click();
+  await page.waitForTimeout(1000);
+  const after = await page.locator('.page-title span, .page-title .fw-bold').first().innerText();
+  if ( before === after ) throw new Error(`月が変わらない (${before.slice(0, 30)})`);
+});
+
+// マイページのウィジェットリンク（MenuLink）クリック → 対象ページへ遷移する
+await interaction('マイページのウィジェットリンク', async () => {
+  await page.goto(`${BASE}/menu`);
+  await page.waitForTimeout(1800);
+  // 会計メニュー等のテンプレートから MenuLink 入りページがなければスキップ条件になる
+  const link = page.locator('.grid-stack-item-content a.link').first();
+  if ( await link.count() === 0 ) {
+    console.log('  (ウィジェットリンクなし: スキップ)');
+    return;
+  }
+  const beforeUrl = page.url();
+  await link.click();
+  await page.waitForTimeout(1500);
+  if ( page.url() === beforeUrl ) throw new Error('URLが変わっていない');
+  const rendered = await page.evaluate(() => {
+    const c = document.querySelector('.content');
+    return Boolean(c && c.innerText.trim().length > 0);
+  });
+  if ( !rendered ) throw new Error('遷移先が描画されていない');
+});
+
+// ホームの取引先リンク（自社情報の確認）→ 遷移する
+await interaction('ホームの取引先リンク', async () => {
+  await page.goto(`${BASE}/home/2`);
+  await page.waitForTimeout(2500);
+  const btn = page.locator('button:has-text("自社情報の確認")');
+  if ( await btn.count() === 0 ) {
+    console.log('  (自社情報なし: スキップ)');
+    return;
+  }
+  await btn.click();
+  await page.waitForTimeout(1500);
+  if ( !page.url().includes('/company/entry/') ) throw new Error(`遷移していない: ${page.url()}`);
+});
+
 // 致命的エラーのないこと（既知の無害な AxiosError 401/403 以外）
 const fatal = pageErrors.filter((e) => !e.includes('AxiosError'));
 if ( fatal.length > 0 ) {

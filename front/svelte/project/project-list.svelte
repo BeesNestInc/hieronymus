@@ -72,6 +72,9 @@ const updateProjects = (_params) => {
     projects = result.data;
   });
   if	( _params )	{
+    // currentPage を更新しない（再マウントしないで絞り込みだけ反映）。
+    // この間 pageParams.query は旧のままなので、pageParams を
+    // 読む処理をここに足すときは注意すること
     window.history.pushState(
         { page: location.pathname + location.search }, "", `${location.pathname}?${param}`);
   }

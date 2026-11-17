@@ -163,6 +163,7 @@ import { GridStack } from "gridstack";
 import { v4 as uuidv4 } from "uuid";
 import {findComponent, activateWidgets} from '../../javascripts/widget-list.js';
 import {isSameOrigin, fetchTitleFromUrl} from '../../javascripts/utils.js';
+import {link as routerLink} from '../../javascripts/router.js';
 
 export let status;
 export let toast;
@@ -180,10 +181,9 @@ const startDrag = (event, widget) => {
 };
 
 const link = (href) => {
-  let pathes = href.split('/');
-  status.current = pathes[1];
-  window.history.pushState({ page: href }, "", href);
-  status.pathname = href;
+  // ページ遷移は router の link（currentPage を更新する）へ委譲する。
+  // pushState だけだとURLだけ変わって画面が変わらない
+  routerLink(href);
 }
 
 const allowDrop = (event) => {
