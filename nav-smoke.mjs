@@ -21,11 +21,16 @@ const check = async (path, name) => {
   await page.waitForTimeout(1800);
   const title = await page.title();
   const h1 = await page.locator('h1').first().innerText().catch(() => '(no h1)');
-  if ( title.includes(name) || h1.includes(name) || title.includes('Hieronymus') ) {
+  // ページ本体が描画されていること（ルート未解決だと .content が空になる）
+  const rendered = await page.evaluate(() => {
+    const content = document.querySelector('.content');
+    return Boolean(content && content.children.length > 0 && content.innerText.trim().length > 0);
+  });
+  if ( ( title.includes(name) || h1.includes(name) || title.includes('Hieronymus') ) && rendered ) {
     ok += 1;
   } else {
     ng += 1;
-    console.log(`NG: ${path} → title="${title}" h1="${h1.slice(0, 40)}"`);
+    console.log(`NG: ${path} → title="${title}" h1="${h1.slice(0, 40)}" rendered=${rendered}`);
   }
 };
 

@@ -79,8 +79,16 @@ export const findPage = (pageUrl) => {
   return null;
 };
 
-// router.svelte 用のルート表（match → component）
+// router.svelte 用のルート表（match → component）。
+// submenuにnameを持つページ（通帳元帳/通帳一覧等）は個別ルートとして先に、
+// 親エントリを後に置く（findRouteは最初に一致したものを使う）
 export const pageRoutes = modules
-  .filter((ent) => ent.name && pages[ent.name])
-  .map((ent) => ({ match: ent.match, component: pages[ent.name] }))
+  .flatMap((ent) => {
+    const subs = ( ent.submenu || [] )
+      .filter((sub) => sub.name && pages[sub.name])
+      .map((sub) => ({ match: sub.match, component: pages[sub.name] }));
+    const top = ( ent.name && pages[ent.name] ) ?
+      [{ match: ent.match, component: pages[ent.name] }] : [];
+    return [ ...subs, ...top ];
+  })
   .concat(extras.map((extra) => ({ match: extra.match, component: extra.component })));
