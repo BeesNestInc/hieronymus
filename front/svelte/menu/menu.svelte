@@ -35,8 +35,7 @@
       配置を保存
     </button>
     <button class="btn link" title="未保存の変更があれば確認します"
-      on:click={finishEdit}><i class="bi bi-check"></i>編集を終える</button>
-  </div>
+      on:click={finishEdit}><i class="bi bi-check"></i>編集を終える</button>  </div>
   {:else}
   <h1>{menu?.title}</h1>
   <button class="btn link" on:click={() => {
@@ -188,6 +187,8 @@ const save = (event) => {  console.log('save');
         window.history.replaceState(
           { page: `/menu/${menu.id}` }, "", `/menu/${menu.id}`);
       }
+      // 保存＝確定。実行モードへ戻る
+      isEditMode = false;
     })
   } catch(e) {
 		console.log(e);
