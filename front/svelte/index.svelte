@@ -36,7 +36,7 @@
 {/if}
 
 <script>
-import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
+import {onMount, afterUpdate, createEventDispatcher} from 'svelte';
 import axios from 'axios';
 
 import NavBar from './common/nav.svelte';
@@ -132,12 +132,6 @@ onMount(async () => {
   })
 })
 
-beforeUpdate(() => {
-  let args = location.pathname.split('/');
-  //console.log('index beforeUpdate', args);
-  //status = status;
-  //console.log('index beforeUpdate', {status});
-})
 afterUpdate(() => {
   console.log('index afterUpdate');
 })

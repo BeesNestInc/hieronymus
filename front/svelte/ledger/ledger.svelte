@@ -89,7 +89,7 @@ import AccountSelect from '../components/account-select.svelte';
 import SubAccountSelect from '../components/subaccount-select.svelte';
 import {setAccounts} from '../../javascripts/cross-slip';
 import parse_account_code from '../../../libs/parse_account_code';
-import {currentPage, link} from '../../javascripts/router.js';
+import {currentPage, pageParams, link} from '../../javascripts/router.js';
 
 export let status;
 
@@ -164,7 +164,7 @@ const update = async (list) => {
   }
 }
 const checkPage = () => {
-  let args = location.pathname.split('/');
+  const args = $pageParams.path;
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   update(true);
@@ -219,7 +219,7 @@ onMount(() => {
 })
 
 const updateList = () => {
-  let args = location.pathname.split('/');
+  const args = $pageParams.path;
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   console.log('updateList', status);

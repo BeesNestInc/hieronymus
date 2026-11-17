@@ -57,7 +57,7 @@ import {onMount} from 'svelte';
 import JournalList from './journal-list.svelte';
 import {setAccounts, findAccount, findSubAccountByCode} from '../../javascripts/cross-slip';
 import {numeric, dateStr} from '../../../libs/utils.js';
-import {currentPage, link} from '../../javascripts/router.js';
+import {currentPage, pageParams, link} from '../../javascripts/router.js';
 export let status;
 
 let year;
@@ -190,8 +190,9 @@ const update = () => {
 	updateList();
 }
 const checkPage = (page) => {
-  page = page || location.pathname;
-  const args = page.split('/');
+  // pageParams.path は currentPage と連動している（'/journal/2026/11' なら
+  // ['','journal','2026','11']）
+  const args = $pageParams.path;
 
   year = args[2];
   month = args[3];
@@ -199,8 +200,7 @@ const checkPage = (page) => {
 }
 
 onMount(async () => {
-  console.log('journal onMount');
-  let args = location.pathname.split('/');
+  const args = $pageParams.path;
   year = args[2];
   month = args[3];
   setupDates();

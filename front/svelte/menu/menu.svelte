@@ -74,6 +74,7 @@ import Menu from '../components/menu.svelte';
 import { onMount, onDestroy, beforeUpdate, tick} from "svelte";
 import {currentMenu, getStore} from '../../javascripts/current-record.js'
 import {pageTitleDetail} from '../../javascripts/title.js';
+import {pageParams} from '../../javascripts/router.js';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {eventBus as tableBus} from '../../javascripts/table-maintenance.js';
 import menuBus from '../../javascripts/event-bus.js';
@@ -246,7 +247,7 @@ const loadMenu = (id) => {
 };
 
 $: {
-  let args = location.pathname.split('/');
+  let args = $pageParams.path;
 	if	( args[2] === 'new')	{
 		status.state = args[2];
     tick().then(() => {
@@ -272,7 +273,7 @@ $: {
 }
 
 beforeUpdate(() => {
-  let args = location.pathname.split('/');
+  let args = $pageParams.path;
   if	( numeric(args[2]) )	{
     if  ( arg2 !== args[2] ) {
       arg2 = args[2];

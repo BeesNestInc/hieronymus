@@ -3,6 +3,17 @@ import { writable,get } from "svelte/store";
 const initialPage = typeof window !== 'undefined' ? (window.location.pathname + window.location.search) : undefined;
 export let currentPage = writable(initialPage);
 
+// 現在ページのパラメータ。
+// - path: URLを'/'で分割した配列（ページ側の location.pathname.split('/') と
+//   同じ並び。leading の空文字もそのまま）
+// - query: クエリ文字列の URLSearchParams
+// 各ページは location の直解析の代わりにこれを参照する
+const [initialPath, initialQuery] = (initialPage || '').split('?');
+export const pageParams = writable({
+  path: ( initialPath || '' ).split('/'),
+  query: new URLSearchParams(initialQuery || '')
+});
+
 export const getStore = get;
 
 let routes;
@@ -58,7 +69,16 @@ export const goBack = (fallbackUrl) => {
 // ブラウザの戻る/進むでもアプリが追従する（popstateでURLを再読み込みする）
 if ( typeof window !== 'undefined' ) {
   window.addEventListener('popstate', () => {
-    currentPage.set(window.location.pathname + window.location.search);
+    const page = window.location.pathname + window.location.search;
+    currentPage.set(page);
   });
 }
+
+currentPage.subscribe((pageUrl) => {
+  const [path, qs] = ( pageUrl || '' ).split('?');
+  pageParams.set({
+    path: ( path || '' ).split('/'),
+    query: new URLSearchParams(qs || '')
+  });
+});
 
