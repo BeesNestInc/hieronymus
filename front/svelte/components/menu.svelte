@@ -170,6 +170,12 @@ const link = (href) => {
 
 const allowDrop = (event) => {
   event.preventDefault();
+  // ドラッグ元（effectAllowed='copy'）に対して受け入れ可能であることを
+  // 示す必要がある。これがないとChrome等ではカーソルが禁止になり
+  // dropイベント自体が発火しない
+  if ( event.dataTransfer ) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
 };
 
 const dropWidget = async(event) => {
