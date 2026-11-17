@@ -473,7 +473,7 @@ a.link {
   height: 100%;
   box-sizing: border-box;
   border-radius: 5px;
-  overflow-y: hidden !important;
+  overflow-y: auto !important;
   display: flex;
   flex-direction: column;
 }
