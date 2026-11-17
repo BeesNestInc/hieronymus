@@ -3,13 +3,7 @@
     {#if ( reports.length === 0 )}
     <div class="text-muted small p-2">承認待ちの経費精算はありません</div>
     {:else}
-    <div class="row">
-    	<ul class="list-group">
-        <li class="list-group-item">
-          件数: {reports.length}
-        </li>
-      </ul>
-    </div>
+    <div class="small text-muted p-1">件数: {reports.length}</div>
     <div class="row full-height scroll-table">
 		  <table class="table table-bordered">
         <thead class="table-light">
