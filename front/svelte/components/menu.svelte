@@ -121,6 +121,14 @@
   min-height: 0;
   height: auto;
 }
+/* 既定の .footer は margin-top: -10px でボディに重なっており、
+   テーブルがスクロールするとボタンの上に表が見えてしまう。
+   重ならないように間隔を空け、背景も塗る */
+:global(.grid-stack-item-content > .menu > .footer) {
+  margin-top: 6px;
+  background-color: var(--bs-card-bg);
+  position: relative;
+}
 /* ページ下部の空き領域にもドロップできるよう、grid要素の高さを確保する
    （grid要素がコンテンツ高さまでしか無いと、その下はドロップ禁止領域になる）。
    画面の下端までドロップ領域が届くようにする */
