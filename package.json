@@ -5,6 +5,7 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
+		"test": "mocha test/*.test.js",
 		"build": "vite build",
 		"build-ssr": "vite build --config vite.config.ssr.js",
 		"watch": "vite build -w",
