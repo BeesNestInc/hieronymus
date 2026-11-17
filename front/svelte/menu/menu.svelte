@@ -16,6 +16,7 @@
             draggable="true"
             data-type={entry.name}
             on:dragstart={startWidgetDrag}
+            on:click={() => { addFromList(entry); }}
             >
             {entry.title}
         	</button>
@@ -46,8 +47,10 @@
 {#if ( isEditMode )}
 <div class="alert alert-warning py-1 my-1 small">
   <i class="bi bi-pencil-square"></i>&nbsp;<b>編集中</b> —
-  サイドバーの項目や「ウィジェットを追加」から<b>ドラッグ＆ドロップ</b>で配置し、
-  「配置を保存」で確定します。ブラウザのURLをドロップするとブックマークになります。
+  「ウィジェットを追加」から<b>クリックで追加</b>（グリッド末尾に置きます）。
+  サイドバーの項目や一覧からの<b>ドラッグ＆ドロップ</b>なら位置を指定できます。
+  ブラウザのURLをドロップするとブックマークになります。
+  「配置を保存」で確定します。
   （左サイドバーのマイページ編集は「ページの追加・並べ替え」、
   ここは「このページの中身」の編集です）
 </div>
@@ -74,7 +77,8 @@ import {pageTitleDetail} from '../../javascripts/title.js';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {eventBus as tableBus} from '../../javascripts/table-maintenance.js';
 import menuBus from '../../javascripts/event-bus.js';
-import {componentList, activateWidgets} from '../../javascripts/widget-list.js';
+import {componentList, activateWidgets, findComponent} from '../../javascripts/widget-list.js';
+import { v4 as uuidv4 } from "uuid";
 
 export let status;
 export let toast;
@@ -113,6 +117,34 @@ const deserializeMenu = (_menu) => {
     widgets: JSON.parse(_menu.body)
   })
 }
+
+// 「ウィジェットを追加」からのクリック追加。グリッドの末尾に置く
+// （ドラッグで持っていけば位置を指定できる。クリックでもドラッグでも
+// 同じウィジェットが追加される）
+const addFromList = async (entry) => {
+  const component = findComponent(entry.name);
+  if ( !component ) {
+    return;
+  }
+  let options = {};
+  if ( component.create ) {
+    options = await component.create({}, status);
+  } else {
+    options = { title: component.title };
+  }
+  widgets = [...widgets, {
+    id: uuidv4(),
+    x: undefined,
+    y: undefined,
+    w: component.defaultW || 4,
+    h: component.defaultH || 23,
+    minimize: false,
+    component: entry.name,
+    _component: component.component,
+    options
+  }];
+  reload += 1;
+};
 
 // 自分のマイページを全ユーザー用のテンプレートとして公開する（管理者のみ）。
 // 公開は複製を作るだけなので、元のマイページはそのまま残る
