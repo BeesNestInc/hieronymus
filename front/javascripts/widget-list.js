@@ -1,5 +1,6 @@
 import Approve from '../svelte/widgets/approve.svelte';
 import ExpenseApprove from '../svelte/widgets/expense-approve.svelte';
+import StickyMemo from '../svelte/widgets/sticky-memo.svelte';
 import Backup from '../svelte/widgets/backup.svelte';
 import Bookmark,{ create as createBookmark, activate as activateBookmark } from '../svelte/widgets/bookmark.svelte';
 import CompanyKinds from '../svelte/widgets/company-kinds.svelte';
@@ -109,10 +110,16 @@ export const componentList = [
       component: MemberClasses,
     }, {
       name: 'HTMLPanel',
-      title: 'メモ',
+      title: '自由記述',
       defaultW: 6,
       defaultH: 40,
       component: HTMLPanel,
+    }, {
+      name: 'StickyMemo',
+      title: '付箋メモ',
+      defaultW: 4,
+      defaultH: 25,
+      component: StickyMemo,
     }, {
       name: 'MenuLink',
       defaultW: 3,

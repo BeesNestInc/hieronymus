@@ -186,6 +186,7 @@ import {onMount, onDestroy} from 'svelte';
 import axios from 'axios';
 import {formatDate} from '../../../libs/utils.js';
 import {currentPage} from '../../javascripts/router.js';
+import eventBus from '../../javascripts/event-bus.js';
 
 let open = false;
 let stickies = [];
@@ -358,6 +359,8 @@ $: {
 onMount(() => {
   refresh();
   pollTimer = setInterval(refresh, 60000);
+  // 付箋メモウィジェットなどからの追加・削除を即時反映する
+  eventBus.on('stickyUpdated', refresh);
 });
 
 onDestroy(() => {
