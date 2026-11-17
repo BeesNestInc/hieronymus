@@ -31,8 +31,8 @@
       <i class="bi bi-box-arrow-up"></i>&nbsp;テンプレートとして公開
     </button>
     {/if}
-    <button class="btn btn-success" on:click={save}>
-      配置を保存
+    <button class="btn btn-success" title="保存して実行モードへ戻ります" on:click={save}>
+      保存して終了
     </button>
     <button class="btn link" title="未保存の変更があれば確認します"
       on:click={finishEdit}><i class="bi bi-check"></i>編集を終える</button>  </div>
