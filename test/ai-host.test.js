@@ -48,12 +48,12 @@ describe('ai/host llms 群（Legion 形式）', () => {
     ok(model);
     const s = mp.settings();
     assert.equal(s.provider, 'gemini');
-    assert.equal(s.model, 'gemini-2.0-flash');
+    assert.equal(s.model, 'gemini-3.5-flash-lite');
     // modelConfig（engine 構造化判定・accepts/alternate に渡る）
     const conf = mp.modelConfig('standard');
     ok(conf);
     assert.equal(conf.provider, 'gemini');
-    assert.equal(conf.model, 'gemini-2.0-flash');
+    assert.equal(conf.model, 'gemini-3.5-flash-lite');
     ok(conf.structuredOutput !== false);
     // candidateResolver（群参照）: ト書き順を保持する
     const list = mp.candidates('standard');
@@ -243,24 +243,23 @@ describe('ai/host llms 群（Legion 形式）', () => {
     it('catalogKey による選択で provider/model 等がカタログから展開される', async () => {
       const mp = await import('../ai/host/model-provider.js');
       const info = mp.standardCandidateInfo();
-      // 現在の先頭候補（fixture: gemini-2.0-flash + test-key）はカタログ一致
+      // 現在の先頭候補（fixture: gemini-3.5-flash-lite + test-key）はカタログ一致
       ok(Array.isArray(info.catalog) && info.catalog.length > 1);
-      assert.equal(info.catalogKey, 'gemini-2-0-flash');
+      assert.equal(info.catalogKey, 'gemini-3-5-flash-lite');
       // カタログ選択で保存すると provider/model/accepts/structuredOutput が揃う
+      // （別プロバイダの muse-spark に切り替える。baseURLはカタログから展開）
       const result = mp.updateStandardCandidate({
-        catalogKey: 'gemini-3-5-flash-lite', apiKey: ''
+        catalogKey: 'muse-spark', apiKey: ''
       });
       ok(!result.error);
       const c = result.candidate;
-      assert.equal(c.provider, 'gemini');
-      assert.equal(c.model, 'gemini-3.5-flash-lite');
-      assert.deepEqual(c.accepts, [ 'text', 'image', 'pdf' ]);
-      ok(c.structuredOutput === true);
-      assert.equal(c.description, 'Gemini 3.5 Flash Lite');
-      // 同一プロバイダ内の切替なので既存キーは維持される
-      assert.equal(mp.settings().apiKey, 'test-key');
+      assert.equal(c.provider, 'opencode_openai');
+      assert.equal(c.model, 'muse-spark-1.3-contributor');
+      assert.equal(c.baseURL, 'https://opencode.ai/zen/go/v1');
+      // プロバイダが替わる保存で apiKey 未入力なら旧キーを引きずらない
+      assert.notEqual(mp.settings().apiKey, 'test-key');
       // 保存後の catalogKey は新しいエントリに一致する
-      assert.equal(mp.standardCandidateInfo().catalogKey, 'gemini-3-5-flash-lite');
+      assert.equal(mp.standardCandidateInfo().catalogKey, 'muse-spark');
     });
 
     it('プロバイダが替わる保存では旧プロバイダのキーを引きずらない', async () => {

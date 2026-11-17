@@ -1,11 +1,11 @@
 # Legion 形式の llms 群（テスト用）。
-# standard 群: gemini 1件（キー別 独 shape 検査は modelConfig で行う）
+# standard 群: gemini 1件（カタログ登録済みのモデル）（キー別 独 shape 検査は modelConfig で行う）
 # alternate 群: standard を参照し、structuredOutput false の候補を先に置く
 llms:
   standard:
   - description: テスト用 gemini
     provider: gemini
-    model: gemini-2.0-flash
+    model: gemini-3.5-flash-lite
     apiKey: test-key
   alternate:
   - description: structuredOutput 不使用の先頭候補

@@ -13,13 +13,6 @@ export const MODEL_CATALOG = [
     model: 'gemini-3.5-flash-lite'
   },
   {
-    key: 'gemini-2-0-flash',
-    label: 'Gemini 2.0 Flash',
-    note: '旧世代。安定動作用',
-    provider: 'gemini',
-    model: 'gemini-2.0-flash'
-  },
-  {
     key: 'muse-spark',
     label: 'muse-spark（opencode.ai ゲートウェイ）',
     note: 'opencode.ai のAPIキーが必要',
