@@ -7,7 +7,14 @@
       <span class="brand-text">Hieronymus</span>
   </a>
 </div>
-<div class="sidebar">
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div class="sidebar" bind:this={sidebarEl}
+  on:scroll={() => {
+    // フライアウトは画面座標で固定表示するので、スクロールしたら閉じる
+    if ( closeTimer ) { clearTimeout(closeTimer); closeTimer = null; }
+    if ( switchTimer ) { clearTimeout(switchTimer); switchTimer = null; }
+    hoveredSection = null;
+  }}>
 	<nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
       <li class="nav-item">
@@ -88,7 +95,7 @@
     <ul class="nav nav-pills nav-sidebar flex-column">
       {#each visibleGroups as group (group.section)}
       <li class="nav-group" class:collapsed={!inFlowSections.has(group.section)}
-        on:mouseenter={() => { openSection(group.section); }}
+        on:mouseenter={(e) => { openSection(group.section, e.currentTarget); }}
         on:mouseleave={() => { closeSection(group.section); }}>
         <div class="nav-caption" role="button" tabindex="0"
           title={ pinnedSet.has(group.section) ? 'クリックで固定を解除' : 'クリックで常に開く' }
@@ -98,10 +105,13 @@
           <Icon class="nav-caption-chevron" icon="bi:{ expandedSections.has(group.section) ? 'chevron-down' : 'chevron-right' }"></Icon>
         </div>
         {#if ( expandedSections.has(group.section) )}
-        <!-- hover展開（flyout）はtransitionを付けない: 開く途中に下の見出しが
-             露出して、マウスが通過しただけで別グループのflyoutに差し替わる
-             （見出し間の移動で項目が動き、クリックが外れる）のを防ぐ -->
-        <ul class:flyout={flyoutSections.has(group.section)}>
+        <!-- hover展開（flyout）はtransitionを付けない。見出しの右横に
+             ポップアップするので、下の見出しは覆わない（大項目間を
+             マウスで滑っても何も邪魔されず、子項目もクリックできる）。
+             pin/現在地のグループはその場（フロー内）で開く -->
+        <ul class:flyout={flyoutSections.has(group.section)}
+          style={ flyoutSections.has(group.section) && flyoutPos.section === group.section ?
+            `top:${flyoutPos.top}px;left:${flyoutPos.left}px;max-height:calc(100vh - ${flyoutPos.top}px - 12px)` : '' }>
           {#each group.entries as entry}
           {#if ( entry.title )}
  			<li class="nav-item">
@@ -209,23 +219,23 @@
 .nav-group.collapsed .nav-caption-chevron {
   opacity: 0.6;
 }
-/* hover一時展開は下の項目を覆うフライアウトで表示する（フローの高さを
-   変えないので、見出し間をマウスが移動しても項目が動かない） */
+/* hover一時展開は見出しの右横にポップアップする（画面座標で固定表示。
+   下の見出しを覆わないので、大項目間をマウスで滑っても邪魔されない） */
 .nav-group {
   position: relative;
 }
 ul.flyout {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 1050;
+  position: fixed;
+  z-index: 1060;
+  width: max-content;
+  min-width: 220px;
   background-color: var(--sidebar-bg);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   border-radius: 0 0 0.4rem 0.4rem;
   padding: 0.25rem 0 0.5rem;
   margin: 0;
   list-style: none;
+  overflow-y: auto;
 }
 </style>
 <script>
@@ -310,16 +320,43 @@ const buildGroups = (entries, status) => {
 // 見出しhoverで中身を一時表示、クリックで常時開閉（ピン留め）する
 let pinnedSections = [];
 let hoveredSection = null;
+let sidebarEl;
 
 // hover一時展開はすぐ閉じず少し待つ（マウスを項目へ動かす途中で
 // グループの外に一瞬出ても閉じないようにする。チラつき防止）
 let closeTimer = null;
-const openSection = (section) => {
+// hover展開（flyout）は見出しの右横にポップアップする（画面座標で固定）。
+// 下の見出しを覆わないので、大項目間をマウスで滑れるし子項目もクリックできる
+let flyoutPos = { section: null, top: 0, left: 0 };
+// 別グループへの切替は少し待つ（popupへ移動する途中で次の見出しを
+// 掠めても切り替わらないようにする。見出しの上で止まれば切替わる）
+let switchTimer = null;
+const openSection = (section, li) => {
   if ( closeTimer ) {
     clearTimeout(closeTimer);
     closeTimer = null;
   }
-  hoveredSection = section;
+  if ( hoveredSection === section ) {
+    // 自グループ内（見出し↔popup間の移動）は即応する
+    if ( switchTimer ) {
+      clearTimeout(switchTimer);
+      switchTimer = null;
+    }
+    return;
+  }
+  if ( switchTimer ) {
+    clearTimeout(switchTimer);
+  }
+  switchTimer = setTimeout(() => {
+    switchTimer = null;
+    hoveredSection = section;
+    if ( li ) {
+      const liRect = li.getBoundingClientRect();
+      const cap = li.querySelector('.nav-caption');
+      const capRect = cap ? cap.getBoundingClientRect() : liRect;
+      flyoutPos = { section: section, top: capRect.top, left: liRect.right };
+    }
+  }, 200);
 };
 const closeSection = (section) => {
   if ( closeTimer ) {
@@ -335,6 +372,9 @@ const closeSection = (section) => {
 onDestroy(() => {
   if ( closeTimer ) {
     clearTimeout(closeTimer);
+  }
+  if ( switchTimer ) {
+    clearTimeout(switchTimer);
   }
 });
 
