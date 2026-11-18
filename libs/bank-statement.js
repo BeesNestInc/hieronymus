@@ -816,7 +816,9 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
         if ( vision.isAvailable() ) {
           const ocr = await vision.extractStatement(buffer, mimeType, { memoryUserId: options.memoryUserId });
           if ( ocr.lines.length >= parsed.lines.length ) {
-            const cardWarnings = parsed.warnings;
+            // カード解析の警告（支払総額/利用明細行）はカード明細の文脈のもの。
+            // テキスト層のない計算書など、AI読取が代替した書式ではノイズになるので捨てる
+            const cardWarnings = parsed.warnings.filter((w) => !/支払総額|利用明細行/.test(w));
             parsed = { lines: ocr.lines, total: null, payDate: null,
               warnings: [ ...cardWarnings, ...ocr.warnings ] };
             parsed.warnings.push('PDFのテキストが明細として足りないため、画像としてAI読み取りしました。');
