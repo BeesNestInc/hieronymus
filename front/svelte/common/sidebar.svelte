@@ -87,7 +87,7 @@
   <nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
       {#each visibleGroups as group (group.section)}
-      <li class="nav-group" class:collapsed={!expandedSections.has(group.section)}
+      <li class="nav-group" class:collapsed={!inFlowSections.has(group.section)}
         on:mouseenter={() => { openSection(group.section); }}
         on:mouseleave={() => { closeSection(group.section); }}>
         <div class="nav-caption" role="button" tabindex="0"
@@ -98,7 +98,7 @@
           <Icon class="nav-caption-chevron" icon="bi:{ expandedSections.has(group.section) ? 'chevron-down' : 'chevron-right' }"></Icon>
         </div>
         {#if ( expandedSections.has(group.section) )}
-        <ul transition:slide={{ duration: 150 }}>
+        <ul transition:slide={{ duration: 150 }} class:flyout={flyoutSections.has(group.section)}>
           {#each group.entries as entry}
           {#if ( entry.title )}
  			<li class="nav-item">
@@ -205,6 +205,24 @@
 /* 閉じているグループはhoverで中身が見える。隙間を減らしてコンパクトに */
 .nav-group.collapsed {
   margin-bottom: -0.5rem;
+}
+/* hover一時展開は下の項目を覆うフライアウトで表示する（フローの高さを
+   変えないので、見出し間をマウスが移動しても項目が動かない） */
+.nav-group {
+  position: relative;
+}
+ul.flyout {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  background-color: var(--sidebar-bg);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+  border-radius: 0 0 0.4rem 0.4rem;
+  padding: 0.25rem 0 0.5rem;
+  margin: 0;
+  list-style: none;
 }
 </style>
 <script>
@@ -350,6 +368,13 @@ $: expandedSections = new Set([
   ...( hoveredSection ? [hoveredSection] : [] )
 ].filter((s) => Boolean(s)));
 $: pinnedSet = new Set(pinnedSections);
+// pin/現在地による展開はフロー内（ここだけ高さが変わり、意図的な操作）。
+// hoverだけによる展開は、下の項目を覆うフライアウトで表示する
+// （フローの高さを変えない。別の見出しに移動しても何も動かない）
+$: inFlowSections = new Set([activeSection, ...pinnedSections].filter((s) => Boolean(s)));
+$: flyoutSections = new Set(
+  ( hoveredSection && !inFlowSections.has(hoveredSection) ) ? [ hoveredSection ] : []
+);
 
 const togglePinned = (section) => {
   if ( pinnedSections.includes(section) ) {
