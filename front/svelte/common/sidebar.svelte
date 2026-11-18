@@ -149,7 +149,9 @@
           {/if}
           {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ ( menuOpenState.get(entry.name) || ( subFlyout && subFlyout.name === entry.name ) ) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
         </a>
-        {#if ( entry.submenu && menuOpenState.get(entry.name) )}
+        <!-- インラインの下位階層はフロー内展開だけ。flyout（popup）の中では
+             出さない（現在地の項目までインラインで開くとpopupと重複する） -->
+        {#if ( entry.submenu && menuOpenState.get(entry.name) && !flyoutSections.has(group.section) )}
         <ul>
           {#each entry.submenu as subentry}
           {#if ( !subentry.authority || subentry.authority(status.user, status.company) )}
@@ -179,9 +181,11 @@
           {/each}
         </ul>
         {/if}
-        <!-- 孫メニュー: flyout内の下位階層はさらに右横にpopupする
-             （フロー内展開ではインライン開閉のみ。インライン展開中は出さない） -->
-        {#if ( entry.submenu && flyoutSections.has(group.section) && subFlyout && subFlyout.name === entry.name && !menuOpenState.get(entry.name) )}
+        <!-- 孫メニュー: 下位階層は右横にpopupする。flyout内では常にpopup、
+             フロー内ではインラインが閉じているときだけpopup
+             （インラインが開いているときは二重に出さない） -->
+        {#if ( entry.submenu && subFlyout && subFlyout.name === entry.name &&
+                ( flyoutSections.has(group.section) || !menuOpenState.get(entry.name) ) )}
         <ul class="subflyout"
           style={`top:${subFlyout.top}px;left:${subFlyout.left}px;max-height:calc(100vh - ${subFlyout.top}px - 12px)`}>
           {#each entry.submenu as subentry}
@@ -413,7 +417,6 @@ const openSection = (section, li) => {
   switchTimer = setTimeout(() => {
     switchTimer = null;
     hoveredSection = section;
-    subFlyout = null;
     if ( li ) {
       const liRect = li.getBoundingClientRect();
       const cap = li.querySelector('.nav-caption');
@@ -439,8 +442,9 @@ const openSubflyout = (group, entry, li) => {
     clearTimeout(subCloseTimer);
     subCloseTimer = null;
   }
-  // popupはflyout（hover展開）の中だけ。フロー内展開では出さない
-  if ( !flyoutSections.has(group.section) || menuOpenState.get(entry.name) ) {
+  // インラインで開いている（フロー内で開閉済み/現在地）なら出さない。
+  // それ以外（flyout内、フロー内で閉じているとき）は右横にpopupする
+  if ( !flyoutSections.has(group.section) && menuOpenState.get(entry.name) ) {
     subFlyout = null;
     return;
   }
