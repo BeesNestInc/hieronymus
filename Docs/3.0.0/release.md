@@ -78,7 +78,8 @@ Ver 2.1.0 からの変更（475コミット）をまとめたメジャーリリ�
 ## AI連携
 
 - 管理者ホームにAI設定パネルを追加（config/llms.yaml をUIから編集。
-  モデルはカタログから選択: Gemini 3.5 Flash Lite / muse-spark / 手動設定）
+  モデルはカタログから選択: Gemini 3.5 Flash Lite / **Gemma 4 31B（低コスト・
+  画像PDF対応・実運用実績あり）** / muse-spark / 手動設定）
 - voucher-mcp の応答から添付本文（files[].body）を除外
 - 証憑の複数文書切り出し（extract_document）に対応
 EOF

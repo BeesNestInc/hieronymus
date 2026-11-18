@@ -13,6 +13,13 @@ export const MODEL_CATALOG = [
     model: 'gemini-3.5-flash-lite'
   },
   {
+    key: 'gemma-4-31b-it',
+    label: 'Gemma 4 31B（低コスト）',
+    note: '画像PDF対応の低コスト構成。実運用実績あり（通帳OCR）。大きめなのでOCRに数十秒かかることがある',
+    provider: 'gemini',
+    model: 'gemma-4-31b-it'
+  },
+  {
     key: 'muse-spark',
     label: 'muse-spark（opencode.ai ゲートウェイ）',
     note: 'opencode.ai のAPIキーが必要',
