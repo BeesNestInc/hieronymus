@@ -299,8 +299,8 @@
           <th style="width:110px;">伝票</th>
           {#if ( statement.kind !== 'bank' )}
           <th style="width:180px;">相手方</th>
-          <th style="width:90px;"></th>
           {/if}
+          <th style="width:90px;"></th>
         </tr>
       </thead>
       <tbody>
@@ -367,6 +367,10 @@
             <span class="text-info"><i class="bi bi-mortarboard-fill me-1" title="学習済みのルールから起票します"></i>{line._oppositeLabel}</span>
             {/if}
           </td>
+          {/if}
+          <!-- 操作列: 個人カードに加えて銀行明細からも直接起票できる
+               （伝票画面に飛び、この行の内容で下書きを作る。
+               起票時にstatementLineIdで紐付き、取込行は起票済みになる） -->
           <td style="white-space:nowrap;">
             {#if ( canBookLine(line) )}
             <button type="button" class="btn btn-sm btn-outline-primary" title="この明細だけで伝票を起票します（伝票画面に移動します）"
@@ -380,7 +384,6 @@
               on:click={() => { restoreLine(line); }}><i class="bi bi-arrow-counterclockwise"></i></button>
             {/if}
           </td>
-          {/if}
         </tr>
         {/each}
       </tbody>
