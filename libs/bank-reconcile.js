@@ -598,6 +598,12 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     .map((r) => normalizeText(r.pattern)));
   const profileName = statement.cardName || statement.account;
   const bookingMap = new Map(( bookings || [] ).map((b) => [ Number(b.lineId), b ]));
+  // 通帳の全行（直前行の判定に使う。合流は「直前の行」基準で行う）
+  const allStatementLines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const allIndex = new Map(allStatementLines.map((l, i) => [ l.id, i ]));
   const where = { statementId: statement.id };
   let targetIds = ( bookings || [] ).map((b) => Number(b.lineId));
   if ( targetIds.length > 0 ) {
@@ -605,10 +611,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     // 合流摘要行（同じ日の手数料など）も一緒に起票の対象にする
     // （主取引行だけ載せると、手数料が別伝票で仮起票になってしまう）
     if ( options.includeMergeAfter ) {
-      const allLines = await models.BankStatementLine.findAll({
-        where: { statementId: statement.id },
-        order: [[ 'lineNo', 'ASC' ]]
-      });
+      const allLines = allStatementLines;
       for ( const targetId of [ ...targetIds ] ) {
         const target = allLines.find((l) => ( l.id === targetId ));
         if ( !target ) {
@@ -678,7 +681,6 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     return nextLine;
   };
   let prevGroup = null;
-  let prevDate = null;
   for ( let idx = 0; idx < lines.length; idx ++ ) {
     const line = lines[ idx ];
     if ( consumed.has(line.id) ) {
@@ -703,39 +705,105 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
     // 合流の意味づけ:
-    // - 手数料系（category: fee）の行は、(a) 自分の摘要が合流摘要に一致するか、
-    //   (b) 直前の行がmerge=trueルールに当たる主取引（アンカー）であるとき、
-    //   直前の同じ日の伝票に合流する
+    // - 手数料系（category: fee）の行は、通帳上の「直前の行」の伝票に合流する。
+    //   合流先がなければ起票しない（未照合のまま残す。手数料単独の伝票は作らない）
+    //   - 直前行が同じ日でこのパスで起票される（未照合）→ その伝票に合流
+    //     （主取引が無ルールなら仮入科目で起票されて合流する）
+    //   - 直前行が起票済みで伝票が未承認 → その既存伝票に明細を追加して合流
+    //   - 直前行が承認済み/起票しない、同じ日の直前行がない → 処理しない
     // - 主取引の行は自分の伝票を持つ。摘要がmerge=trueルールに当たるときは
     //   アンカーとして、直後の同じ日の手数料系の行を吸収する
     //   （同じ日に主取引が並んでも、それぞれの伝票に手数料が付く）
     const mergeHit = isMergeable(line, mergePatterns);
+    const lineIdx = allIndex.get(line.id);
+    const prevLine = ( lineIdx > 0 ) ? allStatementLines[ lineIdx - 1 ] : null;
+    const prevSameDay = Boolean(prevLine && ( toDateString(prevLine.date || '') === key ));
+    const prevInGroup = Boolean(prevGroup && prevLine && ( prevGroup.lastLineId === prevLine.id ));
+    // 直前行がアンカー（merge=trueルールに当たる主取引）なら、手数料は
+    // 自分の摘要に関係なく吸収される
+    const prevIsAnchor = Boolean(prevLine && isMergeable(prevLine, mergePatterns));
+    const autoFlow = ( targetIds.length === 0 );
     let group = null;
-    if ( prevGroup && ( prevDate === key ) && ( line.category === 'fee' ) &&
-         ( mergeHit || prevGroup.anchor ) ) {
-      group = prevGroup;
+    if ( ( line.category === 'fee' ) && prevSameDay &&
+         ( mergeHit || prevIsAnchor || ( prevGroup && prevGroup.anchor && prevInGroup ) ) ) {
+      if ( prevInGroup ) {
+        // 直前行の伝票（このパスで作る予定のもの。既存伝票への追記グループも含む）に合流
+        group = prevGroup;
+      } else if ( ( prevLine.status === 'booked' ) && prevLine.crossSlipDetailId ) {
+        // 直前行がすでに起票済み。未承認の伝票なら明細を追加して合流する
+        const prevDetail = await models.CrossSlipDetail.findByPk(prevLine.crossSlipDetailId);
+        const prevSlip = prevDetail ? await models.CrossSlip.findByPk(prevDetail.crossSlipId) : null;
+        if ( prevSlip && !prevSlip.approvedAt ) {
+          group = { date: key, entries: [], anchor: false, existingCrossSlipId: prevSlip.id };
+          groups.push(group);
+        }
+      }
+    }
+    if ( group ) {
+      group.lastLineId = line.id;
+    } else if ( autoFlow && ( line.category === 'fee' ) && mergeHit ) {
+      // 合流摘要の手数料は、合流先がなければ起票しない（未照合のまま残す）
+      continue;
     } else {
-      group = { date: key, entries: [], anchor: mergeHit };
+      group = { date: key, entries: [], anchor: mergeHit, lastLineId: line.id };
       groups.push(group);
     }
     for ( const entry of detailEntries ) {
       group.entries.push(entry);
     }
     prevGroup = group;
-    prevDate = key;
     if ( !consumed.has(line.id) ) {
       bookedIds.push(line.id);
     }
   }
   const created = [];
   for ( const group of groups ) {
-    const [ year, month, day ] = group.date.split('-').map(Number);
-    const slip = await createCrossSlip({
-      year: year,
-      month: month,
-      day: day,
-      lines: group.entries.map((e) => e.detail)
-    }, user, { forceUnapproved: true });
+    let slip = null;
+    if ( group.existingCrossSlipId ) {
+      // 既存の未承認伝票への合流。承認済みに変わっていたら新規伝票に退避する
+      const existing = await models.CrossSlip.findByPk(group.existingCrossSlipId);
+      if ( existing && !existing.approvedAt ) {
+        slip = existing;
+      }
+    }
+    if ( slip ) {
+      // 明細を既存伝票に追加する（lineNoは既存明細の続きから）
+      const baseNo = await models.CrossSlipDetail.max('lineNo', { where: { crossSlipId: slip.id } });
+      for ( let i = 0; i < group.entries.length; i ++ ) {
+        const d = group.entries[ i ].detail;
+        await models.CrossSlipDetail.create({
+          crossSlipId: slip.id,
+          lineNo: ( ( baseNo === null || baseNo === undefined ) ? -1 : baseNo ) + i + 1,
+          debitAccount: d.debitAccount,
+          debitSubAccount: d.debitSubAccount,
+          debitAmount: d.debitAmount,
+          debitTax: d.debitTax,
+          debitVoucherId: d.debitVoucherId,
+          debitTaxRuleId: d.debitTaxRuleId,
+          creditAccount: d.creditAccount,
+          creditSubAccount: d.creditSubAccount,
+          creditAmount: d.creditAmount,
+          creditTax: d.creditTax,
+          creditVoucherId: d.creditVoucherId,
+          creditTaxRuleId: d.creditTaxRuleId,
+          projectId: d.projectId,
+          application1: d.application1,
+          application2: d.application2,
+          statementLineId: d.statementLineId || null
+        });
+      }
+      const detailCount = await models.CrossSlipDetail.count({ where: { crossSlipId: slip.id } });
+      await slip.update({ lineCount: detailCount });
+    } else {
+      const [ year, month, day ] = group.date.split('-').map(Number);
+      slip = await createCrossSlip({
+        year: year,
+        month: month,
+        day: day,
+        lines: group.entries.map((e) => e.detail)
+      }, user, { forceUnapproved: true });
+      created.push(slip);
+    }
     // 起票した明細を statementLineId で行に対応付ける
     // （1行から2明細になる利息行は同じ行に対応する。1行1明細を優先するため、
     // 同じ行への2つ目以降の対応は上書きしない）
@@ -754,7 +822,6 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
         crossSlipDetailId: detail.id
       }, { where: { id: detail.statementLineId } });
     }
-    created.push(slip);
   }
   // 「計算書が先・通帳が後」の順番の統合。settleStatement は起票時に入金仮
   // 伝票と統合するが、通帳の取り込みが後から来た順番では、settleの時点で

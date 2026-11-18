@@ -329,8 +329,9 @@ describe('bank-reconcile (test db)', () => {
       { date: '2026-08-25', rawDescription: '振込手数料', amountOut: 140 }
     ]);
     const result = await bookLines(statement, null, approver);
-    // 同日の手数料は合流、別日の手数料は自分の伝票になる
-    assert.lengthOf(result.slips, 2);
+    // 同日の手数料は合流（主取引は仮入科目で起票される）、
+    // 合流先のない別日の手数料は起票しない（未照合のまま）
+    assert.lengthOf(result.slips, 1);
     await lines[0].reload();
     await lines[1].reload();
     const mainSlipId = ( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).crossSlipId;
@@ -338,10 +339,75 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(mainSlipId, feeSlipId);
     const feeDetailOfSlip = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
     assert.equal(feeDetailOfSlip.debitAccount, '1900000');
-    // 別日の手数料は単独伝票
+    // 合流先がない日の手数料は単独伝票を作らない
     await lines[2].reload();
-    const separateSlipId = ( await models.CrossSlipDetail.findByPk(lines[2].crossSlipDetailId) ).crossSlipId;
-    assert.notEqual(separateSlipId, mainSlipId);
+    assert.equal(lines[2].status, 'unmatched');
+    assert.equal(lines[2].crossSlipDetailId, null);
+  });
+
+  it('bookLines: 合流摘要の手数料は、直前の主取引が未承認で起票済みなら既存伝票に合流する', async () => {
+    // 主取引を先に起票しておき（パターン後登録の状況）、手数料を後から起票する
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-21', rawDescription: '振込＊テスト取引先', amountOut: 80000 },
+      { date: '2026-09-21', rawDescription: '振込手数料', amountOut: 145 }
+    ]);
+    const first = await bookLines(statement, [ { lineId: lines[0].id } ], approver);
+    assert.lengthOf(first.slips, 1);
+    await lines[0].reload();
+    assert.equal(lines[0].status, 'booked');
+    // 全起票: 手数料が既存の伝票に合流する
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 0);
+    await lines[1].reload();
+    assert.equal(lines[1].status, 'booked');
+    const mainSlipId = ( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).crossSlipId;
+    const feeSlipId = ( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).crossSlipId;
+    assert.equal(feeSlipId, mainSlipId);
+    // 明細が追加されている（lineNoが既存明細の続きから）
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: mainSlipId },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    assert.equal(details[1].statementLineId, lines[1].id);
+  });
+
+  it('bookLines: 合流摘要の手数料は、直前の主取引の伝票が承認済みなら起票しない', async () => {
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-22', rawDescription: '振込＊テスト取引先', amountOut: 80000 },
+      { date: '2026-09-22', rawDescription: '振込手数料', amountOut: 145 }
+    ]);
+    const first = await bookLines(statement, [ { lineId: lines[0].id } ], approver);
+    assert.lengthOf(first.slips, 1);
+    // 主取引の伝票を承認（確定）させる
+    await models.CrossSlip.update(
+      { approvedAt: new Date(), approvedBy: approver.id },
+      { where: { id: first.slips[0].id } }
+    );
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 0);
+    await lines[1].reload();
+    assert.equal(lines[1].status, 'unmatched');
+    assert.equal(lines[1].crossSlipDetailId, null);
+  });
+
+  it('bookLines: 合流摘要の手数料は、直前の主取引が起票しない（ignored）なら起票しない', async () => {
+    // 直前行を飛び越えた合流はしない（前の主取引の伝票に誤合流しない）
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-23', rawDescription: 'ＡＴＭ出金', amountOut: 30000 },
+      { date: '2026-09-23', rawDescription: '起票しない取引', amountOut: 1000 },
+      { date: '2026-09-23', rawDescription: '振込手数料', amountOut: 145 }
+    ]);
+    await lines[1].update({ status: 'ignored' });
+    const result = await bookLines(statement, null, approver);
+    // 1つ目の主取引の伝票のみ。手数料は未照合のまま
+    assert.lengthOf(result.slips, 1);
+    await lines[2].reload();
+    assert.equal(lines[2].status, 'unmatched');
+    await lines[0].reload();
+    const mainSlip = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const details = await models.CrossSlipDetail.findAll({ where: { crossSlipId: mainSlip.crossSlipId } });
+    assert.lengthOf(details, 1);
   });
 
   it('bookLines: 主取引の摘要にmerge=trueルールが当たるときは直後の手数料行を吸収する', async () => {
