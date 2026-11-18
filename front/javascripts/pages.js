@@ -40,12 +40,16 @@ const pages = {
   company: Company,
   project: Project,
   expense: Expense,
+  'expense-unsorted': Expense,
+  'expense-payee': Expense,
+  'expense-payment': Expense,
   karibarai: Karibarai,
   task: Task,
   transaction: Transaction,
   item: Item,
   member: Member,
-  users: Users
+  users: Users,
+  'company-master': Company
 };
 
 // module-list に項目を持たないページ（サイドバーに出ない画面）

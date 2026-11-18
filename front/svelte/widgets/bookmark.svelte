@@ -2,7 +2,7 @@
 	bind:status={status}
   bind:options={options}/>
 <script>
-import entries from '../../../config/module-list.js';
+import { findEntryByName } from './menu-link.svelte';
 import HTMLPanel from './html-panel.svelte';
 import {isSameOrigin, fetchTitleFromUrl} from '../../javascripts/utils.js';
 import axios from 'axios';
@@ -20,9 +20,7 @@ export const create = async (option, status) => {
   if	( isSameOrigin(href) )	{
     let url = new URL(href);
     let name = url.pathname.split('/')[1];
-  	entry = entries.find((ent) => {
-    	return	( name === ent.name );
-  	});
+  	entry = findEntryByName(name);
 	  //console.log({entry});
     options.title ||= await fetchTitleFromUrl(href);
   	options.name ||= entry.name;
@@ -48,9 +46,7 @@ export const create = async (option, status) => {
 
 export const activate = (options, status) => {
   //console.log('activateLink', options);
-  let entry = entries.find((ent) => {
-    return	( options.name === ent.name );
-  });
+  const entry = findEntryByName(options.name);
   //console.log({entry});
   if	( entry )	{
   	options.authority = entry.authority;

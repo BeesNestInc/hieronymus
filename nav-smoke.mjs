@@ -61,6 +61,9 @@ const checks = [
   ['/member/', '役職員管理'],
   ['/users/', 'ユーザ管理'],
   ['/expense/', '経費精算'],
+  ['/expense/unsorted', '未整理の証憑'],
+  ['/expense/payee', '支払先マッピング'],
+  ['/expense/payment', '出金元マッピング'],
   ['/karibarai', '立替精算'],
   ['/menu', 'マイページ'],
   ['/home/2', 'ホーム']
