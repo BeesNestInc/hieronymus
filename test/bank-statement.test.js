@@ -63,6 +63,21 @@ describe('bank-statement (parser)', () => {
     assert.equal(result.lines[1].amountOut, 29544);
   });
 
+  it('csv: 和暦・短縮年の日付（R6.10.15 等）を解析できる', async () => {
+    const iconv = ( await import('iconv-lite') ).default;
+    const cases = [ 'R6.10.15', '6.10.15', '令和6年10月15日' ];
+    for ( const fmt of cases ) {
+      const csv = [
+        '"日付","内容","出金金額(円)","入金金額(円)","残高(円)"',
+        '"' + fmt + '","振込＊テスト",,"500","9,500"'
+      ].join('\r\n');
+      const result = await parser.parseStatement(iconv.encode(csv, 'cp932'), 'text/csv');
+      assert.lengthOf(result.lines, 1, fmt);
+      // 令和6年=2024
+      assert.equal(result.lines[0].date, '2024-10-15', fmt);
+    }
+  });
+
   it('csv: Shift_JISの銀行CSVを解析できる（文字コード自動判別）', async () => {
     // 銀行の直接CSVはShift_JISが多い（iconv-liteでCP932として解読する）
     const iconv = ( await import('iconv-lite') ).default;

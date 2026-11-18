@@ -137,7 +137,21 @@ const parseDate = (value) => {
   if ( m ) {
     return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
   }
-  // 銀行CSVにある「6-10-15」「R6.10.15」等はここでは扱わない（プロファイル拡張で対応）
+  // 銀行CSV/Excelの和暦・短縮年日付（「R6.10.15」「6.10.15」「令和6年10月15日」）。
+  // 令和元年=2019。月日の範囲を見るのは「1-2-3」等の非日付を拾わないため
+  let m2 = s.match(/^(?:R|令和)(\d{1,2})[-/.年](\d{1,2})[月/.](\d{1,2})日?$/);
+  if ( !m2 ) {
+    m2 = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  }
+  if ( m2 ) {
+    const yy = parseInt(m2[1], 10);
+    const mm = parseInt(m2[2], 10);
+    const dd = parseInt(m2[3], 10);
+    if ( mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 ) {
+      // 銀行CSVの短縮年は令和n年（R1=2019）。西暦2桁でもこの形式は令和として解釈する
+      return `${2018 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    }
+  }
   return null;
 };
 
