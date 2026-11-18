@@ -1170,11 +1170,26 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     }
   }
   // 起票が成功したので、この構成（どの摘要を貸借のどこに置いたか）を
-  // 口座に学習する。次回取込では同じ構成の下書きが自動生成される
+  // 口座に学習する。次回取込では同じ構成の下書きが自動生成される。
+  // レイアウトは**作り直さず統合**する:
+  // - 同じラベルの行は今回の内容で更新（ユーザーの最新の編集を反映）
+  // - 今回の文書に現れなかった既存の行は残す（別の計算書では同じ項目が
+  //   出る。毎回作り直すと使わない月に一度でも出なかった項目が消える）
   try {
     const financial = statement.financial || await models.Financial.findByPk(statement.financialId);
     if  ( financial )  {
-      financial.settleLayout = JSON.stringify({ lines: layoutLines });
+      let existingLines = [];
+      try {
+        const prev = financial.settleLayout ? JSON.parse(financial.settleLayout) : null;
+        if  ( prev && Array.isArray(prev.lines) )  {
+          existingLines = prev.lines;
+        }
+      } catch {}
+      const seenLabels = new Set(layoutLines.map((l) => String(l.label || '').trim()));
+      const preserved = ( existingLines || [] ).filter((l) => (
+        l && !seenLabels.has(String(l.label || '').trim())
+      ));
+      financial.settleLayout = JSON.stringify({ lines: [ ...layoutLines, ...preserved ] });
       await financial.save();
     }
   } catch (e) {

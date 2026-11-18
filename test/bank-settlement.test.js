@@ -280,6 +280,37 @@ describe('ec settlement (test db)', () => {
     assert.notInclude(seedPromo.debit.rows.map(String), String(inRowB.id));
   });
 
+  it('settleStatement: レイアウトは作り直さず統合する（今回出なかった行を残す）', async () => {
+    // 毎回全上書きだと、使わない月に一度でも出なかった項目が学習から消える。
+    // 統合: 同じラベルの行は更新、今回の構成に無い既存の行は残す。
+    // （検算のため、この文書では月間登録料を0にしてその他に吸収させ、
+    //   構成に月間登録料の行を含めない。貸借は売上側の合計で合わせる）
+    const overrides = [];
+    for ( let i = 0; i < AMAZON_SETTLEMENT_LINES.length; i ++ ) overrides.push(null);
+    overrides[ 6 ] = { amountOut: 0 };              // 支出 Amazon手数料 月間登録料 → 0（構成に入れない）
+    overrides[ 7 ] = { amountOut: 52711 };          // 支出 Amazon手数料 その他 → 吸収（5,390+47,321）
+    overrides[ 8 ] = { amountIn: 89057 };           // 純利益の振込み → 残りで貸借合わせ
+    const stmt = await makeStatement(overrides);
+    const rows = await rowsOf(stmt);
+    const transfer = rows.find((r) => ( r.amountIn && /振込/.test(r.rawDescription) ));
+    const saleRows = rows.filter((r) => ( r.amountIn && !/振込/.test(r.rawDescription) ));
+    const otherRow = rows.find((r) => ( r.amountOut && /その他/.test(r.rawDescription) && Number(r.amountOut) > 0 ));
+    const draft = { draft: { lines: [
+      { label: '振込', debit: { rows: [ transfer.id ], account: '1010010', sub: 1 },
+        credit: { rows: saleRows.map((r) => r.id), account: '6000000', sub: 1 } },
+      { label: 'その他', debit: { rows: [ otherRow.id ], account: '7000001', sub: null }, credit: {} }
+    ] } };
+    await settleStatement(stmt, draft, data.approver);
+    await settlementFinancial.reload();
+    const layout = JSON.parse(settlementFinancial.settleLayout);
+    const labels = layout.lines.map((l) => l.label);
+    assert.include(labels, '振込');
+    assert.include(labels, 'その他');
+    // 今回の構成に組まなかった費用行（広告費用・月間登録料）はレイアウトに残る
+    assert.include(labels, '支出 広告費用');
+    assert.include(labels, '支出 Amazon手数料 月間登録料');
+  });
+
   it('settleStatement: draftが空のときは起票しない', async () => {
     currentStatement = await makeStatement();
     let thrown = null;
