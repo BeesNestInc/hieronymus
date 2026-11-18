@@ -332,6 +332,9 @@ const dateTime = (value) => {
 
 const clickOutside = (node) => {
   const handler = (event) => {
+    // 作成モーダル中はパネルを閉じない（モーダルは .sticky-wrap の外に
+    // 描画されるため、素の判定だとモーダル内の操作でパネルが閉じる）
+    if ( modalMode ) return;
     if ( wrapEl && !wrapEl.contains(event.target) ) {
       open = false;
     }
