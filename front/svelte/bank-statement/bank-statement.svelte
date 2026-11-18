@@ -237,6 +237,9 @@
                 （差額 {numberFmt(settleVoucherAdjust)}円）
                 {/if}
               </span>
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                title="新しい明細行を追加します（伝票行が0行のときはここから）"
+                on:click={addLine}>＋行を追加</button>
             </div>
           </div>          <div class="d-flex align-items-center">
             <button type="button" class="btn btn-sm btn-primary me-2" disabled={busy || !settleBalanceOk}
@@ -261,7 +264,7 @@
             </thead>
             <tbody>
               {#each settleLineViews as lv (lv.lineId)}
-              {#if ( !lineUsed(lv.lineId) )}
+              {#if ( !usedRowIds.has(String(lv.lineId)) )}
               <tr draggable="true" style="cursor:grab;"
                 on:dragstart={(e) => startRowDrag(e, lv.lineId)}
                 on:dragend={endDrag}>
@@ -1833,6 +1836,11 @@ const lineUsed = (lineId) => (
     ( ( dl.credit.rows || [] ).indexOf(String(lineId)) >= 0 )
   ))
 );
+// プールの行の使用中表示はリアクティブSetで（テンプレートから
+// 関数呼び出しをするとSvelte4は関数内の依存を追跡しない）
+$: usedRowIds = new Set(( voucher.lines || [] ).flatMap((dl) => (
+  [ ...( dl.debit.rows || [] ), ...( dl.credit.rows || [] ) ].map(String)
+)));
 $: settleVoucherDebit = ( voucher.lines || [] ).reduce((a, dl) => a + sideAmount(dl, 'debit'), 0);
 $: settleVoucherCredit = ( voucher.lines || [] ).reduce((a, dl) => a + sideAmount(dl, 'credit'), 0);
 $: settleVoucherAdjust = ( settlement ) ? ( Number(settleVoucherDebit) - Number(settleVoucherCredit) ) : null;
@@ -1866,13 +1874,16 @@ const discardStatement = async () => {
     busy = false;
   }
 };
-const addLine = () => {
-  voucher = { lines: [...( voucher.lines || [] ), {
-    id: `L${Date.now()}`,
+const newVoucherLine = () => {
+  return {
+    id: `L${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label: '',
     debit: { rows: [], account: '', sub: null },
     credit: { rows: [], account: '', sub: null }
-  }] };
+  };
+};
+const addLine = () => {
+  voucher = { lines: [...( voucher.lines || [] ), newVoucherLine()] };
   saveSettleDraft();
 };
 const removeLine = (di) => {
@@ -2133,7 +2144,9 @@ const applySettlement = (data, opts = {}) => {
     }
     return;
   }
-  voucher = { lines: [] };
+  // 下書き・学習済み構成のどちらもない初回は、1行だけの空伝票から始める
+  // （伝票行が0だとDropゾーンが一つもなく、明細をDnDできない）
+  voucher = { lines: [ newVoucherLine() ] };
 };
 
 const runSettle = async () => {
