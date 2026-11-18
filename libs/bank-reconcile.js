@@ -618,6 +618,30 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
           continue;
         }
         const index = allLines.indexOf(target);
+        // 前方（直前）: 合流摘要の手数料は、同じ日の未照合の直前行（主取引）を
+        // 一緒に起票の対象にする（主取引は仮入科目で起票され、手数料が合流する。
+        // ルール手数料だけが先に起票されないようにする）
+        if ( ( target.category === 'fee' ) && isMergeable(target, mergePatterns) ) {
+          for ( let i = index - 1; i >= 0; i -- ) {
+            const leader = allLines[ i ];
+            if ( toDateString(leader.date || '') !== toDateString(target.date || '') ) {
+              break;
+            }
+            if ( leader.status !== 'unmatched' ) {
+              break;
+            }
+            if ( !targetIds.includes(leader.id) ) {
+              targetIds.unshift(leader.id);
+            }
+            if ( leader.category !== 'fee' ) {
+              // 主取引に届いたら止める（主取引のさらに前は対象にしない）
+              break;
+            }
+          }
+        }
+        // 後方（直後）: 指定行の直後に続く
+        // 合流摘要行（同じ日の手数料など）も一緒に起票の対象にする
+        // （主取引行だけ載せると、手数料が別伝票で仮起票になってしまう）
         for ( let i = index + 1; i < allLines.length; i ++ ) {
           const follower = allLines[ i ];
           if ( toDateString(follower.date || '') !== toDateString(target.date || '') ) {

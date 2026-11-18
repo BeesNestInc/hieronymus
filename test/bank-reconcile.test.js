@@ -372,6 +372,32 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(details[1].statementLineId, lines[1].id);
   });
 
+  it('bookLines(includeMergeAfter): 手数料への適用は直前の未照合の主取引も一緒に起票する', async () => {
+    // 「適用して保存」で手数料行に合流ルールを適用したとき、直前の未照合の
+    // 主取引（仮入科目で起票）も一緒に載せる。手数料単独の伝票にしない
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-11-27', rawDescription: '振込＊テスト取引先', amountOut: 7000 },
+      { date: '2026-11-27', rawDescription: '振込手数料', amountOut: 140 }
+    ]);
+    // 手数料行だけを指定して起票（includeMergeAfter: 直前の主取引もつれてくる）
+    const result = await bookLines(statement, [ { lineId: lines[1].id } ], approver, { includeMergeAfter: true });
+    assert.lengthOf(result.slips, 1);
+    await reloadAll(lines);
+    assert.equal(lines[0].status, 'booked');
+    assert.equal(lines[1].status, 'booked');
+    const mainSlipId = ( await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId) ).crossSlipId;
+    const feeSlipId = ( await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId) ).crossSlipId;
+    assert.equal(feeSlipId, mainSlipId);
+    // 主取引は仮入科目（出金仮）で起票されている
+    const mainDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    assert.equal(mainDetail.debitAccount, '1900000');
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: mainSlipId },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+  });
+
   it('bookLines: 合流摘要の手数料は、直前の主取引の伝票が承認済みなら起票しない', async () => {
     const { statement, lines } = await createStatement('bank', [
       { date: '2026-09-22', rawDescription: '振込＊テスト取引先', amountOut: 80000 },
@@ -893,8 +919,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(lines[2].crossSlipDetailId, otherDetail.id);
   });
 
-  it('bookLines(includeMergeAfter): 摘要からの適用は直後の合流行も一緒に載せる', async () => {
-    const { statement, lines } = await createStatement('bank', [
+  it('bookLines(includeMergeAfter): 摘要からの適用は直後の合流行も一緒に載せる', async () => {    const { statement, lines } = await createStatement('bank', [
       { date: '2026-11-25', rawDescription: '振込＊テスト取引先', amountOut: 7000 },
       { date: '2026-11-25', rawDescription: '振込手数料', amountOut: 140 },
       { date: '2026-11-26', rawDescription: '振込＊そのほか', amountOut: 3000 }
