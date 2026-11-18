@@ -149,7 +149,7 @@
                       on:dragover|preventDefault={(e) => overZone(e, `D${di}`)}
                       on:dragleave={() => leaveZone(`D${di}`)}
                       on:drop={(e) => dropZone(e, di, 'debit')}>
-                      <Account accounts={bankAccounts}
+                      <Account accounts={composerAccounts}
                         bind:code={dl.debit.account} bind:sub_code={dl.debit.sub}
                         title="借方の科目。ここへ蠑取行をドロップしても借方に割り付く"></Account>
                     </td>
@@ -206,7 +206,7 @@
                       on:dragover|preventDefault={(e) => overZone(e, `C${di}`)}
                       on:dragleave={() => leaveZone(`C${di}`)}
                       on:drop={(e) => dropZone(e, di, 'credit')}>
-                      <Account accounts={oppositeAccounts}
+                      <Account accounts={composerAccounts}
                         bind:code={dl.credit.account} bind:sub_code={dl.credit.sub}
                         title="貸方の科目。ここへ明細をドロップしても貸方に割り付く"></Account>
                     </td>
@@ -1135,6 +1135,10 @@ $: detailSubAccounts = ( statement && statement.kind === 'bank' ) ?
 
 // 相手方仕訳の選択肢（通帳自身の科目と仮入科目は相手にしない）
 $: oppositeAccounts = ( accounts || [] ).filter((a) => ( !/^101/.test(a.code) && a.code !== '1900000' && a.code !== '3900000' ));
+// 計算書仕訳（pick & place）の科目候補。借方/貸方とも自由に組むので
+// 全科目（仮入科目を除く）から選べるようにする（借方に預金=振込の
+// 受領、貸方に売上が並ぶ構成がある。従来は借方が101系だけだった）
+$: composerAccounts = ( accounts || [] ).filter((a) => ( a.code !== '1900000' && a.code !== '3900000' ));
 
 // 学習ルールモーダルの「同じ摘要になる行」リスト（勢いでの間違い登録防止）。
 // 編集フォームのpatternに反応する
