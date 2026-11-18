@@ -2,18 +2,11 @@
 {#if ( count > 0 ) }
 <div class="card">
   <div class="card-header">
-    <h3 class="card-title">承認待ち</h3>
+    <h3 class="card-title">承認待ち <span class="badge text-bg-primary ms-2" style="font-size:0.75rem;">{count}件</span></h3>
   </div>
   <div class="card-body">
-    <div class="row">
-    	<ul class="list-group">
-        <li class="list-group-item">
-          件数: {count}
-        </li>
-      </ul>
-    </div>
-	  <div class="row full-height scroll-table">
-		  <table class="table table-bordered">
+ 	  <div class="row scroll-table approve-scroll">
+ 		  <table class="table table-bordered">
         <thead class="table-light">
           <th colspan="2">
             日付 / 伝番
@@ -72,10 +65,10 @@
 {#if ( expenseCount > 0 ) }
 <div class="card">
   <div class="card-header">
-    <h3 class="card-title">経費精算の承認待ち</h3>
+    <h3 class="card-title">経費精算の承認待ち <span class="badge text-bg-primary ms-2" style="font-size:0.75rem;">{expenseCount}件</span></h3>
   </div>
   <div class="card-body">
-    <div class="row full-height scroll-table">
+    <div class="row scroll-table approve-scroll">
 		  <table class="table table-bordered">
         <thead class="table-light">
           <th>
@@ -120,6 +113,14 @@
 </div>
 {/if}
 {/if}
+<style>
+/* 明細を約10行分に制限してスクロールさせる（件数が多いと縦に長く
+   なってホームの他のウィジェットを押し下げるため）。
+   ヘッダ行は.scroll-tableのstickyで固定 */
+.approve-scroll {
+  max-height: 26rem;
+}
+</style>
 <script>
 import axios from 'axios';
 import {onMount} from 'svelte';
