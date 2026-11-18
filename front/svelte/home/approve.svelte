@@ -1,9 +1,20 @@
 {#if ( status.user.approvable )}
 {#if ( count > 0 ) }
 <div class="card">
-  <div class="card-header">
+  <div class="card-header d-flex">
     <h3 class="card-title">承認待ち <span class="badge text-bg-primary ms-2" style="font-size:0.75rem;">{count}件</span></h3>
+    <div class="ms-auto">
+      <button type="button" class="btn" title="開閉します"
+        on:click={() => { approveMinimize = !approveMinimize; }}>
+        {#if approveMinimize}
+        <i class="bi bi-square"></i>
+        {:else}
+        <i class="bi bi-dash-square"></i>
+        {/if}
+      </button>
+    </div>
   </div>
+  {#if ( !approveMinimize )}
   <div class="card-body">
  	  <div class="row scroll-table approve-scroll">
  		  <table class="table table-bordered">
@@ -60,13 +71,25 @@
       </table>
     </div>
   </div>
+  {/if}
 </div>
 {/if}
 {#if ( expenseCount > 0 ) }
 <div class="card">
-  <div class="card-header">
+  <div class="card-header d-flex">
     <h3 class="card-title">経費精算の承認待ち <span class="badge text-bg-primary ms-2" style="font-size:0.75rem;">{expenseCount}件</span></h3>
+    <div class="ms-auto">
+      <button type="button" class="btn" title="開閉します"
+        on:click={() => { expenseMinimize = !expenseMinimize; }}>
+        {#if expenseMinimize}
+        <i class="bi bi-square"></i>
+        {:else}
+        <i class="bi bi-dash-square"></i>
+        {/if}
+      </button>
+    </div>
   </div>
+  {#if ( !expenseMinimize )}
   <div class="card-body">
     <div class="row scroll-table approve-scroll">
 		  <table class="table table-bordered">
@@ -110,6 +133,7 @@
       </table>
     </div>
   </div>
+  {/if}
 </div>
 {/if}
 {/if}
@@ -136,6 +160,9 @@ let slips = [];
 let accounts;
 let expenseReports = [];
 let expenseCount = 0;
+// カードの開閉（取引先種別などのminimizeと同じ挙動）
+let approveMinimize = false;
+let expenseMinimize = false;
 
 const expenseTotal = (report) => {
   return (report.lines || []).reduce((sum, line) => sum + numeric(line.amount), 0);
