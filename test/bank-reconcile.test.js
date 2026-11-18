@@ -10,6 +10,7 @@ import {
   fiscalYearFilter, suggestRuleCandidates
 } from '../libs/bank-reconcile.js';
 import { learnOpposite as learnOppositeRaw, makePattern } from '../libs/bank-reconcile.js';
+import { classifyCategory } from '../libs/bank-statement.js';
 // テストは旧bankSideシグニチャのまま回るラッパー（口座=Financialを解決して渡す）
 const learnOpposite = async (bankSide, application1, oppositeSide, direction) => {
   const financial = await models.Financial.findOne({
@@ -230,7 +231,8 @@ describe('bank-reconcile (test db)', () => {
         statementId: statement.id,
         lineNo: i + 1,
         status: 'unmatched',
-        category: 'normal',
+        // 実フロー（parseStatement→保存）と同じく、摘要からcategoryを導出する
+        category: lines[ i ].category || classifyCategory(lines[ i ].rawDescription, null) || 'normal',
         ...lines[ i ]
       }));
     }
@@ -340,6 +342,91 @@ describe('bank-reconcile (test db)', () => {
     await lines[2].reload();
     const separateSlipId = ( await models.CrossSlipDetail.findByPk(lines[2].crossSlipDetailId) ).crossSlipId;
     assert.notEqual(separateSlipId, mainSlipId);
+  });
+
+  it('bookLines: 主取引の摘要にmerge=trueルールが当たるときは直後の手数料行を吸収する', async () => {
+    // ユーザーのケース: 「適用したルールに後から合流を付けた」。
+    // 主摘要のmerge=trueルールをアンカーとして、直後の同じ日の手数料系
+    // （category: fee）の行を同じ伝票に吸収する
+    const fixtureFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    });
+    // 手数料行の摘要（特別振替手数料）はfixtureの合流摘要（手数料/振込手数料）に
+    // 完全一致しないので、既存の合流経路ではなくアンカー経路で吸収される
+    await findOrCreate(models.BankStatementRule, {
+      financialId: fixtureFinancial.id,
+      pattern: makePattern('振込＊テスト'),
+      direction: null
+    }, {
+      financialId: fixtureFinancial.id,
+      pattern: makePattern('振込＊テスト'),
+      merge: true,
+      match: true,
+      usageCount: 0
+    });
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-01', rawDescription: '振込＊テスト', amountOut: 97000, category: 'normal' },
+      { date: '2026-09-01', rawDescription: '特別振替手数料', amountOut: 145, category: 'fee' }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 1);
+    await lines[0].reload();
+    await lines[1].reload();
+    const mainDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    const feeDetail = await models.CrossSlipDetail.findByPk(lines[1].crossSlipDetailId);
+    assert.equal(mainDetail.crossSlipId, feeDetail.crossSlipId);
+  });
+
+  it('bookLines: 主取引のルールに合流がなければ手数料行は別伝票のまま', async () => {
+    // アンカーがない（mergeルールが当たらない）ときは従来どおり別伝票
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-05', rawDescription: '振込＊アンカーなし', amountOut: 50000, category: 'normal' },
+      { date: '2026-09-05', rawDescription: '特別振替手数料', amountOut: 145, category: 'fee' }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 2);
+  });
+
+  it('bookLines: 同じ日に主取引（merge=trueルール）が並ぶときは手数料は直前の主取引に付く', async () => {
+    // アンカーの主取引が同日に複数あっても、主取引はそれぞれ自分の伝票になり、
+    // 手数料は「直前の主取引」の伝票に合流する（最初の主取引に全て付かない）
+    const anchorFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, { name: 'テスト通帳', kind: 'bank', accountCode: '1010010', subAccountCode: null });
+    await models.BankStatementRule.findOrCreate({
+      where: {
+        financialId: anchorFinancial.id,
+        pattern: makePattern('振込＊テスト'),
+        direction: null
+      },
+      defaults: { merge: true, match: true, usageCount: 0 }
+    });
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-18', rawDescription: '振込＊テスト', amountOut: 100000, category: 'normal' },
+      { date: '2026-09-18', rawDescription: '振込手数料', amountOut: 145, category: 'fee' },
+      { date: '2026-09-18', rawDescription: '振込＊テスト', amountOut: 50000, category: 'normal' },
+      { date: '2026-09-18', rawDescription: '振込手数料', amountOut: 145, category: 'fee' }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 2);
+    await lines[0].reload();
+    await lines[1].reload();
+    await lines[2].reload();
+    await lines[3].reload();
+    const slipIds = [];
+    for ( const line of lines ) {
+      slipIds.push(( await models.CrossSlipDetail.findByPk(line.crossSlipDetailId) ).crossSlipId);
+    }
+    // 1つ目の手数料は1つ目の主取引に、2つ目の手数料は2つ目の主取引に付く
+    assert.equal(slipIds[1], slipIds[0]);
+    assert.notEqual(slipIds[2], slipIds[0], '2つ目の主取引は最初の伝票に合流しない');
+    assert.notEqual(slipIds[3], slipIds[0]);
+    assert.equal(slipIds[3], slipIds[2]);
   });
 
   it('bookLines: 利息行は受取利息+源泉所得税のテンプレで起票する', async () => {

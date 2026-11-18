@@ -620,11 +620,20 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
           if ( toDateString(follower.date || '') !== toDateString(target.date || '') ) {
             break;
           }
-          if ( !isMergeable(follower, mergePatterns) || follower.status !== 'unmatched' ) {
+          if ( follower.status !== 'unmatched' ) {
             break;
           }
-          if ( !targetIds.includes(follower.id) ) {
-            targetIds.push(follower.id);
+          // 一緒に起票するのは手数料系の行だけ:
+          // - 合流摘要（merge=trueのルールの摘要）に一致する行
+          // - 主取引行がアンカー（merge=trueルールに当たる主摘要）のときの直後の行
+          // それ以外（主取引）は自分の伝票になる
+          const followerFee = ( follower.category === 'fee' );
+          if ( followerFee && ( isMergeable(follower, mergePatterns) || isMergeable(target, mergePatterns) ) ) {
+            if ( !targetIds.includes(follower.id) ) {
+              targetIds.push(follower.id);
+            }
+          } else {
+            break;
           }
         }
       }
@@ -693,12 +702,20 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       detailEntries = ( await buildLineDetails(line, statement, booking, { forcedRule: forcedRule, financialRules: financialRules }) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
-    // 完全一致の合流摘要なら前の行（同じ日）の伝票に合流する
+    // 合流の意味づけ:
+    // - 手数料系（category: fee）の行は、(a) 自分の摘要が合流摘要に一致するか、
+    //   (b) 直前の行がmerge=trueルールに当たる主取引（アンカー）であるとき、
+    //   直前の同じ日の伝票に合流する
+    // - 主取引の行は自分の伝票を持つ。摘要がmerge=trueルールに当たるときは
+    //   アンカーとして、直後の同じ日の手数料系の行を吸収する
+    //   （同じ日に主取引が並んでも、それぞれの伝票に手数料が付く）
+    const mergeHit = isMergeable(line, mergePatterns);
     let group = null;
-    if ( isMergeable(line, mergePatterns) && prevGroup && ( prevDate === key ) ) {
+    if ( prevGroup && ( prevDate === key ) && ( line.category === 'fee' ) &&
+         ( mergeHit || prevGroup.anchor ) ) {
       group = prevGroup;
     } else {
-      group = { date: key, entries: [] };
+      group = { date: key, entries: [], anchor: mergeHit };
       groups.push(group);
     }
     for ( const entry of detailEntries ) {
