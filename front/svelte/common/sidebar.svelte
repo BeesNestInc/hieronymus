@@ -13,7 +13,9 @@
     // フライアウトは画面座標で固定表示するので、スクロールしたら閉じる
     if ( closeTimer ) { clearTimeout(closeTimer); closeTimer = null; }
     if ( switchTimer ) { clearTimeout(switchTimer); switchTimer = null; }
+    if ( subCloseTimer ) { clearTimeout(subCloseTimer); subCloseTimer = null; }
     hoveredSection = null;
+    subFlyout = null;
   }}>
 	<nav class="mt-2">
     <ul class="nav nav-pills nav-sidebar flex-column">
@@ -114,8 +116,10 @@
             `top:${flyoutPos.top}px;left:${flyoutPos.left}px;max-height:calc(100vh - ${flyoutPos.top}px - 12px)` : '' }>
           {#each group.entries as entry}
           {#if ( entry.title )}
- 			<li class="nav-item">
- 			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
+  			<li class="nav-item"
+          on:mouseenter={(e) => { if ( entry.submenu ) { openSubflyout(entry, e.currentTarget); } }}
+          on:mouseleave={() => { if ( entry.submenu ) { closeSubflyout(entry.name); } }}>
+  			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
           draggable="true"
           data-type={entry.name}
           on:dragstart={startDrag}
@@ -123,7 +127,11 @@
             // 下位階層のある親はここでは遷移しない（クリックで開閉。
             //遷移は下位の項目から。下位のない親は従来どおり遷移）
             if ( entry.submenu ) {
-              toggleSubmenu(entry.name);
+              // popup内では下位階層はhoverのpopupで出す（クリックは開閉しない。
+              // フロー内展開ではインラインで開閉）
+              if ( !flyoutSections.has(group.section) ) {
+                toggleSubmenu(entry.name);
+              }
               return;
             }
             link(entry.href(status));
@@ -138,7 +146,7 @@
           {:else}
           <Icon class="nav-icon" icon="bi:circle"></Icon>
           {/if}
-          {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ menuOpenState.get(entry.name) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
+          {entry.title}{#if ( entry.submenu )}<Icon class="nav-icon float-end" icon="bi:{ ( menuOpenState.get(entry.name) || ( subFlyout && subFlyout.name === entry.name ) ) ? 'chevron-down' : 'chevron-right' }"></Icon>{/if}
         </a>
         {#if ( entry.submenu && menuOpenState.get(entry.name) )}
         <ul>
@@ -169,7 +177,39 @@
           {/each}
         </ul>
         {/if}
- 			</li>
+        <!-- 孫メニュー: flyout内の下位階層はさらに右横にpopupする
+             （インライン展開中は出さない） -->
+        {#if ( entry.submenu && subFlyout && subFlyout.name === entry.name )}
+        <ul class="subflyout"
+          style={`top:${subFlyout.top}px;left:${subFlyout.left}px;max-height:calc(100vh - ${subFlyout.top}px - 12px)`}>
+          {#each entry.submenu as subentry}
+          {#if ( !subentry.authority || subentry.authority(status.user, status.company) )}
+          <li class="nav-item">
+            <a class={ $currentPage && $currentPage.match(subentry.match) ? 'nav-link active': 'nav-link'}
+              draggable="true"
+              data-type={entry.name}
+              on:dragstart={startDrag}
+              on:click|preventDefault={() => {
+                link(subentry.href(status));
+              }}
+              href="#">
+              {#if subentry.icon}
+              {#if ( subentry.icon.name)}
+              <Icon class="nav-icon me-1" icon={subentry.icon.name}></Icon>
+              {:else}
+              <img src={subentry.icon.src} class="icon-img">
+              {/if}
+              {:else}
+              <Icon class="nav-icon" icon="fa6-solid:circle"></Icon>
+              {/if}
+              {subentry.title}
+            </a>
+          </li>
+          {/if}
+          {/each}
+        </ul>
+        {/if}
+  			</li>
       {/if}
       {/each}
         </ul>
@@ -234,6 +274,20 @@ ul.flyout {
   background-color: var(--sidebar-bg);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   border-radius: 0 0 0.4rem 0.4rem;
+  padding: 0.25rem 0 0.5rem;
+  margin: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+/* 孫メニューのpopup（flyout内の親項目の右横。画面座標で固定） */
+ul.subflyout {
+  position: fixed;
+  z-index: 1061;
+  width: max-content;
+  min-width: 200px;
+  background-color: var(--sidebar-bg);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 0.4rem;
   padding: 0.25rem 0 0.5rem;
   margin: 0;
   list-style: none;
@@ -333,6 +387,10 @@ let flyoutPos = { section: null, top: 0, left: 0 };
 // 別グループへの切替は少し待つ（popupへ移動する途中で次の見出しを
 // 掠めても切り替わらないようにする。見出しの上で止まれば切替わる）
 let switchTimer = null;
+// 孫メニュー（flyout内の下位階層）のpopup。親項目の右横に画面座標で出す。
+// インライン展開中（フロー内で開いている）は出さない
+let subFlyout = null;
+let subCloseTimer = null;
 const openSection = (section, li) => {
   if ( closeTimer ) {
     clearTimeout(closeTimer);
@@ -352,6 +410,7 @@ const openSection = (section, li) => {
   switchTimer = setTimeout(() => {
     switchTimer = null;
     hoveredSection = section;
+    subFlyout = null;
     if ( li ) {
       const liRect = li.getBoundingClientRect();
       const cap = li.querySelector('.nav-caption');
@@ -368,8 +427,33 @@ const closeSection = (section) => {
     closeTimer = null;
     if ( hoveredSection === section ) {
       hoveredSection = null;
+      subFlyout = null;
     }
   }, 500);
+};
+const openSubflyout = (entry, li) => {
+  if ( subCloseTimer ) {
+    clearTimeout(subCloseTimer);
+    subCloseTimer = null;
+  }
+  if ( menuOpenState.get(entry.name) ) {
+    subFlyout = null;
+    return;
+  }
+  const a = li.querySelector('a.nav-link');
+  const r = ( a || li ).getBoundingClientRect();
+  subFlyout = { name: entry.name, top: r.top, left: r.right };
+};
+const closeSubflyout = (name) => {
+  if ( subCloseTimer ) {
+    clearTimeout(subCloseTimer);
+  }
+  subCloseTimer = setTimeout(() => {
+    subCloseTimer = null;
+    if ( subFlyout && subFlyout.name === name ) {
+      subFlyout = null;
+    }
+  }, 400);
 };
 onDestroy(() => {
   if ( closeTimer ) {
@@ -377,6 +461,9 @@ onDestroy(() => {
   }
   if ( switchTimer ) {
     clearTimeout(switchTimer);
+  }
+  if ( subCloseTimer ) {
+    clearTimeout(subCloseTimer);
   }
 });
 
