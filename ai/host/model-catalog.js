@@ -13,11 +13,32 @@ export const MODEL_CATALOG = [
     model: 'gemini-3.5-flash-lite'
   },
   {
+    key: 'gemini-3-5-flash',
+    label: 'Gemini 3.5 Flash',
+    note: 'Flashの上位構成。実運用検証はなし',
+    provider: 'gemini',
+    model: 'gemini-3.5-flash'
+  },
+  {
     key: 'gemma-4-31b-it',
     label: 'Gemma 4 31B（低コスト）',
     note: '画像PDF対応の低コスト構成。実運用実績あり（通帳OCR）。大きめなのでOCRに数十秒かかることがある',
     provider: 'gemini',
     model: 'gemma-4-31b-it'
+  },
+  {
+    key: 'gpt-5-4-mini',
+    label: 'GPT-5.4 mini（OpenAI）',
+    note: 'OpenAIの低コスト構成。OpenAIのAPIキーが必要。実運用検証はなし',
+    provider: 'openai',
+    model: 'gpt-5.4-mini'
+  },
+  {
+    key: 'gpt-5-4',
+    label: 'GPT-5.4（OpenAI）',
+    note: 'OpenAIの主力構成。OpenAIのAPIキーが必要。実運用検証はなし',
+    provider: 'openai',
+    model: 'gpt-5.4'
   },
   {
     key: 'muse-spark',
