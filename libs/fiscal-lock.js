@@ -36,9 +36,16 @@ export const findFiscalYearForTerm = async (term, options = {}) => {
   if ( term === undefined || term === null || term === '' ) {
     return null;
   }
+  // 'undefined'/'nan' 等のゴミ文字列が来てもSQLに NaN を混入させない
+  // （Sequelizeが数値カラムにNaNを素通しすると「column "nan" does not
+  //  exist」でクラッシュする）。年度として解釈できないものは年度なし扱い
+  const t = parseInt(term, 10);
+  if ( !Number.isFinite(t) ) {
+    return null;
+  }
   return models.FiscalYear.findOne({
     where: {
-      term: parseInt(term, 10)
+      term: t
     },
     ...options
   });
