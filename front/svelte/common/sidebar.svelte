@@ -88,8 +88,8 @@
     <ul class="nav nav-pills nav-sidebar flex-column">
       {#each visibleGroups as group (group.section)}
       <li class="nav-group" class:collapsed={!expandedSections.has(group.section)}
-        on:mouseenter={() => { hoveredSection = group.section; }}
-        on:mouseleave={() => { if ( hoveredSection === group.section ) hoveredSection = null; }}>
+        on:mouseenter={() => { openSection(group.section); }}
+        on:mouseleave={() => { closeSection(group.section); }}>
         <div class="nav-caption" role="button" tabindex="0"
           title={ pinnedSet.has(group.section) ? 'クリックで固定を解除' : 'クリックで常に開く' }
           on:click={() => { togglePinned(group.section); }}
@@ -209,7 +209,7 @@
 </style>
 <script>
 import axios from 'axios';
-import {onMount, afterUpdate, createEventDispatcher, tick} from 'svelte';
+import {onMount, afterUpdate, onDestroy, createEventDispatcher, tick} from 'svelte';
 import menu from '../../../config/module-list.js';
 import Sortable from 'sortablejs';
 import Icon from '@iconify/svelte';
@@ -290,6 +290,33 @@ const buildGroups = (entries, status) => {
 // 見出しhoverで中身を一時表示、クリックで常時開閉（ピン留め）する
 let pinnedSections = [];
 let hoveredSection = null;
+
+// hover一時展開はすぐ閉じず少し待つ（マウスを項目へ動かす途中で
+// グループの外に一瞬出ても閉じないようにする。チラつき防止）
+let closeTimer = null;
+const openSection = (section) => {
+  if ( closeTimer ) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+  hoveredSection = section;
+};
+const closeSection = (section) => {
+  if ( closeTimer ) {
+    clearTimeout(closeTimer);
+  }
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    if ( hoveredSection === section ) {
+      hoveredSection = null;
+    }
+  }, 500);
+};
+onDestroy(() => {
+  if ( closeTimer ) {
+    clearTimeout(closeTimer);
+  }
+});
 
 const findActiveSection = (groups, page) => {
   if ( !page ) {
