@@ -1357,6 +1357,14 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
     }
     const specOf = (specPattern) => ( ( typeof specPattern === 'string' ) ?
       { p: specPattern, dir: null } : { p: specPattern.p, dir: specPattern.dir || null } );
+    // 同一パターンの発生向きの集合（旧書式の曖昧判定に使う）
+    const patternDirs = new Map();
+    for ( const raw of lineRows ) {
+      const p = rowPattern(raw);
+      if ( !p ) continue;
+      if ( !patternDirs.has(p) ) patternDirs.set(p, new Set());
+      patternDirs.get(p).add(rowDir(raw));
+    }
     const draftLines = [];
     const unusedPatterns = new Map(byPatternAny);
     for ( const layoutLine of layout.lines )  {
@@ -1366,6 +1374,14 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
           const { p, dir } = specOf(specPattern);
           let hit = dir ? ( byPattern.get(`${p}|${dir}`) || null ) : null;
           if ( !hit ) {
+            // 旧書式（向きを覚えていないパターン）で、同名の行が複数の向きで
+            // 出るときは照合しない（どちらかを勝手に掴むと違う側の行が
+            // 割り付いて貸借が崩れる。ユーザーが手で割り付ける）
+            if ( !dir && ( ( patternDirs.get(p) || new Set() ).size > 1 ) ) {
+              byPatternAny.delete(p);
+              unusedPatterns.delete(p);
+              continue;
+            }
             hit = byPatternAny.get(p) || null;
           }
           if ( hit && !hit.used )  {

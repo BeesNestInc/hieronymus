@@ -311,6 +311,36 @@ describe('ec settlement (test db)', () => {
     assert.include(labels, '支出 Amazon手数料 月間登録料');
   });
 
+  it('seedDraft: 旧書式のレイアウトは同名の行が複数の向きで出るとき照合しない', async () => {
+    // 旧書式（string patterns・向きを覚えていない）のレイアウトで、
+    // 同名の行が入金/出金の両方に現れる文書では、どちらを勝手に掴むかで
+    // 貸借が崩れる（返金内訳の¥139を費用側に掴む等）。曖昧なら照合しない
+    await settlementFinancial.update({
+      settleLayout: JSON.stringify({ lines: [
+        { label: 'プロモーション割引額', debit: { patterns: [ makePattern('プロモーション割引額') ], account: '7030070', sub: null }, credit: { patterns: [], account: null, sub: null } },
+        { label: '振込', debit: { patterns: [ makePattern('純利益の振込み') ], account: '1010010', sub: 1 }, credit: { patterns: [], account: null, sub: null } }
+      ] })
+    });
+    // 同名の行を入金/出金の両方に持たせる（実読取と同じ: 摘要は接頭辞なしで
+    // 返金内訳と支出の両方に「プロモーション割引額」が出る）
+    const overrides = [];
+    for ( let i = 0; i < AMAZON_SETTLEMENT_LINES.length; i ++ ) overrides.push(null);
+    overrides[ 0 ] = { rawDescription: 'プロモーション割引額', amountIn: 139, amountOut: null };
+    overrides[ 3 ] = { rawDescription: 'プロモーション割引額', amountIn: null, amountOut: 1828 };
+    const stmt = await makeStatement(overrides);
+    const preview = await settlementPreview(stmt);
+    const seed = preview.seedDraft;
+    assert.isOk(seed);
+    // 曖昧なパターンは割り付けない（両方の行がプールに残る）
+    assert.isNotOk(seed.lines.find((l) => ( l.label === 'プロモーション割引額' )));
+    // 曖昧でないパターン（振込）は従来どおり照合する
+    const rows = await rowsOf(stmt);
+    const transfer = rows.find((r) => ( r.amountIn && /振込/.test(r.rawDescription) ));
+    const transferLine = seed.lines.find((l) => ( l.label === '振込' ));
+    assert.isOk(transferLine);
+    assert.include(transferLine.debit.rows.map(String), String(transfer.id));
+  });
+
   it('settleStatement: draftが空のときは起票しない', async () => {
     currentStatement = await makeStatement();
     let thrown = null;
