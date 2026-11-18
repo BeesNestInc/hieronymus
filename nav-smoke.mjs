@@ -8,6 +8,9 @@ import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:3010';
 const USER = process.argv[3] || 'expense-dev';
 const PASS = process.argv[4] || 'expense-dev';
+// 本番DBでの参照系チェック用: 第5引数に readonly を付けると
+// 書き込みを伴う相互作用（付箋作成等）をスキップする
+const readonly = process.argv[5] === 'readonly';
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1700, height: 1100 } });
@@ -115,8 +118,12 @@ await interaction('元帳の科目切替', async () => {
   if ( !code ) throw new Error('科目内容が表示されない');
 });
 
-// 付箋の作成 → ベルの未読バッジが増える
-await interaction('付箋の作成', async () => {
+// 付箋の作成 → ベルの未読バッジが増える（書き込みを伴うので readonly ではスキップ）
+await interaction('付箋の作成（書き込み検査）', async () => {
+  if ( readonly ) {
+    console.log('  (readonly モード: スキップ)');
+    return;
+  }
   await page.goto(`${BASE}/home/2`);
   await page.waitForTimeout(2000);
   // ベル本体の未読バッジ（.sticky-wrap 内にはパネルのタブバッジ等も
