@@ -243,6 +243,27 @@ const filterFiscalYear = async (parsed, term) => {
   if ( result.dropped > 0 ) {
     parsed.warnings.push(`年度外（${result.range}の範囲外）の${result.dropped}行は取り込みませんでした`);
   }
+  // 全行が年度外で落ちたとき、落ちた行が単一の年度にまとまっていれば
+  // 取り込める年度を案内する（CSVだと「年度を切り替えろ」に気づかないため）
+  if ( result.kept.length === 0 && result.dropped > 0 ) {
+    const droppedDates = [ ...new Set(parsed.lines.map((line) => line.date).filter(Boolean)) ];
+    const fys = [];
+    for ( const date of droppedDates ) {
+      const fy2 = await findFiscalYearForDate(date);
+      if ( fy2 && !fys.some((f) => f.term === fy2.term) ) {
+        fys.push(fy2);
+      }
+    }
+    if ( fys.length === 1 ) {
+      const target = fys[0];
+      parsed.warnings.push(
+        isLocked(target) ?
+          `全${result.dropped}行は第${target.term}期（確定済み）に含まれます。取り込むには管理者が確定を解除してください。` :
+          `全${result.dropped}行は第${target.term}期に含まれます。画面上部の年度を第${target.term}期に切り替えてから取り込んでください。`);
+    } else if ( fys.length > 1 ) {
+      parsed.warnings.push(`年度が混在しているため、画面上部の年度を切り替えながら分割して取り込んでください。`);
+    }
+  }
   parsed.lines = result.kept;
   // 期間を残った行から組み直す（年度フィルタで端に落ちる事がある）
   const dates = result.kept.map((line) => line.date).filter(Boolean).sort();

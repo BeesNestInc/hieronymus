@@ -63,6 +63,23 @@ describe('bank-statement (parser)', () => {
     assert.equal(result.lines[1].amountOut, 29544);
   });
 
+  it('csv: Shift_JISの銀行CSVを解析できる（文字コード自動判別）', async () => {
+    // 銀行の直接CSVはShift_JISが多い（iconv-liteでCP932として解読する）
+    const iconv = ( await import('iconv-lite') ).default;
+    const csv = [
+      '"日付","内容","出金金額(円)","入金金額(円)","残高(円)","メモ"',
+      '"2026/11/01","デビット　テスト","1,000",,"9,000","-"',
+      '"2026/11/02","振込＊テスト　ハナコ",,"500","9,500","-"'
+    ].join('\r\n');
+    const buf = iconv.encode(csv, 'cp932');
+    const result = await parser.parseStatement(buf, 'text/csv');
+    assert.lengthOf(result.lines, 2);
+    assert.equal(result.lines[0].date, '2026-11-01');
+    assert.equal(result.lines[0].rawDescription, 'デビット　テスト');
+    assert.equal(result.lines[0].amountOut, 1000);
+    assert.equal(result.lines[1].amountIn, 500);
+  });
+
   it('残高整合: 崩れている行を警告する', async () => {
     const buffer = await buildBankXlsx(xlsxRows);
     const result = await parser.parseStatement(buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

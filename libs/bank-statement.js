@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import ExcelJS from 'exceljs';
+import iconv from 'iconv-lite';
 
 // 銀行系の既定カテゴリ分類（プロファイルの categoryRules が優先される）
 const DEFAULT_CATEGORY_RULES = [
@@ -277,9 +278,22 @@ const parseExcel = async (buffer) => {
   return rows;
 };
 
-// CSVはUTF-8のみ対応（実運用はExcel保存経路なのでxlsxが主。銀行直接CSVのSJISは要望があれば拡張）
+// CSVの文字コード。UTF-8前提で解読して置換文字（U+FFFD）が出たら
+// Shift_JIS（CP932）として再解読する。銀行の直接CSVはShift_JISが多い
+// （UTF-8のExcel保存経路（xlsx）と両方をカバー）
+const decodeCsvText = (buffer) => {
+  if ( buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF ) {
+    return buffer.toString('utf-8').slice(1); // UTF-8 BOM
+  }
+  const asUtf8 = buffer.toString('utf-8');
+  if ( !asUtf8.includes('\uFFFD') ) {
+    return asUtf8;
+  }
+  return iconv.decode(buffer, 'cp932');
+};
+
 const parseCsv = (buffer) => {
-  const text = buffer.toString('utf-8');
+  const text = decodeCsvText(buffer);
   const rows = [];
   let fields = [];
   let field = '';
@@ -806,8 +820,10 @@ export const parseStatement = async (buffer, mimeType, options = {}) => {
     parsed = await vision.extractStatement(buffer, mimeType, { memoryUserId: options.memoryUserId });
     profile = null;
   } else {
-    const rows = ( /excel|spreadsheet|sheet/.test(type) || ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4b ) )
-      ? await parseExcel(buffer) : parseCsv(buffer);
+    // Excel/CSVの振り分けはMIMEでなく中身で判断する
+    // （Windowsは.csvに application/vnd.ms-excel を返すことがあるため）
+    const looksLikeXlsx = ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04 );
+    const rows = looksLikeXlsx ? await parseExcel(buffer) : parseCsv(buffer);
     const headerCandidates = rows.slice(0, 5).flat().map(String);
     profile = detectProfile(headerCandidates, profiles.filter((p) => ( ( p.type || 'bank' ) === 'bank' ) || ( p.type === 'settlement' )));
     const lines = rowsToLines(rows, profile);
@@ -867,9 +883,11 @@ export const evidenceText = async (buffer, mimeType) => {
       await loadingTask.destroy();
     }
   }
-  // Excel/CSVは表のまま渡す（プロファイルのdetect/columnsの材料になる順序）
-  const rows = ( /excel|spreadsheet|sheet/.test(type) || ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4b ) )
-    ? await parseExcel(buffer) : parseCsv(buffer);
+  // Excel/CSVは表のまま渡す（プロファイルのdetect/columnsの材料になる順序）。
+  // Excel/CSVの振り分けは中身で判断する（Windowsは.csvに
+  // application/vnd.ms-excel を返すことがあるため）
+  const looksLikeXlsx = ( buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04 );
+  const rows = looksLikeXlsx ? await parseExcel(buffer) : parseCsv(buffer);
   return rows.slice(0, EVIDENCE_MAX_LINES).map((row) => row.map((cell) => ( cell === null || cell === undefined ) ? '' : String(cell)).join('\t')).join('\n');
 };
 
