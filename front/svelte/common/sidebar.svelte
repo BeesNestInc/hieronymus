@@ -98,7 +98,10 @@
           <Icon class="nav-caption-chevron" icon="bi:{ expandedSections.has(group.section) ? 'chevron-down' : 'chevron-right' }"></Icon>
         </div>
         {#if ( expandedSections.has(group.section) )}
-        <ul transition:slide={{ duration: 150 }} class:flyout={flyoutSections.has(group.section)}>
+        <!-- hover展開（flyout）はtransitionを付けない: 開く途中に下の見出しが
+             露出して、マウスが通過しただけで別グループのflyoutに差し替わる
+             （見出し間の移動で項目が動き、クリックが外れる）のを防ぐ -->
+        <ul class:flyout={flyoutSections.has(group.section)}>
           {#each group.entries as entry}
           {#if ( entry.title )}
  			<li class="nav-item">
@@ -196,15 +199,15 @@
 .nav-caption-chevron {
   font-size: 0.7rem;
 }
+/* 閉じているグループの見出しは上paddingを詰めてコンパクトに。
+   ※負マージンで隣接LIを重ねる手法は使わない（後続のLIが前のグループの
+   見出し下部とflyout上端に覆い被さり、見出しからflyoutへのマウス移動で
+   誤って次のグループのhoverが発火してflyoutが差し替わる） */
 .nav-group.collapsed .nav-caption {
   padding-top: 0.4rem;
 }
 .nav-group.collapsed .nav-caption-chevron {
   opacity: 0.6;
-}
-/* 閉じているグループはhoverで中身が見える。隙間を減らしてコンパクトに */
-.nav-group.collapsed {
-  margin-bottom: -0.5rem;
 }
 /* hover一時展開は下の項目を覆うフライアウトで表示する（フローの高さを
    変えないので、見出し間をマウスが移動しても項目が動かない） */
@@ -231,7 +234,6 @@ import {onMount, afterUpdate, onDestroy, createEventDispatcher, tick} from 'svel
 import menu from '../../../config/module-list.js';
 import Sortable from 'sortablejs';
 import Icon from '@iconify/svelte';
-import {slide} from 'svelte/transition';
 import eventBus from '../../javascripts/event-bus.js';
 import {currentMenu, getStore} from '../../javascripts/current-record.js'
 import { currentPage, link } from '../../javascripts/router.js';
