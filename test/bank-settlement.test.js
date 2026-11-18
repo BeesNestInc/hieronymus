@@ -224,10 +224,60 @@ describe('ec settlement (test db)', () => {
     assert.isOk(settlementFinancial.settleLayout);
     const layout = JSON.parse(settlementFinancial.settleLayout);
     assert.lengthOf(layout.lines, 7);
-    assert.deepEqual(layout.lines[0].debit.patterns, [ makePattern('純利益の振込み') ]);
+    // パターンは {p, dir} 形式で学習する（同名の行が同じ文書に複数回出るとき、
+    // 違う側の行を掴まないため）
+    assert.deepEqual(layout.lines[0].debit.patterns, [ { p: makePattern('純利益の振込み'), dir: 'in' } ]);
     assert.deepEqual(layout.lines[6].credit.patterns, [
-      makePattern('売上 商品代金'), makePattern('売上 税金'), makePattern('売上 配送料')
+      { p: makePattern('売上 商品代金'), dir: 'in' },
+      { p: makePattern('売上 税金'), dir: 'in' },
+      { p: makePattern('売上 配送料'), dir: 'in' }
     ]);
+  });
+
+  it('settleStatement: 同名の行が向き違いで複数あるときは学習時と同じ向きの行に照合する', async () => {
+    // 同じ摘要が入金と出金の両方に現れる計算書（返金内訳の「プロモーション
+    // 割引額」と支出側の「プロモーション割引額」のようなケース）
+    const overrides = [];
+    const saleOverrides = AMAZON_SETTLEMENT_LINES.map((l) => l);
+    overrides.push({ rawDescription: 'プロモーション割引額', amountIn: 139, amountOut: null });   // 4行目を返金内訳風の入金行に差し替え
+    overrides.push(null); overrides.push(null);
+    overrides.push({ rawDescription: 'プロモーション割引額', amountIn: null, amountOut: 1828 });  // 支出側の同名行
+    for ( let i = overrides.length; i < saleOverrides.length; i ++ ) overrides.push(null);
+    const stmtA = await makeStatement(overrides);
+    // 支出側（出金）の同名行を費用として起票する（貸借を合わせるため
+    // 売上側の内訳を貸方に載せる）
+    const rowsA = await rowsOf(stmtA);
+    const outRow = rowsA.find((r) => ( r.rawDescription === 'プロモーション割引額' && r.amountOut ));
+    const transferA = rowsA.find((r) => ( r.amountIn && /振込/.test(r.rawDescription) ));
+    const saleRowsA = rowsA.filter((r) => ( r.amountIn && !/振込/.test(r.rawDescription) && r.rawDescription !== 'プロモーション割引額' ));
+    const saleSumA = saleRowsA.reduce((a, r) => a + Number(r.amountIn), 0);
+    // 貸借を合わせる: 支出側の同名行の金額を売上内訳合計-振込にする
+    await outRow.update({ amountOut: saleSumA - Number(transferA.amountIn) });
+    const draftA = {
+      draft: { lines: [
+        { label: '振込', debit: { rows: [ transferA.id ], account: '1010010', sub: 1 },
+          credit: { rows: saleRowsA.map((r) => r.id), account: '6000000', sub: 1 } },
+        { label: 'プロモーション割引額', debit: { rows: [ outRow.id ], account: '7030070', sub: null }, credit: {} }
+      ] }
+    };
+    await settleStatement(stmtA, draftA, data.approver);
+    await settlementFinancial.reload();
+    const layout = JSON.parse(settlementFinancial.settleLayout);
+    const promoLine = layout.lines.find((l) => ( l.label === 'プロモーション割引額' ));
+    assert.deepEqual(promoLine.debit.patterns, [ { p: makePattern('プロモーション割引額'), dir: 'out' } ]);
+    // 次の計算書（同名の行が向き違いで2つある別文書）にseedを適用すると、
+    // 出金側の行に照合される（入金側の同名行を掴まない）
+    const stmtB = await makeStatement(overrides);
+    const preview = await settlementPreview(stmtB);
+    const seed = preview.seedDraft;
+    assert.isOk(seed);
+    const rowsB = await rowsOf(stmtB);
+    const outRowB = rowsB.find((r) => ( r.rawDescription === 'プロモーション割引額' && r.amountOut ));
+    const inRowB = rowsB.find((r) => ( r.rawDescription === 'プロモーション割引額' && r.amountIn ));
+    const seedPromo = seed.lines.find((l) => ( l.label === 'プロモーション割引額' ));
+    assert.isOk(seedPromo);
+    assert.include(seedPromo.debit.rows.map(String), String(outRowB.id));
+    assert.notInclude(seedPromo.debit.rows.map(String), String(inRowB.id));
   });
 
   it('settleStatement: draftが空のときは起票しない', async () => {

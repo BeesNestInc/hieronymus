@@ -1081,7 +1081,13 @@ export const settleStatement = async (statement, body, user, options = {}) => {
       usedRows.add(String(raw.id));
     }
     return { rows: rows, amount: amount, account: account, subAccount: subAccount,
-      patterns: rows.map((r) => makePattern(r.rawDescription || r.description || r.merchant || '')) };
+      patterns: rows.map((r) => ( {
+        p: makePattern(r.rawDescription || r.description || r.merchant || ''),
+        // 同名の行が同じ文書に複数回出ることがある（返金内訳の「プロモーション
+        // 割引額」と支出側の「プロモーション割引額」等）。次回の照合で違う側の
+        // 行を掴まないよう、行の向き(in/out)も覚える
+        dir: ( r.amountIn !== null && r.amountIn !== undefined && Number(r.amountIn) !== 0 ) ? 'in' : 'out'
+      } )) };
   };
   const slipLines = [];
   const layoutLines = [];
@@ -1316,25 +1322,44 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
     if  ( !Array.isArray(layout.lines) || layout.lines.length === 0 )  {
       return null;
     }
-    const byPattern = new Map();
-    for  ( const raw of lineRows )  {
-      const pattern = makePattern(raw.rawDescription || raw.description || raw.merchant || '');
-      if  ( !byPattern.has(pattern) )  {
-        byPattern.set(pattern, { raw: raw, used: false });
+    // 同名の行が複数回出ることがある（返金内訳と支出で同じ摘要）。学習時に
+    // 行の向き(in/out)も覚えてあるので、向き+摘要で照合して違う側の行を
+    // 掴まないようにする（旧書式のstring patternは向きなし=最初の発生）
+    const rowPattern = (raw) => ( makePattern(raw.rawDescription || raw.description || raw.merchant || '') );
+    const rowDir = (raw) => ( ( raw.amountIn !== null && raw.amountIn !== undefined && Number(raw.amountIn) !== 0 ) ? 'in' : 'out' );
+    const byPattern = new Map();     // key: `${p}|${dir}` → 最初の発生
+    const byPatternAny = new Map();  // key: p → 最初の発生（旧書式のレイアウト用）
+    for ( const raw of lineRows ) {
+      const p = rowPattern(raw);
+      if ( !p ) continue;
+      const dir = rowDir(raw);
+      if ( !byPattern.has(`${p}|${dir}`) ) {
+        byPattern.set(`${p}|${dir}`, { raw: raw, used: false });
+      }
+      if ( !byPatternAny.has(p) ) {
+        byPatternAny.set(p, { raw: raw, used: false });
       }
     }
+    const specOf = (specPattern) => ( ( typeof specPattern === 'string' ) ?
+      { p: specPattern, dir: null } : { p: specPattern.p, dir: specPattern.dir || null } );
     const draftLines = [];
-    const unusedPatterns = new Map(byPattern);
-    for  ( const layoutLine of layout.lines )  {
+    const unusedPatterns = new Map(byPatternAny);
+    for ( const layoutLine of layout.lines )  {
       const side = (spec) => {
         const out = { rows: [], account: spec && spec.account || '', sub: spec && spec.sub != null ? spec.sub : null };
-        for  ( const pattern of ( ( spec && spec.patterns ) || [] ) )  {
-          const hit = unusedPatterns.get(pattern);
-          if  ( hit && !hit.used )  {
+        for ( const specPattern of ( ( spec && spec.patterns ) || [] ) )  {
+          const { p, dir } = specOf(specPattern);
+          let hit = dir ? ( byPattern.get(`${p}|${dir}`) || null ) : null;
+          if ( !hit ) {
+            hit = byPatternAny.get(p) || null;
+          }
+          if ( hit && !hit.used )  {
             hit.used = true;
             out.rows.push(hit.raw.id);
           } else  {
-            unusedPatterns.delete(pattern);
+            byPattern.delete(`${p}|${dir || ''}`);
+            byPatternAny.delete(p);
+            unusedPatterns.delete(p);
           }
         }
         return out;
