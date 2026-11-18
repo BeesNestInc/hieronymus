@@ -1,6 +1,7 @@
 export default [
   {
     name: 'menu',
+    title: 'マイページ',
     match: /^\/menu/,
   }, {
     // ---- 日々の作業: 毎日〜頻繁に触る入力・取込 ----

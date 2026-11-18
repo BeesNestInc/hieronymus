@@ -38,7 +38,7 @@
     <button class="btn link" title="未保存の変更があれば確認します"
       on:click={finishEdit}><i class="bi bi-check"></i>編集を終える</button>  </div>
   {:else}
-  <h1>{menu?.title}</h1>
+  <h1>{menu?.title || 'マイページ'}</h1>
   <button class="btn link" on:click={() => {
     isEditMode = !isEditMode;
   }}><i class="bi bi-pencil"></i>編集モードへ</button>
@@ -57,7 +57,12 @@
 {/if}
 {#if ( widgets && widgets.length === 0 && !isEditMode )}
 <div class="text-muted p-4 border rounded">
+  {#if ( menu?.id )}
   何も置かれていません。右上部の「編集モードへ」からウィジェットを追加してください。
+  {:else}
+  まだマイページがありません。左サイドバーの鉛筆アイコンからマイページを追加し、
+  一覧から開いてウィジェットを配置してください。
+  {/if}
 </div>
 {/if}
 <Menu
