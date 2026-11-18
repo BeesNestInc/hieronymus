@@ -4,9 +4,11 @@
     class="search-input"
     bind:value={inputAccount}
     on:input={onAccountInput}
-    on:keydown={keyCheck}>
+    on:keydown={keyCheck}
+    on:focusout={inputDecide}>
     {#if ( list.length > 0 ) }
     <select bind:value={code}
+      on:change={accountSelect}
       on:focusout={accountSelect}>
       <option value=""></option>
     {#each list as item}
@@ -132,6 +134,21 @@ const accountSelect = (event) => {
   //console.log(`accountSelect [${code}]`);
   accountDecide(code);
   list = [];
+}
+
+// 入力欄から抜けたとき、タイプで自動確定した最初の候補がcodeに
+// 入っているなら表示を正式名称に揃える（候補をpickしても表示が
+// 打った文字のままに見えて「入らない」ように見えるのを防ぐ）。
+// ただしフォーカスが候補selectへ移るときは何もしない
+// （ここで確定するとlistが消えてselectが閉じてしまう）
+const inputDecide = (event) => {
+  const to = event && event.relatedTarget;
+  if  ( to && ( to.tagName === 'SELECT' ) ) {
+    return;
+  }
+  if  ( code && ( list.length > 0 ) ) {
+    accountDecide(code);
+  }
 }
 
 
