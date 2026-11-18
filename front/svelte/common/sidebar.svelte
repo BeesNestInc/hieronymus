@@ -186,7 +186,9 @@
   margin-right: 0.5rem;
 }
 .nav-caption {
-  font-size: 0.7rem;
+  /* 子項目（nav-link）と同じサイズ。大項目は見出しでありながら主要な
+     クリック対象（pin・hoverの起点）なので、字を小さくしない */
+  font-size: 1rem;
   color: rgba(255, 255, 255, 0.55);
   padding: 0.75rem 1rem 0.2rem;
   letter-spacing: 0.08em;
