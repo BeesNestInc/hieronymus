@@ -117,7 +117,7 @@
           {#each group.entries as entry}
           {#if ( entry.title )}
   			<li class="nav-item"
-          on:mouseenter={(e) => { if ( entry.submenu ) { openSubflyout(entry, e.currentTarget); } }}
+          on:mouseenter={(e) => { if ( entry.submenu ) { openSubflyout(group, entry, e.currentTarget); } }}
           on:mouseleave={() => { if ( entry.submenu ) { closeSubflyout(entry.name); } }}>
   			  <a class={ $currentPage && $currentPage.match(entry.match) ? 'nav-link active': 'nav-link'}
           draggable="true"
@@ -131,6 +131,7 @@
               // フロー内展開ではインラインで開閉）
               if ( !flyoutSections.has(group.section) ) {
                 toggleSubmenu(entry.name);
+                subFlyout = null;
               }
               return;
             }
@@ -158,6 +159,7 @@
               data-type={entry.name}
               on:dragstart={startDrag}
               on:click|preventDefault={() => {
+                subFlyout = null;
                 link(subentry.href(status));
               }}
               href="#">
@@ -178,8 +180,8 @@
         </ul>
         {/if}
         <!-- 孫メニュー: flyout内の下位階層はさらに右横にpopupする
-             （インライン展開中は出さない） -->
-        {#if ( entry.submenu && subFlyout && subFlyout.name === entry.name )}
+             （フロー内展開ではインライン開閉のみ。インライン展開中は出さない） -->
+        {#if ( entry.submenu && flyoutSections.has(group.section) && subFlyout && subFlyout.name === entry.name && !menuOpenState.get(entry.name) )}
         <ul class="subflyout"
           style={`top:${subFlyout.top}px;left:${subFlyout.left}px;max-height:calc(100vh - ${subFlyout.top}px - 12px)`}>
           {#each entry.submenu as subentry}
@@ -190,6 +192,7 @@
               data-type={entry.name}
               on:dragstart={startDrag}
               on:click|preventDefault={() => {
+                subFlyout = null;
                 link(subentry.href(status));
               }}
               href="#">
@@ -209,7 +212,7 @@
           {/each}
         </ul>
         {/if}
-  			</li>
+   			</li>
       {/if}
       {/each}
         </ul>
@@ -431,12 +434,13 @@ const closeSection = (section) => {
     }
   }, 500);
 };
-const openSubflyout = (entry, li) => {
+const openSubflyout = (group, entry, li) => {
   if ( subCloseTimer ) {
     clearTimeout(subCloseTimer);
     subCloseTimer = null;
   }
-  if ( menuOpenState.get(entry.name) ) {
+  // popupはflyout（hover展開）の中だけ。フロー内展開では出さない
+  if ( !flyoutSections.has(group.section) || menuOpenState.get(entry.name) ) {
     subFlyout = null;
     return;
   }
@@ -508,12 +512,19 @@ $: flyoutSections = new Set(
 );
 
 const togglePinned = (section) => {
+  // フロー内展開に切り替わるのでpopupは畳む
+  subFlyout = null;
   if ( pinnedSections.includes(section) ) {
     pinnedSections = pinnedSections.filter((s) => s !== section);
   } else {
     pinnedSections = [...pinnedSections, section];
   }
 };
+// ページ遷移したらpopupの状態を必ず畳む（古い座標のpopupが
+// フロー内展開に「幽霊」として残るのを防ぐ）
+$: if ( $currentPage ) {
+  subFlyout = null;
+}
 
 const newMenu = (template) => {
   currentMenu.set({
