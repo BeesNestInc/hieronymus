@@ -1222,6 +1222,11 @@ const linkDeposit = async (suggestion) => {
       settlementDeposits = result.data.suggestions || [];
       line = statement.lines.find((l) => ( l.id === suggestion.lineId )) || line;
       toast.show('通帳', '計算書の伝票に紐付けました（照合済）');
+    } else if ( result.data && result.data.stale ) {
+      // 候補が古いだけ（計算書側の伝票が作り直された等）。失敗ではないので
+      // 画面を取り直してボタンを張り直す
+      await loadDetail(id);
+      toast.show('通帳', '突合先の伝票が作り直されたため候補が古くなりました。画面を更新したので、もう一度お試しください', 'info');
     } else {
       toast.show('通帳', `紐付けに失敗しました（code=${result.data.code}）`, 'warning');
     }

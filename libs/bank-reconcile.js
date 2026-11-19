@@ -2434,8 +2434,12 @@ export const linkDepositToSettlement = async (statement, lineId, crossSlipDetail
     include: [{ model: models.CrossSlip, as: 'crossSlip' }]
   });
   if ( !detail || !detail.crossSlip ) {
-    const err = new Error('紐付先の伝票明細がありません。');
+    // 計算書側の伝票が作り直された等で、ボタンの候補が古くなっているだけ。
+    // データ破損ではないので、呼び出し元には「候補が古い」を区別して返し
+    // （画面の取り直しで再試行できる）、コンソールにエラーを出さない
+    const err = new Error('突合先の伝票が作り直されたため、この候補は無効になりました');
     err.name = 'BankReconcileError';
+    err.staleCandidate = true;
     throw err;
   }
   if ( Number(detail.debitAmount) !== Number(line.amountIn) ) {

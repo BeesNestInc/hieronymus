@@ -1087,6 +1087,12 @@ export default {
         suggestions: await reconcile.suggestSettlementDeposits(fresh)
       });
     } catch (e) {
+      // 候補が古いだけ（計算書側の伝票が作り直された等）のときは
+      // 失敗ではなく「候補が無効」を返す。画面側で取り直して再試行できる
+      if ( e.staleCandidate ) {
+        res.json({ code: -2, stale: true, message: e.message });
+        return;
+      }
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '計算書との紐付けに失敗しました。' });
     }
