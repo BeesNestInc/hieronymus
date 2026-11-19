@@ -1228,6 +1228,13 @@ const linkDeposit = async (suggestion) => {
     const message = ( e.response && e.response.data && e.response.data.message ) ? `${e.response.data.message}${status}` :
       `紐付けに失敗しました${status}`;
     toast.show('通帳', message, 'warning');
+    // 「処理済み」で失敗したときは画面の状態が古い。現在の状態を取り直して
+    // 行の表示（照合済バッジ等）を実態に合わせる
+    try {
+      await loadDetail(id);
+    } catch (e2) {
+      console.error('linkDeposit reload failed', e2);
+    }
   } finally {
     busy = false;
   }
