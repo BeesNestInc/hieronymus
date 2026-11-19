@@ -7,18 +7,18 @@
     on:keydown={keyCheck}
     on:focusout={inputDecide}>
     {#if ( list.length > 0 ) }
-    <select bind:value={code}
-      on:change={accountSelect}
-      on:focusout={accountSelect}>
-      <option value=""></option>
-    {#each list as item}
+    <!-- ネイティブselectはキーボード移動だけで値が変わって「勝手に確定」に
+         見えるので、クリック/Enterで決める候補リストにする -->
+    <ul class="candidate-list" role="listbox">
+      {#each list as item, i (item.code)}
       {#if ( item.code !== '' ) }
-    <option value={item.code}>
-      {item.name}
-    </option>
+      <li class:active={ i === highlight }
+        role="option" aria-selected={ i === highlight }
+        on:mouseenter={() => { highlight = i; }}
+        on:mousedown|preventDefault={() => { accountDecide(item.code); }}>{item.name}</li>
       {/if}
-    {/each}
-    </select>
+      {/each}
+    </ul>
     {/if}
   <input type="text" size="12" maxlength="13" autocomplete="off"
     placeholder=""
@@ -28,13 +28,14 @@
     on:keydown={subCheck}>
     {#if ( currentAccount && currentAccount.subAccounts )}
     {#if ( sub_list.length > 0 ) }
-    <select bind:value={sub_code}
-      on:focusout={subAccountSelect}>
-      <option value={0}></option>
-      {#each sub_list as item}
-      <option value={item.code}>{item.name}</option>
+    <ul class="candidate-list" role="listbox">
+      {#each sub_list as item, i (item.code)}
+      <li class:active={ i === sub_highlight }
+        role="option" aria-selected={ i === sub_highlight }
+        on:mouseenter={() => { sub_highlight = i; }}
+        on:mousedown|preventDefault={() => { subAccountDecide(item.code); }}>{item.name}</li>
       {/each}
-    </select>
+    </ul>
     {/if}
   {/if}
 </div>
@@ -48,6 +49,31 @@
 
 .search-input {
   margin-bottom: 0px;
+}
+/* 科目候補のドロップダウン。入力欄の下に重ねて出す（レイアウトを動かさない） */
+.candidate-list {
+  position: absolute;
+  z-index: 1070;
+  margin: 0;
+  padding: 0.15rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  min-width: 12rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+.candidate-list li {
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.candidate-list li:hover,
+.candidate-list li.active {
+  background: rgba(13, 110, 253, 0.12);
 }
 </style>
 <script>
@@ -76,6 +102,7 @@ const onAccountInput = (event) => {
   isInitialInput = false;
   accountKey = inputAccount;
   list = searchAccountByKey(accountKey);
+  highlight = 0;
   if  ( !accountKey ) {
     // キー未入力時は「入力しない」を選択できるよう空を先頭にする
     code = '';
@@ -85,7 +112,30 @@ const onAccountInput = (event) => {
     code = list[0].code;
   }
 }
+// 候補リストのハイライト（クリックはmousedownで確定。Enterは
+// ハイライト位置で確定。ネイティブselectと違い、キーボード移動では
+// 値を変えない）
+let highlight = 0;
+let sub_highlight = 0;
 const keyCheck = (event) => {
+  if ( list.length > 0 && [ 'ArrowDown', 'ArrowUp' ].includes(event.key) ) {
+    event.preventDefault();
+    highlight = ( highlight + ( event.key === 'ArrowDown' ? 1 : -1 ) + list.length ) % list.length;
+    return;
+  }
+  if ( event.key === 'Enter' && list.length > 0 ) {
+    event.preventDefault();
+    const item = list[ highlight ];
+    if ( item && item.code !== '' ) {
+      accountDecide(item.code);
+    }
+    return;
+  }
+  if ( event.key === 'Escape' && list.length > 0 ) {
+    list = [];
+    highlight = 0;
+    return;
+  }
   if ((event.ctrlKey && event.key === 'h') || event.key === 'Backspace') {
     if  (isInitialInput)  {
       event.preventDefault();
@@ -155,6 +205,7 @@ const inputDecide = (event) => {
 const onSubAccountInput = (event) => {
   isInitialSubInput = false;
   subAccountKey = inputSubAccount;
+  sub_highlight = 0;
   // 科目候補の確定（focusout）を待たずに補助欄を打てるようにする
   // （候補selectが開いたまま隣の補助欄を打つ操作で補助が機能しなくなるのを防ぐ）
   const current = currentAccount;
@@ -181,6 +232,24 @@ const clearSubInput = () => {
   sub_code = undefined;
 }
 const subCheck = (event) => {
+  if ( sub_list.length > 0 && [ 'ArrowDown', 'ArrowUp' ].includes(event.key) ) {
+    event.preventDefault();
+    sub_highlight = ( sub_highlight + ( event.key === 'ArrowDown' ? 1 : -1 ) + sub_list.length ) % sub_list.length;
+    return;
+  }
+  if ( event.key === 'Enter' && sub_list.length > 0 ) {
+    event.preventDefault();
+    const item = sub_list[ sub_highlight ];
+    if ( item ) {
+      subAccountDecide(item.code);
+    }
+    return;
+  }
+  if ( event.key === 'Escape' && sub_list.length > 0 ) {
+    sub_list = [];
+    sub_highlight = 0;
+    return;
+  }
   if ((event.ctrlKey && event.key === 'h') || event.key === 'Backspace') {
     if  (isInitialSubInput)  {
       event.preventDefault();
@@ -203,6 +272,8 @@ const subAccountDecide = (selectCode) => {
   sub_code = decided.code;
   subAccountKey = decided.name;
   inputSubAccount = decided.name;
+  sub_list = [];
+  sub_highlight = 0;
 }
 const subAccountSelect = (event) => {
   const raw = event.target.value;
