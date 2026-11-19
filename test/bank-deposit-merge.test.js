@@ -172,6 +172,83 @@ describe('deposit merge（計算書→入金仮の統合）', () => {
     }, user);
   };
 
+  // 通帳側の入金行が「未照合」のままのケースを用意するヘルパー。
+  // 入金行（同額・計算書日付の±3日以内）だけを取り込んでおき、
+  // 計算書の起票で入金仮が作られるかを見る
+  const makeUnbookedDepositAndSettle = async () => {
+    const user = data.creator;
+    // 計算書（settlement）を作る
+    const statement = await models.BankStatement.create({
+      financialId: settlementFinancial.id,
+      kind: 'settlement',
+      cardName: settlementFinancial.name,
+      fileName: `settle-auto-${Date.now()}.pdf`,
+      periodFrom: '2026-07-29', periodTo: '2026-07-29',
+      lineCount: SETTLE_LINES.length,
+      createdBy: user.id, updatedBy: user.id
+    });
+    for ( const [ i, src ] of SETTLE_LINES.entries() ) {
+      await models.BankStatementLine.create({
+        statementId: statement.id,
+        lineNo: i + 1,
+        date: src.date,
+        rawDescription: src.rawDescription,
+        description: src.rawDescription,
+        amountIn: src.amountIn, amountOut: src.amountOut,
+        memo: src.memo,
+        status: 'unmatched',
+        createdBy: user.id, updatedBy: user.id
+      });
+    }
+    // 実通帳（bank）の入金行は「未照合」のまま取り込んでおく
+    const bankStatement = await models.BankStatement.create({
+      financialId: bankFinancial.id,
+      kind: 'bank',
+      account: '1010010', subAccount: 1,
+      cardName: bankFinancial.name,
+      fileName: `bank-auto-${Date.now()}.txt`,
+      periodFrom: '2026-08-01', periodTo: '2026-08-01',
+      lineCount: 1,
+      createdBy: user.id, updatedBy: user.id
+    });
+    const bankLine = await models.BankStatementLine.create({
+      statementId: bankStatement.id,
+      lineNo: 1,
+      date: '2026-08-01',
+      rawDescription: '振込 * アマゾンジャパン(ド /',
+      description: '振込 * アマゾンジャパン(ド /',
+      amountIn: 38268, amountOut: null,
+      status: 'unmatched',
+      createdBy: user.id, updatedBy: user.id
+    });
+    const result = await settle(statement, user);
+    return { result: result, bankLine: bankLine, statement: statement };
+  };
+
+  // 通帳側の入金行をまだ起票していない（未照合のまま）とき、計算書の起票で
+  // 同額・近い日付の未照合の入金行を入金仮で起票してから統合する
+  // （計算書の日付を実際の入金日に合わせても「同じ取り引きにならない」のを防ぐ）
+  it('統合: 通帳側の入金行が未照合でも計算書の起票で統合される', async function () {
+    this.timeout(60000);
+    const settleResult = await makeUnbookedDepositAndSettle();
+    assert.isTrue(settleResult.result.merged === true);
+    // 起票された通帳側の伝票に計算書の中身が統合されている
+    const slip = await models.CrossSlip.findByPk(settleResult.result.slip.id);
+    assert.isNotOk(slip.approvedAt);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    // 銀行側の明細（借 銀行 / 貸 売上高。入金仮が計算書側の貸方に差し替わる）
+    const bankDetail = details.find((d) => ( d.debitAccount === '1010010' && Number(d.debitAmount) === 38268 ));
+    assert.isOk(bankDetail);
+    assert.equal(bankDetail.creditAccount, '6000000');
+    // 未照合だった入金行は起票済みになり、統合後の伝票に紐付く
+    await settleResult.bankLine.reload();
+    assert.equal(settleResult.bankLine.status, 'booked');
+    assert.equal(Number(settleResult.bankLine.crossSlipDetailId), Number(bankDetail.id));
+  });
+
   it('統合: 通帳側の仮伝票に計算書の中身が移る（1本に）', async function () {
     this.timeout(60000);
     const deposit = await makeDepositSlip({ slipDate: '2026-08-01' });

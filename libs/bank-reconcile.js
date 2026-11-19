@@ -1200,7 +1200,30 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   // 候補が無い/複数のときは計算書側の伝票をそのまま残す（計算書ビューの
   // 「統合」から手動で扱う）
   try {
-    const merge = await mergeSettlementIntoDeposit(slip, user, {});
+    let merge = null;
+    try {
+      merge = await mergeSettlementIntoDeposit(slip, user, {});
+    } catch (e) {
+      // 通帳側の入金仮伝票がまだ無い（入金行を起票していない）ときは、
+      // 同じ口座の未照合の入金行（同額・伝票日付の±3日以内）を起票して
+      // からもう一度統合する。計算書の日付を実際の入金日に合わせたのに
+      // 「同じ取り引きにならない」のを防ぐ
+      if ( !/候補がありません/.test(String(e.message)) ) {
+        throw e;
+      }
+      const seeded = await bookDepositRowForSettlementSlip(slip, user, {});
+      if ( !seeded ) {
+        throw e;
+      }
+      // bookLines内のautoMergeSlipAfterBookが、起票した入金仮伝票に
+      // この計算書伝票を統合してくれていることがある（その場合、
+      // 計算書側の伝票はもう存在しない）。統合済みならここで返す
+      const gone = await models.CrossSlip.findByPk(slip.id);
+      if ( !gone ) {
+        return { slip: seeded, merged: true, discarded: slip.id };
+      }
+      merge = await mergeSettlementIntoDeposit(slip, user, {});
+    }
     if ( merge && merge.merged ) {
       // slip=統合後の通帳側伝票、discarded=破棄した計算書側の伝票
       return { slip: merge.slip, merged: true, discarded: merge.discarded };
@@ -1209,6 +1232,70 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     console.log('deposit merge skipped:', e.message || e);
   }
   return { slip: slip };
+};
+
+// 計算書伝票に統合できる通帳側の入金仮伝票がまだ無いとき、同じ口座の
+// 未照合の入金行（同額・伝票日付の±days以内）を起票して統合候補にする。
+// 通帳側の入金行の起票を忘れていても、計算書の起票でその取り引きが
+// 閉じるようにする。戻り値: 起票した通帳側の伝票（無ければ null）
+export const bookDepositRowForSettlementSlip = async (settlementSlip, user, options = {}) => {
+  try {
+    if ( !settlementSlip || settlementSlip.approvedAt ) {
+      return null;
+    }
+    const days = ( options.days === undefined ) ? 3 : options.days;
+    const settleDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: settlementSlip.id }
+    });
+    const bankDetails = settleDetails.filter((d) => BANK_ACCOUNT_RE.test(String(d.debitAccount || '')));
+    if ( bankDetails.length !== 1 ) {
+      return null;
+    }
+    const bankDetail = bankDetails[ 0 ];
+    const amount = Number(bankDetail.debitAmount);
+    if ( !amount ) {
+      return null;
+    }
+    const financial = await findFinancialBySide(bankDetail.debitAccount, bankDetail.debitSubAccount);
+    if ( !financial ) {
+      return null;
+    }
+    const statements = await models.BankStatement.findAll({
+      where: { financialId: financial.id, kind: 'bank' },
+      raw: true
+    });
+    if ( statements.length === 0 ) {
+      return null;
+    }
+    const candidates = await models.BankStatementLine.findAll({
+      where: {
+        statementId: { [Op.in]: statements.map((s) => s.id) },
+        status: 'unmatched',
+        amountIn: amount
+      },
+      order: [[ 'date', 'ASC' ]]
+    });
+    const dayTime = (s) => {
+      const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(Number(m[ 1 ]), Number(m[ 2 ]) - 1, Number(m[ 3 ])).getTime() : null;
+    };
+    const settleTime = new Date(settlementSlip.year, settlementSlip.month - 1, settlementSlip.day).getTime();
+    const usable = candidates.filter((l) => {
+      const t = dayTime(l.date);
+      return ( t !== null ) && ( Math.abs(( t - settleTime ) / 86400000) <= days );
+    });
+    if ( usable.length === 0 ) {
+      return null;
+    }
+    usable.sort((a, b) => ( Math.abs(dayTime(a.date) - settleTime) - Math.abs(dayTime(b.date) - settleTime) ));
+    const target = usable[ 0 ];
+    const bankStatement = await models.BankStatement.findByPk(target.statementId);
+    const result = await bookLines(bankStatement, [ { lineId: target.id } ], user, {});
+    return ( ( result && result.slips ) || [] )[ 0 ] || null;
+  } catch (e) {
+    console.log('deposit row booking skipped:', e.message || e);
+    return null;
+  }
 };
 
 
