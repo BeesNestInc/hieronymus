@@ -834,7 +834,28 @@ export default {
         res.json({ code: -1, message: 'この計算書の伝票がありません。' });
         return;
       }
-      const merge = await reconcile.mergeSettlementIntoDeposit(slip, user, {});
+      const merge = await ( async () => {
+        try {
+          return await reconcile.mergeSettlementIntoDeposit(slip, user, {});
+        } catch (e) {
+          // 通帳側の入金仮伝票がまだ無い（入金行を起票していない）ときは、
+          // 同じ口座の未照合の入金行（同額・±3日以内）を起票してから
+          // もう一度統合する（手動統合でも計算書の起票と同じ閉じ方をする）
+          if ( !/候補がありません/.test(String(e.message)) ) {
+            throw e;
+          }
+          const seeded = await reconcile.bookDepositRowForSettlementSlip(slip, user, {});
+          if ( !seeded ) {
+            throw e;
+          }
+          // bookLines内の自動統合で既に計算書側の伝票が統合されていることがある
+          const gone = await models.CrossSlip.findByPk(slip.id);
+          if ( !gone ) {
+            return { merged: true, slip: seeded, discarded: slip.id };
+          }
+          return await reconcile.mergeSettlementIntoDeposit(slip, user, {});
+        }
+      } )();
       const fresh = await getStatement(statementId);
       res.json({
         code: 0,
