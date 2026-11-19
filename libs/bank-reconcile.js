@@ -1052,6 +1052,21 @@ export const settleStatement = async (statement, body, user, options = {}) => {
   }
   const lineById = new Map(linesOf(lines).map((l) => [ String(l.id), l ]));
   const usedRows = new Set();
+  // 同じ(摘要,向き)のN番目の発生かを行ごとに数えておく（学習時に覚え、
+  // 照合で同じ位置の行を掴む。同名の行が同向きで複数出る文書でも
+  // 学習時と違う行に照合しない）
+  const rowNth = new Map();
+  {
+    const nthCounter = new Map();
+    for ( const l of linesOf(lines) ) {
+      const p = makePattern(l.rawDescription || l.description || l.merchant || '');
+      const dir = ( l.amountIn !== null && l.amountIn !== undefined && Number(l.amountIn) !== 0 ) ? 'in' : 'out';
+      const key = `${p}|${dir}`;
+      const n = nthCounter.get(key) || 0;
+      nthCounter.set(key, n + 1);
+      rowNth.set(String(l.id), n);
+    }
+  }
   // 1つの側: 取込行（lines）から金額・摘要を集め、科目を確定する
   const composeSide = (side, lineLabel, role) => {
     const rows = ( side.rows || [] ).map((id) => lineById.get(String(id))).filter(Boolean);
@@ -1085,8 +1100,10 @@ export const settleStatement = async (statement, body, user, options = {}) => {
         p: makePattern(r.rawDescription || r.description || r.merchant || ''),
         // 同名の行が同じ文書に複数回出ることがある（返金内訳の「プロモーション
         // 割引額」と支出側の「プロモーション割引額」等）。次回の照合で違う側の
-        // 行を掴まないよう、行の向き(in/out)も覚える
-        dir: ( r.amountIn !== null && r.amountIn !== undefined && Number(r.amountIn) !== 0 ) ? 'in' : 'out'
+        // 行を掴まないよう、行の向き(in/out)と、同じ(摘要,向き)の中での
+        // 出現順(nth)も覚える
+        dir: ( r.amountIn !== null && r.amountIn !== undefined && Number(r.amountIn) !== 0 ) ? 'in' : 'out',
+        nth: rowNth.get(String(r.id)) || 0
       } )) };
   };
   const slipLines = [];
@@ -1429,21 +1446,24 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
     // 掴まないようにする（旧書式のstring patternは向きなし=最初の発生）
     const rowPattern = (raw) => ( makePattern(raw.rawDescription || raw.description || raw.merchant || '') );
     const rowDir = (raw) => ( ( raw.amountIn !== null && raw.amountIn !== undefined && Number(raw.amountIn) !== 0 ) ? 'in' : 'out' );
-    const byPattern = new Map();     // key: `${p}|${dir}` → 最初の発生
+    const byPattern = new Map();     // key: `${p}|${dir}` → 発生順の配列
     const byPatternAny = new Map();  // key: p → 最初の発生（旧書式のレイアウト用）
     for ( const raw of lineRows ) {
       const p = rowPattern(raw);
       if ( !p ) continue;
       const dir = rowDir(raw);
       if ( !byPattern.has(`${p}|${dir}`) ) {
-        byPattern.set(`${p}|${dir}`, { raw: raw, used: false });
+        byPattern.set(`${p}|${dir}`, []);
       }
+      byPattern.get(`${p}|${dir}`).push({ raw: raw, used: false });
       if ( !byPatternAny.has(p) ) {
         byPatternAny.set(p, { raw: raw, used: false });
       }
     }
     const specOf = (specPattern) => ( ( typeof specPattern === 'string' ) ?
-      { p: specPattern, dir: null } : { p: specPattern.p, dir: specPattern.dir || null } );
+      { p: specPattern, dir: null, nth: null } :
+      { p: specPattern.p, dir: specPattern.dir || null,
+        nth: ( specPattern.nth === undefined || specPattern.nth === null ) ? null : specPattern.nth } );
     // 同一パターンの発生向きの集合（旧書式の曖昧判定に使う）
     const patternDirs = new Map();
     for ( const raw of lineRows ) {
@@ -1458,8 +1478,19 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
       const side = (spec) => {
         const out = { rows: [], account: spec && spec.account || '', sub: spec && spec.sub != null ? spec.sub : null };
         for ( const specPattern of ( ( spec && spec.patterns ) || [] ) )  {
-          const { p, dir } = specOf(specPattern);
-          let hit = dir ? ( byPattern.get(`${p}|${dir}`) || null ) : null;
+          const { p, dir, nth } = specOf(specPattern);
+          let hit = null;
+          if ( dir !== null && dir !== undefined ) {
+            // 学習済みのレイアウトは(摘要, 向き)のN番目の発生を覚えている。
+            // nthの位置が使えない（文書にその順の発生が無い/使済み）ときは
+            // 未使用の最初の発生に落とす
+            const occurrences = byPattern.get(`${p}|${dir}`) || [];
+            if ( nth !== null && occurrences[ nth ] && !occurrences[ nth ].used ) {
+              hit = occurrences[ nth ];
+            } else {
+              hit = occurrences.find((h) => !h.used) || null;
+            }
+          }
           if ( !hit ) {
             // 旧書式（向きを覚えていないパターン）で、同名の行が複数の向きで
             // 出るときは照合しない（どちらかを勝手に掴むと違う側の行が

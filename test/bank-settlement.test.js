@@ -226,11 +226,11 @@ describe('ec settlement (test db)', () => {
     assert.lengthOf(layout.lines, 7);
     // パターンは {p, dir} 形式で学習する（同名の行が同じ文書に複数回出るとき、
     // 違う側の行を掴まないため）
-    assert.deepEqual(layout.lines[0].debit.patterns, [ { p: makePattern('純利益の振込み'), dir: 'in' } ]);
+    assert.deepEqual(layout.lines[0].debit.patterns, [ { p: makePattern('純利益の振込み'), dir: 'in', nth: 0 } ]);
     assert.deepEqual(layout.lines[6].credit.patterns, [
-      { p: makePattern('売上 商品代金'), dir: 'in' },
-      { p: makePattern('売上 税金'), dir: 'in' },
-      { p: makePattern('売上 配送料'), dir: 'in' }
+      { p: makePattern('売上 商品代金'), dir: 'in', nth: 0 },
+      { p: makePattern('売上 税金'), dir: 'in', nth: 0 },
+      { p: makePattern('売上 配送料'), dir: 'in', nth: 0 }
     ]);
   });
 
@@ -264,7 +264,7 @@ describe('ec settlement (test db)', () => {
     await settlementFinancial.reload();
     const layout = JSON.parse(settlementFinancial.settleLayout);
     const promoLine = layout.lines.find((l) => ( l.label === 'プロモーション割引額' ));
-    assert.deepEqual(promoLine.debit.patterns, [ { p: makePattern('プロモーション割引額'), dir: 'out' } ]);
+    assert.deepEqual(promoLine.debit.patterns, [ { p: makePattern('プロモーション割引額'), dir: 'out', nth: 0 } ]);
     // 次の計算書（同名の行が向き違いで2つある別文書）にseedを適用すると、
     // 出金側の行に照合される（入金側の同名行を掴まない）
     const stmtB = await makeStatement(overrides);
@@ -278,6 +278,51 @@ describe('ec settlement (test db)', () => {
     assert.isOk(seedPromo);
     assert.include(seedPromo.debit.rows.map(String), String(outRowB.id));
     assert.notInclude(seedPromo.debit.rows.map(String), String(inRowB.id));
+  });
+
+  it('settleStatement: 同名の行が同向きで複数あるときは学習時と同じ出現順の行に照合する', async () => {
+    // 同じ摘要・同じ向きの行が2つある文書（内訳が2箇所にある「その他」等）。
+    // 学習時は1つ目→科目A、2つ目→科目Bで起票したので、次回も同じ位置の行に
+    // 照合される（出現順nthで区別する）
+    const overrides = [];
+    for ( let i = 0; i < AMAZON_SETTLEMENT_LINES.length; i ++ ) overrides.push(null);
+    overrides[ 5 ] = { rawDescription: '手数料その他', amountOut: 55018 };
+    overrides[ 7 ] = { rawDescription: '手数料その他', amountOut: 48482 };
+    const stmtA = await makeStatement(overrides);
+    const rowsA = await rowsOf(stmtA);
+    const transferA = rowsA.find((r) => ( r.amountIn && /振込/.test(r.rawDescription) ));
+    const saleRowsA = rowsA.filter((r) => ( r.amountIn && !/振込/.test(r.rawDescription) ));
+    const feeRowsA = rowsA.filter((r) => ( r.rawDescription === '手数料その他' && r.amountOut ));
+    feeRowsA.sort((a, b) => a.lineNo - b.lineNo);
+    const draftA = { draft: { lines: [
+      { label: '振込', debit: { rows: [ transferA.id ], account: '1010010', sub: 1 },
+        credit: { rows: saleRowsA.map((r) => r.id), account: '6000000', sub: 1 } },
+      { label: '手数料その他', debit: { rows: [ feeRowsA[0].id ], account: '7000001', sub: null }, credit: {} },
+      { label: '手数料その他', debit: { rows: [ feeRowsA[1].id ], account: '7000002', sub: null }, credit: {} }
+    ] } };
+    await settleStatement(stmtA, draftA, data.approver);
+    await settlementFinancial.reload();
+    const layout = JSON.parse(settlementFinancial.settleLayout);
+    const feeLayoutLines = layout.lines.filter((l) => ( l.label === '手数料その他' ));
+    assert.lengthOf(feeLayoutLines, 2);
+    assert.equal(feeLayoutLines[0].debit.patterns[0].nth, 0);
+    assert.equal(feeLayoutLines[1].debit.patterns[0].nth, 1);
+    assert.equal(feeLayoutLines[0].debit.account, '7000001');
+    assert.equal(feeLayoutLines[1].debit.account, '7000002');
+    // 新しい文書（同構成）にseedを適用: 学習時と同じ出現順の行に照合する
+    const stmtB = await makeStatement(overrides);
+    const preview = await settlementPreview(stmtB);
+    const seed = preview.seedDraft;
+    assert.isOk(seed);
+    const rowsB = await rowsOf(stmtB);
+    const feeRowsB = rowsB.filter((r) => ( r.rawDescription === '手数料その他' && r.amountOut ));
+    feeRowsB.sort((a, b) => a.lineNo - b.lineNo);
+    const seedLines = seed.lines.filter((l) => ( l.label === '手数料その他' ));
+    assert.lengthOf(seedLines, 2);
+    assert.include(seedLines[0].debit.rows.map(String), String(feeRowsB[0].id));
+    assert.include(seedLines[1].debit.rows.map(String), String(feeRowsB[1].id));
+    assert.equal(seedLines[0].debit.account, '7000001');
+    assert.equal(seedLines[1].debit.account, '7000002');
   });
 
   it('settleStatement: レイアウトは作り直さず統合する（今回出なかった行を残す）', async () => {
