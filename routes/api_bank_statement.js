@@ -1090,5 +1090,68 @@ export default {
       console.error(e);
       res.status(422).json({ code: -1, message: e.message || '計算書との紐付けに失敗しました。' });
     }
+  },
+
+  // 計算書の起票をやめる。未承認の起票伝票（統合済みなら通帳側の伝票）を
+  // 解放し、紐付いていた取込行（計算書・通帳の両方）を未照合に戻す。
+  // 作業下書きは消さないので、組み直してそのまま再起票できる
+  unsettle: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const user = req.session.user;
+    if ( !canManage(user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    const statementId = parseInt(req.params.id);
+    const statement = await models.BankStatement.findByPk(statementId);
+    if ( !statement || statement.kind !== 'settlement' ) {
+      res.json({ code: -1 });
+      return;
+    }
+    const lockFy = await lockedStatementMessage(statement);
+    if ( lockFy ) {
+      res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。', term: lockFy.term });
+      return;
+    }
+    try {
+      const booked = await models.BankStatementLine.findAll({
+        where: { statementId: statementId, crossSlipDetailId: { [Op.ne]: null } },
+        attributes: [ 'crossSlipDetailId' ], raw: true
+      });
+      const details = await models.CrossSlipDetail.findAll({
+        where: { id: { [Op.in]: booked.map((b) => b.crossSlipDetailId) } },
+        include: [{ model: models.CrossSlip, as: 'crossSlip' }], raw: true
+      });
+      const slipId = details.length > 0 ? details[0].crossSlipId : null;
+      const slip = slipId ? await models.CrossSlip.findByPk(slipId) : null;
+      if ( !slip ) {
+        res.json({ code: -1, message: 'この計算書の伝票がありません。' });
+        return;
+      }
+      if ( slip.approvedAt || slip.expenseReportId ) {
+        res.status(422).json({ code: -1, message: '確定済みの伝票は解放できません。' });
+        return;
+      }
+      // 伝票に紐付く全取込行（計算書・通帳側の両方。統合済みなら通帳側の
+      // 行も載っている）を未照合に戻してから伝票を破棄する
+      const allDetails = await models.CrossSlipDetail.findAll({
+        where: { crossSlipId: slip.id }
+      });
+      await models.BankStatementLine.update(
+        { status: 'unmatched', crossSlipDetailId: null },
+        { where: { crossSlipDetailId: { [Op.in]: allDetails.map((d) => d.id) } } }
+      );
+      await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });
+      await slip.destroy();
+      const fresh = await getStatement(statementId);
+      res.json({
+        code: 0,
+        settlement: await reconcile.settlementPreview(statement),
+        lines: fresh.lines.map(lineToJSON)
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(422).json({ code: -1, message: e.message || '解放に失敗しました。' });
+    }
   }
 };

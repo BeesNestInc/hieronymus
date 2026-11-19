@@ -108,6 +108,9 @@
     <div class="card-body py-2">
       {#if ( settlementBooked )}
       <span class="badge bg-primary ms-2">起票済み</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary ms-2" disabled={busy}
+        title="起票をやめます。未承認の伝票を解放して取込行を未照合に戻すので、組み直して再起票できます（作業下書きは残ります）"
+        on:click={runUnsettle}>起票をやめる</button>
       {:else}
       <div class="row g-2 mt-1 settle-columns">
         <div class="col-12 composer-col">
@@ -2173,6 +2176,33 @@ const applySettlement = (data, opts = {}) => {
   // 下書き・学習済み構成のどちらもない初回は、1行だけの空伝票から始める
   // （伝票行が0だとDropゾーンが一つもなく、明細をDnDできない）
   voucher = { lines: [ newVoucherLine() ] };
+};
+
+// 起票をやめる。未承認の起票伝票（統合済みなら通帳側の伝票）を解放し、
+// 取込行を未照合に戻す。作業下書きは残るので組み直して再起票できる
+const runUnsettle = async () => {
+  if ( !window.confirm('この計算書の起票をやめますか？未承認の伝票が解放され、取込行は未照合に戻ります。') ) {
+    return;
+  }
+  busy = true;
+  try {
+    const result = await axios.post(`/api/bank_statement/${id}/unsettle`);
+    if ( result.data && result.data.code === 0 ) {
+      statement = Object.assign({}, statement, { lines: result.data.lines });
+      settlement = result.data.settlement || null;
+      applySettlement(result.data.settlement);
+      await loadMergeCandidates();
+      toast.show('計算書', '起票をやめました。組み直して再度起票できます');
+    } else {
+      toast.show('計算書', `解放に失敗しました（code=${result.data.code}）`, 'warning');
+    }
+  } catch (e) {
+    console.error('unsettle failed', e);
+    const message = ( e.response && e.response.data && e.response.data.message ) ? e.response.data.message : '解放に失敗しました';
+    toast.show('計算書', message, 'warning');
+  } finally {
+    busy = false;
+  }
 };
 
 const runSettle = async () => {
