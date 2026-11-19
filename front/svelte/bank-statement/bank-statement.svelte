@@ -356,6 +356,10 @@
           <td>
             {#if ( line.status === 'booked' && !line.crossSlipDetailId )}
             <span class="badge bg-warning" title="紐付伝票が削除されています">伝票消滅</span>
+            {:else if ( line.status === 'matched' )}
+            <!-- 突合（既存の伝票への紐付け）も起票済みの伝票に載っていることに
+                 変わりはない。照合済/起票済が混在するのを防いで同じバッジにする -->
+            <span class="badge bg-primary" title="伝票に載っています（計算書と突合しました）">起票済</span>
             {:else if ( line.status === 'booked' && line.crossSlipDetailId )}
             {#if ( isTentative(line) )}
             <span class="badge bg-warning" title="仮入科目で起票されています。実科目の伝票（請求書等）を入力すると自動で差し替わります">仮起票</span>
