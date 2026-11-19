@@ -1,7 +1,7 @@
 import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
-import { settleStatement, findDepositMergeCandidates, mergeSettlementIntoDeposit } from '../libs/bank-reconcile.js';
+import { settleStatement, findDepositMergeCandidates, mergeSettlementIntoDeposit, linkDepositToSettlement } from '../libs/bank-reconcile.js';
 
 // 計算書伝票 ↔ 通帳側の入金仮伝票の統合（deposit merge）のテスト（DB使用）。
 // 通帳取り込みで仮登録された伝票（借: 銀行科目 / 貸: 入金仮）と、計算書から
@@ -76,7 +76,7 @@ describe('deposit merge（計算書→入金仮の統合）', () => {
 
   // 通帳側の仮伝票（借: 銀行 / 貸: 入金仮）を作る（bookLines が作るのと同じ形）。
   // bankLineDate: 取込行の日付。slipDate との差が統合の許容日数になる
-  const makeDepositSlip = async ({ slipDate = '2026-08-01', bankLineDate = '2026-08-01', amount = 38268, approved = false } = {}) => {
+  const makeDepositSlip = async ({ slipDate = '2026-08-01', bankLineDate = '2026-08-01', amount = 38268, approved = false, creditAccount = '3900000' } = {}) => {
     const user = data.creator;
     const [ y, mo, d ] = slipDate.split('-').map(Number);
     // 伝票番号は (year, month, no) の unique。テスト内の連番を振る
@@ -92,7 +92,7 @@ describe('deposit merge（計算書→入金仮の統合）', () => {
       crossSlipId: slip.id,
       lineNo: 1,
       debitAccount: '1010010', debitSubAccount: 1, debitAmount: amount, debitTax: 0,
-      creditAccount: '3900000', creditSubAccount: null, creditAmount: amount, creditTax: 0,
+      creditAccount: creditAccount, creditSubAccount: null, creditAmount: amount, creditTax: 0,
       application1: '振込 * アマゾンジャパン（ド チ)',
       createdBy: user.id, updatedBy: user.id
     });
@@ -298,6 +298,63 @@ describe('deposit merge（計算書→入金仮の統合）', () => {
       where: { financialId: bankFinancial.id, oppositeAccount: '6000000' }
     });
     assert.isNotNull(rule, '振込摘要→売上高を学習する');
+  });
+
+  // 学習ルールで「借: 銀行 / 貸: 売上高」と直接起票された1行伝票も統合候補に
+  // なる（計算書の複合伝票と二重起票・売上の二重計上を防ぐ）
+  it('統合: ルールで売上高に直接起票された1行伝票も統合先になる', async function () {
+    this.timeout(60000);
+    const deposit = await makeDepositSlip({ slipDate: '2026-08-01', creditAccount: '6000000' });
+    const result = await settle(deposit.statement, data.creator);
+    assert.isTrue(result.merged === true);
+    assert.equal(result.slip.id, deposit.slip.id);
+    // 通帳側の伝票に計算書の中身が統合されている（貸方は計算書側の売上高）
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: deposit.slip.id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    assert.equal(details[0].debitAccount, '1010010');
+    assert.equal(details[0].creditAccount, '6000000');
+    assert.equal(Number(details[0].debitAmount), 38268);
+    // 費用行も移設されている
+    const feeLines = details.filter((d) => ( d.debitAccount === '7000001' && Number(d.debitAmount) === 103500 ));
+    assert.lengthOf(feeLines, 1);
+  });
+
+  // 突合（linkDepositToSettlement）で、起票済みの銀行行を「銀行行だけの
+  // 1行伝票」から計算書側の伝票に紐付け替える（二重伝票の解消）
+  it('突合: 起票済みの銀行行を1行伝票から計算書側の伝票に紐付け替える', async function () {
+    this.timeout(60000);
+    // 計算書伝票(7/29)と1行伝票(8/20)が離れているので起票時の自動統合は
+    // 起きない（計算書側の伝票と1行伝票が並んで残る状態を作る）
+    const deposit = await makeDepositSlip({ slipDate: '2026-08-20', bankLineDate: '2026-08-20', creditAccount: '6000000' });
+    const settleResult = await settle(deposit.statement, data.creator);
+    assert.isNotOk(settleResult.merged);
+    const settleSlip = settleResult.slip;
+    const settleDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: settleSlip.id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    const bankDetailOfSettle = settleDetails.find((d) => ( d.debitAccount === '1010010' ));
+    assert.isOk(bankDetailOfSettle);
+    // 突合: 銀行行を1行伝票から計算書側の伝票へ紐付け替える
+    await deposit.bankLine.reload();
+    assert.equal(deposit.bankLine.status, 'booked');
+    const linked = await linkDepositToSettlement(
+      await models.BankStatement.findByPk(deposit.bankStatement.id),
+      deposit.bankLine.id,
+      bankDetailOfSettle.id
+    );
+    assert.isOk(linked);
+    await deposit.bankLine.reload();
+    assert.equal(deposit.bankLine.status, 'matched');
+    assert.equal(Number(deposit.bankLine.crossSlipDetailId), Number(bankDetailOfSettle.id));
+    // 1行伝票は破棄されている
+    const gone = await models.CrossSlip.findByPk(deposit.slip.id);
+    assert.isNull(gone);
+    // 計算書側の伝票は残る
+    assert.isOk(await models.CrossSlip.findByPk(settleSlip.id));
   });
 
   it('候補が複数: 自動統合せず、計算書側の伝票を残す', async function () {

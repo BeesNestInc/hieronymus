@@ -1840,26 +1840,43 @@ export const findDepositMergeCandidates = async (settlementSlip, options = {}) =
   if ( owners.some((o) => ( o.kind !== 'settlement' )) ) {
     return [];
   }
-  // 口座（計算書側の銀行科目と同じ financial の預金）の入金仮を集める
+  // 口座（計算書側の銀行科目と同じ financial の預金）の入金仮を集める。
+  // 学習ルールで「借: 銀行 / 貸: 売上高」のように直接起票された1行伝票も
+  // 統合候補にする（計算書の複合伝票と二重起票になるのを防ぐ。
+  // 「銀行行だけの1行伝票」に限るので、人の手で組んだ伝票は対象外）
   const settleFinancial = await findFinancialBySide(bankDetail.debitAccount, bankDetail.debitSubAccount);
   if ( !settleFinancial ) {
     return [];
   }
-  const tempDetails = await models.CrossSlipDetail.findAll({
-    where: {
-      creditAccount: TEMP_ACCOUNTS.IN,
-      debitAmount: amount
-    },
+  const depositDetailWhere = {
+    debitAccount: bankDetail.debitAccount,
+    debitAmount: amount
+  };
+  if ( bankDetail.debitSubAccount !== null && bankDetail.debitSubAccount !== undefined ) {
+    depositDetailWhere.debitSubAccount = bankDetail.debitSubAccount;
+  }
+  const depositDetails = await models.CrossSlipDetail.findAll({
+    where: depositDetailWhere,
     include: [{ model: models.CrossSlip, as: 'crossSlip' }]
   });
   const settleDate = new Date(settlementSlip.year, settlementSlip.month - 1, settlementSlip.day).getTime();
   const candidates = [];
-  for ( const td of tempDetails ) {
+  for ( const td of depositDetails ) {
     const slip = td.crossSlip;
     if ( !slip || slip.approvedAt || slip.expenseReportId ) continue;
     if ( Number(slip.id) === Number(settlementSlip.id) ) continue;
-    // 仮明細の借方＝銀行科目で同額に立っていること（bookLines 標準の1行形）
+    // 同額で銀行借方に立っていること（bookLines 標準の1行形）
     if ( Number(td.debitAmount) !== amount ) continue;
+    // 「銀行行だけの1行伝票」であること（複数明細の伝票は人の手で組んだ
+    // ものなので触らない）
+    const slipDetailCount = await models.CrossSlipDetail.count({
+      where: { crossSlipId: slip.id }
+    });
+    if ( slipDetailCount !== 1 ) continue;
+    // 貸方は銀行科目・出金仮でないこと（銀行間振替や出金のプレースホルダ
+    // は入金の統合先ではない）。入金仮・実科目（売上高等）は可
+    if ( BANK_ACCOUNT_RE.test(String(td.creditAccount || '')) ) continue;
+    if ( String(td.creditAccount) === TEMP_ACCOUNTS.OUT ) continue;
     if ( !BANK_ACCOUNT_RE.test(String(td.debitAccount || '')) ) continue;
     // 口座が同じこと（通帳の financial = 計算書側の銀行科目の financial）
     const depositFinancial = await findFinancialBySide(td.debitAccount, td.debitSubAccount);
@@ -2257,10 +2274,39 @@ export const suggestSettlementDeposits = async (statement) => {
   if ( ( statement.kind !== 'bank' ) || !statement.account ) {
     return [];
   }
-  const lines = await models.BankStatementLine.findAll({
+  // 突合候補の行: 未照合に加えて、起票済みだが「銀行行だけの1行伝票」に
+  // 紐付いている行（学習ルールで売上高に直接起票されたもの。計算書の
+  // 複合伝票と二重起票になるので、突合で取り込んで解消する）
+  const unmatchedLines = await models.BankStatementLine.findAll({
     where: { statementId: statement.id, status: 'unmatched' },
     order: [[ 'lineNo', 'ASC' ]]
   });
+  const bookedLines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id, status: 'booked', crossSlipDetailId: { [Op.ne]: null } },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const pureBooked = [];
+  for ( const line of bookedLines ) {
+    const detail = await models.CrossSlipDetail.findByPk(line.crossSlipDetailId, {
+      include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+    });
+    if ( !detail || !detail.crossSlip || detail.crossSlip.approvedAt || detail.crossSlip.expenseReportId ) {
+      continue;
+    }
+    // 銀行行だけの1行伝票か（複数明細・計算書由来の行が混ざる伝票は触らない）
+    const slipDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: detail.crossSlip.id }
+    });
+    if ( slipDetails.length !== 1 ) continue;
+    const sourceLines = await models.BankStatementLine.findAll({
+      where: { crossSlipDetailId: detail.id }
+    });
+    if ( sourceLines.length !== 1 ) continue;
+    const owner = await models.BankStatement.findByPk(sourceLines[0].statementId, { raw: true });
+    if ( !owner || ( owner.kind === 'settlement' ) ) continue;
+    pureBooked.push(line);
+  }
+  const lines = [ ...unmatchedLines, ...pureBooked ].sort((a, b) => a.lineNo - b.lineNo);
   if ( lines.length === 0 ) {
     return [];
   }
@@ -2368,6 +2414,13 @@ export const linkDepositToSettlement = async (statement, lineId, crossSlipDetail
     if ( Number(line.crossSlipDetailId) === Number(crossSlipDetailId) ) {
       return line;
     }
+    // すでに起票済みの行でも、その伝票が「銀行行だけの1行伝票」（学習ルール
+    // で売上高に直接起票されたもの等）なら、その伝票を破棄して計算書側の
+    // 伝票に紐付け替える（同じ取引の二重伝票・二重計上を解消する）
+    const rebinded = await rebindBankLineToSettlementDetail(line, parseInt(crossSlipDetailId, 10));
+    if ( rebinded ) {
+      return rebinded;
+    }
     const err = new Error('この行はすでに処理済みです。');
     err.name = 'BankReconcileError';
     throw err;
@@ -2404,6 +2457,66 @@ export const linkDepositToSettlement = async (statement, lineId, crossSlipDetail
   line.crossSlipDetailId = detail.id;
   await line.save();
   return line;
+};
+
+// すでに起票済みの銀行行を、計算書側の伝票明細に紐付け替える。
+// 行の現在の伝票が「銀行行だけの1行伝票」（未承認・精算書由来でない・
+// 全明細が銀行行に紐付く）のときだけ許す: その伝票を破棄し、行を
+// 計算書側の明細に紐付ける（同じ取引の二重伝票を解消する）。
+// 対象外のときは null を返す（呼び出し元で従来の「処理済み」エラーになる）
+export const rebindBankLineToSettlementDetail = async (line, targetDetailId) => {
+  try {
+    const currentDetailId = line.crossSlipDetailId;
+    if ( !currentDetailId ) return null;
+    const oldDetails = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: ( await models.CrossSlipDetail.findByPk(currentDetailId) ).crossSlipId },
+      include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+    });
+    if ( oldDetails.length === 0 ) return null;
+    const oldSlip = oldDetails[ 0 ].crossSlip;
+    if ( !oldSlip || oldSlip.approvedAt || oldSlip.expenseReportId ) return null;
+    // 全明細が銀行種別の取込行に紐付いていて、かつ自分の行以外が無いこと
+    // （銀行行だけの伝票。人の手で組んだ伝票は触らない）
+    const sourceLines = await models.BankStatementLine.findAll({
+      where: { crossSlipDetailId: { [Op.in]: oldDetails.map((d) => d.id) } }
+    });
+    const owners = await models.BankStatement.findAll({
+      where: { id: { [Op.in]: [ ...new Set(sourceLines.map((l) => l.statementId)) ] } },
+      raw: true
+    });
+    if ( sourceLines.length !== oldDetails.length ) return null;
+    if ( owners.some((o) => ( o.kind === 'settlement' )) ) return null;
+    // 対象の明細（計算書側）が存在し、金額が行と一致すること
+    const targetDetail = await models.CrossSlipDetail.findByPk(targetDetailId);
+    if ( !targetDetail ) return null;
+    // 対象の明細に既に銀行側の行が付いていたら触らない
+    const targetBinders = await models.BankStatementLine.findAll({
+      where: { crossSlipDetailId: targetDetailId }
+    });
+    for ( const binder of targetBinders ) {
+      const owner = await models.BankStatement.findByPk(binder.statementId);
+      if ( owner && ( owner.kind !== 'settlement' ) ) {
+        return null;
+      }
+    }
+    const amount = Number(line.amountIn !== null && line.amountIn !== undefined ? line.amountIn : line.amountOut);
+    if ( Number(targetDetail.debitAmount) !== amount ) return null;
+    // 紐付け替えと旧伝票の破棄
+    line.status = 'matched';
+    line.crossSlipDetailId = targetDetailId;
+    await line.save();
+    // 旧伝票の残りの取込行を解放してから伝票を破棄する
+    await models.BankStatementLine.update(
+      { status: 'unmatched', crossSlipDetailId: null },
+      { where: { crossSlipDetailId: { [Op.in]: oldDetails.map((d) => d.id) } } }
+    );
+    await models.CrossSlipDetail.destroy({ where: { crossSlipId: oldSlip.id } });
+    await models.CrossSlip.destroy({ where: { id: oldSlip.id } });
+    return line;
+  } catch (e) {
+    console.log('rebind bank line skipped:', e.message || e);
+    return null;
+  }
 };
 
 export default {
