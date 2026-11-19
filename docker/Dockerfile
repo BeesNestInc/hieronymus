@@ -1,5 +1,5 @@
 # ========== build ==========
-FROM node:23-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,7 +21,7 @@ RUN npm run build
 RUN npm run build-ssr
 
 # ========== runtime ==========
-FROM node:23-bookworm-slim
+FROM node:24-bookworm-slim
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
