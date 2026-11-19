@@ -1,7 +1,7 @@
 import {assert} from 'chai';
 import models from '../models/index.js';
 import seed from './seed.js';
-import { settleStatement, findDepositMergeCandidates, mergeSettlementIntoDeposit, linkDepositToSettlement } from '../libs/bank-reconcile.js';
+import { settleStatement, findDepositMergeCandidates, mergeSettlementIntoDeposit, linkDepositToSettlement, makePattern } from '../libs/bank-reconcile.js';
 
 // 計算書伝票 ↔ 通帳側の入金仮伝票の統合（deposit merge）のテスト（DB使用）。
 // 通帳取り込みで仮登録された伝票（借: 銀行科目 / 貸: 入金仮）と、計算書から
@@ -228,6 +228,33 @@ describe('deposit merge（計算書→入金仮の統合）', () => {
   // 通帳側の入金行をまだ起票していない（未照合のまま）とき、計算書の起票で
   // 同額・近い日付の未照合の入金行を入金仮で起票してから統合する
   // （計算書の日付を実際の入金日に合わせても「同じ取り引きにならない」のを防ぐ）
+  it('統合: 自動起票はルールを使わず入金仮で立てる', async function () {
+    this.timeout(60000);
+    // 学習済みルール（振込摘要→売上高）がある状態でも、自動起票は
+    // 入金仮のプレースホルダで立てる。ルールで売上高に直接起票すると
+    // 計算書の複合伝票と二重起票（売上の二重計上）になるため
+    await models.BankStatementRule.create({
+      financialId: bankFinancial.id,
+      pattern: makePattern('振込 * アマゾンジャパン(ド /'),
+      direction: 'in',
+      oppositeAccount: '6000000',
+      usageCount: 0,
+      createdBy: data.creator.id, updatedBy: data.creator.id
+    });
+    const settleResult = await makeUnbookedDepositAndSettle();
+    assert.isTrue(settleResult.result.merged === true);
+    // 統合後の伝票: 銀行明細は1つで、貸方は計算書側の売上高（入金仮が
+    // 差し替わる）。ルールで立てた売上高が二重に載っていないこと
+    const slip = await models.CrossSlip.findByPk(settleResult.result.slip.id);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: slip.id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    const bankDetails = details.filter((d) => ( d.debitAccount === '1010010' && Number(d.debitAmount) === 38268 ));
+    assert.lengthOf(bankDetails, 1);
+    assert.equal(bankDetails[0].creditAccount, '6000000');
+  });
+
   it('統合: 通帳側の入金行が未照合でも計算書の起票で統合される', async function () {
     this.timeout(60000);
     const settleResult = await makeUnbookedDepositAndSettle();

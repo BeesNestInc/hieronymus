@@ -1307,7 +1307,12 @@ export const bookDepositRowForSettlementSlip = async (settlementSlip, user, opti
     usable.sort((a, b) => ( Math.abs(dayTime(a.date) - settleTime) - Math.abs(dayTime(b.date) - settleTime) ));
     const target = usable[ 0 ];
     const bankStatement = await models.BankStatement.findByPk(target.statementId);
-    const result = await bookLines(bankStatement, [ { lineId: target.id } ], user, {});
+    // 入金仮を「強制」して起票する（統合される前提のプレースホルダ）。
+    // 通常経路だと学習ルール（振込摘要→売上高等）に引っかかり、
+    // 「借:銀行/貸:売上高」の1行伝票ができて計算書の複合伝票と
+    // 二重起票になる。仮科目の起票なのでルール学習も汚さない
+    const result = await bookLines(bankStatement,
+      [ { lineId: target.id, oppositeAccount: TEMP_ACCOUNTS.IN } ], user, {});
     return ( ( result && result.slips ) || [] )[ 0 ] || null;
   } catch (e) {
     console.log('deposit row booking skipped:', e.message || e);
