@@ -2275,8 +2275,9 @@ export const suggestSettlementDeposits = async (statement) => {
       if ( Number(detail.debitAmount) !== Number(line.amountIn) ) {
         continue;
       }
-      const diff = Math.abs(new Date(slip.year, slip.month - 1, slip.day)
-        .getTime() - new Date(line.date).getTime()) / 86400000;
+      // DATEONLY文字列（UTC真夜中になる）とローカル真夜中の混在で
+      // 日差が+9時間ずれるため、dayDiff（日数に丸める）で比べる
+      const diff = Math.abs(dayDiff(new Date(slip.year, slip.month - 1, slip.day), line.date));
       if ( diff > 3 ) {
         continue;
       }
