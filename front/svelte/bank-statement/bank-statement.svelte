@@ -230,12 +230,21 @@
               </table>
             </div>
             <div class="d-flex align-items-center justify-content-between px-2">
-              <span class="{settleBalanceOk ? 'text-success' : 'text-danger'}" style="font-weight:600;">
-                借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
-                {#if ( settleBalanceOk )}✓ 貸借一致
-                {:else}
-                （差額 {numberFmt(settleVoucherAdjust)}円）
-                {/if}
+              <span class="d-flex align-items-center" style="font-weight:600;">
+                <!-- 伝票日付は既定（振込行の日付）から変更できる（実際に口座に
+                     入る日は計算書の日付と違うことがある） -->
+                <label class="me-1" style="font-size:0.8rem;">伝票日付</label>
+                <input type="date" class="form-control form-control-sm" style="width:150px;"
+                  bind:value={settleDay}
+                  on:change={() => { saveSettleDraft(); }}
+                  title="起票する伝票の日付。既定は振込予定日（実際の入金日に合わせて変更できる）">
+                <span class="{settleBalanceOk ? 'text-success' : 'text-danger'} ms-2">
+                  借方 {numberFmt(settleVoucherDebit)}円 ＝ 貸方 {numberFmt(settleVoucherCredit)}円
+                  {#if ( settleBalanceOk )}✓ 貸借一致
+                  {:else}
+                  （差額 {numberFmt(settleVoucherAdjust)}円）
+                  {/if}
+                </span>
               </span>
               <button type="button" class="btn btn-sm btn-outline-primary"
                 title="新しい明細行を追加します（伝票行が0行のときはここから）"
@@ -2005,7 +2014,8 @@ const loadSettleDraft = (sid) =>  {
 const saveSettleDraft = () =>  {
   try {
     if  ( !statement || !settlement )  return;
-    const payload = JSON.stringify({ voucher: voucher });
+    // 伝票日付（settleDay）も下書きに含める（変更した日付がreloadで消えない）
+    const payload = JSON.stringify({ voucher: voucher, settleDay: settleDay });
     sessionStorage.setItem(settleDraftKey(statement.id), payload);
     // サーバにも保存する（連打対策でデバウンス）。起票成功時に null を送って消す
     if  ( settleDraftSaveTimer )  clearTimeout(settleDraftSaveTimer);
@@ -2111,24 +2121,29 @@ const applySettlement = (data, opts = {}) => {
   const drafts = [];
   try {
     const local = loadSettleDraft(statement.id);
-    if  ( local && local.voucher )  drafts.push(local.voucher);
+    if  ( local && local.voucher )  drafts.push(local);
   } catch {}
   if  ( statement.settleDraft )  {
     try {
       const remote = ( typeof statement.settleDraft === 'string' ) ? JSON.parse(statement.settleDraft) : statement.settleDraft;
-      if  ( remote && remote.voucher )  drafts.push(remote.voucher);
+      if  ( remote && remote.voucher )  drafts.push(remote);
     } catch {}
   }
   for  ( const d of drafts )  {
-    if  ( d && Array.isArray(d.lines) && d.lines.length > 0 )  {
+    // dは { voucher, settleDay } 全体（settleDayの復元もする）
+    if  ( d && d.voucher && Array.isArray(d.voucher.lines) && d.voucher.lines.length > 0 )  {
       voucher = {
-        lines: d.lines.map((dl) => ( {
+        lines: d.voucher.lines.map((dl) => ( {
           id: dl.id || `L${Date.now()}-${Math.random().toString(36).slice(2)}`,
           label: dl.label || '',
           debit: { rows: clean(( dl.debit && dl.debit.rows || [] )), account: ( dl.debit && dl.debit.account ) || '', sub: ( dl.debit && dl.debit.sub ) },
           credit: { rows: clean(( dl.credit && dl.credit.rows || [] )), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
         } ))
       };
+      // 伝票日付の変更も下書きから復元する
+      if  ( d.settleDay )  {
+        settleDay = d.settleDay;
+      }
       return;
     }
   }
