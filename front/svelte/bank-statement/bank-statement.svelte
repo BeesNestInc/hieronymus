@@ -112,6 +112,21 @@
         title="起票をやめます。未承認の伝票を解放して取込行を未照合に戻すので、組み直して再起票できます（作業下書きは残ります）"
         on:click={runUnsettle}>起票をやめる</button>
       {:else}
+      <div class="text-muted mb-1" style="font-size:0.7rem;">
+        <!-- 状態の見える化: 壊れたときに「どの層」が壊れたかを判別する
+             （読み取り層=検算 / ルール層=レイアウトの照合 / 下書きの由来） -->
+        <span title="読み取り層: 取込行の検算（売上 = 振込 + 費用）が成立しているか">
+          読み取り: {settlement.stats ? settlement.stats.lineCount : ( statement.lines || [] ).length}行・検算{ ( settlement.stats && settlement.stats.breakdownOk ) ? '○' : '✗' }
+        </span>
+        <span class="mx-1">|</span>
+        <span title="ルール層: 学習済みレイアウトのうち、今回の文書に照合できた行数。未照合があるのは文書に該当行が無いだけかもしれない（項目の増減）">
+          構成: { settlement.seedDraft ? `レイアウト${settlement.seedDraft.stats.layoutLines}行のうち${settlement.seedDraft.stats.matchedLines}行照合` : 'レイアウトなし' }
+        </span>
+        <span class="mx-1">|</span>
+        <span title="伝票ビューの下書きの由来。作業下書きが優先される">
+          下書き: { draftSource === 'draft' ? '作業下書き' : draftSource === 'seed' ? '学習済み構成' : '空' }
+        </span>
+      </div>
       <div class="row g-2 mt-1 settle-columns">
         <div class="col-12 composer-col">
           <div class="card border-primary mb-1">
@@ -1830,6 +1845,7 @@ const runRebook = async () => {
 // 買方: 売上高（売上側合算）。費用行の科目は学習ルール候補+入力。
 // 税は全行0（計算書は税込の合算をそのまま載せる）
 let settlement = null;          // GET /:id の settlement（分類集計+科目候補+全行）
+let draftSource = '';           // 伝票ビューの下書きの由来（draft/seed/none）。状態表示用
 let settleDay = '';             // 伝票日付（既定=振込行の日付）
 let settleReceivedAccount = '';
 let settleReceivedSubAccount = '';
@@ -2180,6 +2196,7 @@ const applySettlement = (data, opts = {}) => {
       if  ( d.settleDay )  {
         settleDay = d.settleDay;
       }
+      draftSource = 'draft';
       return;
     }
   }
@@ -2194,6 +2211,7 @@ const applySettlement = (data, opts = {}) => {
         credit: { rows: clean(( dl.credit && dl.credit.rows || [] )), account: ( dl.credit && dl.credit.account ) || '', sub: ( dl.credit && dl.credit.sub ) }
       } ))
     };
+    draftSource = 'seed';
     if ( opts.seedToast ) {
       toast.show('計算書', `この通帳で学習した伝票構成（${seed.lines.length}行）を自動で組みました。確認・調整して起票してください`);
     }
@@ -2201,6 +2219,7 @@ const applySettlement = (data, opts = {}) => {
   }
   // 下書き・学習済み構成のどちらもない初回は、1行だけの空伝票から始める
   // （伝票行が0だとDropゾーンが一つもなく、明細をDnDできない）
+  draftSource = 'none';
   voucher = { lines: [ newVoucherLine() ] };
 };
 

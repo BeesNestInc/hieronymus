@@ -1428,7 +1428,16 @@ export const settlementPreview = async (statement) => {
     warnings: breakdown.warnings,
     suggestions: suggestions,
     lines: lineViews,
-    seedDraft: seedDraft
+    seedDraft: seedDraft,
+    // 状態の見える化: 取込（読み取り）層とレイアウト（学習ルール）層の
+    // どちらが壊れているかをパネルで判別できるようにする
+    stats: {
+      lineCount: lines.length,
+      // 検算: 売上 = 振込 + 費用 が成立しているか（読み取り層の健全性）
+      breakdownOk: ( breakdown.transferLine !== null ) &&
+        ( Number(breakdown.saleTotal) === Number(breakdown.transferAmount) + Number(breakdown.expenseTotal) ),
+      seedStats: ( seedDraft && seedDraft.stats ) || null
+    }
   };
 };
 
@@ -1534,7 +1543,16 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
     if  ( draftLines.length === 0 )  {
       return null;
     }
-    return { lines: draftLines };
+    // 状態の見える化: レイアウトの行数のうち、今回の文書に照合できた行数
+    // （照合できなかった行は「ルールはあるが今回の文書に該当がない」）
+    return {
+      lines: draftLines,
+      stats: {
+        layoutLines: layout.lines.length,
+        matchedLines: draftLines.length,
+        unmatchedLines: layout.lines.length - draftLines.length
+      }
+    };
   } catch (e) {
     console.log('seedDraft failed', e.message);
     return null;
