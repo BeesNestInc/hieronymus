@@ -2332,6 +2332,11 @@ export const linkDepositToSettlement = async (statement, lineId, crossSlipDetail
     throw err;
   }
   if ( line.status !== 'unmatched' ) {
+    // 同じ明細への再紐付けは成功扱いにする（ボタンの二度押しや古い表示で
+    // 「失敗しました」が見えて、実際は紐付いている状態を作らない）
+    if ( Number(line.crossSlipDetailId) === Number(crossSlipDetailId) ) {
+      return line;
+    }
     const err = new Error('この行はすでに処理済みです。');
     err.name = 'BankReconcileError';
     throw err;

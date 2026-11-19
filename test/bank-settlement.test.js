@@ -547,16 +547,30 @@ describe('ec settlement (test db)', () => {
       assert.isOk(slips >= 1);
     });
 
-    it('linkDepositToSettlement: 二度めは処理済みで拒む', async () => {
+    it('linkDepositToSettlement: 同じ明細への再紐付けは成功扱い、別明細への変更は処理済みで拒む', async () => {
       const suggestions = await suggestSettlementDeposits(bankStatement);
       assert.lengthOf(suggestions, 0);  // もう該当無料の候補は出ない（既にmatchedへ）
       const line = await models.BankStatementLine.findOne({
         where: { statementId: bankStatement.id, amountIn: 38268 }
       });
       const detailId = line.crossSlipDetailId;
+      // 同じ明細への再紐付けは成功扱い（ボタンの二度押しや古い表示で
+      // 「失敗しました」を見せない。実際には既に紐付いている）
       let thrown = null;
       try {
         await linkDepositToSettlement(bankStatement, line.id, detailId);
+      } catch (e) {
+        thrown = e;
+      }
+      assert.isNull(thrown);
+      // 別の明細への紐付け替えは処理済みで拒む
+      const otherDetail = await models.CrossSlipDetail.findOne({
+        where: { id: { [models.Sequelize.Op.ne]: detailId } }
+      });
+      assert.isOk(otherDetail);
+      thrown = null;
+      try {
+        await linkDepositToSettlement(bankStatement, line.id, otherDetail.id);
       } catch (e) {
         thrown = e;
       }
