@@ -1202,9 +1202,10 @@ export const settleStatement = async (statement, body, user, options = {}) => {
           existingLines = prev.lines;
         }
       } catch {}
-      const seenLabels = new Set(layoutLines.map((l) => String(l.label || '').trim()));
+      const normLabel = (l) => makePattern(l && l.label || '');
+      const seenLabels = new Set(layoutLines.map(normLabel));
       const preserved = ( existingLines || [] ).filter((l) => (
-        l && !seenLabels.has(String(l.label || '').trim())
+        l && !seenLabels.has(normLabel(l))
       ));
       financial.settleLayout = JSON.stringify({ lines: [ ...layoutLines, ...preserved ] });
       await financial.save();
@@ -1488,19 +1489,20 @@ const seedDraftFromLayout = async (statement, breakdown, lineRows, profile) => {
           if ( dir !== null && dir !== undefined ) {
             // 学習済みのレイアウトは(摘要, 向き)のN番目の発生を覚えている。
             // nthの位置が使えない（文書にその順の発生が無い/使済み）ときは
-            // 未使用の最初の発生に落とす
+            // 未使用の最初の発生に落とす。**byPatternAnyには落とさない**
+            // （向き違いの発生や他の行が既に使った発生を掴むと、同じ行が
+            // 複数の行に二重割付される）
             const occurrences = byPattern.get(`${p}|${dir}`) || [];
             if ( nth !== null && occurrences[ nth ] && !occurrences[ nth ].used ) {
               hit = occurrences[ nth ];
             } else {
               hit = occurrences.find((h) => !h.used) || null;
             }
-          }
-          if ( !hit ) {
+          } else {
             // 旧書式（向きを覚えていないパターン）で、同名の行が複数の向きで
             // 出るときは照合しない（どちらかを勝手に掴むと違う側の行が
             // 割り付いて貸借が崩れる。ユーザーが手で割り付ける）
-            if ( !dir && ( ( patternDirs.get(p) || new Set() ).size > 1 ) ) {
+            if ( ( patternDirs.get(p) || new Set() ).size > 1 ) {
               byPatternAny.delete(p);
               unusedPatterns.delete(p);
               continue;
@@ -2339,6 +2341,26 @@ export const suggestSettlementDeposits = async (statement) => {
       if ( ( line.amountIn !== null && line.amountIn !== undefined ) &&
            transferPattern.test( normalizeText(line.rawDescription || line.description || '') ) ) {
         detailIds.add(line.crossSlipDetailId);
+      }
+    }
+    // 振込行が迷子（紐付け先が外れている）のときも、計算書の伝票自体は
+    // 存在する。伝票の「銀行明細」（借方=預金の行）を候補として集める
+    // （振込行の紐付け先頼みだと伝票があっても候補が出ない）
+    const slipDetailIds = slines.map((l) => l.crossSlipDetailId);
+    if ( slipDetailIds.length > 0 ) {
+      const slipDetails = await models.CrossSlipDetail.findAll({
+        where: { id: { [Op.in]: slipDetailIds } }
+      });
+      const slipIds = [ ...new Set(slipDetails.map((d) => d.crossSlipId)) ];
+      for ( const slipId of slipIds ) {
+        const bankDetailsOfSlip = await models.CrossSlipDetail.findAll({
+          where: { crossSlipId: slipId }
+        });
+        for ( const d of bankDetailsOfSlip ) {
+          if ( BANK_ACCOUNT_RE.test(String(d.debitAccount || '')) ) {
+            detailIds.add(d.id);
+          }
+        }
       }
     }
   }
