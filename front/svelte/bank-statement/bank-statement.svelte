@@ -2137,15 +2137,32 @@ const applySettlement = (data, opts = {}) => {
   // この計算書にない行IDを指す旧残留の割付は解決できないので除く
   const knownRows = new Set(( ( settlement.lines ) || [] ).map((raw) => String(raw.lineId)));
   const clean = (rows) => ( rows || [] ).map(String).filter((r) => knownRows.has(r));
+  // 下書きの健全性: 同じ取込行が複数の行に割り付かれている下書きは
+  // （過去の不具合で保存されたもの）捨てる。seedの自動構成に任せる
+  const isSaneDraft = (d) => {
+    if ( !d || !d.voucher || !Array.isArray(d.voucher.lines) ) {
+      return false;
+    }
+    const seen = new Set();
+    for ( const dl of d.voucher.lines ) {
+      for ( const r of [ ...( dl.debit && dl.debit.rows || [] ), ...( dl.credit && dl.credit.rows || [] ) ].map(String) ) {
+        if ( seen.has(r) ) {
+          return false;
+        }
+        seen.add(r);
+      }
+    }
+    return true;
+  };
   const drafts = [];
   try {
     const local = loadSettleDraft(statement.id);
-    if  ( local && local.voucher )  drafts.push(local);
+    if  ( local && local.voucher && isSaneDraft(local) )  drafts.push(local);
   } catch {}
   if  ( statement.settleDraft )  {
     try {
       const remote = ( typeof statement.settleDraft === 'string' ) ? JSON.parse(statement.settleDraft) : statement.settleDraft;
-      if  ( remote && remote.voucher )  drafts.push(remote);
+      if  ( remote && remote.voucher && isSaneDraft(remote) )  drafts.push(remote);
     } catch {}
   }
   for  ( const d of drafts )  {
