@@ -623,6 +623,25 @@ describe('ec settlement (test db)', () => {
       assert.match(thrown.message, /処理済み/);
     });
 
+    it('linkDepositToSettlement: 紐付け先を失った行（伝票消滅）は突合で再紐付けできる', async () => {
+      // 伝票の再編集・解放の履歴で紐付けだけが外れた行（bookedで
+      // crossSlipDetailIdが無い=「伝票消滅」表示）は、計算書側の伝票が
+      // 存在するなら突合で再紐付けできる
+      const line = await models.BankStatementLine.findOne({
+        where: { statementId: bankStatement.id, amountIn: 38268 }
+      });
+      const detailId = line.crossSlipDetailId;
+      await line.update({ status: 'booked', crossSlipDetailId: null });
+      const suggestions = await suggestSettlementDeposits(bankStatement);
+      assert.lengthOf(suggestions, 1);
+      assert.equal(suggestions[0].crossSlipDetailId, detailId);
+      const linked = await linkDepositToSettlement(bankStatement, line.id, detailId);
+      assert.equal(linked.status, 'matched');
+      await line.reload();
+      assert.equal(line.status, 'matched');
+      assert.equal(Number(line.crossSlipDetailId), Number(detailId));
+    });
+
     it('suggestSettlementDeposits: 金額や日付が違う入金は候補にならない', async () => {
       // 日付が遠い行（±4日）
       await models.BankStatementLine.create({

@@ -2281,9 +2281,16 @@ export const suggestSettlementDeposits = async (statement) => {
   }
   // 突合候補の行: 未照合に加えて、起票済みだが「銀行行だけの1行伝票」に
   // 紐付いている行（学習ルールで売上高に直接起票されたもの。計算書の
-  // 複合伝票と二重起票になるので、突合で取り込んで解消する）
+  // 複合伝票と二重起票になるので、突合で取り込んで解消する）と、
+  // 「起票済みだが紐付け先を失った行」（伝票消滅。伝票の再編集・解放の
+  // 履歴で紐付けだけが外れたもの。計算書側の伝票が存在するなら突合で
+  // 再紐付けできる）
   const unmatchedLines = await models.BankStatementLine.findAll({
     where: { statementId: statement.id, status: 'unmatched' },
+    order: [[ 'lineNo', 'ASC' ]]
+  });
+  const orphanLines = await models.BankStatementLine.findAll({
+    where: { statementId: statement.id, status: 'booked', crossSlipDetailId: null },
     order: [[ 'lineNo', 'ASC' ]]
   });
   const bookedLines = await models.BankStatementLine.findAll({
@@ -2311,7 +2318,7 @@ export const suggestSettlementDeposits = async (statement) => {
     if ( !owner || ( owner.kind === 'settlement' ) ) continue;
     pureBooked.push(line);
   }
-  const lines = [ ...unmatchedLines, ...pureBooked ].sort((a, b) => a.lineNo - b.lineNo);
+  const lines = [ ...unmatchedLines, ...orphanLines, ...pureBooked ].sort((a, b) => a.lineNo - b.lineNo);
   if ( lines.length === 0 ) {
     return [];
   }
@@ -2419,16 +2426,22 @@ export const linkDepositToSettlement = async (statement, lineId, crossSlipDetail
     if ( Number(line.crossSlipDetailId) === Number(crossSlipDetailId) ) {
       return line;
     }
-    // すでに起票済みの行でも、その伝票が「銀行行だけの1行伝票」（学習ルール
-    // で売上高に直接起票されたもの等）なら、その伝票を破棄して計算書側の
-    // 伝票に紐付け替える（同じ取引の二重伝票・二重計上を解消する）
-    const rebinded = await rebindBankLineToSettlementDetail(line, parseInt(crossSlipDetailId, 10));
-    if ( rebinded ) {
-      return rebinded;
+    // 紐付け先を失った行（伝票消滅。bookedでcrossSlipDetailIdが無い）は
+    // 直接紐付け直せる（計算書側の伝票が存在するならこれで再突合できる）
+    if ( ( line.status === 'booked' ) && !line.crossSlipDetailId ) {
+      // 下の通常経路（金額・bindersの確認付き）に流す
+    } else {
+      // すでに起票済みの行でも、その伝票が「銀行行だけの1行伝票」（学習ルール
+      // で売上高に直接起票されたもの等）なら、その伝票を破棄して計算書側の
+      // 伝票に紐付け替える（同じ取引の二重伝票・二重計上を解消する）
+      const rebinded = await rebindBankLineToSettlementDetail(line, parseInt(crossSlipDetailId, 10));
+      if ( rebinded ) {
+        return rebinded;
+      }
+      const err = new Error('この行はすでに処理済みです。');
+      err.name = 'BankReconcileError';
+      throw err;
     }
-    const err = new Error('この行はすでに処理済みです。');
-    err.name = 'BankReconcileError';
-    throw err;
   }
   const detail = await models.CrossSlipDetail.findByPk(parseInt(crossSlipDetailId, 10), {
     include: [{ model: models.CrossSlip, as: 'crossSlip' }]
