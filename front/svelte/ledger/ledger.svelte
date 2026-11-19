@@ -164,7 +164,10 @@ const update = async (list) => {
   }
 }
 const checkPage = () => {
-  const args = $pageParams.path;
+  // pageParamsストアはcurrentPageのsubscribe内での同期的な反映にレースが
+  // あり、選択直後の呼び出しで古い値（科目コードなし）を読むことがある。
+  // URLから直接読む（link直後のlocation.pathnameは常に最新）
+  const args = location.pathname.split('/');
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   update(true);
@@ -219,7 +222,7 @@ onMount(() => {
 })
 
 const updateList = () => {
-  const args = $pageParams.path;
+  const args = location.pathname.split('/');
   accountCode = args[2];
   subAccountCode = args[3] ? parseInt(args[3]) : undefined;
   console.log('updateList', status);
