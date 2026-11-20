@@ -1693,6 +1693,27 @@ export const suggestOpposites = async (statement, profiles = null) => {
 // 確定（承認済み）伝票・精算書由来伝票は触らない。
 export const reconcilePlaceholders = async (options = {}) => {
   const days = ( options.days === undefined ) ? 3 : options.days;
+  // メンテナンス: 旧コードの保存で解放された取込行を、statementLineIdで
+  // 対応する伝票明細に再紐付けする（行は未照合のまま、伝票は存在する
+  // 状態=「伝票消滅」等の迷子の回復。紐付けは明示的なデータなので安全）
+  {
+    const released = await models.BankStatementLine.findAll({
+      where: { status: 'unmatched', crossSlipDetailId: null }
+    });
+    for ( const line of released ) {
+      const detail = await models.CrossSlipDetail.findOne({
+        where: { statementLineId: line.id }
+      });
+      if ( detail ) {
+        await line.update({
+          status: 'booked',
+          crossSlipDetailId: detail.id,
+          crossSlipId: detail.crossSlipId
+        });
+      }
+    }
+  }
+  // 「後の処理」も許可された摘要だけが対象（口座のルール match=true。
   // 「後の処理」も許可された摘要だけが対象（口座のルール match=true。
   // 「金額一致+±3日」は緩い条件なので、予定外の摘要では誤って結び付けて
   // 別の取引を食う恐れがある。載っていない摘要は手動に回す）。
