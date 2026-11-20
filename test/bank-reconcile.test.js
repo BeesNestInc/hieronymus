@@ -650,8 +650,7 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(suggestions[0].oppositeAccount, '7000001');
   });
 
-  it('伝票更新: 起票済み行の明細の対応を保持する（明細数が変わらなければ）', async () => {
-    const { statement, lines } = await createStatement('bank', [
+  it('伝票更新: 起票済み行の明細の対応を保持する（明細数が変わらなければ）', async () => {    const { statement, lines } = await createStatement('bank', [
       { date: '2026-10-01', rawDescription: '国税　納期限', amountOut: 70000 }
     ]);
     const result = await bookLines(statement, null, approver);
@@ -678,6 +677,42 @@ describe('bank-reconcile (test db)', () => {
     const newDetail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
     assert.equal(newDetail.crossSlipId, slip.id);
     assert.equal(newDetail.debitAccount, '7000001');
+  });
+
+  it('伝票更新: 伝票を完成させた保存（明細数が変わる）でも取込行は起票済みを保つ', async () => {
+    // 仮起票の1行伝票を伝票画面で完成させ（明細を増やして）保存したとき、
+    // 取込行が「未照合」に戻らないこと（伝票は存在する）
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-10-11', rawDescription: 'デビット　４４３３００', amountOut: 5000 }
+    ]);
+    const result = await bookLines(statement, null, approver);
+    const slip = await models.CrossSlip.findByPk(result.slips[0].id);
+    await reloadAll(lines);
+    assert.equal(lines[0].status, 'booked');
+    // 明細数を変えて保存（1行→2行。仕分けを完成させた体）
+    await updateCrossSlip(slip, {
+      year: slip.year, month: slip.month, day: slip.day,
+      lines: [
+        {
+          debitAccount: '7000001', debitAmount: 4000,
+          creditAccount: '1010010', creditAmount: 4000,
+          statementLineId: lines[0].id,
+          application1: 'デビット　４４３３００（費用分）'
+        },
+        {
+          debitAccount: '7030110', debitAmount: 1000,
+          creditAccount: '1010010', creditAmount: 1000,
+          application1: 'デビット　４４３３００（手数料分）'
+        }
+      ]
+    }, approver, { keepUnapproved: true });
+    await lines[0].reload();
+    // 取込行は解放されず、同じstatementLineIdの新しい明細に紐付く
+    assert.equal(lines[0].status, 'booked', '明細数変更後も起票済みのまま');
+    const detail = await models.CrossSlipDetail.findByPk(lines[0].crossSlipDetailId);
+    assert.equal(detail.crossSlipId, slip.id);
+    assert.equal(Number(detail.statementLineId), lines[0].id);
+    assert.equal(detail.debitAccount, '7000001');
   });
 
   it('reconcilePlaceholders: 仮起票の伝票を実科目の伝票と突合して差し替える', async () => {

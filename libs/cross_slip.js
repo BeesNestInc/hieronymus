@@ -244,16 +244,25 @@ export const update = async (slip, body, user, options = {}) => {
     }
     await createDetail(line, slip.id, i);
   }
-  // 取込明細行を新しい明細に付け替える（解放済みのときは対象外）
+  // 取込明細行を新しい明細に付け替える。
+  // 明細数が変わった場合（伝票を完成させた保存など）でも、
+  // 取込行のstatementLineIdが載っている新しい明細を探して紐付け直す。
+  // （解放したままだと「伝票は存在するのに取込行が未照合」になる）
   for ( let i = 0; i < oldBindings.length ; i ++ ) {
-    if ( detailCountChanged ) break;
     try {
       const binding = oldBindings[ i ];
       const lineId = Number(binding.lineId || binding.oldLineId);
       if ( !lineId ) continue;
-      const newDetail = await models.CrossSlipDetail.findOne({
-        where: { crossSlipId: slip.id, lineNo: i }
-      });
+      let newDetail = null;
+      if ( detailCountChanged ) {
+        newDetail = await models.CrossSlipDetail.findOne({
+          where: { crossSlipId: slip.id, statementLineId: lineId }
+        });
+      } else {
+        newDetail = await models.CrossSlipDetail.findOne({
+          where: { crossSlipId: slip.id, lineNo: i }
+        });
+      }
       if ( newDetail && newDetail.statementLineId === lineId ) {
         await models.BankStatementLine.update({
           status: 'booked',
