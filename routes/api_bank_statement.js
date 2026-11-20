@@ -59,9 +59,12 @@ const parseSettleDraft = (text) => {
 const lineToJSON = (line) => {
   const plain = line.toJSON();
   const detail = plain.crossSlipDetail || null;
+  // 伝票へのリンク: 明細経由が無い（明細が作り直された等）ときも
+  // 行のcrossSlipId（安定した伝票リンク）から引く
+  const slip = detail ? detail.crossSlip : ( plain.crossSlip || null );
   return {
     ...plain,
-    slip: detail ? detail.crossSlip : null
+    slip: slip
   };
 };
 
@@ -76,6 +79,8 @@ const getStatement = (id) => {
         include: [{
           model: models.CrossSlipDetail, as: 'crossSlipDetail',
           include: [{ model: models.CrossSlip, as: 'crossSlip' }]
+        }, {
+          model: models.CrossSlip, as: 'crossSlip'
         }]
       }
     ],
@@ -1144,7 +1149,7 @@ export default {
         where: { crossSlipId: slip.id }
       });
       await models.BankStatementLine.update(
-        { status: 'unmatched', crossSlipDetailId: null },
+        { status: 'unmatched', crossSlipDetailId: null, crossSlipId: null },
         { where: { crossSlipDetailId: { [Op.in]: allDetails.map((d) => d.id) } } }
       );
       await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });

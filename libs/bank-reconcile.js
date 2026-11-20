@@ -843,7 +843,8 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       processed.add(Number(detail.statementLineId));
       await models.BankStatementLine.update({
         status: 'booked',
-        crossSlipDetailId: detail.id
+        crossSlipDetailId: detail.id,
+        crossSlipId: detail.crossSlipId
       }, { where: { id: detail.statementLineId } });
     }
   }
@@ -990,7 +991,8 @@ export const releaseStatementLines = async (detailIds) => {
   }
   await models.BankStatementLine.update({
     status: 'unmatched',
-    crossSlipDetailId: null
+    crossSlipDetailId: null,
+    crossSlipId: null
   }, {
     where: { crossSlipDetailId: { [Op.in]: ids } }
   });
@@ -1182,7 +1184,8 @@ export const settleStatement = async (statement, body, user, options = {}) => {
     for  ( const id of ( lineRowIds[ i ] || [] ) )  {
       await models.BankStatementLine.update({
         status: 'booked',
-        crossSlipDetailId: d.id
+        crossSlipDetailId: d.id,
+        crossSlipId: d.crossSlipId
       }, { where: { id: Number(id), crossSlipDetailId: null } });
     }
   }
@@ -2023,8 +2026,10 @@ export const mergeSettlementIntoDeposit = async (settlementSlip, user, options =
     // 取込行の紐付けを新しい明細へ付け替える（計算書側の取込行は通帳側伝票に
     // 結び付いて維持される。振込行は通帳側の銀行明細に統合される）
     for ( const [ sourceId, targetId ] of movedSourceIds.entries() ) {
+      const targetDetail = await models.CrossSlipDetail.findByPk(targetId, { transaction: t });
       await models.BankStatementLine.update({
-        crossSlipDetailId: targetId
+        crossSlipDetailId: targetId,
+        crossSlipId: targetDetail.crossSlipId
       }, {
         where: { crossSlipDetailId: sourceId },
         transaction: t
@@ -2190,7 +2195,8 @@ export const mergeSpendIntoPlaceholder = async (realSlip, user, options = {}) =>
       throw new Error('精算書側の明細にすでに取り込み行が付いています');
     }
     await models.BankStatementLine.update({
-      crossSlipDetailId: paymentSide.detail.id
+      crossSlipDetailId: paymentSide.detail.id,
+      crossSlipId: paymentSide.detail.crossSlipId
     }, {
       where: { crossSlipDetailId: tempDetail.id },
       transaction: t
@@ -2569,7 +2575,7 @@ export const rebindBankLineToSettlementDetail = async (line, targetDetailId) => 
     await line.save();
     // 旧伝票の残りの取込行を解放してから伝票を破棄する
     await models.BankStatementLine.update(
-      { status: 'unmatched', crossSlipDetailId: null },
+      { status: 'unmatched', crossSlipDetailId: null, crossSlipId: null },
       { where: { crossSlipDetailId: { [Op.in]: oldDetails.map((d) => d.id) } } }
     );
     await models.CrossSlipDetail.destroy({ where: { crossSlipId: oldSlip.id } });

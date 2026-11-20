@@ -18,6 +18,13 @@ export default (sequelize, DataTypes) => {
 				as: 'crossSlipDetail',
 				onDelete: 'SET NULL'
 			});
+			// この行が載っている伝票（安定したリンク。伝票保存時の明細の
+			// 作り直しでも切れない）
+			this.belongsTo(models.CrossSlip, {
+				foreignKey: 'crossSlipId',
+				as: 'crossSlip',
+				onDelete: 'SET NULL'
+			});
 			// この行から起票した伝票が持つ証憑
 			this.belongsTo(models.Voucher, {
 				foreignKey: 'voucherId',
@@ -54,7 +61,10 @@ export default (sequelize, DataTypes) => {
 		// 'unmatched'|'matched'|'booked'|'ignored'
 		status: DataTypes.STRING,
 		// 取り込み元のメモ欄（精算対象判定のヒント）
-		memo: DataTypes.STRING
+		memo: DataTypes.STRING,
+		// この行が載っている伝票への直リンク（明細リンクと共に維持する。
+		// 伝票保存時の明細の作り直しでも切れない安定したリンク）
+		crossSlipId: DataTypes.INTEGER
 	}, {
 		sequelize,
 		modelName: 'BankStatementLine',

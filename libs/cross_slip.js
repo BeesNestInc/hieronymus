@@ -153,7 +153,8 @@ export const create = async (body, user, options = {}) => {
         if ( body.lines[ i ].statementLineId && detailIds[ i ] ) {
           await models.BankStatementLine.update({
             status: 'booked',
-            crossSlipDetailId: detailIds[ i ]
+            crossSlipDetailId: detailIds[ i ],
+            crossSlipId: slip.id
           }, { where: {
             id: body.lines[ i ].statementLineId,
             crossSlipDetailId: null
@@ -266,7 +267,8 @@ export const update = async (slip, body, user, options = {}) => {
       if ( newDetail && newDetail.statementLineId === lineId ) {
         await models.BankStatementLine.update({
           status: 'booked',
-          crossSlipDetailId: newDetail.id
+          crossSlipDetailId: newDetail.id,
+          crossSlipId: slip.id
         }, { where: { id: lineId } });
       }
     } catch (e) {
