@@ -7,7 +7,11 @@
     on:keydown={keyCheck}
     on:focusout={inputDecide}>
     {#if ( list.length > 0 ) }
+    <!-- 矢印キーでの値変更を禁止する（ネイティブselectはフォーカスだけで
+         キーボード移動がchangeを発火して「勝手に確定」になる。
+         値はクリックでの選択かblur時の確定でのみ変わる） -->
     <select bind:value={code}
+      on:keydown={preventSelectNav}
       on:change={accountSelect}
       on:focusout={accountSelect}>
       <option value=""></option>
@@ -29,6 +33,7 @@
     {#if ( currentAccount && currentAccount.subAccounts )}
     {#if ( sub_list.length > 0 ) }
     <select bind:value={sub_code}
+      on:keydown={preventSelectNav}
       on:change={subAccountSelect}
       on:focusout={subAccountSelect}>
       <option value={0}></option>
@@ -84,6 +89,14 @@ const onAccountInput = (event) => {
     clearSubInput();
   } else if  ( list.length > 0 ) {
     code = list[0].code;
+  }
+}
+// 候補selectの矢印キーでの値変更を禁止する（フォーカスしたままキーボード
+// 移動するとchangeが発火して「勝手に確定」になるため。値はクリックでの
+// 選択かblur時の確定でのみ変わる）
+const preventSelectNav = (event) => {
+  if ( [ 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight' ].includes(event.key) ) {
+    event.preventDefault();
   }
 }
 const keyCheck = (event) => {
