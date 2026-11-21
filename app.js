@@ -14,6 +14,7 @@ import ejs from 'ejs';
 import path from 'path';
 
 import apiRouter from './routes/api.js';
+import {lintRoutes} from './libs/permission.js';
 import logger from 'morgan';
 import cookieParser from 'cookie-parser';
 import homeRouter from './routes/home.js';
@@ -142,6 +143,19 @@ app.use('/', homeRouter);
 app.get('/voucher/file/:id', is_authenticated, voucherFile);
 app.use('/forms', formsRouter);
 app.use('/api', apiRouter);
+
+// 403石碑の検知: /api配下のエンドポイントで許可表（permission.jsの
+// RULES/PUBLIC_PATHS）に載っていないものは、guardがデフォルト拒否するため
+// 誰にも使えない機能になる。起動時に列挙して警告する
+// （test/permission.test.jsで未登録ゼロを断言しているので、追加忘れは
+// テストで落ちて分かるはず。ここに残るのは無視された場合の最終防線）
+const permissionMisses = lintRoutes(apiRouter);
+if ( permissionMisses.length > 0 ) {
+  console.warn('【警告】以下のAPIエンドポイントが許可表に未登録です（403で使えません）:');
+  for ( const miss of permissionMisses ) {
+    console.warn(`  ${miss}`);
+  }
+}
 
 app.use('/:current/:command/:arg1/:arg2/:arg3', is_authenticated, screen);
 app.use('/:current/:command/:arg1/:arg2', is_authenticated, screen);
