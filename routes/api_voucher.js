@@ -275,6 +275,19 @@ export default {
         };
 
       }
+      // 会計権限のないユーザーは自分が作った証憑しか一覧に出さない
+      // （証憑には取引先・金額が載っている。経費精算の証憑候補も
+      // 一般ユーザーは自分の分だけ見えれば足りる）
+      if	( !req.session.user.accounting )	{
+        where = {
+          [Op.and]: [
+            where,
+            {
+              createdBy: req.session.user.id
+            }
+          ]
+        };
+      }
       models.Voucher.findAll({
         where: where,
         order: order,
@@ -320,6 +333,15 @@ export default {
         },
         include: include
       }).then(async(_voucher) => {
+        if	( !_voucher )	{
+          res.status(404).json({ code: -3, message: '証憑がありません。' });
+          return;
+        }
+        // 会計権限のないユーザーは自分が作った証憑しか読めない
+        if	( !req.session.user.accounting && _voucher.createdBy !== req.session.user.id )	{
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
         let voucher = _voucher.dataValues;
         let files = await getFiles(voucher.id);
         voucher.files = files;
@@ -446,6 +468,11 @@ export default {
     let voucher_id = req.params.id ? parseInt(req.params.id): null;
     if ( voucher_id ) {
       const voucher = await models.Voucher.findByPk(voucher_id);
+      // 他人の証憑へのファイル添付は許さない（作成者か会計権限）
+      if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+        res.json({ code: -10, message: 'permission denied' });
+        return;
+      }
       if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
         return;
       }
@@ -482,8 +509,17 @@ export default {
   bind: (req, res, next) => {
     let	body = req.body;
     models.VoucherFile.findByPk(body.id).then(async (file) => {
+      if ( !file ) {
+        res.json({ code: -1, message: 'file not found' });
+        return;
+      }
       if ( body.voucherId ) {
         const voucher = await models.Voucher.findByPk(body.voucherId);
+        // 他人の証憑へのbindは許さない（作成者か会計権限）
+        if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
@@ -507,6 +543,11 @@ export default {
     models.VoucherFile.findByPk(id).then(async (file) => {
       if ( file && file.voucherId ) {
         const voucher = await models.Voucher.findByPk(file.voucherId);
+        // 他人の証憑のファイル削除は許さない（作成者か会計権限）
+        if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }

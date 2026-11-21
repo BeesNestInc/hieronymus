@@ -746,6 +746,12 @@ export default {
           res.status(422).json({ code: -2, message: '証憑ファイルが添付されていません。' });
           return;
         }
+        // 他人の証憑へのOCR起動（AIコストがかかる）は許さない
+        // （作成者か会計権限。multipartで直接渡す分は従来どおり誰でも）
+        if (( !req.session.user.accounting ) && ( voucher.createdBy !== req.session.user.id )) {
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
         buffer = voucher.files[0].body;
         mimeType = voucher.files[0].mimeType;
       }

@@ -45,7 +45,9 @@ const RULES = [
   { match: /^\/cross_slip\/approve$/, methods: ['PUT'], access: ['approvable'] },
   { match: /^\/cross_slip\/\d+\/\d+\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
   { match: /^\/cross_slips\/.+$/, methods: ['GET'], access: ANY },
-  { match: /^\/cross_slip$/, methods: ['POST'], access: ANY },
+  // 伝票の新規作成は会計・承認権限に限定する（一般ユーザーがAPIから直接
+  // 伝票を起票しない。作成された伝票は承認状態管理の対象）
+  { match: /^\/cross_slip$/, methods: ['POST'], access: ['accounting', 'approvable'] },
   { match: /^\/cross_slip$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/cross_slip$/, methods: ['DELETE'], access: ANY },
 
@@ -58,6 +60,11 @@ const RULES = [
   { match: /^\/expense_reports(\/.*)?$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/ai_available$/, methods: ['GET'], access: ANY },
   { match: /^\/expense_report\/tasks$/, methods: ['GET'], access: ANY },
+  // 出金仮統合の手動突合（マージ候補の一覧と実行）。e0554aaで追加時に許可表が
+  // 追随しておらず403石碑になっていた（一般ユーザーにはhandler側の
+  // canAccessAll（会計/承認権限）で絞り込むため表はANY）
+  { match: /^\/expense_report\/merge_candidates$/, methods: ['GET'], access: ANY },
+  { match: /^\/expense_report\/\d+\/merge_spend$/, methods: ['POST'], access: ANY },
   // 未整理証憑のまるっとアップロード（精算書単位/浮遊のどちらも一般ユーザーから）
   { match: /^\/expense_report\/vouchers(\/\d+)?$/, methods: ['POST'], access: ANY },
   // 未整理証憑の分離（AI不使用の幾何検出。証憑作成者か会計が対象者なら誰でも）
@@ -221,6 +228,66 @@ export const guard = (req, res, next) => {
     }
     authorize(req, res, next);
   });
+};
+
+// ---- 403石碑の検知（起動時lint） ----
+// guardは未登録パスをデフォルト拒否する。この安全装置の裏返しとして、
+// エンドポイントを追加して許可表（RULES/PUBLIC_PATHS）へ登録し忘れると、
+// その機能は誰にも403で使えなくなる（「403石碑」。実史: merge_candidates、
+// settle、link_settlement）。ここではexpressルータのスタックから実登録
+// されている(メソッド, パス)を取り出し、表に載っていないものを列挙する。
+// app.jsの起動時に実行して警告し、test/permission.test.jsで未登録ゼロを
+// 断言することで、追加忘れをコミット前に潰す。
+
+// :param を具体値に置き換えてguardと同じ照合ができる形にする
+export const concretePath = (path) => {
+  return path.replace(/:(\w+)/g, (m, key) => {
+    if ( key === 'term' || key === 'year' ) return '2026';
+    if ( key === 'month' ) return '10';
+    if ( key === 'no' ) return '1';
+    return '5';
+  });
+};
+
+// guardと同じ判定で(メソッド, パス)が表に載っているか
+export const isRegistered = (method, path) => {
+  if ( PUBLIC_PATHS.some((p) => p.match.test(path) && p.method === method) ) {
+    return true;
+  }
+  for ( const rule of RULES ) {
+    if ( rule.methods && (rule.methods.indexOf(method) < 0) ) {
+      continue;
+    }
+    if ( !rule.match.test(path) ) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+};
+
+// ルータ（app.use('/api', router)に渡したもの）から未登録エンドポイントを列挙
+export const lintRoutes = (router) => {
+  const misses = [];
+  if ( !router || !router.stack ) {
+    return misses;
+  }
+  for ( const layer of router.stack ) {
+    if ( !layer.route ) {
+      continue;
+    }
+    const path = concretePath(layer.route.path);
+    for ( const method of Object.keys(layer.route.methods) ) {
+      // expressはHEADをGET扱いで登録してくるので除外する
+      if ( method === 'head' ) {
+        continue;
+      }
+      if ( !isRegistered(method.toUpperCase(), path) ) {
+        misses.push(`${method.toUpperCase()} /api${layer.route.path}`);
+      }
+    }
+  }
+  return misses;
 };
 
 export default {
