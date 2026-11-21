@@ -27,7 +27,7 @@
     <div class="text-muted">読み込み中…</div>
     {:else if ( current )}
     <div class="mb-2 text-muted" style="font-size:0.8rem;">
-      {current.title} — 現世代: { current.generation !== null ? `第${current.generation}世代` : 'ビルトイン（未改変）' }
+      { ( prompts.find((p) => p.key === selectedKey) || {} ).title } — 現世代: { current.generation !== null ? `第${current.generation}世代` : 'ビルトイン（未改変）' }
     </div>
     <div class="d-flex mb-2" style="gap:8px;">
       <button type="button" class="btn btn-primary btn-sm" disabled={busy || body === current.body}
@@ -55,20 +55,20 @@
     <div class="mt-2">
       <div class="fw-bold" style="font-size:0.85rem;">履歴</div>
       {#if ( current.versions && current.versions.length > 0 )}
-      <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;">
+      <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;width:auto;">
         <thead class="table-light">
-          <tr><th>世代</th><th>作成日時</th><th></th></tr>
+          <tr><th style="width:5rem;">世代</th><th style="width:9.5rem;">作成日時</th><th style="width:8rem;"></th></tr>
         </thead>
         <tbody>
           {#each current.versions as v}
           <tr class:table-active={ current.generation === v.generation }>
-            <td>第{v.generation}世代</td>
-            <td>{formatDate(v.createdAt)}</td>
+            <td style="white-space:nowrap;">第{v.generation}世代</td>
+            <td style="white-space:nowrap;">{compactDateTime(v.createdAt)}</td>
             <td>
               <button type="button" class="btn btn-sm btn-outline-secondary"
                 disabled={busy || ( current.generation === v.generation )}
-                title="この世代の本文を新しい世代として復元する"
-                on:click={() => { rollback(v.generation); }}>ロールバック</button>
+                title="この世代の本文を現在の内容として使う（新しい世代として保存する）"
+                on:click={() => { rollback(v.generation); }}>この世代を使用</button>
             </td>
           </tr>
           {/each}
@@ -93,6 +93,12 @@
 import axios from 'axios';
 import {onMount} from 'svelte';
 import {formatDate} from '../../../libs/utils.js';
+
+// 履歴の日時: 日付+時分（formatDateは日付までしか出さない）
+const compactDateTime = (_date) => {
+  const d = ( _date ) ? new Date(_date) : new Date();
+  return `${d.getFullYear()}-${('0' + (d.getMonth()+1)).slice(-2)}-${('0' + d.getDate()).slice(-2)} ${('0' + d.getHours()).slice(-2)}:${('0' + d.getMinutes()).slice(-2)}`;
+};
 
 export let status;
 export let toast;
@@ -150,12 +156,12 @@ const rollback = async (generation) => {
   try {
     const result = await axios.post(`/api/prompts/${selectedKey}/rollback`, { generation: generation });
     if ( result.data && result.data.code === 0 ) {
-      toast.show('AI設定', `第${generation}世代を復元しました（第${result.data.prompt.generation}世代として保存）`);
+      toast.show('AI設定', `第${generation}世代の本文を使用しました（第${result.data.prompt.generation}世代として保存）`);
       await selectKey(selectedKey);
       await reloadList();
     }
   } catch (e) {
-    toast.show('AI設定', ( e.response && e.response.data && e.response.data.message ) || 'ロールバックに失敗しました', 'warning');
+    toast.show('AI設定', ( e.response && e.response.data && e.response.data.message ) || '復元に失敗しました', 'warning');
   }
   busy = false;
 };
