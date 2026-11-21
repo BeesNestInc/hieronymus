@@ -103,4 +103,5 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 ### AI連携
 * [AIによる伝票入力（MCP・スキル）](ai-integration.md)
 * [経費精算とAI（expense-mcp）](ai-integration.md#expense-mcp)
+* [AI管理とプロンプトの世代管理](ai-integration.md#ai管理とプロンプトの世代管理2026-11-20追加)
 * [経費精算](expense.md)

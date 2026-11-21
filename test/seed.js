@@ -126,7 +126,8 @@ const seed = async () => {
     administrable: false,
     companyManagement: false,
     inventoryManagement: false,
-    personnelManagement: false
+    personnelManagement: false,
+    aiManage: true
   });
 
   const creator = await findOrCreate(models.User, {
