@@ -688,6 +688,54 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
   // 利息行の次の行の「国税」（category=tax。源泉徴収額）を飲み込む通帳向け。
   // 飲み込まれた国税行は利息仕訳の源泉明細になり、自分の伝票にはならない
   const consumed = new Set();
+  // 国税行が単独起票されているとき、その伝票を解放して国税行を
+  // 未照合に戻す（利息行の源泉として吸収できるようにする）。
+  // 触ってよいのは「銀行行だけの1行伝票」（未承認・精算書由来でない）だけ
+  const releaseStandaloneSlipForRow = async (row) => {
+    try {
+      if ( !row.crossSlipDetailId ) {
+        return true;
+      }
+      const detail = await models.CrossSlipDetail.findByPk(row.crossSlipDetailId);
+      if ( !detail ) {
+        return true;
+      }
+      const slip = await models.CrossSlip.findByPk(detail.crossSlipId);
+      if ( !slip || slip.approvedAt || slip.expenseReportId ) {
+        return false;
+      }
+      const slipDetails = await models.CrossSlipDetail.findAll({
+        where: { crossSlipId: slip.id }
+      });
+      if ( slipDetails.length !== 1 ) {
+        return false;
+      }
+      const sourceLines = await models.BankStatementLine.findAll({
+        where: { crossSlipDetailId: { [Op.in]: slipDetails.map((d) => d.id) } }
+      });
+      if ( sourceLines.length !== 1 ) {
+        return false;
+      }
+      const owners = await models.BankStatement.findAll({
+        where: { id: { [Op.in]: [ ...new Set(sourceLines.map((l) => l.statementId)) ] } },
+        raw: true
+      });
+      if ( owners.some((o) => ( o.kind === 'settlement' )) ) {
+        return false;
+      }
+      await models.BankStatementLine.update({
+        status: 'unmatched',
+        crossSlipDetailId: null,
+        crossSlipId: null
+      }, { where: { crossSlipDetailId: { [Op.in]: slipDetails.map((d) => d.id) } } });
+      await models.CrossSlipDetail.destroy({ where: { crossSlipId: slip.id } });
+      await models.CrossSlip.destroy({ where: { id: slip.id } });
+      return true;
+    } catch (e) {
+      console.log('interest tax release skipped', e.message || e);
+      return false;
+    }
+  };
   // 国税行のサニティ: 納税の振替が誤って源泉として扱われないよう、
   // 利息額比の小额に限定する（2 x 利息額（下限100円）、上限1万円）
   const pickTaxLine = (interestLine, nextLine) => {
@@ -713,7 +761,17 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     const booking = bookingMap.get(line.id) || {};
     let detailEntries = [];
     if ( line.category === 'interest' ) {
-      const taxLine = pickTaxLine(line, lines[ idx + 1 ] || null);
+      // 国税行は通帳上の直後の行。未照合行はもちろん、先に単独起票されて
+      // いる場合（部分一括起票の後等）も、その1行伝票を解放して吸収する
+      // （国税行だけの伝票が残って利息と二重に載るのを防ぐ）
+      const lineIdx = allIndex.get(line.id);
+      const nextRow = ( lineIdx !== null && lineIdx !== undefined && ( lineIdx + 1 < allStatementLines.length ) ) ?
+        allStatementLines[ lineIdx + 1 ] : null;
+      let taxLine = pickTaxLine(line, nextRow || null);
+      if ( taxLine && ( taxLine.status !== 'unmatched' ) ) {
+        const released = await releaseStandaloneSlipForRow(taxLine);
+        taxLine = released ? taxLine : null;
+      }
       const details = await buildInterestDetails(line, statement, profile, taxLine);
       // 国税行を源泉明細に結び付けられたときだけ、その行を飲み込む
       if ( taxLine && details.some((detail) => ( Number( detail.statementLineId ) === Number( taxLine.id ) )) ) {

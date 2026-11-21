@@ -595,6 +595,39 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(bank.statementLineId, lines[0].id);
   });
 
+  it('bookLines: 国税行が先に単独起票されていても利息の源泉として吸収する', async () => {
+    // 部分一括起票の後等で国税行だけが1行伝票に起票されている場合、
+    // 利息行の起票時にその伝票を解放して源泉として吸収する
+    // （国税行だけの伝票が残って二重に載るのを防ぐ）
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-22', rawDescription: '利息', amountIn: 60, category: 'interest' },
+      { date: '2026-09-22', rawDescription: '国税', amountOut: 9, category: 'tax' }
+    ]);
+    // 国税行だけを先に起票しておく（1行伝票・借 出金仮 / 貸 銀行）
+    const first = await bookLines(statement, [ { lineId: lines[1].id } ], approver);
+    assert.lengthOf(first.slips, 1);
+    await reloadAll(lines);
+    assert.equal(lines[1].status, 'booked');
+    assert.isNull(lines[0].crossSlipDetailId);
+    // 利息行を起票 → 国税行を吸収して源泉明細になる
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 1);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slips[0].id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    const gensen = details[1];
+    assert.equal(Number(gensen.debitAmount), 9);
+    assert.equal(gensen.statementLineId, lines[1].id);
+    // 国税行は利息の伝票に紐付き、単独伝票は破棄されている
+    await lines[1].reload();
+    assert.equal(lines[1].status, 'booked');
+    assert.equal(Number(lines[1].crossSlipDetailId), gensen.id);
+    const gone = await models.CrossSlip.findByPk(first.slips[0].id);
+    assert.isNull(gone);
+  });
+
   it('bookLines: 国税の納税振替は利息と合算しない（額が大きすぎ）', async () => {
     // 同じ日の国税行でも額が利息を大きく上回るなら、それは納税の振替なので
     // 普通の出金行（仮入科目）として扱う
