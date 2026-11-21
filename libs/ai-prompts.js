@@ -55,7 +55,7 @@ export const listPrompts = async () => {
     const active = await getActive(key);
     const versions = await models.PromptTemplateVersion.findAll({
       where: { key: key },
-      attributes: [ 'generation', 'createdAt', 'createdBy' ],
+      attributes: [ 'generation', 'memo', 'createdAt', 'createdBy' ],
       order: [[ 'generation', 'DESC' ]],
       raw: true
     });
@@ -86,7 +86,7 @@ export const materializeActive = async (key = null) => {
 };
 
 // 保存: bodyを新世代として積み、runtimeに反映する
-export const savePrompt = async (key, body, user) => {
+export const savePrompt = async (key, body, user, memo = null) => {
   if ( !PROMPT_KEYS.some((p) => p.key === key) ) {
     const err = new Error(`不明な用途キーです: ${key}`);
     err.name = 'PromptError';
@@ -106,6 +106,7 @@ export const savePrompt = async (key, body, user) => {
     key: key,
     generation: generation,
     body: body,
+    memo: memo,
     createdBy: ( user && user.id ) || null,
     createdAt: new Date()
   });
@@ -114,7 +115,7 @@ export const savePrompt = async (key, body, user) => {
 };
 
 // ロールバック: 指定世代の本文を新世代にコピーする（履歴は残る）
-export const rollbackPrompt = async (key, generation, user) => {
+export const rollbackPrompt = async (key, generation, user, memo = null) => {
   const row = await models.PromptTemplateVersion.findOne({
     where: { key: key, generation: Number(generation) }
   });
@@ -123,11 +124,41 @@ export const rollbackPrompt = async (key, generation, user) => {
     err.name = 'PromptError';
     throw err;
   }
-  return await savePrompt(key, row.body, user);
+  return await savePrompt(key, row.body, user, memo || row.memo);
+};
+
+// 世代の説明を更新する
+export const setGenerationMemo = async (key, generation, memo, user) => {
+  const row = await models.PromptTemplateVersion.findOne({
+    where: { key: key, generation: Number(generation) }
+  });
+  if ( !row ) {
+    const err = new Error(`指定された世代がありません: ${generation}`);
+    err.name = 'PromptError';
+    throw err;
+  }
+  await row.update({ memo: memo });
+  return { key: key, generation: Number(generation), memo: memo };
+};
+
+// 世代を削除する（現世代の削除時は残った最大世代が現世代になる。
+// 全部消えればビルトインのフォールバックに戻る）
+export const deleteGeneration = async (key, generation) => {
+  const row = await models.PromptTemplateVersion.findOne({
+    where: { key: key, generation: Number(generation) }
+  });
+  if ( !row ) {
+    const err = new Error(`指定された世代がありません: ${generation}`);
+    err.name = 'PromptError';
+    throw err;
+  }
+  await row.destroy();
+  await materializeActive(key);
+  return { key: key, deleted: Number(generation) };
 };
 
 // ビルトインに戻す: ビルトイン本文を新世代として積む（フォールバック
 // ではなく明示的に積むので履歴が残る）
-export const resetPrompt = async (key, user) => {
-  return await savePrompt(key, builtinBody(key), user);
+export const resetPrompt = async (key, user, memo = null) => {
+  return await savePrompt(key, builtinBody(key), user, memo);
 };

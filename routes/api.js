@@ -60,6 +60,8 @@ router.get('/prompts/:key', prompts.get);
 router.put('/prompts/:key', prompts.save);
 router.post('/prompts/:key/rollback', prompts.rollback);
 router.post('/prompts/:key/reset', prompts.reset);
+router.put('/prompts/:key/memo', prompts.memo);
+router.delete('/prompts/:key/generation/:generation', prompts.deleteGeneration);
 
 router.get('/user', user.get);
 router.get('/user/:id', user.get);

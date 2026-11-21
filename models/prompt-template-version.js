@@ -16,6 +16,8 @@ export default (sequelize, DataTypes) => {
 		key: DataTypes.STRING(64),
 		generation: DataTypes.INTEGER,
 		body: DataTypes.TEXT,
+		// 世代の説明（何を変えた世代か）
+		memo: DataTypes.STRING(200),
 		createdBy: DataTypes.INTEGER,
 		createdAt: DataTypes.DATE
 	}, {

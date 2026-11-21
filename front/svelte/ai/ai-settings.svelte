@@ -30,6 +30,9 @@
       { ( prompts.find((p) => p.key === selectedKey) || {} ).title } — 現世代: { current.generation !== null ? `第${current.generation}世代` : 'ビルトイン（未改変）' }
     </div>
     <div class="d-flex mb-2" style="gap:8px;">
+      <input type="text" class="form-control form-control-sm" style="width:260px;"
+        bind:value={generationMemo} placeholder="この世代の説明（何を変えたか）"
+        title="履歴に残る説明">
       <button type="button" class="btn btn-primary btn-sm" disabled={busy || body === current.body}
         on:click={save}>保存（新しい世代として）</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" disabled={busy || current.generation === null}
@@ -57,18 +60,27 @@
       {#if ( current.versions && current.versions.length > 0 )}
       <table class="table table-sm table-bordered mb-1" style="font-size:0.8rem;width:auto;">
         <thead class="table-light">
-          <tr><th style="width:5rem;">世代</th><th style="width:9.5rem;">作成日時</th><th style="width:8rem;"></th></tr>
+          <tr><th style="width:9.5rem;">作成日時</th><th style="width:18rem;">説明</th><th style="width:10rem;"></th></tr>
         </thead>
         <tbody>
           {#each current.versions as v}
           <tr class:table-active={ current.generation === v.generation }>
-            <td style="white-space:nowrap;">第{v.generation}世代</td>
             <td style="white-space:nowrap;">{compactDateTime(v.createdAt)}</td>
             <td>
-              <button type="button" class="btn btn-sm btn-outline-secondary"
+              <input type="text" class="form-control form-control-sm" style="min-width:14rem;"
+                value={v.memo || ''} disabled={busy}
+                title="この世代の説明（履歴に残る。保存で世代も残る）"
+                on:change={(e) => { saveMemo(v.generation, e.target.value); }}>
+            </td>
+            <td style="white-space:nowrap;">
+              <button type="button" class="btn btn-sm btn-outline-secondary me-1"
                 disabled={busy || ( current.generation === v.generation )}
                 title="この世代の本文を現在の内容として使う（新しい世代として保存する）"
-                on:click={() => { rollback(v.generation); }}>この世代を使用</button>
+                on:click={() => { rollback(v.generation); }}>これを使用</button>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                disabled={busy}
+                title="この世代を削除します（現世代を削除したときは残った最大世代が現世代になる）"
+                on:click={() => { deleteVersion(v.generation); }}>削除</button>
             </td>
           </tr>
           {/each}
@@ -110,6 +122,7 @@ let body = '';
 let showBuiltin = false;
 let loading = true;
 let busy = false;
+let generationMemo = '';
 
 const selectKey = async (key) => {
   selectedKey = key;
@@ -139,7 +152,8 @@ const reloadList = async () => {
 const save = async () => {
   busy = true;
   try {
-    const result = await axios.put(`/api/prompts/${selectedKey}`, { body: body });
+    const result = await axios.put(`/api/prompts/${selectedKey}`, { body: body, memo: generationMemo });
+    generationMemo = '';
     if ( result.data && result.data.code === 0 ) {
       toast.show('AI設定', `保存しました（第${result.data.prompt.generation}世代）`);
       await selectKey(selectedKey);
@@ -162,6 +176,33 @@ const rollback = async (generation) => {
     }
   } catch (e) {
     toast.show('AI設定', ( e.response && e.response.data && e.response.data.message ) || '復元に失敗しました', 'warning');
+  }
+  busy = false;
+};
+
+// 世代の説明を保存する（行の入力確定時に呼ぶ）
+const saveMemo = async (generation, memo) => {
+  try {
+    await axios.put(`/api/prompts/${selectedKey}/memo`, { generation: generation, memo: memo });
+    await reloadList();
+  } catch (e) {
+    toast.show('AI設定', ( e.response && e.response.data && e.response.data.message ) || '説明の保存に失敗しました', 'warning');
+  }
+};
+
+// 世代を削除する（現世代を削除したときは残った最大世代が現世代になる）
+const deleteVersion = async (generation) => {
+  if ( !window.confirm(`第${generation}世代を削除しますか？（現世代だった場合は残った最大世代が現世代になります）`) ) {
+    return;
+  }
+  busy = true;
+  try {
+    await axios.delete(`/api/prompts/${selectedKey}/generation/${generation}`);
+    toast.show('AI設定', '世代を削除しました');
+    await selectKey(selectedKey);
+    await reloadList();
+  } catch (e) {
+    toast.show('AI設定', ( e.response && e.response.data && e.response.data.message ) || '削除に失敗しました', 'warning');
   }
   busy = false;
 };

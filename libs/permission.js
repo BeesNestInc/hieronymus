@@ -171,7 +171,7 @@ const RULES = [
   // AI管理権限（aiManage）: プロンプトの世代管理とAI設定（llms群）。
   // /admin/llms は /admin 汎用ルール（administrable）より先に当てる
   { match: /^\/admin\/llms$/, methods: ['GET', 'PUT'], access: ['aiManage'] },
-  { match: /^\/prompts/, methods: ['GET', 'PUT', 'POST'], access: ['aiManage'] },
+  { match: /^\/prompts/, methods: ['GET', 'PUT', 'POST', 'DELETE'], access: ['aiManage'] },
 
   { match: /^\/admin/, access: ['administrable'] }
 ];

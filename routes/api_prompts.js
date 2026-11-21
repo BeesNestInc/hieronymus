@@ -1,6 +1,7 @@
 import models from '../models/index.js';
 import {
-  PROMPT_KEYS, listPrompts, getActive, savePrompt, rollbackPrompt, resetPrompt
+  PROMPT_KEYS, listPrompts, getActive, savePrompt, rollbackPrompt, resetPrompt,
+  setGenerationMemo, deleteGeneration
 } from '../libs/ai-prompts.js';
 
 // AI管理権限（aiManage）向け: プロンプトの世代管理。
@@ -45,7 +46,7 @@ export default {
   // 保存: 新世代として積む（ロールバック可能）
   save: async (req, res, next) => {
     try {
-      const result = await savePrompt(String(req.params.key), ( req.body || {} ).body, req.session.user);
+      const result = await savePrompt(String(req.params.key), ( req.body || {} ).body, req.session.user, ( req.body || {} ).memo || null);
       res.json({ code: 0, prompt: result });
     } catch (e) {
       res.status(422).json({ code: -1, message: e.message || 'プロンプトの保存に失敗しました。' });
@@ -60,10 +61,32 @@ export default {
         res.status(422).json({ code: -1, message: '世代が指定されていません。' });
         return;
       }
-      const result = await rollbackPrompt(String(req.params.key), generation, req.session.user);
+      const result = await rollbackPrompt(String(req.params.key), generation, req.session.user, ( req.body || {} ).memo || null);
       res.json({ code: 0, prompt: result });
     } catch (e) {
       res.status(422).json({ code: -1, message: e.message || 'ロールバックに失敗しました。' });
+    }
+  },
+
+  // 世代の説明を更新する
+  memo: async (req, res, next) => {
+    try {
+      const generation = parseInt(( req.body || {} ).generation);
+      const memo = ( req.body || {} ).memo;
+      const result = await setGenerationMemo(String(req.params.key), generation, memo, req.session.user);
+      res.json({ code: 0, prompt: result });
+    } catch (e) {
+      res.status(422).json({ code: -1, message: e.message || '説明の更新に失敗しました。' });
+    }
+  },
+
+  // 世代を削除する（現世代の削除時は残った最大世代が現世代になる）
+  deleteGeneration: async (req, res, next) => {
+    try {
+      const result = await deleteGeneration(String(req.params.key), parseInt(req.params.generation));
+      res.json({ code: 0, prompt: result });
+    } catch (e) {
+      res.status(422).json({ code: -1, message: e.message || '世代の削除に失敗しました。' });
     }
   },
 
