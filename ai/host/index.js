@@ -13,10 +13,15 @@ import { kaikeiMcpTools } from './mcp-tools.js';
 
 const hostRoot = path.dirname(fileURLToPath(import.meta.url));
 // テンプレートの既定位置。bin/www / mocha 以外の入口でも成立させるため、
-// 未指定のときだけ設定する（明示指定があれば尊重）
+// 未指定のときだけ設定する（明示指定があれば尊重）。
+// TEMPLATE_DIRはDBで世代管理されたプロンプトのマテリアライズ先
+// （runtime/prompt-templates）。起動時にDBの現世代（無ければビルトイン）
+// を書き出して供給する（manifest-engine自体は無改修）。
+import { materializeActive } from '../../libs/ai-prompts.js';
 if ( !process.env.TEMPLATE_DIR ) {
-  process.env.TEMPLATE_DIR = path.resolve(hostRoot, '../prompt-templates');
+  process.env.TEMPLATE_DIR = path.resolve(hostRoot, '../../runtime/prompt-templates');
 }
+await materializeActive();
 // engine の LLM 失敗時リトライ既定（3）だと精算の再認識などの単発処理で
 // 待たされる。旧 vision 実装（リトライ1回まで）に合わせる。深追いしたい
 // 場合は明示的に設定して上書き

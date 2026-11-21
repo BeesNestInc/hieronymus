@@ -399,6 +399,22 @@ export default [
       }
     ]
   }, {
+    // ---- 管理: AI管理権限向け ----
+    name: 'ai-settings',
+    section: 'admin',
+    title: 'AI設定',
+    authority: (user) => {
+      return  (user.aiManage);
+    },
+    href: (status) => {
+      return	('/ai-settings');
+    },
+    match: /^\/ai-settings/,
+    icon: { name: 'bi:robot' },
+    description: `
+AIの動作設定です。読み取りプロンプトの世代管理（編集・ロールバック）と、
+API設定（モデル・キー）の操作ができます。`
+  }, {
     // ---- 管理: 管理者向け ----
     name: 'users',
     section: 'admin',

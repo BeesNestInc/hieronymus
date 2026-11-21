@@ -2,7 +2,7 @@
   {#if ( status.user.accounting && aiAvailable === false )}
   <div class="col-12" style="padding:10px;">
     <MessagePanel level="info"
-      messages={["AIの設定がありません。証憑のOCRや明細画像の取り込み、ルール候補のAI提案を使うには、管理者ホームの「AI設定」パネルから設定してください。"]}></MessagePanel>
+      messages={["AIの設定がありません。証憑のOCRや明細画像の取り込み、ルール候補のAI提案を使うには、AI管理権限を持つユーザーがホームの「AI設定」パネルから設定してください。"]}></MessagePanel>
   </div>
   {/if}
 </div>
@@ -171,7 +171,7 @@
   {/if}
 </div>
 <div class="row">
-  {#if ( status.user.administrable) }
+  {#if ( status.user.aiManage) }
   <div class="col-6" style="padding:10px;">
     <AiSettings
       title={'AI設定'}

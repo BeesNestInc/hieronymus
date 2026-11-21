@@ -41,6 +41,7 @@ import TransactionDocument from './transaction-document.js';
 import TransactionDetail from './transaction-detail.js';
 import TransactionKind from './transaction-kind.js';
 import User from './user.js';
+import PromptTemplateVersion from './prompt-template-version.js';
 import Voucher from './voucher.js';
 import VoucherClass from './voucherclass.js';
 import VoucherFile from './voucherfile.js';
@@ -106,6 +107,7 @@ const models = {
   TransactionDetail: TransactionDetail(sequelize, DataTypes),
   TransactionKind: TransactionKind(sequelize, DataTypes),
   User: User(sequelize, DataTypes),
+  PromptTemplateVersion: PromptTemplateVersion(sequelize, DataTypes),
   Voucher: Voucher(sequelize, DataTypes),
   VoucherClass: VoucherClass(sequelize, DataTypes),
   VoucherFile: VoucherFile(sequelize, DataTypes)

@@ -18,6 +18,7 @@ import voucher from './api_voucher.js';
 import user from './api_user.js';
 import transaction from './api_transaction_document.js';
 import admin from './api_admin.js';
+import prompts from './api_prompts.js';
 import changes from './api_changes.js';
 import setup from './api_setup.js';
 import item from './api_item.js';
@@ -53,6 +54,12 @@ router.post('/admin/upload', admin.upload);
 router.delete('/admin/backup/:date', admin.delete);
 router.get('/admin/llms', admin.llmsGet);
 router.put('/admin/llms', admin.llmsPut);
+
+router.get('/prompts', prompts.list);
+router.get('/prompts/:key', prompts.get);
+router.put('/prompts/:key', prompts.save);
+router.post('/prompts/:key/rollback', prompts.rollback);
+router.post('/prompts/:key/reset', prompts.reset);
 
 router.get('/user', user.get);
 router.get('/user/:id', user.get);

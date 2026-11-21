@@ -127,6 +127,9 @@ export default {
         if  ( req.body.approvable !== undefined )   {
           user.approvable = req.body.approvable;
         }
+        if  ( req.body.aiManage !== undefined )    {
+          user.aiManage = req.body.aiManage;
+        }
         if  ( req.body.inventoryManagement !== undefined )    {
           user.inventoryManagement = req.body.inventoryManagement;
         }

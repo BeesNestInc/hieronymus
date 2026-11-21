@@ -62,6 +62,8 @@ export default (sequelize, DataTypes) => {
     companyManagement: DataTypes.BOOLEAN,
     inventoryManagement: DataTypes.BOOLEAN,
     personnelManagement: DataTypes.BOOLEAN,
+    // AI管理（プロンプト編集・AI設定の操作）
+    aiManage: DataTypes.BOOLEAN,
     // 予定表ICSフィードのトークン。購読クライアント（Googleカレンダー等）は
     // セッションCookieを持てないため、トークン付きURLで認証する
     feedToken: DataTypes.STRING(64)

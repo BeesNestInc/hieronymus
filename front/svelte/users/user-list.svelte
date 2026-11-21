@@ -78,6 +78,12 @@
             }}>
         	</td>
           <td class="checkbox">
+            <input type="checkbox" class="w-100" bind:checked={line.aiManage}
+              on:change={() => {
+                change(line);
+              }}>
+        	</td>
+          <td class="checkbox">
             <input type="checkbox" class="w-100" bind:checked={line.personnelManagement}
               on:change={() => {
                 change(line);

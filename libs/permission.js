@@ -86,6 +86,9 @@ const RULES = [
   { match: /^\/bank_statement\/profile$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/bank_statement\/profile_draft$/, methods: ['POST'], access: ['accounting'] },
   { match: /^\/bank_statement\/\d+\/(match|book|rebook)$/, methods: ['POST'], access: ['accounting'] },
+  // 統合候補の参照と実行（計算書ビューの「入金仮伝票と統合」）
+  { match: /^\/bank_statement\/\d+\/merge_candidates$/, methods: ['GET'], access: ['accounting'] },
+  { match: /^\/bank_statement\/\d+\/merge_settlement$/, methods: ['POST'], access: ['accounting'] },
   // settle は計算書（kind: settlement）の1伝票化起票。link_settlement は
   // 通帳の入金行を計算書伝票の預金明細へ紐付ける。どちらも起票に準ずる
   // 会計操作（この2つは追加時に許可表が追従しておらず403石碑になっていた）
@@ -164,6 +167,11 @@ const RULES = [
   { match: /^\/menu\/templates$/, methods: ['GET'], access: ANY },
   { match: /^\/menu\/publish/, methods: ['POST'], access: ['administrable'] },
   { match: /^\/menu(\/\d+)?$/, methods: ['GET', 'POST', 'PUT', 'DELETE'], access: ANY },
+
+  // AI管理権限（aiManage）: プロンプトの世代管理とAI設定（llms群）。
+  // /admin/llms は /admin 汎用ルール（administrable）より先に当てる
+  { match: /^\/admin\/llms$/, methods: ['GET', 'PUT'], access: ['aiManage'] },
+  { match: /^\/prompts/, methods: ['GET', 'PUT', 'POST'], access: ['aiManage'] },
 
   { match: /^\/admin/, access: ['administrable'] }
 ];
