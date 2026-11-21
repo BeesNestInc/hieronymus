@@ -1759,7 +1759,11 @@ const runBook = async (givenBookings = null) => {
       cardSuggestions = cardSuggestions.filter((s) => !bookedLineIds.includes(s.lineId));
       settlementDeposits = settlementDeposits.filter((s) => !bookedLineIds.includes(s.lineId));
       // 仮起票の伝票を確認できた分だけ「後の処理」で差し替わる（次回の突合時）
-      toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち。ルール未命中は仮入科目になります）`);
+      const rulesUsed = ( result.data.rulesUsed || [] )
+        .map((r) => `${r.pattern} → ${r.account}`);
+      const rulesNote = ( rulesUsed.length > 0 ) ?
+        ` 使用したルール: ${rulesUsed.join('、')}` : '';
+      toast.show('明細取込', `${result.data.slips.length}枚の伝票を起票しました（承認待ち。ルール未命中は仮入科目になります）${rulesNote}`);
       // 単行起票のときは、作った伝票の画面へ直接行く（確認・修正・証憑紐付け）
       if ( bookings.length === 1 && result.data.slips.length > 0 ) {
         const slip = result.data.slips[ 0 ];
@@ -2557,11 +2561,19 @@ const applyRule = async (ruleId = null) => {
       rebookIds.push(line.id);
     }
   }
+  let appliedRulesNote = '';
   if ( bookIds.length > 0 ) {
     await axios.post(`/api/bank_statement/${id}/book`, {
       bookings: bookIds.map((lineId) => ({ lineId: lineId })),
       // usageCountに頼らない: ユーザーが選んだ（いま保存した）ルールを強制適用
       applyRuleId: ruleId
+    }).then((result) => {
+      // 使用したルールのサマリをトーストに反映する（隠れたルール禁止）
+      const rulesUsed = ( result.data && result.data.rulesUsed || [] )
+        .map((r) => `${r.pattern} → ${r.account}`);
+      if ( rulesUsed.length > 0 ) {
+        appliedRulesNote = ` 使用したルール: ${rulesUsed.join('、')}`;
+      }
     });
   }
   if ( rebookIds.length > 0 ) {
@@ -2595,7 +2607,9 @@ const createRule = async (apply = false) => {
       closeRulesModal();
     }
     await reloadRules();
-    toast.show('学習ルール', ( applied !== null ) ? `ルールを登録し、一致する${applied}行に適用しました` : 'ルールを登録しました');
+    toast.show('学習ルール', ( applied !== null ) ?
+      `ルールを登録し、一致する${applied}行に適用しました。${appliedRulesNote}` :
+      'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '登録に失敗しました';

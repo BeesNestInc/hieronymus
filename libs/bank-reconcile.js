@@ -618,10 +618,11 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
           continue;
         }
         const index = allLines.indexOf(target);
-        // 前方（直前）: 合流摘要の手数料は、同じ日の未照合の直前行（主取引）を
-        // 一緒に起票の対象にする（主取引は仮入科目で起票され、手数料が合流する。
-        // ルール手数料だけが先に起票されないようにする）
-        if ( ( target.category === 'fee' ) && isMergeable(target, mergePatterns) ) {
+        // 前方（直前）: 合流摘要（merge=trueルールに当たる行。feeに限らない:
+        // 国税(tax)など）のtargetは、同じ日の未照合の直前行（主取引）を
+        // 一緒に起票の対象にする（主取引は仮入科目で起票され、合流摘要が
+        // その伝票に合流する。合流摘要だけが先に起票されないようにする）
+        if ( isMergeable(target, mergePatterns) ) {
           for ( let i = index - 1; i >= 0; i -- ) {
             const leader = allLines[ i ];
             if ( toDateString(leader.date || '') !== toDateString(target.date || '') ) {
@@ -650,12 +651,14 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
           if ( follower.status !== 'unmatched' ) {
             break;
           }
-          // 一緒に起票するのは手数料系の行だけ:
-          // - 合流摘要（merge=trueのルールの摘要）に一致する行
-          // - 主取引行がアンカー（merge=trueルールに当たる主摘要）のときの直後の行
+          // 一緒に起票するのは:
+          // - 合流摘要（merge=trueのルールの摘要）に一致する行（categoryは問わない:
+          //   国税(tax)などfee以外の合流摘要もある）
+          // - 主取引行がアンカー（merge=trueルールに当たる主摘要）のときの直後の
+          //   手数料系の行
           // それ以外（主取引）は自分の伝票になる
           const followerFee = ( follower.category === 'fee' );
-          if ( followerFee && ( isMergeable(follower, mergePatterns) || isMergeable(target, mergePatterns) ) ) {
+          if ( isMergeable(follower, mergePatterns) || ( followerFee && isMergeable(target, mergePatterns) ) ) {
             if ( !targetIds.includes(follower.id) ) {
               targetIds.push(follower.id);
             }
@@ -753,6 +756,8 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     return nextLine;
   };
   let prevGroup = null;
+  // 使用した学習ルールの収集（起票結果でユーザーに提示する。「隠れたルール」禁止）
+  const rulesUsedMap = new Map();
   for ( let idx = 0; idx < lines.length; idx ++ ) {
     const line = lines[ idx ];
     if ( consumed.has(line.id) ) {
@@ -783,7 +788,10 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
         detailEntries = details.map((detail) => ({ detail: detail, line: line }));
       }
     } else {
-      detailEntries = ( await buildLineDetails(line, statement, booking, { forcedRule: forcedRule, financialRules: financialRules }) ).map((detail) => ({ detail: detail, line: line }));
+      detailEntries = ( await buildLineDetails(line, statement, booking, {
+        forcedRule: forcedRule, financialRules: financialRules,
+        onRule: (rule) => { rulesUsedMap.set(rule.id, rule); }
+      }) ).map((detail) => ({ detail: detail, line: line }));
     }
     const key = toDateString(line.date || detailEntries[ 0 ].detail._date || new Date());
     // 合流の意味づけ:
@@ -805,9 +813,14 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     // 自分の摘要に関係なく吸収される
     const prevIsAnchor = Boolean(prevLine && isMergeable(prevLine, mergePatterns));
     const autoFlow = ( targetIds.length === 0 );
+    // 合流摘要（merge=trueルールに当たる行）のうち、follower系のcategory
+    // （fee=手数料系 / tax=国税など）は直前の同じ日の伝票に合流する。
+    // mergeHitでも主取引（normal等）はアンカーとして自分の伝票を持つ
+    const followerMerge = mergeHit && ( ( line.category === 'fee' ) || ( line.category === 'tax' ) );
     let group = null;
-    if ( ( line.category === 'fee' ) && prevSameDay &&
-         ( mergeHit || prevIsAnchor || ( prevGroup && prevGroup.anchor && prevInGroup ) ) ) {
+    if ( prevSameDay &&
+         ( followerMerge ||
+           ( ( line.category === 'fee' ) && ( prevIsAnchor || ( prevGroup && prevGroup.anchor && prevInGroup ) ) ) ) ) {
       if ( prevInGroup ) {
         // 直前行の伝票（このパスで作る予定のもの。既存伝票への追記グループも含む）に合流
         group = prevGroup;
@@ -823,8 +836,8 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
     }
     if ( group ) {
       group.lastLineId = line.id;
-    } else if ( autoFlow && ( line.category === 'fee' ) && mergeHit ) {
-      // 合流摘要の手数料は、合流先がなければ起票しない（未照合のまま残す）
+    } else if ( autoFlow && followerMerge ) {
+      // follower系の合流摘要は、合流先がなければ起票しない（未照合のまま残す）
       continue;
     } else {
       group = { date: key, entries: [], anchor: mergeHit, lastLineId: line.id };
@@ -918,7 +931,13 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
       console.log('auto deposit merge skipped', e.message || e);
     }
   }
-  return { slips: created, bookedIds: bookedIds };
+  // 使用したルールのサマリ（pattern→相手方。ユーザーの把握用に提示する）
+  const rulesUsed = [ ...rulesUsedMap.values() ].map((r) => ( {
+    id: r.id, pattern: r.pattern, direction: r.direction,
+    account: r.oppositeAccount, sub: r.oppositeSubAccount,
+    usageCount: r.usageCount
+  } ));
+  return { slips: created, bookedIds: bookedIds, rulesUsed: rulesUsed };
 };
 
 // 通帳取り込みの明細が未承認の計算書伝票と統合できるか探す（計算書を

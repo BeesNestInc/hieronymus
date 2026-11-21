@@ -708,7 +708,9 @@ export default {
       res.json({
         code: 0,
         slips: result.slips.map((slip) => ({ id: slip.id, year: slip.year, month: slip.month, no: slip.no })),
-        lines: fresh.lines.map(lineToJSON)
+        lines: fresh.lines.map(lineToJSON),
+        // 使用した学習ルールのサマリ（隠れたルール禁止。ユーザーの把握用）
+        rulesUsed: result.rulesUsed || []
       });
     } catch (e) {
       console.error(e);
