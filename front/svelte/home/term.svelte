@@ -26,7 +26,8 @@
           </th>
         </thead>
         <tbody>
-          {#each lines as line}
+          {#if ( lines )}
+      {#each lines as line}
           <tr>
             <td>
               {#if ( line.term != status.fy.term)}
@@ -82,6 +83,7 @@
             </td>
           </tr>
           {/each}
+      {/if}
         </tbody>
       </table>
     </div>
@@ -109,7 +111,9 @@ let lines = [];
 const change = (line) => {
   //console.log('change', line)
   axios.put(`/api/term/${line.id}`, line).then((result) => {
-    lines = undefined;
+    // reload()で取得し直す（undefinedにすると{#each}が壊れて画面全体が
+    // 操作できなくなる）
+    reload();
   }).catch((e) => {
     if ( e.response && e.response.status === 423 ) {
       alert('この年度は確定済みのため変更できません。');
