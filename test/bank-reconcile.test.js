@@ -595,6 +595,46 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(bank.statementLineId, lines[0].id);
   });
 
+  it('bookLines: 国税行に学習済みルール（法人税住民税等）があるときはその科目で源泉明細に載る', async () => {
+    // 「見えてる通りに動く」鉄則: 国税行にユーザーのルール（預り金/法人税住民税等）
+    // があるときは、利息テンプレの源泉所得税ではなくルールの科目で源泉明細に載る
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-27', rawDescription: '利息', amountIn: 11, category: 'interest' },
+      { date: '2026-09-27', rawDescription: '国税', amountOut: 1, category: 'tax' }
+    ]);
+    // ユーザーのルール: 国税 → 1140000（預り金）の補助5（法人税住民税等の体）
+    const ruleFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    });
+    const rule = await models.BankStatementRule.create({
+      financialId: ruleFinancial.id,
+      pattern: makePattern('国税'),
+      direction: 'out',
+      oppositeAccount: '1140000',
+      oppositeSubAccount: 5,
+      usageCount: 0
+    });
+    const result = await bookLines(statement, null, approver);
+    assert.lengthOf(result.slips, 1);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slips[0].id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    await reloadAll(lines);
+    const gensen = details[1];
+    assert.equal(Number(gensen.debitAmount), 1);
+    assert.equal(gensen.statementLineId, lines[1].id);
+    // 源泉明細の科目はユーザーのルールのもの（利息テンプレの源泉ではない）
+    assert.equal(gensen.debitAccount, '1140000');
+    assert.equal(Number(gensen.debitSubAccount), 5);
+    await models.BankStatementRule.destroy({ where: { id: rule.id } });
+  });
+
   it('bookLines: 国税行が先に単独起票されていても利息の源泉として吸収する', async () => {
     // 部分一括起票の後等で国税行だけが1行伝票に起票されている場合、
     // 利息行の起票時にその伝票を解放して源泉として吸収する
@@ -626,6 +666,55 @@ describe('bank-reconcile (test db)', () => {
     assert.equal(Number(lines[1].crossSlipDetailId), gensen.id);
     const gone = await models.CrossSlip.findByPk(first.slips[0].id);
     assert.isNull(gone);
+  });
+
+  it('bookLines: 国税行にmerge=trueのルールを「摘要して保存」すると利息の源泉として合流する', async () => {
+    // 国税行（tax）はfee以外の合流摘要としても機能する（ユーザー操作:
+    // 国税行をクリック→ルールをmerge=trueで作成→「摘要して保存」）。
+    // 国税行単独の伝票ではなく、直前の利息行の伝票の源泉明細に合流する
+    const { statement, lines } = await createStatement('bank', [
+      { date: '2026-09-26', rawDescription: '利息', amountIn: 11, category: 'interest' },
+      { date: '2026-09-26', rawDescription: '国税', amountOut: 1, category: 'tax' }
+    ]);
+    // 国税行にmerge=trueのルールを作る（摘要して保存相当: その行への適用）
+    const ruleFinancial = await findOrCreate(models.Financial, {
+      accountCode: '1010010',
+      subAccountCode: null
+    }, {
+      name: 'テスト通帳', kind: 'bank',
+      accountCode: '1010010', subAccountCode: null
+    });
+    const rule = await models.BankStatementRule.create({
+      financialId: ruleFinancial.id,
+      pattern: makePattern('国税'),
+      direction: null,
+      merge: true,
+      match: true,
+      usageCount: 0
+    });
+    const result = await bookLines(statement, [ { lineId: lines[1].id } ], approver,
+      { applyRuleId: rule.id, includeMergeAfter: true });
+    // 利息行と国税行が1枚の伝票になる（国税は源泉明細に）
+    assert.lengthOf(result.slips, 1);
+    const details = await models.CrossSlipDetail.findAll({
+      where: { crossSlipId: result.slips[0].id },
+      order: [[ 'lineNo', 'ASC' ]]
+    });
+    assert.lengthOf(details, 2);
+    await reloadAll(lines);
+    assert.equal(lines[0].status, 'booked');
+    assert.equal(lines[1].status, 'booked');
+    const gensen = details[1];
+    assert.equal(Number(gensen.debitAmount), 1);
+    assert.equal(Number(gensen.statementLineId), lines[1].id);
+    // 借方 普通預金は総額−源泉（11−1=10）。受取利息の貸方合計は
+    // この明細(10)+源泉明細(1)=総額11になる
+    const bank = details[0];
+    assert.equal(Number(bank.debitAmount), 10);
+    assert.equal(Number(bank.creditAmount), 10);
+    assert.equal(bank.statementLineId, lines[0].id);
+    // 作ったルールを片付ける（以降のテストの国税行の照合に影響しないように）
+    await models.BankStatementRule.destroy({ where: { id: rule.id } });
   });
 
   it('bookLines: 国税の納税振替は利息と合算しない（額が大きすぎ）', async () => {

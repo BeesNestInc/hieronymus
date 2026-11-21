@@ -365,14 +365,24 @@ export const suggestCardPayments = async (statement, profiles = null) => {
 //   税込（総額）として扱うので、普通預金の借方は「利息額−源泉額」になる
 // - 国税行がなければ利息行の金額を税引後とみなし、源泉率から税抜額を逆算する
 // 源泉額が丸めて0になる場合は受取利息のみの1行（2側）にする。
-const buildInterestDetails = async (line, statement, profile, taxLine = null) => {
+const buildInterestDetails = async (line, statement, profile, taxLine = null, financialRules = []) => {
   const conf = { ...INTEREST_DEFAULTS, ...( ( profile && profile.interest ) || {} ) };
   const amountIn = Number(( line.amountIn !== null && line.amountIn !== undefined ) ? line.amountIn : line.amountOut);
   let gross;
   let withheld;
+  // 国税行自身に学習済みルールがある（ユーザーの指示が見えている）ときは
+  // 源泉明細の科目にそのルールを使う（利息テンプレの源泉所得税の代わり。
+  // 「見えてる通りに動く」鉄則）
+  let taxRuleAccount = null;
+  let taxRuleSubAccount = null;
   if ( taxLine ) {
     gross = amountIn;
     withheld = Number(taxLine.amountOut) || 0;
+    const taxRule = findLearnedRule(financialRules, makePattern(taxLine.rawDescription || taxLine.description || ''), 'out');
+    if ( taxRule && taxRule.oppositeAccount && !isTempAccount(taxRule.oppositeAccount) ) {
+      taxRuleAccount = taxRule.oppositeAccount;
+      taxRuleSubAccount = taxRule.oppositeSubAccount || null;
+    }
   } else {
     // 国税行がなければ明細の利息額を税引後とみなし、源泉率から税抜額を逆算する
     const rate = conf.rate;
@@ -402,7 +412,9 @@ const buildInterestDetails = async (line, statement, profile, taxLine = null) =>
     creditAmount: net
   };
   const details = [ bankSide ];
-  if ( withheld > 0 && withholdingAccount ) {
+  if ( withheld > 0 && ( taxRuleAccount || withholdingAccount ) ) {
+    withholdingAccount = taxRuleAccount || withholdingAccount;
+    withholdingSubAccount = ( taxRuleAccount !== null ) ? taxRuleSubAccount : withholdingSubAccount;
     // 伝票は借貸ペアで構成するため、源泉分を「借方 源泉所得税 / 貸方 受取利息」
     // の独立行にする（受取利息の貸方合計が税抜額になる）
     const gensenDetail = {
@@ -777,7 +789,7 @@ export const bookLines = async (statement, bookings, user, options = {}) => {
         const released = await releaseStandaloneSlipForRow(taxLine);
         taxLine = released ? taxLine : null;
       }
-      const details = await buildInterestDetails(line, statement, profile, taxLine);
+      const details = await buildInterestDetails(line, statement, profile, taxLine, financialRules);
       // 国税行を源泉明細に結び付けられたときだけ、その行を飲み込む
       if ( taxLine && details.some((detail) => ( Number( detail.statementLineId ) === Number( taxLine.id ) )) ) {
         consumed.add(taxLine.id);
