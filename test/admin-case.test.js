@@ -6,6 +6,8 @@ import {guard} from '../libs/permission.js';
 import voucherRoutes from '../routes/api_voucher.js';
 import expenseRoutes from '../routes/api_expense_report.js';
 import userRoutes from '../routes/api_user.js';
+import stickyRoutes from '../routes/api_sticky.js';
+import menuRoutes from '../routes/api_menu.js';
 
 // 管理者（administrableのみ）のケーススタディ。原則:
 //   * 「管理者」としてできるのはユーザー権限の操作（と管理領域の運用）
@@ -234,7 +236,90 @@ describe('管理者ケース（test db）', () => {
     });
   });
 
-  describe('ケース3: 権限操作を経由すればできる（仕様上容認の抜け道）', () => {
+  describe('ケース3: su原則（管理者でも他人の私的なデータは覗かない）', () => {
+    let othersSticky;
+    let othersMenu;
+    const myStickies = [];
+    const myMenus = [];
+
+    before(async () => {
+      // 従業員宛ての付箋と従業員のマイページ
+      othersSticky = await models.Sticky.create({
+        authorId: data.creator.id,
+        kind: 'memo',
+        message: '管理者ケース: 従業員のメモ'
+      });
+      await models.StickyStatus.create({
+        stickyId: othersSticky.id,
+        receiverId: data.creator.id
+      });
+      myStickies.push(othersSticky);
+      othersMenu = await models.Menu.create({
+        title: '管理者ケース: 従業員のマイページ',
+        userId: data.creator.id,
+        displayOrder: 99
+      });
+      myMenus.push(othersMenu);
+    });
+
+    after(async () => {
+      for ( const sticky of myStickies ) {
+        await models.StickyStatus.destroy({ where: { stickyId: sticky.id } });
+        await models.Sticky.destroy({ where: { id: sticky.id } });
+      }
+      for ( const menu of myMenus ) {
+        await models.Menu.destroy({ where: { id: menu.id } });
+      }
+    });
+
+    it('付箋（他人宛てのメッセージ）の一覧には他人の分は出ない', async () => {
+      // 付箋はreceiverId=meで絞り込まれており、管理者バイパスは無い
+      const r = await callHandler(stickyRoutes.list, reqFor(admin));
+      const ids = r._json.stickies.map((s) => s.id);
+      assert.notInclude(ids, othersSticky.id);
+    });
+
+    it('付箋の既読も削除も（他人の分は）できない', async () => {
+      const r = await callHandler(stickyRoutes.read, reqFor(admin,
+        { id: othersSticky.id }));
+      assert.equal(r._status, 403);
+      const r2 = await callHandler(stickyRoutes.delete, reqFor(admin,
+        { id: othersSticky.id }));
+      assert.equal(r2._json.code, -2, '作者でないので本体削除もできない');
+    });
+
+    it('他人のマイページは（管理者でも）読めない・書けない・消せない', async () => {
+      const r = await callHandler(menuRoutes.get, reqFor(admin,
+        { id: othersMenu.id }));
+      assert.equal(r._status, 403);
+      const r2 = await callHandler(menuRoutes.update, reqFor(admin,
+        { id: othersMenu.id }, { title: '書き換え' }));
+      assert.equal(r2._status, 403);
+      const r3 = await callHandler(menuRoutes.delete, reqFor(admin,
+        { id: othersMenu.id }));
+      assert.equal(r3._status, 403);
+      const saved = await models.Menu.findByPk(othersMenu.id);
+      assert.isOk(saved, 'ページは残っている');
+    });
+
+    it('自分のマイページとテンプレートは（管理者として）扱える', async () => {
+      // テンプレートの管理は管理者の正当な領域
+      const template = await models.Menu.create({
+        title: '管理者ケース: テンプレート',
+        userId: null,
+        displayOrder: 99
+      });
+      myMenus.push(template);
+      const r = await callHandler(menuRoutes.get, reqFor(admin,
+        { id: template.id }));
+      assert.isOk(r._json.menu, 'テンプレートは読める');
+      const r2 = await callHandler(menuRoutes.update, reqFor(admin,
+        { id: template.id }, { displayOrder: 98 }));
+      assert.isOk(r2._json.menu, 'テンプレートは更新できる');
+    });
+  });
+
+  describe('ケース4: 権限操作を経由すればできる（仕様上容認の抜け道）', () => {
     it('自分に会計権限を与えれば会計ができるようになる', async () => {
       // 「現実には自分に操作権を与えればできる」——その経路の実証。
       // administrable単体ではできないが、権限操作（自分への付与）で可能になる
