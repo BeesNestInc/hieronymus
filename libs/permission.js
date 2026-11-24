@@ -43,7 +43,10 @@ const RULES = [
   { match: /^\/voucher\/file\/?$/, methods: ['DELETE'], access: ANY },
 
   { match: /^\/cross_slip\/approve$/, methods: ['PUT'], access: ['approvable'] },
-  { match: /^\/cross_slip\/\d+\/\d+\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing'] },
+  // 伝票の読み取りは承認権限にも開ける（承認のために中身を見る必要が
+  // ある。ホームの承認待ちカードはここへリンクするので、上長・
+  // チームリーダーなど会計権限のない承認者も読めないと承認ができない）
+  { match: /^\/cross_slip\/\d+\/\d+\/\d+$/, methods: ['GET'], access: ['accounting', 'fiscalBrowsing', 'approvable'] },
   { match: /^\/cross_slips\/.+$/, methods: ['GET'], access: ANY },
   // 伝票の新規作成は会計・承認権限に限定する（一般ユーザーがAPIから直接
   // 伝票を起票しない。作成された伝票は承認状態管理の対象）

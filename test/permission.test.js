@@ -47,6 +47,7 @@ describe('API許可表（guardマトリクス）', () => {
     ['伝票の新規作成は会計に許可', 'accounting', 'POST', '/cross_slip', true],
     ['伝票の新規作成は承認権限に許可', 'approvable', 'POST', '/cross_slip', true],
     ['伝票の更新は承認権限だけでは拒否', 'approvable', 'PUT', '/cross_slip', false],
+    ['伝票の読み取りは承認権限にも許可（承認のために中身を見る）', 'approvable', 'GET', '/cross_slip/2026/10/1', true],
     ['伝票の更新は会計に許可', 'accounting', 'PUT', '/cross_slip', true],
     ['伝票の承認は承認権限に許可', 'approvable', 'PUT', '/cross_slip/approve', true],
     ['伝票の承認は会計だけでは拒否', 'accounting', 'PUT', '/cross_slip/approve', false],
