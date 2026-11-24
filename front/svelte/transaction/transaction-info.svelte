@@ -414,7 +414,8 @@ onMount(() => {
     console.log('company update', original_companys);
   });
   axios.get(`/api/transaction/kinds`).then((result) => {
-    transactionKinds = result.data.values;
+    // 連携専用種別（経費精算書の「精算書」等）は手動作成の選択肢に出さない
+    transactionKinds = result.data.values.filter((k) => ( !k.linked ));
     console.log({transactionKinds});
   });
   let date;

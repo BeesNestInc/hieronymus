@@ -315,6 +315,14 @@ export default {
         ]
       }).then(async (transaction) => {
         //console.log(JSON.stringify(transaction, ' ', 2));
+        // 経費精算書からの連携行は精算書側で編集する（取引管理からは不可）
+        if ( transaction && transaction.expenseReportId ) {
+          res.status(422).json({
+            code: -2,
+            message: 'この文書は経費精算書からの連携です。精算書側で編集してください。'
+          });
+          return;
+        }
         if ( await rejectIfTxLocked(transaction.issueDate, res) ) {
           return;
         }
@@ -391,6 +399,14 @@ export default {
     let id = parseInt(req.params.id);
     if  ( req.session.user.companyManagement )   {
       models.TransactionDocument.findByPk(id).then(async (transaction) => {
+        // 経費精算書からの連携行は精算書の削除に連動する（取引管理からは不可）
+        if ( transaction && transaction.expenseReportId ) {
+          res.status(422).json({
+            code: -2,
+            message: 'この文書は経費精算書からの連携です。精算書側で削除してください。'
+          });
+          return;
+        }
         if ( transaction && await rejectIfTxLocked(transaction.issueDate, res) ) {
           return;
         }

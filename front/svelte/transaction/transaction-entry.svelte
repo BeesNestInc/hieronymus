@@ -24,6 +24,14 @@
       <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={back}>もどる</button>
+        {#if ( transaction.expenseReportId )}
+        <!-- 経費精算書からの連携行は精算書側で編集する -->
+        {#if ( status.user && ( status.user.accounting || status.user.approvable || transaction.createdBy === status.user.id ) )}
+        <a class="btn btn-info" href="/expense/entry/{transaction.expenseReportId}">
+          精算書を開く <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+        {/if}
+        {:else}
         {#if ( transaction && transaction.id && transaction.id > 0 )}
         <button type="button" class="btn btn-danger" disabled={disabled}
           on:click={deleteTransaction}
@@ -40,6 +48,7 @@
         <button type="button" class="btn btn-primary" disabled={disabled}
           on:click={save}
           id="save-button">保存</button>
+        {/if}
         {#if ( transaction && transaction.id && transaction.id > 0 )}
         {#if ( transaction.kind.book && transaction.kind.book.form )}
         <a href="/forms/transaction/{transaction.kind.book.form}/{transaction.id}"

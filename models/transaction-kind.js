@@ -25,7 +25,10 @@ export default (sequelize, DataTypes) => {
     hasDocument: DataTypes.INTEGER,
     forCompany: DataTypes.BOOLEAN,
     forBook: DataTypes.BOOLEAN,
-    bookId: DataTypes.INTEGER
+    bookId: DataTypes.INTEGER,
+    // 連携専用種別（経費精算書の「精算書」等）。手動作成の種別selectには
+    // 出さず、文書の中身は元データ側で編集する
+    linked: DataTypes.BOOLEAN
   }, {
     sequelize,
     modelName: 'TransactionKind',

@@ -3,7 +3,7 @@ const Op = models.Sequelize.Op;
 import fs from 'fs';
 import Mime from 'mime';
 import { numeric } from '../libs/utils.js';
-import { createSlipForReport, pickPayeeMapping } from '../libs/expense.js';
+import { createSlipForReport, pickPayeeMapping, upsertTransactionForReport, removeTransactionForReport } from '../libs/expense.js';
 import { releaseStatementLines, findSpendMergeCandidates, mergeSpendIntoPlaceholder } from '../libs/bank-reconcile.js';
 import { findFiscalYearForTerm, isLocked } from '../libs/fiscal-lock.js';
 import * as vision from '../libs/vision.js';
@@ -175,6 +175,13 @@ export default {
         }
         await normalizePileVouchers(report.id, dated.map((d) => d.line));
       }
+      // 案件が設定された精算書は「精算書」種別の取引文書として投影する
+      // （取引管理の案件・顧客の文書一覧に出る）
+      try {
+        await upsertTransactionForReport(report);
+      } catch (e) {
+        console.error('transaction link failed:', e.message || e);
+      }
       const saved = await getReport(report.id);
       res.json(saved);
     } catch (e) {
@@ -238,6 +245,13 @@ export default {
           });
         }
         await normalizePileVouchers(report.id, dated.map((d) => d.line));
+      }
+      // 案件が設定された精算書は「精算書」種別の取引文書として投影する
+      // （取引管理の案件・顧客の文書一覧に出る）
+      try {
+        await upsertTransactionForReport(report);
+      } catch (e) {
+        console.error('transaction link failed:', e.message || e);
       }
       const saved = await getReport(report.id);
       res.json(saved);
@@ -446,6 +460,7 @@ export default {
       await models.ExpenseReportLine.destroy({
         where: { expenseReportId: report.id }
       });
+      await removeTransactionForReport(report.id);
       await report.destroy();
       res.json({ code: 0 });
     } catch (e) {
