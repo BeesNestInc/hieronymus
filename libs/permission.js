@@ -154,6 +154,11 @@ const RULES = [
   { match: /^\/user\/password$/, methods: ['PUT'], access: ANY },
   { match: /^\/user$/, methods: ['GET'], access: ANY },
   { match: /^\/user\/\d+$/, methods: ['GET'], access: ANY },
+  // 担当者候補（案件・取引の「担当」選択用）。handlerは社員の{id,名前}しか
+  // 返さない（連絡先・権限フラグ等は出ない）ので、GET /userのid+名前と同じ
+  // 理由で全員に開ける。開けないと営業（顧客管理）が担当を入れられない
+  // （案件・取引管理ページがこのリストを引いている）
+  { match: /^\/users\/member$/, methods: ['GET'], access: ANY },
   { match: /^\/users/, methods: ['GET'], access: ['administrable', 'personnelManagement', 'personnelBrowsing'] },
   { match: /^\/users/, methods: ['POST', 'PUT', 'DELETE'], access: ['administrable', 'personnelManagement'] },
   { match: /^\/user/, access: ['administrable'] },

@@ -301,6 +301,17 @@ describe('営業ケース（test db）', () => {
         { id: data.approver.id }));
       assert.equal(r._status, 403);
     });
+
+    it('ただし担当者候補（社員のid+名前）は読める（案件・取引の担当選択に必要）', async () => {
+      // 案件・取引管理ページの「担当」selectが引いているリスト。
+      // id+名前しか返さないので人事データではない（GET /userのid+名前と同じ）
+      assert.isTrue(guardAllowed(sales, '/users/member', 'GET'));
+      const r = await callHandler(userRoutes.members, reqFor(sales));
+      const entry = r._json.users.find((u) => ( u.id === data.creator.id ));
+      assert.isOk(entry, '社員の候補が出ている');
+      assert.deepEqual(Object.keys(entry).sort(), [ 'id', 'name' ],
+        'idと名前以外は返さない');
+    });
   });
 
   describe('ケース5: 従業員としての自分の経費は使える（ハイブリッド）', () => {

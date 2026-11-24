@@ -69,6 +69,7 @@ describe('API許可表（guardマトリクス）', () => {
     ['パスワード変更は（自分のなので）許可', 'plain', 'PUT', '/user/password', true],
     ['ユーザーの削除は一般に拒否', 'plain', 'DELETE', '/user/5', false],
     ['ユーザーの削除は管理権限に許可', 'admin', 'DELETE', '/user/5', true],
+    ['担当者候補（社員のid+名前）は全員に読める', 'plain', 'GET', '/users/member', true],
     ['口座の編集は一般に拒否', 'plain', 'PUT', '/financial/5', false],
     ['学習ルールの閲覧は一般に拒否', 'plain', 'GET', '/bank_statement_rule', false],
     ['証憑の更新は表ではANY（handlerが作成者/会計に絞り込む）', 'plain', 'PUT', '/voucher', true],
