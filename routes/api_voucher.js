@@ -8,11 +8,13 @@ import {isLocked, findFiscalYearForDate} from '../libs/fiscal-lock.js';
 
 const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
 
-// 承認済みの精算書の明細から参照されている証憑か。承認済み伝票の明細は
-// この証憑を指しているので、作成者であっても（会計権限がなければ）
-// 変更・削除・ファイル操作を許さない（承認されたデータは本人でも動かせない）
-const voucherInApprovedReport = async (voucherId) => {
-  return models.ExpenseReport.findOne({
+// 承認済みのデータ（精算書・伝票）の明細から参照されている証憑か。
+// 承認済み伝票の明細はこの証憑を指しているので、承認権限のない
+// ユーザー（作成者・会計権限を含む）には変更・削除・ファイル操作を
+// 許さない。承認を戻せるのは承認権限だけなので、承認済みデータに
+// 関わる変更は承認権限に限る
+const voucherInApprovedData = async (voucherId) => {
+  const report = await models.ExpenseReport.findOne({
     where: {
       approvedAt: { [Op.ne]: null }
     },
@@ -20,6 +22,25 @@ const voucherInApprovedReport = async (voucherId) => {
       model: models.ExpenseReportLine,
       as: 'lines',
       where: { voucherId: voucherId },
+      attributes: []
+    }],
+    attributes: [ 'id' ]
+  });
+  if ( report ) {
+    return report;
+  }
+  // 承認済み伝票の明細（伝票ビューで証憑を直接紐付けた場合）
+  return models.CrossSlipDetail.findOne({
+    where: {
+      [Op.or]: [
+        { debitVoucherId: voucherId },
+        { creditVoucherId: voucherId }
+      ]
+    },
+    include: [{
+      model: models.CrossSlip,
+      as: 'crossSlip',
+      where: { approvedAt: { [Op.ne]: null } },
       attributes: []
     }],
     attributes: [ 'id' ]
@@ -441,8 +462,9 @@ export default {
         res.json({code: -10, message: 'permission denied'});
         return;
       }
-      // 承認済みの精算書に載っている証憑は作成者でも変更できない
-      if  ( !req.session.user.accounting && ( await voucherInApprovedReport(id) ) )  {
+      // 承認済みの精算書に載っている証憑は作成者・会計権限だけでも変更できない
+      // （承認を戻せる承認権限のみ変更可）
+      if  ( !req.session.user.approvable && ( await voucherInApprovedData(id) ) )  {
         res.json({code: -10, message: '承認済みの精算書に載っている証憑のため変更できません。'});
         return;
       }
@@ -466,8 +488,9 @@ export default {
           res.json({code: -10, message: 'permission denied'});
           return;
         }
-        // 承認済みの精算書に載っている証憑は作成者でも削除できない
-        if  ( !req.session.user.accounting && ( await voucherInApprovedReport(id) ) )  {
+        // 承認済みの精算書に載っている証憑は作成者・会計権限だけでも削除できない
+        // （承認を戻せる承認権限のみ削除可）
+        if  ( !req.session.user.approvable && ( await voucherInApprovedData(id) ) )  {
           res.json({code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。'});
           return;
         }
@@ -501,8 +524,8 @@ export default {
         res.json({ code: -10, message: 'permission denied' });
         return;
       }
-      // 承認済みの精算書に載っている証憑には添付できない
-      if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(voucher_id) ) ) ) {
+      // 承認済みの精算書に載っている証憑には添付できない（承認権限のみ可）
+      if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(voucher_id) ) ) ) {
         res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため添付できません。' });
         return;
       }
@@ -553,8 +576,8 @@ export default {
           res.json({ code: -10, message: 'permission denied' });
           return;
         }
-        // 承認済みの精算書に載っている証憑にはbindできない
-        if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(body.voucherId) ) ) ) {
+        // 承認済みの精算書に載っている証憑にはbindできない（承認権限のみ可）
+        if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(body.voucherId) ) ) ) {
           res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため割り当てできません。' });
           return;
         }
@@ -586,8 +609,8 @@ export default {
           res.json({ code: -10, message: 'permission denied' });
           return;
         }
-        // 承認済みの精算書に載っている証憑のファイルは削除できない
-        if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(file.voucherId) ) ) ) {
+        // 承認済みの精算書に載っている証憑のファイルは削除できない（承認権限のみ可）
+        if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(file.voucherId) ) ) ) {
           res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。' });
           return;
         }

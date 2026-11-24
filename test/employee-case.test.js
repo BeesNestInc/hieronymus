@@ -359,7 +359,9 @@ describe('一般従業員ケース（test db）', () => {
       assert.isFalse(guardAllowed(employee, '/cross_slip', 'PUT'));
     });
 
-    it('会計権限なら承認済みの証憑を操作できる（経理は伝票も直せる）', async () => {
+    it('承認権限（会計兼承認の経理）なら承認済みの証憑を操作できる', async () => {
+      // 承認済みデータの変更可否は承認権限で決まる（不承認に戻せるのは
+      // 承認権限だけなので、会計権限だけでは不可。経理部員ケースで検証）
       const r = await callHandler(voucherRoutes.update, reqFor(data.approver,
         { id: ownVoucher.id }, { description: '経理による修正' }));
       assert.isOk(r._json.voucher);
