@@ -20,6 +20,14 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 
 [マニュアル](./documents/index.md)を参照してください。
 
+役割に応じて、読み始めのページが用意してあります。
+
+* [個人事業主・一人会社（回し方）](./documents/freelance-quick.md)
+* [従業員（経費精算）](./documents/expense-quick.md)
+* [上長・チームリーダー（承認）](./documents/approve-quick.md)
+* [経営層・社長（会計閲覧）](./documents/executive-quick.md)
+* [経理（通帳担当の日常）](./documents/accounting-daily-quick.md)
+
 ## 機能
 
 ### 勘定科目管理
