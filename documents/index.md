@@ -34,7 +34,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
 ## マニュアル目次
 
 ### クイックスタート
-* [個人事業主・一人会社（回し方）](freelance-quick.md)
+* [個人事業主・一人会社（回し方）](quick/freelance-quick.md)
 * [インストール](install.md)
   * [ソースコードからインストール](install.md#from_source)
   * [Dockerを使用したインストール](install.md#from_docker)
@@ -44,10 +44,10 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
   * [勘定科目の設定](initial.md#accounts)
 
 ### 基本操作
-* [経費精算クイックマニュアル（従業員向け）](expense-quick.md)
-* [承認をする人（上長・チームリーダー向け）](approve-quick.md)
-* [経営層・社長向け（会計閲覧権限）](executive-quick.md)
-* [経理の日常（通帳担当）](accounting-daily-quick.md)
+* [経費精算クイックマニュアル（従業員向け）](quick/expense-quick.md)
+* [承認をする人（上長・チームリーダー向け）](quick/approve-quick.md)
+* [経営層・社長向け（会計閲覧権限）](quick/executive-quick.md)
+* [経理の日常（通帳担当）](quick/accounting-daily-quick.md)
 * [仕訳明細の入力](crossslip.md)
   * [ワークフロー別](crossslip.md#workflow)
     * [仕訳明細から](crossslip.md#仕訳明細入力から始めるパターン)
