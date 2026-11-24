@@ -373,7 +373,9 @@ export default [
     section: 'master',
     title: '役職員管理',
     authority: (user) => {
-      return  (user.administrable || user.personnelManagement);
+      // 人事閲覧権（経理デスク等）は参照のみ。編集ボタンは画面側で
+      // 人事管理権限・管理者にだけ出る
+      return  (user.administrable || user.personnelManagement || user.personnelBrowsing);
     },
     href: (status) => {
       return	('/member/');

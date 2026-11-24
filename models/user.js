@@ -62,6 +62,8 @@ export default (sequelize, DataTypes) => {
     companyManagement: DataTypes.BOOLEAN,
     inventoryManagement: DataTypes.BOOLEAN,
     personnelManagement: DataTypes.BOOLEAN,
+    // 人事閲覧（人事情報の参照のみ。人事管理権限は読み書きセット）
+    personnelBrowsing: DataTypes.BOOLEAN,
     // AI管理（プロンプト編集・AI設定の操作）
     aiManage: DataTypes.BOOLEAN,
     // 予定表ICSフィードのトークン。購読クライアント（Googleカレンダー等）は

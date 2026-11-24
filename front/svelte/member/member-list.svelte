@@ -1,11 +1,13 @@
 <div class="list">
   <div class="page-title d-flex justify-content-between">
     <h1>役職員一覧</h1>
+    {#if ( status.user && ( status.user.administrable || status.user.personnelManagement ) )}
     <button type="button" class="btn btn-primary"
       on:click={() => {
         openMember(null);
       }}
       id="member-info">役職員入力&nbsp;<i class="bi bi-pencil-square"></i></button>
+    {/if}
   </div> 
   <div class="full-height-1 fontsize-12pt scroll-table">
     <table class="table table-bordered">
