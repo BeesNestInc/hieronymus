@@ -17,7 +17,7 @@
     {/each}
     <li class="nav-item mt-3">
       <button type="button" class="btn btn-outline-primary btn-sm"
-        on:click={() => { window.location.href = '/home'; }}>
+        on:click={() => { window.location.href = '/settings'; }}>
         API設定（モデル・キー）
       </button>
     </li>
