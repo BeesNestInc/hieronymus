@@ -10,6 +10,7 @@ import expenseRoutes from '../routes/api_expense_report.js';
 import bankRoutes from '../routes/api_bank_statement.js';
 import journalRoutes from '../routes/api_journal.js';
 import crossSlipRoutes from '../routes/api_cross_slip.js';
+import crossSlipDetailRoutes from '../routes/api_cross_slip_detail.js';
 import userRoutes from '../routes/api_user.js';
 
 // 経理部員（会計権限あり・承認権限なし）のケーススタディ。原則:
@@ -319,6 +320,19 @@ describe('経理部員ケース（test db）', () => {
         day: 10, lines: [ lineOf() ]
       }));
       assert.equal(r._json.code, -2);
+    });
+
+    it('承認済み伝票の明細単位の更新もできない（-2で全員拒否）', async () => {
+      // PUT /cross-slip-detailは会計権限で許可表を通るが、承認済みは
+      // 本体更新と同じく不変。不承認に戻してから直す
+      const detail = await models.CrossSlipDetail.findOne({
+        where: { crossSlipId: approvedSlip.id }
+      });
+      const r = await callHandler(crossSlipDetailRoutes.update, reqFor(accountant,
+        {}, { id: detail.id, application1: '書き換え' }));
+      assert.equal(r._json.code, -2);
+      const saved = await models.CrossSlipDetail.findByPk(detail.id);
+      assert.notEqual(saved.application1, '書き換え');
     });
 
     it('承認済み伝票は削除できない', async () => {
