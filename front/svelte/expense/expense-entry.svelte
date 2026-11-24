@@ -263,17 +263,23 @@
                   {#if ( lineMeta[i] && lineMeta[i].slip )}
                   <div class="slip-chip">
                     {#if ( lineMeta[i].first )}
+                    {#if ( status.user && ( status.user.accounting || status.user.fiscalBrowsing ) )}
                     <button type="button" class="btn btn-link p-0"
                       title="この明細の載っている伝票を表示します"
                       on:click|preventDefault={() => { openSlip(lineMeta[i].slip); }}>
                       {lineMeta[i].slip.month}/{lineMeta[i].slip.day}-{lineMeta[i].slip.no}
                     </button>
+                    {:else}
+                    <!-- 伝票の中身は会計データ。経理・閲覧権限のないユーザーには
+                         番号の表示だけ -->
+                    <span class="text-muted">{lineMeta[i].slip.month}/{lineMeta[i].slip.day}-{lineMeta[i].slip.no}</span>
+                    {/if}
                     {#if ( lineMeta[i].slip.approvedAt )}
                     <span class="badge bg-success" title="承認済み">済</span>
                     {:else}
                     <span class="badge bg-warning text-dark" title="承認待ち">待</span>
                     {/if}
-                    {#if ( editable )}
+                    {#if ( editable && status.user.approvable )}
                     <button type="button" class="btn btn-sm btn-outline-danger p-0 px-1"
                       on:click={() => { deleteSlip(lineMeta[i].slip.id); }}
                       title="この伝票を削除します（承認済みなら会計権限で承認取消＋削除）">

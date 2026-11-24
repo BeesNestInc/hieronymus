@@ -77,12 +77,18 @@
           </td>
           <td>
             {#each ( report.crossSlips || [] ) as slip}
+            {#if ( status.user && ( status.user.accounting || status.user.fiscalBrowsing ) )}
             <button type="button" class="btn btn-link"
               on:click|preventDefault={() => {
                 openSlip(slip);
               }}>
               {slip.month}-{slip.no}
             </button>
+            {:else}
+            <!-- 伝票の中身は会計データ。経理・閲覧権限のないユーザーには
+                 リンク（開くと403で落ちる）ではなく番号の表示だけ -->
+            <span class="text-muted">{slip.month}-{slip.no}</span>
+            {/if}
             {/each}
             {#if ( canMerge && mergeMap[report.id] && mergeMap[report.id].length > 0 )}
             {#each mergeMap[report.id] as group}
