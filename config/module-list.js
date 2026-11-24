@@ -431,22 +431,6 @@ export default [
       }
     ]
   }, {
-    // ---- 管理: AI管理権限向け ----
-    name: 'ai-settings',
-    section: 'admin',
-    title: 'AI設定',
-    authority: (user) => {
-      return  (user.aiManage);
-    },
-    href: (status) => {
-      return	('/ai-settings');
-    },
-    match: /^\/ai-settings/,
-    icon: { name: 'bi:robot' },
-    description: `
-AIの動作設定です。読み取りプロンプトの世代管理（編集・ロールバック）と、
-API設定（モデル・キー）の操作ができます。`
-  }, {
     // ---- 管理: 全体設定 ----
     name: 'settings',
     section: 'admin',
@@ -463,6 +447,22 @@ API設定（モデル・キー）の操作ができます。`
     description: `
 システム全体の設定です。<br/>
 消費税区分・システム設定は管理者、AI設定はAI管理権限のユーザーが扱えます。`
+  }, {
+    // ---- 管理: AI管理権限向け ----
+    name: 'ai-settings',
+    section: 'admin',
+    title: 'AI設定',
+    authority: (user) => {
+      return  (user.aiManage);
+    },
+    href: (status) => {
+      return	('/ai-settings');
+    },
+    match: /^\/ai-settings/,
+    icon: { name: 'bi:robot' },
+    description: `
+AIの動作設定です。読み取りプロンプトの世代管理（編集・ロールバック）と、
+API設定（モデル・キー）の操作ができます。`
   }, {
     // ---- 管理: 管理者向け ----
     name: 'users',
