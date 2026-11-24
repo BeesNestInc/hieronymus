@@ -71,7 +71,22 @@ export default [
 電子化証票を登録できます。<br/>
 ここで登録した証票は、伝票入力の時に結合させることができます。 <br/>
 伝票に証票が結合された場合、伝票明細が表示される画面で参照(ダウンロード)が可能になります。
-`
+`,
+    submenu: [
+      {
+        title: '証憑管理',
+        href: (status) => {
+          return	(`/voucher`);
+        },
+        match: /^\/voucher\/($|entry|new)/,
+      }, {
+        title: '設定',
+        match: /^\/voucher\/home/,
+        href: (status) => {
+          return	(`/voucher/home`);
+        }
+      }
+    ]
 	}, {
     name: 'schedule',
     section: 'daily',
@@ -262,12 +277,27 @@ export default [
       return	(`/transaction/`);
     },
     authority: (user) => {
-      return  (user.companyManagement);
+      return  ( user.companyManagement );
     },
     icon: { name: 'bi-file-earmark-text-fill'},
     description: `
 顧客との「取引」を管理します。<br/>
-見積請求だけではなく、各種文書の管理や経費記録等を行います。`
+見積請求だけではなく、各種文書の管理や経費記録等を行います。`,
+    submenu: [
+      {
+        title: '取引管理',
+        href: (status) => {
+          return	(`/transaction/`);
+        },
+        match: /^\/transaction\/($|entry|new)/,
+      }, {
+        title: '設定',
+        match: /^\/transaction\/home/,
+        href: (status) => {
+          return	(`/transaction/home`);
+        }
+      }
+    ]
   }, {
     name: 'project',
     section: 'crm',
@@ -416,6 +446,23 @@ export default [
     description: `
 AIの動作設定です。読み取りプロンプトの世代管理（編集・ロールバック）と、
 API設定（モデル・キー）の操作ができます。`
+  }, {
+    // ---- 管理: 全体設定 ----
+    name: 'settings',
+    section: 'admin',
+    title: '設定',
+    authority: (user) => {
+      // 管理者は消費税区分・システム設定、AI管理権限はAI設定を見られる
+      return  ( user.administrable || user.aiManage );
+    },
+    href: (status) => {
+      return	('/settings');
+    },
+    match: /^\/settings/,
+    icon: { name: 'bi-gear' },
+    description: `
+システム全体の設定です。<br/>
+消費税区分・システム設定は管理者、AI設定はAI管理権限のユーザーが扱えます。`
   }, {
     // ---- 管理: 管理者向け ----
     name: 'users',
