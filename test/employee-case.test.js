@@ -156,6 +156,7 @@ describe('一般従業員ケース（test db）', () => {
       [ '口座一覧', 'GET', '/financial' ],
       [ 'ユーザー一覧', 'GET', '/users' ],
       [ '年度の変更', 'PUT', '/term/1' ],
+      [ '年度の確定', 'PUT', '/term/1/lock' ],
       [ '取込の起票', 'POST', '/bank_statement/5/book' ],
       [ '伝票の更新', 'PUT', '/cross_slip' ],
       [ '伝票の作成', 'POST', '/cross_slip' ]

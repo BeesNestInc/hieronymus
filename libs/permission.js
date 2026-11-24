@@ -131,8 +131,11 @@ const RULES = [
 
   { match: /^\/tax-rule/, methods: ['GET'], access: ANY },
   { match: /^\/tax-rule/, methods: ['PUT'], access: ['accounting'] },
+  // 年度の確定と取り消しは管理権限のみ。確定は全データを不変にする
+  // コミット操作（確定後は管理権限でも通常編集不可）で、会計権限の
+  // 経理部員が押せるものではない（取消しと対称にする）
   { match: /^\/term\/\d+\/unlock$/, methods: ['PUT'], access: ['administrable'] },
-  { match: /^\/term\/\d+\/lock$/, methods: ['PUT'], access: ['accounting', 'administrable'] },
+  { match: /^\/term\/\d+\/lock$/, methods: ['PUT'], access: ['administrable'] },
   { match: /^\/term\/\d+$/, methods: ['PUT'], access: ['accounting'] },
   { match: /^\/term/, methods: ['GET'], access: ANY },
 

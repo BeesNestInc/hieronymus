@@ -284,8 +284,8 @@ describe('経理部員ケース（test db）', () => {
       assert.equal(r._json.code, -10);
     });
 
-    it('年度の確定はできるが、確定の取り消しは管理権限 only', () => {
-      assert.isTrue(guardAllowed(accountant, '/term/1/lock', 'PUT'));
+    it('年度の確定も取り消しも管理権限 only（確定は全データを不変にするので）', () => {
+      assert.isFalse(guardAllowed(accountant, '/term/1/lock', 'PUT'));
       assert.isFalse(guardAllowed(accountant, '/term/1/unlock', 'PUT'));
     });
   });
