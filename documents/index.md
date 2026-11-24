@@ -43,6 +43,7 @@ Hieronymusは、中小企業、スタートアップ、個人事業主の皆様�
   * [勘定科目の設定](initial.md#accounts)
 
 ### 基本操作
+* [経費精算クイックマニュアル（従業員向け）](expense-quick.md)
 * [仕訳明細の入力](crossslip.md)
   * [ワークフロー別](crossslip.md#workflow)
     * [仕訳明細から](crossslip.md#仕訳明細入力から始めるパターン)
