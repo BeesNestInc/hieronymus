@@ -163,10 +163,11 @@ const RULES = [
   { match: /^\/users/, methods: ['POST', 'PUT', 'DELETE'], access: ['administrable', 'personnelManagement'] },
   { match: /^\/user/, access: ['administrable'] },
 
-  // 人事データ。参照は人事管理権限に加えて人事閲覧権（経理デスク等の
-  // 「人事は見るが操作しない」役割）にも開ける。書き込みは人事管理権限のみ
-  { match: /^\/member/, methods: ['GET'], access: ['administrable', 'personnelManagement', 'personnelBrowsing'] },
-  { match: /^\/member/, methods: ['POST', 'PUT', 'DELETE'], access: ['administrable', 'personnelManagement'] },
+  // 人事データ。参照は人事管理権限・人事閲覧権のみ（管理者でも直接は
+  // できない。管理者はユーザー権限の操作だけ。役職員をいじるときは
+  // 人事管理権限を（自分に）与える）。書き込みは人事管理権限のみ
+  { match: /^\/member/, methods: ['GET'], access: ['personnelManagement', 'personnelBrowsing'] },
+  { match: /^\/member/, methods: ['POST', 'PUT', 'DELETE'], access: ['personnelManagement'] },
   // Sticky（付箋・申し送り）。付箋は特定権限を要求しない（ログイン済み全員が
   // 「画面に付箋を貼る」感覚で使う。guard は未登録パスをデフォルト拒否するため
   // 明示的に ANY を置く必要がある）

@@ -15,7 +15,7 @@
       <div class="footer">
         <button type="button" class="btn btn-secondary" disabled={disabled}
           on:click={back}>もどる</button>
-        {#if ( status.user && ( status.user.administrable || status.user.personnelManagement ) )}
+        {#if ( status.user && status.user.personnelManagement )}
         {#if ( member && member.id && member.id > 0 )}
         <button type="button" class="btn btn-danger" disabled={disabled}
           on:click={deleteMember}

@@ -164,11 +164,11 @@ describe('管理者ケース（test db）', () => {
       assert.isNull(saved);
     });
 
-    it('役職員マスタも管理できる（ユーザーとの紐付けを含むための設計）', () => {
-      assert.isTrue(guardAllowed(admin, '/member', 'GET'));
-      assert.isTrue(guardAllowed(admin, '/member', 'POST'));
-      assert.isTrue(guardAllowed(admin, '/member/5', 'PUT'));
-      assert.isTrue(guardAllowed(admin, '/member/5', 'DELETE'));
+    it('役職員マスタは直接はできない（人事管理権限が必要。分離）', () => {
+      assert.isFalse(guardAllowed(admin, '/member', 'GET'));
+      assert.isFalse(guardAllowed(admin, '/member', 'POST'));
+      assert.isFalse(guardAllowed(admin, '/member/5', 'PUT'));
+      assert.isFalse(guardAllowed(admin, '/member/5', 'DELETE'));
     });
 
     it('バックアップ・年度の確定/取り消し（管理運用）はできる', () => {

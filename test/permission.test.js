@@ -36,7 +36,8 @@ const users = {
   accounting: { id: 3, accounting: true },
   approvable: { id: 4, approvable: true },
   admin: { id: 5, administrable: true },
-  aiManage: { id: 6, aiManage: true }
+  aiManage: { id: 6, aiManage: true },
+  personnel: { id: 7, personnelManagement: true }
 };
 
 describe('API許可表（guardマトリクス）', () => {
@@ -70,6 +71,9 @@ describe('API許可表（guardマトリクス）', () => {
     ['ユーザーの削除は一般に拒否', 'plain', 'DELETE', '/user/5', false],
     ['ユーザーの削除は管理権限に許可', 'admin', 'DELETE', '/user/5', true],
     ['担当者候補（社員のid+名前）は全員に読める', 'plain', 'GET', '/users/member', true],
+    ['役職員の一覧は人事管理権限に許可', 'personnel', 'GET', '/member', true],
+    ['役職員の登録は人事管理権限に許可', 'personnel', 'POST', '/member', true],
+    ['役職員の管理は管理者でも直接は拒否（ユーザー権限操作との分離）', 'admin', 'POST', '/member', false],
     ['口座の編集は一般に拒否', 'plain', 'PUT', '/financial/5', false],
     ['学習ルールの閲覧は一般に拒否', 'plain', 'GET', '/bank_statement_rule', false],
     ['証憑の更新は表ではANY（handlerが作成者/会計に絞り込む）', 'plain', 'PUT', '/voucher', true],
