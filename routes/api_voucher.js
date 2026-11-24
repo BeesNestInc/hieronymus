@@ -8,6 +8,24 @@ import {isLocked, findFiscalYearForDate} from '../libs/fiscal-lock.js';
 
 const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
 
+// 承認済みの精算書の明細から参照されている証憑か。承認済み伝票の明細は
+// この証憑を指しているので、作成者であっても（会計権限がなければ）
+// 変更・削除・ファイル操作を許さない（承認されたデータは本人でも動かせない）
+const voucherInApprovedReport = async (voucherId) => {
+  return models.ExpenseReport.findOne({
+    where: {
+      approvedAt: { [Op.ne]: null }
+    },
+    include: [{
+      model: models.ExpenseReportLine,
+      as: 'lines',
+      where: { voucherId: voucherId },
+      attributes: []
+    }],
+    attributes: [ 'id' ]
+  });
+};
+
 const rejectIfVoucherLocked = async (issueDate, res) => {
   const fy = await findFiscalYearForDate(issueDate ? new Date(issueDate) : new Date());
   if ( fy && isLocked(fy) ) {
@@ -423,7 +441,12 @@ export default {
         res.json({code: -10, message: 'permission denied'});
         return;
       }
-      if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+      // 承認済みの精算書に載っている証憑は作成者でも変更できない
+      if  ( !req.session.user.accounting && ( await voucherInApprovedReport(id) ) )  {
+        res.json({code: -10, message: '承認済みの精算書に載っている証憑のため変更できません。'});
+        return;
+      }
+      if  ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
         return;
       }
       voucher.set(body);
@@ -443,7 +466,12 @@ export default {
           res.json({code: -10, message: 'permission denied'});
           return;
         }
-        if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+        // 承認済みの精算書に載っている証憑は作成者でも削除できない
+        if  ( !req.session.user.accounting && ( await voucherInApprovedReport(id) ) )  {
+          res.json({code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。'});
+          return;
+        }
+        if  ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
         voucher.destroy().then(() => {
@@ -471,6 +499,11 @@ export default {
       // 他人の証憑へのファイル添付は許さない（作成者か会計権限）
       if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
         res.json({ code: -10, message: 'permission denied' });
+        return;
+      }
+      // 承認済みの精算書に載っている証憑には添付できない
+      if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(voucher_id) ) ) ) {
+        res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため添付できません。' });
         return;
       }
       if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
@@ -520,6 +553,11 @@ export default {
           res.json({ code: -10, message: 'permission denied' });
           return;
         }
+        // 承認済みの精算書に載っている証憑にはbindできない
+        if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(body.voucherId) ) ) ) {
+          res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため割り当てできません。' });
+          return;
+        }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
@@ -546,6 +584,11 @@ export default {
         // 他人の証憑のファイル削除は許さない（作成者か会計権限）
         if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
           res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
+        // 承認済みの精算書に載っている証憑のファイルは削除できない
+        if ( voucher && ( !req.session.user.accounting && ( await voucherInApprovedReport(file.voucherId) ) ) ) {
+          res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。' });
           return;
         }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
