@@ -47,6 +47,12 @@ export default {
       if ( result ) {
         const slip = await models.CrossSlip.findByPk(result.crossSlipId);
         if ( slip ) {
+          // 承認済み伝票の明細は直接変更できない（本体の更新（PUT /cross_slip）
+          // と同じく、不承認に戻してから。承認済みは承認権限者にも不変）
+          if ( slip.approvedAt ) {
+            res.json({ code: -2, message: 'this slip was approved' });
+            return;
+          }
           const fy = await findFiscalYearForTerm(slip.term);
           if ( fy && isLocked(fy) ) {
             res.status(423).json({ code: -423, message: 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。', term: fy.term });

@@ -14,7 +14,15 @@ describe('ai memory（Aimemories）', () => {
   before(async function () {
     this.timeout(30000);
     models = ( await import('../models/index.js') ).default;
-    await models.sequelize.authenticate();
+    // 先行 suiteが接続プールをcloseしていることがある（suite間でpoolを
+    // 使い回すため。e2e等と同じ再初期化パターン）
+    try {
+      await models.sequelize.authenticate();
+    } catch (e) {
+      delete models.sequelize.connectionManager.getConnection;
+      models.sequelize.connectionManager.initPools();
+      await models.sequelize.authenticate();
+    }
   });
 
   after(async () => {

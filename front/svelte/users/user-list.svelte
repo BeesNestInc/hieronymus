@@ -25,7 +25,13 @@
             在庫管理
           </th>
           <th scope="col">
+            AI管理
+          </th>
+          <th scope="col">
             人事管理
+          </th>
+          <th scope="col">
+            人事閲覧
           </th>
           <th scope="col">
             停止
@@ -85,6 +91,12 @@
         	</td>
           <td class="checkbox">
             <input type="checkbox" class="w-100" bind:checked={line.personnelManagement}
+              on:change={() => {
+                change(line);
+              }}>
+          </td>
+          <td class="checkbox">
+            <input type="checkbox" class="w-100" bind:checked={line.personnelBrowsing}
               on:change={() => {
                 change(line);
               }}>

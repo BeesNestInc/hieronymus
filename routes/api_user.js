@@ -84,11 +84,12 @@ export default {
   get: async (req, res, next) => {
     let id = req.params.id;
     if  ( id )  {
-      // 他人のユーザー情報（権限フラグ等）は管理者・人事管理権限でのみ取得できる。
-      // 自分自身の情報は常に取得可
+      // 他人のユーザー情報（権限フラグ等）は管理者・人事管理権限でのみ取得
+      // できる。人事閲覧権（経理デスク等）も参照可。自分自身の情報は常に取得可
       if (( Number(id) !== req.session.user.id ) &&
           ( !req.session.user.administrable ) &&
-          ( !req.session.user.personnelManagement )) {
+          ( !req.session.user.personnelManagement ) &&
+          ( !req.session.user.personnelBrowsing )) {
         res.status(403).json({ code: -10, message: 'permission denied' });
         return;
       }
@@ -138,6 +139,9 @@ export default {
         }
         if  ( req.body.personnelManagement !== undefined )    {
           user.personnelManagement = req.body.personnelManagement;
+        }
+        if  ( req.body.personnelBrowsing !== undefined )    {
+          user.personnelBrowsing = req.body.personnelBrowsing;
         }
         if  ( req.body.deauthorizedAt !== undefined )    {
           user.deauthorizedAt = req.body.deauthorizedAt;

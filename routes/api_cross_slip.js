@@ -317,6 +317,7 @@ export default {
       return;
     }
     if	( ( !req.session.user.approvable ) &&
+         ( !req.session.user.accounting ) &&
          ( slip.createdBy !== req.session.user.id ) )	{
       res.json({
         code: -10,
@@ -369,7 +370,9 @@ export default {
           });
           return;
         }
-        slip.approvedAt = body.approvedAt;
+        // 不承認はnullで受ける（falsyな値は全てnullに正規化する。
+        // falseがそのまま入るとDATE列の保存でInvalid Dateになる）
+        slip.approvedAt = body.approvedAt || null;
         if	( body.approvedAt )	{
           slip.approvedBy = req.session.user.id;
         } else {

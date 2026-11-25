@@ -6,12 +6,28 @@ import { JSDOM } from 'jsdom';
 // マイページ（カスタムメニュー）の所有権。
 // - 自分のページ（userId = 自分）は自由に読み書きできる
 // - テンプレート（userId = null）の変更・削除は管理者のみ
-// - 他人のページは管理者のみ読める（編集はしない）
+// - 他人のページは管理者でも直接は読み書きしない
+//   （「suが使えるからといって他人のメールを読まない」。3.0.0で
+//   マイページが全ユーザーに開放されたのに、管理者バイパスが
+//   管理者専用時代から残っていた）
 const isOwner = (menu, user) => {
   return menu.userId === user.id;
 };
 
 const canManage = (menu, user) => {
+  // テンプレートは管理者が管理する
+  if ( menu.userId === null ) {
+    return Boolean(user.administrable);
+  }
+  // 個人のページは所有者のみ
+  return isOwner(menu, user);
+};
+
+// テンプレート公開は明示的な管理操作（本人の同意を得て任意のページを
+// 共有テンプレート化する）なので、管理者は任意のページを公開できる。
+// 公開されたテンプレートは全員の「＋」一覧に現れる別物で、本人のページは
+// そのまま残る
+const canPublish = (menu, user) => {
   return isOwner(menu, user) || Boolean(user.administrable);
 };
 
@@ -47,11 +63,12 @@ export default {
           res.status(404).json({ code: -2, message: 'not found' });
           return;
         }
-        // 自分のページか、テンプレート（userId=null）か、管理者のみ参照可
+        // テンプレート（userId=null）は全員が読める。個人のページは所有者のみ
+        // （管理者でも他人のページは開かない）
         if ( !canManage(menu, req.session.user) && menu.userId !== null ) {
-          res.status(403).json({ code: -10, message: 'permission denied' });
-          return;
-        }
+        res.status(403).json({ code: -10, message: 'permission denied' });
+        return;
+      }
         res.json({
           menu: menu
         });
@@ -172,7 +189,7 @@ export default {
         res.status(404).json({ code: -2, message: 'not found' });
         return;
       }
-      if ( !canManage(menu, req.session.user) ) {
+      if ( !canPublish(menu, req.session.user) ) {
         res.status(403).json({ code: -10, message: 'permission denied' });
         return;
       }

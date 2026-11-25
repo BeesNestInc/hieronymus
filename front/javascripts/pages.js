@@ -25,6 +25,7 @@ import Item from '../svelte/item/item.svelte';
 import Member from '../svelte/member/member.svelte';
 import Users from '../svelte/users/users.svelte';
 import AiSettings from '../svelte/ai/ai-settings.svelte';
+import Settings from '../svelte/settings/settings.svelte';
 import modules from '../../config/module-list.js';
 
 const pages = {
@@ -51,6 +52,7 @@ const pages = {
   member: Member,
   users: Users,
   'ai-settings': AiSettings,
+  settings: Settings,
   'company-master': Company
 };
 

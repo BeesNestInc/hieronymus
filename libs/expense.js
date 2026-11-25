@@ -331,8 +331,82 @@ export const createSlipForReport = async (report, lines, approver) => {
   return { slips: created, slipApproved: simultaneous, reuse: false };
 };
 
+// ---- 精算書の取引文書化 ----
+// 案件が設定された精算書は「精算書」種別の取引文書として投影する
+// （取引管理の案件・顧客の文書一覧に出る。文書の中身は精算書が正で、
+// 取引管理からは編集させない）
+
+const findSeisanKind = async () => {
+  return models.TransactionKind.findOne({
+    where: { label: '精算書', linked: true }
+  });
+};
+
+const reportTotal = async (reportId) => {
+  const lines = await models.ExpenseReportLine.findAll({
+    where: { expenseReportId: reportId },
+    attributes: [ 'amount' ]
+  });
+  return lines.reduce((sum, line) => ( sum + Number(line.amount || 0) ), 0);
+};
+
+// 精算書の作成・更新後に呼ぶ。案件がなければ（連携行が残っていれば）
+// 削除するだけ。案件があれば作成・更新する
+export const upsertTransactionForReport = async (report) => {
+  const kind = await findSeisanKind();
+  if ( !kind ) {
+    // 種別が無い環境（マイグレーション未適用）では何もしない
+    return null;
+  }
+  const existing = await models.TransactionDocument.findOne({
+    where: { expenseReportId: report.id }
+  });
+  if ( !report.taskId ) {
+    // 案件が外されたら連携行は用済み
+    if ( existing ) {
+      await existing.destroy();
+    }
+    return null;
+  }
+  const task = await models.Task.findByPk(report.taskId);
+  const total = await reportTotal(report.id);
+  const values = {
+    kindId: kind.id,
+    taskId: report.taskId,
+    companyId: task ? task.companyId : ( report.companyId || null ),
+    issueDate: report.submittedAt ?
+      ( new Date(report.submittedAt) ).toISOString().slice(0, 10) : null,
+    subject: report.purpose || null,
+    amount: total,
+    handledBy: report.submittedBy || report.createdBy,
+    expenseReportId: report.id,
+    updatedBy: report.updatedBy
+  };
+  if ( existing ) {
+    existing.set(values);
+    await existing.save();
+    return existing;
+  }
+  return models.TransactionDocument.create({
+    ...values,
+    createdBy: report.createdBy
+  });
+};
+
+// 精算書の削除に連動する
+export const removeTransactionForReport = async (reportId) => {
+  const existing = await models.TransactionDocument.findOne({
+    where: { expenseReportId: reportId }
+  });
+  if ( existing ) {
+    await existing.destroy();
+  }
+};
+
 export default {
   createSlipForReport: createSlipForReport,
-  pickPayeeMapping: pickPayeeMapping
+  pickPayeeMapping: pickPayeeMapping,
+  upsertTransactionForReport: upsertTransactionForReport,
+  removeTransactionForReport: removeTransactionForReport
 };
 

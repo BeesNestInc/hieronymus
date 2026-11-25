@@ -100,7 +100,7 @@
         on:mouseenter={(e) => { openSection(group.section, e.currentTarget); }}
         on:mouseleave={() => { closeSection(group.section); }}>
         <div class="nav-caption" role="button" tabindex="0"
-          title={ pinnedSet.has(group.section) ? 'クリックで固定を解除' : 'クリックで常に開く' }
+          title={ inFlowSections.has(group.section) ? 'クリックで畳む' : 'クリックで常に開く' }
           on:click={() => { togglePinned(group.section); }}
           on:keydown={(e) => { if ( e.key === 'Enter' || e.key === ' ' ) togglePinned(group.section); }}>
           {sectionLabel(group.section)}
@@ -500,17 +500,22 @@ $: activeSection = findActiveSection(visibleGroups, $currentPage);
 
 // テンプレートから関数（isExpanded等）を呼ぶとSvelte4は関数内の依存を
 // 追跡しない（Docs/logs/20261115.md のAI設定パネルバグと同型）。
-// 展開状態はリアクティブなSetに集約してテンプレートから参照する
+// 展開状態はリアクティブなSetに集約してテンプレートから参照する。
+// manuallyFolded: 現在地のグループを明示的に畳んだ状態。現在地は既定で
+// 開くが、開きっぱなしを畳めないと場所を取るので畳めるようにする
+let manuallyFolded = [];
 $: expandedSections = new Set([
-  activeSection,
-  ...pinnedSections,
+  ...( manuallyFolded.includes(activeSection) ? [] : [activeSection] ),
+  ...pinnedSections.filter((s) => !manuallyFolded.includes(s)),
   ...( hoveredSection ? [hoveredSection] : [] )
 ].filter((s) => Boolean(s)));
 $: pinnedSet = new Set(pinnedSections);
 // pin/現在地による展開はフロー内（ここだけ高さが変わり、意図的な操作）。
 // hoverだけによる展開は、下の項目を覆うフライアウトで表示する
 // （フローの高さを変えない。別の見出しに移動しても何も動かない）
-$: inFlowSections = new Set([activeSection, ...pinnedSections].filter((s) => Boolean(s)));
+$: inFlowSections = new Set(
+  [activeSection, ...pinnedSections].filter((s) => Boolean(s) && !manuallyFolded.includes(s))
+);
 $: flyoutSections = new Set(
   ( hoveredSection && !inFlowSections.has(hoveredSection) ) ? [ hoveredSection ] : []
 );
@@ -518,10 +523,22 @@ $: flyoutSections = new Set(
 const togglePinned = (section) => {
   // フロー内展開に切り替わるのでpopupは畳む
   subFlyout = null;
-  if ( pinnedSections.includes(section) ) {
-    pinnedSections = pinnedSections.filter((s) => s !== section);
+  if ( inFlowSections.has(section) ) {
+    // 開いている（現在地・ピン留め中のどちらでも）→畳む。
+    // ピン留めなら外し、現在地なら折りたたみ指定を残す
+    if ( pinnedSections.includes(section) ) {
+      pinnedSections = pinnedSections.filter((s) => s !== section);
+    }
+    if ( activeSection === section ) {
+      manuallyFolded = [...manuallyFolded.filter((s) => s !== section), section];
+    }
   } else {
-    pinnedSections = [...pinnedSections, section];
+    // 畳まれている→開く。現在地ならそれで開く（ピン留めは付けない）。
+    // それ以外は「常に開く」=ピン留め
+    manuallyFolded = manuallyFolded.filter((s) => s !== section);
+    if ( activeSection !== section ) {
+      pinnedSections = [...pinnedSections, section];
+    }
   }
 };
 // ページ遷移したらpopupの状態を必ず畳む（古い座標のpopupが

@@ -83,12 +83,24 @@
             {/if}
           </td>
           <td>
+            {#if ( line.expenseReportId && status.user && ( status.user.accounting || status.user.approvable || line.createdBy === status.user.id ) )}
+            <!-- 経費精算書からの連携行。精算書の中身は会計・承認・本人だけが開ける -->
+            <button type="button" class="btn btn-link"
+              on:click={() => {
+                link(`/expense/entry/${line.expenseReportId}`)
+              }}>
+              {line.subject ? line.subject : '__'}
+            </button>
+            {:else if ( line.expenseReportId )}
+            <span class="text-muted">{line.subject ? line.subject : '__'}</span>
+            {:else}
             <button type="button" class="btn btn-link"
               on:click={() => {
                 link(`/transaction/entry/${line.id}`)
               }}>
               {line.subject ? line.subject : '__'}
             </button>
+            {/if}
           </td>
           <td>
             { line.handleUser ? (line.handleUser.member.tradingName || '') : '__'}

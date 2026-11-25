@@ -14,6 +14,9 @@
   on:copy={copyVoucher}
   on:close={closeEntry}>
 </VoucherEntry>
+{:else if ( status.state === 'home')}
+<VoucherHome
+  bind:status={status}></VoucherHome>
 {/if}
 
 <style>
@@ -24,6 +27,7 @@ import axios from 'axios';
 import {onMount} from 'svelte';
 import VoucherEntry from './voucher-entry.svelte';
 import VoucherList from './voucher-list.svelte';
+import VoucherHome from './voucher-home.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentVoucher, getStore} from '../../javascripts/current-record.js';
 import {setAccounts} from '../../javascripts/cross-slip';

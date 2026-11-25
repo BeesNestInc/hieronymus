@@ -71,6 +71,8 @@ export default (sequelize, DataTypes) => {
     documentId: DataTypes.INTEGER,
     description: DataTypes.TEXT,
     handledBy: DataTypes.INTEGER,
+    // 元の経費精算書（「精算書」種別の連携行。1:1）
+    expenseReportId: DataTypes.INTEGER,
     createdBy: DataTypes.INTEGER,
     updatedBy: DataTypes.INTEGER
   }, {

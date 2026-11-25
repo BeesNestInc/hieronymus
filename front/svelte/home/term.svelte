@@ -67,7 +67,7 @@
               </button>
               {/if}
               {:else}
-              {#if ( status.user && (status.user.administrable || status.user.accounting) )}
+              {#if ( status.user && (status.user.administrable) )}
               <button class="btn btn-sm btn-outline-secondary" on:click={() => lock(line)}>
                 確定
               </button>

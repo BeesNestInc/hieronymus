@@ -145,7 +145,7 @@ describe('menu (mypage, test db)', () => {
     assert.equal(result.body.menu.userId, owner.id);
   });
 
-  it('参照: 他人のマイページは参照できない（管理者は可）', async () => {
+  it('参照: 他人のマイページは参照できない（管理者も不可: su原則）', async () => {
     const mine = await createMenu(owner);
     const menuId = mine.body.menu.id;
     const denied = await call(apiMenu.get, {
@@ -153,11 +153,13 @@ describe('menu (mypage, test db)', () => {
       session: { user: stranger }
     });
     assert.equal(denied.status, 403);
-    const allowed = await call(apiMenu.get, {
+    // su原則: 管理者でも他人のマイページは参照できない
+    // （「suが使えるからといって他人のメールを読まない」）
+    const deniedAdmin = await call(apiMenu.get, {
       params: { id: menuId },
       session: { user: admin }
     });
-    assert.equal(allowed.status, 200);
+    assert.equal(deniedAdmin.status, 403);
     // テンプレート（userId=null）は誰でも参照できる（+で追加するため）
     const template = await models.Menu.create({
       title: 'テンプレ', userId: null, displayOrder: 10, body: '[]'

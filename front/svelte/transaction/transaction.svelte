@@ -10,12 +10,16 @@
     bind:transaction={transaction}
     bind:users={users}>
   </TransactionEntry>
+{:else if ( status.state === 'home')}
+  <TransactionHome
+  	bind:status={status}></TransactionHome>
 {/if}
 <script>
 import axios from 'axios';
 import {onMount, beforeUpdate, afterUpdate, createEventDispatcher} from 'svelte';
 import TransactionEntry from './transaction-entry.svelte';
 import TransactionList from './transaction-list.svelte';
+import TransactionHome from './transaction-home.svelte';
 import {numeric, formatDate} from '../../../libs/utils.js';
 import {currentTransaction, currentTask, getStore} from '../../javascripts/current-record.js'
 import { currentPage } from '../../javascripts/router.js';

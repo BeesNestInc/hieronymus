@@ -8,6 +8,45 @@ import {isLocked, findFiscalYearForDate} from '../libs/fiscal-lock.js';
 
 const LOCK_MESSAGE = 'この年度は確定済みのため変更できません。変更するには管理権限で確定を取り消してください。';
 
+// 承認済みのデータ（精算書・伝票）の明細から参照されている証憑か。
+// 承認済み伝票の明細はこの証憑を指しているので、承認権限のない
+// ユーザー（作成者・会計権限を含む）には変更・削除・ファイル操作を
+// 許さない。承認を戻せるのは承認権限だけなので、承認済みデータに
+// 関わる変更は承認権限に限る
+const voucherInApprovedData = async (voucherId) => {
+  const report = await models.ExpenseReport.findOne({
+    where: {
+      approvedAt: { [Op.ne]: null }
+    },
+    include: [{
+      model: models.ExpenseReportLine,
+      as: 'lines',
+      where: { voucherId: voucherId },
+      attributes: []
+    }],
+    attributes: [ 'id' ]
+  });
+  if ( report ) {
+    return report;
+  }
+  // 承認済み伝票の明細（伝票ビューで証憑を直接紐付けた場合）
+  return models.CrossSlipDetail.findOne({
+    where: {
+      [Op.or]: [
+        { debitVoucherId: voucherId },
+        { creditVoucherId: voucherId }
+      ]
+    },
+    include: [{
+      model: models.CrossSlip,
+      as: 'crossSlip',
+      where: { approvedAt: { [Op.ne]: null } },
+      attributes: []
+    }],
+    attributes: [ 'id' ]
+  });
+};
+
 const rejectIfVoucherLocked = async (issueDate, res) => {
   const fy = await findFiscalYearForDate(issueDate ? new Date(issueDate) : new Date());
   if ( fy && isLocked(fy) ) {
@@ -275,6 +314,19 @@ export default {
         };
 
       }
+      // 会計権限のないユーザーは自分が作った証憑しか一覧に出さない
+      // （証憑には取引先・金額が載っている。経費精算の証憑候補も
+      // 一般ユーザーは自分の分だけ見えれば足りる）
+      if	( !req.session.user.accounting )	{
+        where = {
+          [Op.and]: [
+            where,
+            {
+              createdBy: req.session.user.id
+            }
+          ]
+        };
+      }
       models.Voucher.findAll({
         where: where,
         order: order,
@@ -320,6 +372,15 @@ export default {
         },
         include: include
       }).then(async(_voucher) => {
+        if	( !_voucher )	{
+          res.status(404).json({ code: -3, message: '証憑がありません。' });
+          return;
+        }
+        // 会計権限のないユーザーは自分が作った証憑しか読めない
+        if	( !req.session.user.accounting && _voucher.createdBy !== req.session.user.id )	{
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
         let voucher = _voucher.dataValues;
         let files = await getFiles(voucher.id);
         voucher.files = files;
@@ -401,7 +462,13 @@ export default {
         res.json({code: -10, message: 'permission denied'});
         return;
       }
-      if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+      // 承認済みの精算書に載っている証憑は作成者・会計権限だけでも変更できない
+      // （承認を戻せる承認権限のみ変更可）
+      if  ( !req.session.user.approvable && ( await voucherInApprovedData(id) ) )  {
+        res.json({code: -10, message: '承認済みの精算書に載っている証憑のため変更できません。'});
+        return;
+      }
+      if  ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
         return;
       }
       voucher.set(body);
@@ -421,7 +488,13 @@ export default {
           res.json({code: -10, message: 'permission denied'});
           return;
         }
-        if ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
+        // 承認済みの精算書に載っている証憑は作成者・会計権限だけでも削除できない
+        // （承認を戻せる承認権限のみ削除可）
+        if  ( !req.session.user.approvable && ( await voucherInApprovedData(id) ) )  {
+          res.json({code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。'});
+          return;
+        }
+        if  ( await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
         voucher.destroy().then(() => {
@@ -446,6 +519,16 @@ export default {
     let voucher_id = req.params.id ? parseInt(req.params.id): null;
     if ( voucher_id ) {
       const voucher = await models.Voucher.findByPk(voucher_id);
+      // 他人の証憑へのファイル添付は許さない（作成者か会計権限）
+      if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+        res.json({ code: -10, message: 'permission denied' });
+        return;
+      }
+      // 承認済みの精算書に載っている証憑には添付できない（承認権限のみ可）
+      if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(voucher_id) ) ) ) {
+        res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため添付できません。' });
+        return;
+      }
       if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
         return;
       }
@@ -482,8 +565,22 @@ export default {
   bind: (req, res, next) => {
     let	body = req.body;
     models.VoucherFile.findByPk(body.id).then(async (file) => {
+      if ( !file ) {
+        res.json({ code: -1, message: 'file not found' });
+        return;
+      }
       if ( body.voucherId ) {
         const voucher = await models.Voucher.findByPk(body.voucherId);
+        // 他人の証憑へのbindは許さない（作成者か会計権限）
+        if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
+        // 承認済みの精算書に載っている証憑にはbindできない（承認権限のみ可）
+        if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(body.voucherId) ) ) ) {
+          res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため割り当てできません。' });
+          return;
+        }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
@@ -507,6 +604,16 @@ export default {
     models.VoucherFile.findByPk(id).then(async (file) => {
       if ( file && file.voucherId ) {
         const voucher = await models.Voucher.findByPk(file.voucherId);
+        // 他人の証憑のファイル削除は許さない（作成者か会計権限）
+        if ( voucher && ( !req.session.user.accounting && voucher.createdBy !== req.session.user.id ) ) {
+          res.json({ code: -10, message: 'permission denied' });
+          return;
+        }
+        // 承認済みの精算書に載っている証憑のファイルは削除できない（承認権限のみ可）
+        if ( voucher && ( !req.session.user.approvable && ( await voucherInApprovedData(file.voucherId) ) ) ) {
+          res.json({ code: -10, message: '承認済みの精算書に載っている証憑のため削除できません。' });
+          return;
+        }
         if ( voucher && await rejectIfVoucherLocked(voucher.issueDate, res) ) {
           return;
         }
