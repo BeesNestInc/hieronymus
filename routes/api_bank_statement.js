@@ -573,6 +573,10 @@ export default {
           model: models.BankStatement,
           as: 'statement',
           required: true,
+          // 計算書（kind: settlement）はこの一覧から除く
+          // （計算書は計算書仕訳パネルで処理するもので、行単位の
+          // 突合・起票の対象ではないため）
+          where: { kind: { [Op.ne]: 'settlement' } },
           include: [{
             model: models.Financial,
             as: 'financial',
@@ -606,6 +610,8 @@ export default {
             model: models.BankStatement,
             as: 'statement',
             required: true,
+            // 計算書は除く（上の未照合クエリと同じ理由）
+            where: { kind: { [Op.ne]: 'settlement' } },
             include: [{
               model: models.Financial,
               as: 'financial',

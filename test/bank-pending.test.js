@@ -41,6 +41,7 @@ describe('通帳の対応待ち一覧（test db）', () => {
   let slip;
   const myLines = [];
   const mySlipIds = [];
+  const mySettlementStatementIds = [];
   let slipCountBefore;
 
   before(async () => {
@@ -103,6 +104,20 @@ describe('通帳の対応待ち一覧（test db）', () => {
       rawDescription: '対応待ち対象外', description: '対応待ち対象外',
       amountOut: 3000, category: 'normal', status: 'ignored'
     }));
+    // 計算書（kind: settlement）の未照合行は一覧に出さない
+    // （計算書は計算書仕訳パネルで処理するもので、行単位の
+    // 突合・起票の対象ではないため）
+    const settlementStatement = await models.BankStatement.create({
+      kind: 'settlement', financialId: financial.id, account: '1000001',
+      lineCount: 1, periodFrom: '2026-11-01', periodTo: '2026-11-30',
+      createdBy: data.approver.id
+    });
+    mySettlementStatementIds.push(settlementStatement.id);
+    myLines.push(await models.BankStatementLine.create({
+      statementId: settlementStatement.id, lineNo: 1, date: '2026-11-09',
+      rawDescription: '計算書の未照合行', description: '計算書の未照合行',
+      amountOut: 9000, category: 'normal', status: 'unmatched'
+    }));
     const realSlip = await models.CrossSlip.create({
       year: 2026, month: 11, day: 8, no: ( slipCountBefore + 2 ),
       term: 1, lineCount: 1, createdBy: data.approver.id
@@ -134,6 +149,9 @@ describe('通帳の対応待ち一覧（test db）', () => {
       ml.slipCount = slipCountBefore;
       await ml.save();
     }
+    for ( const id of mySettlementStatementIds ) {
+      await models.BankStatement.destroy({ where: { id: id } });
+    }
     await models.BankStatement.destroy({ where: { id: statement.id } });
     await models.Financial.destroy({ where: { id: financial.id } });
     await models.sequelize.close();
@@ -149,6 +167,8 @@ describe('通帳の対応待ち一覧（test db）', () => {
     assert.notInclude(kinds, 'ignored');
     // 実科目の起票済み行は含まない
     assert.isFalse(mine.some((l) => ( l.description === '実科目起票済み' )));
+    // 計算書の行は含まない
+    assert.isFalse(r._json.values.some((l) => ( l.description === '計算書の未照合行' )));
     // 仮起票行に口座名が付いている
     const tentative = mine.find((l) => ( l.kind === 'tentative' ));
     assert.equal(tentative.financialName, '対応待ちテスト銀行');
