@@ -728,8 +728,11 @@
           {:else}
           摘要「{activePattern}」はこの取込内に <b>{patternMatches.length} 行</b>あります。これらの行を同じ仕分けにするなら、相手方を選んで登録してください（<b>次回起票から</b>すべてに効きます）。
           {/if}
+          <!-- 適用先の行が多いときにルール一覧が埋もれないよう、この表は
+               独立したスクロールにする（ヘッダはstickyで常時見せる） -->
+          <div class="overflow-auto" style="max-height:26vh;">
           <table class="table table-sm table-bordered mb-0 mt-1" style="font-size:0.75rem;">
-            <thead class="table-light">
+            <thead class="table-light" style="position:sticky;top:0;z-index:1;">
               <tr>
                 <th style="width:90px;">日付</th>
                 <th>摘要（元文）</th>
@@ -753,6 +756,7 @@
               {/if}
             </tbody>
           </table>
+          </div>
         </div>
         {/if}
         {#if ( ruleCandidates.length > 0 )}
@@ -774,6 +778,8 @@
                 on:click={registerAllCandidates}>すべて登録</button>
             </div>
           </div>
+          <!-- 候補が多いときもルール一覧が見えるよう、候補リストも独立スクロール -->
+          <div class="overflow-auto" style="max-height:26vh;">
           {#each ruleCandidates as candidate (candidate)}
           <div class="d-flex align-items-center mb-1" style="font-size:0.8rem;">
             <span style="width:40%;" title={candidate.aiReason || ''}>{candidate.pattern}{#if ( candidate.ai )}&nbsp;<span class="badge text-bg-info">AI</span>{/if}</span>
@@ -788,6 +794,7 @@
               on:click={() => { registerCandidate(candidate); }}>登録</button>
           </div>
           {/each}
+          </div>
         </div>
         {/if}
         {#if ( statement && ruleCandidates.length === 0 )}
