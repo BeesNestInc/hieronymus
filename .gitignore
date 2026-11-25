@@ -90,8 +90,8 @@ GEMINI.md
 config/banks/*.yaml
 config/banks/*.yml
 
-# ここから下は GitHub (公開) に載せないもの（ここから先は新規のみの追視）。
-# Docs/ は運用記録。すでに追跡済のものはそのまま（secret を書かない運用を守る）
+# ここから下は GitHub (公開) に載せないもの。
+# Docs/ は内部メモ（運用記録・日次ログ・リリースメモ等）。gitには載せない
 /Docs/
 /test-data/
 /testDB/
