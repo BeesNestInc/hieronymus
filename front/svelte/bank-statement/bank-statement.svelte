@@ -2591,7 +2591,9 @@ const applyRule = async (ruleId = null) => {
     });
   }
   loadDetail(id);
-  return bookIds.length + rebookIds.length;
+  // 使用したルールの備考を呼び出し元のトーストに渡す
+  // （createRule/saveRuleで表示。隠れたルール禁止）
+  return { count: bookIds.length + rebookIds.length, note: appliedRulesNote };
 };
 const createRule = async (apply = false) => {
   try {
@@ -2615,7 +2617,7 @@ const createRule = async (apply = false) => {
     }
     await reloadRules();
     toast.show('学習ルール', ( applied !== null ) ?
-      `ルールを登録し、一致する${applied}行に適用しました。${appliedRulesNote}` :
+      `ルールを登録し、一致する${applied.count}行に適用しました。${applied.note}` :
       'ルールを登録しました');
   } catch (e) {
     console.error('create rule failed', e);
@@ -2642,7 +2644,9 @@ const saveRule = async (rule, apply = false) => {
       closeRulesModal();
     }
     await reloadRules();
-    toast.show('学習ルール', ( applied !== null ) ? `ルールを更新し、一致する${applied}行に適用しました` : 'ルールを更新しました');
+    toast.show('学習ルール', ( applied !== null ) ?
+      `ルールを更新し、一致する${applied.count}行に適用しました。${applied.note}` :
+      'ルールを更新しました');
   } catch (e) {
     console.error('save rule failed', e);
     const message = ( e.response && e.response.data && e.response.data.message ) || '更新に失敗しました';
