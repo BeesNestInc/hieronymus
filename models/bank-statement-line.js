@@ -10,6 +10,7 @@ export default (sequelize, DataTypes) => {
 		static associate(models) {
 			this.belongsTo(models.BankStatement, {
 				foreignKey: 'statementId',
+				as: 'statement',
 				onDelete: 'CASCADE'
 			});
 			// 突合で対応が確定した仕訳明細行

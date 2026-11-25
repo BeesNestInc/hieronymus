@@ -549,6 +549,97 @@ export default {
     res.json({ code: 0, values: values });
   },
 
+  // ホームの「通帳の対応待ち」（承認待ち伝票カードの通帳版）。
+  // 対応の必要な行 = 未照合（突合・起票待ち）と仮起票（出金仮/入金仮の
+  // 伝票に載っていて、実科目の伝票が入るのを待つ行）。
+  // 使い終わった口座（closedAt）の行は出さない。会計権限のみ
+  pending: async (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if ( !canManage(req.session.user) ) {
+      res.json({ code: -10 });
+      return;
+    }
+    try {
+      // 未照合の行
+      const unmatched = await models.BankStatementLine.findAll({
+        where: {
+          status: 'unmatched'
+        },
+        order: [
+          [ 'date', 'DESC' ],
+          [ 'lineNo', 'ASC' ]
+        ],
+        include: [{
+          model: models.BankStatement,
+          as: 'statement',
+          required: true,
+          include: [{
+            model: models.Financial,
+            as: 'financial',
+            where: { closedAt: null },
+            required: true
+          }]
+        }]
+      });
+      // 仮起票の行（出金仮1900000/入金仮3900000の明細に載っている）
+      const tentative = await models.BankStatementLine.findAll({
+        where: {
+          status: 'booked'
+        },
+        order: [
+          [ 'date', 'DESC' ],
+          [ 'lineNo', 'ASC' ]
+        ],
+        include: [
+          {
+            model: models.CrossSlipDetail,
+            as: 'crossSlipDetail',
+            required: true,
+            where: {
+              [Op.or]: [
+                { debitAccount: '1900000' },
+                { creditAccount: '3900000' }
+              ]
+            },
+            attributes: [ 'id', 'debitAccount', 'creditAccount' ]
+          }, {
+            model: models.BankStatement,
+            as: 'statement',
+            required: true,
+            include: [{
+              model: models.Financial,
+              as: 'financial',
+              where: { closedAt: null },
+              required: true
+            }]
+          }
+        ]
+      });
+      const shape = (line, kind) => ({
+        lineId: line.id,
+        statementId: line.statementId,
+        financialName: ( line.statement && line.statement.financial ) ?
+          line.statement.financial.name : '',
+        date: line.date,
+        description: line.rawDescription || line.description,
+        amountIn: line.amountIn,
+        amountOut: line.amountOut,
+        kind: kind
+      });
+      res.json({
+        code: 0,
+        total: unmatched.length + tentative.length,
+        values: [
+          ...unmatched.map((l) => shape(l, 'unmatched')),
+          ...tentative.map((l) => shape(l, 'tentative'))
+        ]
+      });
+    } catch (e) {
+      console.error('pending lines failed', e);
+      res.json({ code: -1, values: [] });
+    }
+  },
+
   list: async (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     const user = req.session.user;

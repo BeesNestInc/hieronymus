@@ -49,6 +49,15 @@
   {/if}
 </div>
 <div class="row">
+  {#if ( status.user.accounting )}
+  <div class="col-7" style="padding:10px;">
+    <BankPending
+      bind:status={status}
+      bind:toast={toast} />
+  </div>
+  {/if}
+</div>
+<div class="row">
   <div class="col-6" style="padding:10px;">
     <Password
       bind:toast={toast}></Password>
@@ -67,6 +76,7 @@ import  SelectTerm from './term.svelte';
 import Password from './password.svelte';
 import Backup from './backup.svelte';
 import Approve from './approve.svelte';
+import BankPending from './bank-pending.svelte';
 import MessagePanel from '../components/message-panel.svelte';
 import axios from 'axios';
 import {link as routerLink} from '../../javascripts/router.js';

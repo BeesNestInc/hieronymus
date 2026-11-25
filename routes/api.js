@@ -176,6 +176,7 @@ router.delete('/financial/:id', financial.delete);
 router.get('/bank_statement', bank_statement.list);
 // :id より先に（'versions' が id として拾われないように）
 router.get('/bank_statement/versions', bank_statement.versions);
+router.get('/bank_statement/pending', bank_statement.pending);
 router.get('/bank_statement/:id', bank_statement.get);
 router.get('/bank_statement/file/:id', bank_statement.file);
 router.post('/bank_statement/preview', bank_statement.preview);

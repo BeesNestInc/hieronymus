@@ -88,6 +88,8 @@ const RULES = [
   // 明細取込。GET/upload/select は ANY だが、routes/api_bank_statement.js 側で
   // 銀行・カード明細は会計権限、個人カード明細は本人のみに絞り込む。
   // 突合・起票・行更新・削除は会計権限のみ
+  // ホームの「通帳の対応待ち」一覧（未照合と仮起票の行）。会計権限のみ
+  { match: /^\/bank_statement\/pending$/, methods: ['GET'], access: ['accounting'] },
   { match: /^\/bank_statement\/versions$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement(\/\d+)?$/, methods: ['GET'], access: ANY },
   { match: /^\/bank_statement\/file\/\d+$/, methods: ['GET'], access: ANY },
