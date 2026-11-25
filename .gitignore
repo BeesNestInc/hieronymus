@@ -107,3 +107,6 @@ config/banks/*.yml
 /*.png
 /config/*.json
 /config/config.yaml
+
+# prompt materialization（DBのアクティブ版を書き出すランタイムディレクトリ）
+runtime/
