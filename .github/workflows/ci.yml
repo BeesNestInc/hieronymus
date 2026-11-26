@@ -16,6 +16,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          # ai/manifest-engine（submodule。無いとappがimportに失敗して
+          # 起動直後に落ちる = CI失敗の原因）。URLはGitHubのhttpsなので
+          # GITHUB_TOKENで取れる
+          submodules: recursive
 
       - name: Copy .env file
         run: cp .env.example .env
@@ -23,11 +28,24 @@ jobs:
       - name: Build and Start Services
         run: docker compose -f docker/docker-compose.test.yml up -d --build
 
-      - name: Wait for services to start
-        run: sleep 10  # DB 起動待ち
-
-      - name: Check if Web Service is Running
-        run: curl -I http://localhost:3010 || exit 1
+      - name: Wait for Web Service to be ready
+        # 固定のsleepは初回起動（DB初期化+マイグレーション52本）に間に合わず
+        # 失敗していた（2026-11-25のCI失敗）。ポーリングで待つ。
+        # 失敗時はappのログを出して原因を判別できるようにする
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3010; then
+              echo "Web service is up (${i}s)"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -I http://localhost:3010; then
+            echo "=== hieronymus-app logs ==="
+            docker logs hieronymus-app 2>&1 | tail -80
+            docker compose -f docker/docker-compose.test.yml ps
+            exit 1
+          fi
 
       - name: Stop and Clean up
         run: docker compose -f docker/docker-compose.test.yml down
